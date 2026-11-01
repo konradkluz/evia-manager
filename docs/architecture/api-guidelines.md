@@ -132,6 +132,7 @@ Jednolity **`application/problem+json`** (RFC 9457) dla każdego błędu:
 | 409 | `completed_object_mismatch` | zakończona sesja uploadu ma obiekt o innym rozmiarze albo go brak (EVM-011, `media-pipeline.md`); operacja niczego nie usuwa; zwraca ją `complete` sesji uploadu (EVM-044) |
 | 409 | `idempotency_in_progress` | równoległe żądanie z tym samym kluczem idempotencji (z `Retry-After`) |
 | 409 | `has_active_dependents` | usunięcie obiektu, od którego zależą aktywne obiekty; zlecenie z żywą transzą `invoiced` (EVM-060) — odpowiedź nie podaje liczby, kwot ani identyfikatorów zależnych obiektów; klient z niezamkniętym zleceniem (EVM-041) — odpowiedź (tylko dla Administratora) ma `openWorkOrders`: samą liczbę niezamkniętych zleceń, bez numerów, tytułów i identyfikatorów |
+| 409 | `no_media_to_export` | zlecenie nie ma zdjęcia w stanie `ready` do eksportu ZIP (EVM-052) — odpowiedź nie zdradza liczby plików w kwarantannie |
 | 412 | `version_conflict` | `If-Match` nie zgadza się z bieżącą wersją (ADR-0004) |
 | 413 | `payload_too_large` | treść > 1 MB |
 | 415 | `unsupported_media_type` | `Content-Type` inny niż `application/json` |
@@ -142,6 +143,7 @@ Jednolity **`application/problem+json`** (RFC 9457) dla każdego błędu:
 | 426 | `client_version_unsupported` | wersja aplikacji poniżej minimalnej; odpowiedź niesie `minSupportedVersion` (`{ android, ios }`, EVM-090) |
 | 428 | `precondition_required` | brak `If-Match` przy zmianie obiektu współdzielonego |
 | 429 | `rate_limited` | przekroczony limit żądań (z `Retry-After`) |
+| 429 | `export_rate_limited`, `export_too_large` | eksport ZIP zdjęć zlecenia (EVM-052, P10): jeden na 10 min i pięć w kroczących 24 h na użytkownika (nieudane też się liczą; `Retry-After` obcięty do 3600 s) albo zdjęcia zlecenia powyżej 10 GiB (bez `Retry-After`) |
 | 500 | `internal_error` | błąd serwera (tylko `traceId`) |
 | 503 | `service_unavailable` | prace serwisowe (z `Retry-After`) |
 | 503 | `media_storage_unavailable` | magazyn plików lub skaner nieskonfigurowany albo niedostępny (fail-closed, usługa zdrowa; EVM-044) |

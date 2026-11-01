@@ -53,7 +53,7 @@ import {
   type StoredFileRow,
 } from '../infrastructure/media-store.ts';
 import { mediaTables } from '../infrastructure/tables.ts';
-import { publishMediaEvent, raiseQuarantineAlert } from './quarantine-alert.ts';
+import { mediaOwner, publishMediaEvent, raiseQuarantineAlert } from './quarantine-alert.ts';
 
 const BATCH = 3;
 export const VIDEO_WORKAREA_FULL_METRIC = 'media_video_workarea_full_total';
@@ -359,8 +359,8 @@ export class VideoProcessingService {
       );
       if (!moved || file.media_asset_id === null) return;
       // the clock of the retention is the FIRST entry (the coalesce of the store); the alert and the e-mails go out only for the first entry
-      if (file.quarantined_at === null) await raiseQuarantineAlert(this.#deps, tx, file.media_asset_id, at);
-      else await publishMediaEvent(this.#deps.events, tx, 'media_file.quarantined', file.media_asset_id);
+      if (file.quarantined_at === null) await raiseQuarantineAlert(this.#deps, tx, mediaOwner(file.media_asset_id), at);
+      else await publishMediaEvent(this.#deps.events, tx, 'media_file.quarantined', mediaOwner(file.media_asset_id));
       logger.info(
         { job: 'media.process.video', storedFileId: file.id, state: 'quarantined' },
         'media: a film is not what its type says and is held',

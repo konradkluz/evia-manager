@@ -5,6 +5,9 @@ import { ApiError } from '../api/client.ts';
 import { formatClock, formatDate } from './format.ts';
 import { categoryLabel, mediaAlt, mediaText } from './media-labels.ts';
 import { useVariantRequest, useVariantTicket } from './media-thumbnails.ts';
+import { eraseText } from './erase-labels.ts';
+import { failureText, type EraseFailure } from './file-erase.ts';
+import { MediaEditDialog } from './media-edit-dialog.tsx';
 import { UnscannedMark } from './media-unscanned.tsx';
 import { VideoPlayer } from './media-video-player.tsx';
 
@@ -31,7 +34,7 @@ export function downloadFailureText(error: unknown): string {
 }
 
 /** Starts the download by a navigation that stays on the page (the answer of the bucket is an attachment); the anchor sends no referrer. */
-function startDownload(url: string, inNewTab: boolean): void {
+export function startDownload(url: string, inNewTab: boolean): void {
   const anchor = document.createElement('a');
   anchor.href = url;
   anchor.rel = 'noreferrer noopener';
@@ -119,6 +122,15 @@ function previewFailureText(error: unknown): string {
   return mediaText.thumbnailUnavailable;
 }
 
+/** "Usuń" and "Usuń plik trwale…" of the lightbox (EVM-051; Administrator only - the server decides all the same). */
+export interface MediaEraser {
+  readonly remove: (asset: MediaAsset) => void;
+  readonly purge: (asset: MediaAsset) => void;
+  readonly failure: EraseFailure | null;
+  /** Editor: "Usuń" is shown disabled with a hint, "Usuń plik trwale…" is absent (EVM-051 AC6). */
+  readonly restricted?: boolean;
+}
+
 /** The lightbox over the photos of the gallery in the order of the tiles; `index` null = closed. */
 export function MediaViewer({
   workOrderId,
@@ -126,6 +138,8 @@ export function MediaViewer({
   index,
   online,
   canDownloadOriginal,
+  canEdit = false,
+  eraser,
   onIndex,
   onClose,
 }: {
@@ -134,6 +148,10 @@ export function MediaViewer({
   readonly index: number | null;
   readonly online: boolean;
   readonly canDownloadOriginal: boolean;
+  /** Administrator and Editor (convenience only; the server answers `403` to the others). */
+  readonly canEdit?: boolean;
+  /** Administrator: delete and erase the file (EVM-051). */
+  readonly eraser?: MediaEraser;
   readonly onIndex: (index: number) => void;
   readonly onClose: () => void;
 }) {
@@ -141,6 +159,7 @@ export function MediaViewer({
   const asset = index === null ? undefined : assets[index];
   const [state, setState] = useState<{ readonly id: string; readonly view: View }>({ id: '', view: LOADING });
   const [asking, setAsking] = useState(false);
+  const [editing, setEditing] = useState(false);
   const loadedFor = useRef<string | null>(null);
   const assetId = asset?.id ?? null;
 
@@ -268,7 +287,59 @@ export function MediaViewer({
                   <p className="text-body-sm text-text-secondary">{mediaText.videoPreviewOnly}</p>
                 </>
               ) : null}
+              {asset.procedureStageName === null ? null : (
+                <p className="text-body-sm text-text-secondary">{mediaText.stageLine(asset.procedureStageName)}</p>
+              )}
               {asset.description === null ? null : <p className="text-body-sm">{mediaText.descriptionLine(asset.description)}</p>}
+              {canEdit ? (
+                <div className="flex flex-wrap items-center gap-inline-md">
+                  <Button
+                    variant="secondary"
+                    disabled={!online}
+                    onClick={() => {
+                      setEditing(true);
+                    }}
+                  >
+                    {mediaText.editDescription}
+                  </Button>
+                  {online ? null : <span className="text-body-sm text-text-secondary">{mediaText.editOffline}</span>}
+                </div>
+              ) : null}
+              {eraser?.restricted === true ? (
+                <div className="flex flex-wrap items-center gap-inline-md">
+                  <Button variant="secondary" disabled aria-describedby="media-erase-restricted-hint">
+                    {eraseText.remove}
+                  </Button>
+                  <span id="media-erase-restricted-hint" className="text-body-sm text-text-secondary">
+                    {eraseText.administratorOnly}
+                  </span>
+                </div>
+              ) : eraser === undefined ? null : (
+                <div className="flex flex-col gap-stack-xs">
+                  <div className="flex flex-wrap items-center gap-inline-md">
+                    <Button
+                      variant="secondary"
+                      disabled={!online}
+                      onClick={() => {
+                        eraser.remove(asset);
+                      }}
+                    >
+                      {eraseText.remove}
+                    </Button>
+                    <Button
+                      variant="danger"
+                      disabled={!online}
+                      onClick={() => {
+                        eraser.purge(asset);
+                      }}
+                    >
+                      {eraseText.purge}
+                    </Button>
+                    {online ? null : <span className="text-body-sm text-text-secondary">{eraseText.offline}</span>}
+                  </div>
+                  {eraser.failure === null ? null : <InlineAlert tone="error">{failureText(eraser.failure)}</InlineAlert>}
+                </div>
+              )}
               {canDownloadOriginal ? (
                 <div className="flex flex-wrap items-center gap-inline-md">
                   <Button
@@ -289,6 +360,15 @@ export function MediaViewer({
       >
         {picture()}
       </Lightbox>
+      {editing && asset !== undefined ? (
+        <MediaEditDialog
+          workOrderId={workOrderId}
+          asset={asset}
+          onClose={() => {
+            setEditing(false);
+          }}
+        />
+      ) : null}
       <OriginalDialog
         workOrderId={workOrderId}
         asset={asking && asset !== undefined ? asset : null}

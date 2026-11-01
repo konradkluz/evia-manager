@@ -61,6 +61,7 @@ export {
   CloudUpload,
   EllipsisVertical,
   EyeOff,
+  FileText,
   Hourglass,
   ImageIcon,
   Images,

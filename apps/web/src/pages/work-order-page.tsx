@@ -7,16 +7,19 @@ import { WORK_ORDERS_PATH } from '../paths.ts';
 import { useOnline } from '../shell/use-online.ts';
 import { usePageTitle } from '../shell/use-page-title.ts';
 import { MobileQuickBanner } from '../work-orders/mobile-quick-banner.tsx';
+import { AnchoredDocumentsSection } from '../work-orders/anchored-documents-section.tsx';
+import { DocumentsSection } from '../work-orders/documents-section.tsx';
 import { MediaSection } from '../work-orders/media-section.tsx';
 import { MediaUnfinishedBanner } from '../work-orders/media-unfinished-banner.tsx';
 import { MediaUploadDialog } from '../work-orders/media-upload-dialog.tsx';
 import { mediaText } from '../work-orders/media-labels.ts';
+import { useDocumentUpload } from '../work-orders/use-documents.ts';
 import { useMediaUpload } from '../work-orders/use-media.ts';
 import { JournalSection } from '../work-orders/journal-section.tsx';
 import { ClosedBanner } from '../work-orders/closed-banner.tsx';
 import { CustomerCard } from '../work-orders/customer-card.tsx';
 import { formatClock } from '../work-orders/format.ts';
-import { WORK_ORDER_KEYS } from '../work-orders/query-keys.ts';
+import { WORK_ORDER_DOCUMENTS_KEY, WORK_ORDER_KEYS } from '../work-orders/query-keys.ts';
 import { OrderSummary } from '../work-orders/order-summary.tsx';
 import { canReadPayments } from '../payments/payment-access.ts';
 import { useSession } from '../session/session.ts';
@@ -74,6 +77,7 @@ export function WorkOrderPage() {
   const readsPayments = canReadPayments(role);
   // The upload of photos (EVM-044) lives with the page, so it goes on while another tab is shown; only Administrator and Editor upload.
   const media = useMediaUpload(id, active && (role === 'administrator' || role === 'editor'));
+  const documents = useDocumentUpload(id);
 
   // The order is gone when the header or the scope says so (a card may be 404 for a customer that was deleted — the order lives).
   const notFound = gone || isNotFound(header.error) || isNotFound(scope.error);
@@ -163,7 +167,7 @@ export function WorkOrderPage() {
           media.openDialog();
         }}
       />
-      <MediaUploadDialog media={media} />
+      <MediaUploadDialog media={media} workOrderId={id} />
       <div className="grid grid-cols-1 gap-stack-lg expanded:grid-cols-3">
         <div className="expanded:col-span-2">
           <Tabs
@@ -179,7 +183,26 @@ export function WorkOrderPage() {
             {tab === JOURNAL_TAB ? (
               <JournalSection order={order} procedures={procedures} />
             ) : tab === MEDIA_TAB ? (
-              <MediaSection order={order} media={media} />
+              <div className="flex flex-col gap-stack-lg">
+                <MediaSection order={order} media={media} />
+                <DocumentsSection order={order} upload={documents} />
+                {order.site === null ? null : (
+                  <AnchoredDocumentsSection
+                    owner={{ anchor: 'site', id: order.site.id }}
+                    queryKey={[WORK_ORDER_DOCUMENTS_KEY, id, 'site', order.site.id]}
+                    enabled
+                    sending={documents.items.some((item) => item.status !== 'done' && item.status !== 'failed')}
+                  />
+                )}
+                {order.customer === null ? null : (
+                  <AnchoredDocumentsSection
+                    owner={{ anchor: 'customer', id: order.customer.id }}
+                    queryKey={[WORK_ORDER_DOCUMENTS_KEY, id, 'customer', order.customer.id]}
+                    enabled
+                    sending={documents.items.some((item) => item.status !== 'done' && item.status !== 'failed')}
+                  />
+                )}
+              </div>
             ) : (
               <div className="flex flex-col gap-stack-lg">
                 <ProceduresSection order={order} query={procedures} />

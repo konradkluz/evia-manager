@@ -29,7 +29,10 @@ import {
   MediaProcessingService,
   VideoProcessingService,
   MediaScanService,
+  MediaExportBuilder,
   QuarantineRetentionJob,
+  ErasureCompletionJob,
+  StorageReconciliationJob,
   SignatureMonitorJob,
 } from '../modules/media/index.ts';
 import { VerifyProjectionJob } from '../modules/overview/index.ts';
@@ -73,6 +76,8 @@ export interface WorkerWiring {
   readonly mediaProcessIntervalMs?: number;
   /** The interval of the loop of films (EVM-046); the default is 10 s. */
   readonly mediaVideoIntervalMs?: number;
+  /** The interval of the loop of the ZIP exports (EVM-052); shortened by the tests only (the default is 5 seconds). */
+  readonly mediaExportIntervalMs?: number;
 }
 
 /** @returns the exit code of the process */
@@ -98,6 +103,9 @@ export async function runWorkerFromProcess(
       app.get(QuarantineRetentionJob, { strict: false }).definition(),
       app.get(AbandonedUploadsJob, { strict: false }).definition(),
       app.get(SignatureMonitorJob, { strict: false }).definition(),
+      // EVM-051: the completion of the erasure of files and the nightly reconciliation of the storage with the database
+      app.get(ErasureCompletionJob, { strict: false }).definition(),
+      app.get(StorageReconciliationJob, { strict: false }).definition(),
     ];
     const db = app.get<Kysely<Database>>(DATABASE, { strict: false });
     const clock = app.get<Clock>(CLOCK, { strict: false });
@@ -139,6 +147,11 @@ export async function runWorkerFromProcess(
         'worker: the making of previews of films is off (storage or work area of films not configured); scanned films wait in the state clean',
       );
     }
+
+    // EVM-052: the ZIP exports need both buckets (the originals to read, the bucket of the exports to write); without the second one the export answers 503
+    const mediaExport = app.get(MediaExportBuilder, { strict: false });
+    if (mediaExport.enabled) tasks.push({ start: () => mediaExport.start(wiring.mediaExportIntervalMs) });
+    else logger.warn({ job: 'media.export' }, 'worker: the ZIP export is off (the bucket of the exports is not configured)');
 
     if (config.email.transport === 'smtp') {
       const sender = wiring.createEmailSender?.(config.email) ?? new SmtpEmailSender(config.email);

@@ -45,6 +45,17 @@
           "type": "string"
         }
       },
+      "DocumentIdParameter": {
+        "description": "Identyfikator dokumentu (UUIDv7).",
+        "in": "path",
+        "name": "documentId",
+        "required": true,
+        "schema": {
+          "format": "uuid",
+          "maxLength": 36,
+          "type": "string"
+        }
+      },
       "IdempotencyKeyHeader": {
         "description": "Klucz idempotencji (UUIDv7) generowany raz na akcję użytkownika.",
         "in": "header",
@@ -80,10 +91,32 @@
           "type": "string"
         }
       },
+      "IfMatchHeader-2": {
+        "description": "Silny ETag wersji zasobu - dokumentu albo medium (`\"<version>\"`, z pola `version` albo `ETag`).",
+        "in": "header",
+        "name": "If-Match",
+        "required": true,
+        "schema": {
+          "maxLength": 12,
+          "pattern": "^\"[1-9][0-9]{0,9}\"$",
+          "type": "string"
+        }
+      },
       "MediaAssetIdParameter": {
         "description": "Identyfikator medium (UUIDv7).",
         "in": "path",
         "name": "mediaAssetId",
+        "required": true,
+        "schema": {
+          "format": "uuid",
+          "maxLength": 36,
+          "type": "string"
+        }
+      },
+      "MediaExportIdParameter": {
+        "description": "Identyfikator eksportu (UUIDv7).",
+        "in": "path",
+        "name": "exportId",
         "required": true,
         "schema": {
           "format": "uuid",
@@ -600,6 +633,77 @@
             }
           }
         }
+      },
+      "MediaErasureConflict": {
+        "content": {
+          "application/problem+json": {
+            "example": {
+              "code": "file_processing",
+              "status": 409,
+              "title": "The file is still being processed",
+              "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+              "type": "/problems/file_processing"
+            },
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "Konflikt usunięcia pliku (EVM-051): plik jest jeszcze przetwarzany (`file_processing`, z `Retry-After` — operacja nic nie zmieniła, można ponowić po zakończeniu zadania), plik został już trwale usunięty (`file_erased` — przywrócenie, nowa wersja pliku i ponowny skan są niemożliwe) albo element nie jest usunięty (`invalid_state_transition` przy przywracaniu). Odpowiedź nie zawiera danych elementu.",
+        "headers": {
+          "Retry-After": {
+            "description": "Liczba sekund do ponowienia (tylko `file_processing`).",
+            "schema": {
+              "maximum": 3600,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "MediaErasureUnavailable": {
+        "content": {
+          "application/problem+json": {
+            "example": {
+              "code": "deletion_register_unavailable",
+              "status": 503,
+              "title": "The deletion register is unavailable",
+              "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+              "type": "/problems/deletion_register_unavailable"
+            },
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "Trwałe usunięcie nie wystartowało albo nie zostało domknięte (EVM-051 AC3; SR-PRIV-04): rejestr usunięć nie przyjął zapisu (`deletion_register_unavailable` — plik, rekord i opis bez zmian) albo magazyn plików nie odpowiada (`media_storage_unavailable` — operację można bezpiecznie ponowić, jest idempotentna). Odpowiedź nie zawiera szczegółów infrastruktury.",
+        "headers": {
+          "Retry-After": {
+            "description": "Liczba sekund do ponowienia (tylko `media_storage_unavailable`).",
+            "schema": {
+              "maximum": 3600,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "MediaExportConflict": {
+        "content": {
+          "application/problem+json": {
+            "example": {
+              "code": "no_media_to_export",
+              "status": 409,
+              "title": "There are no photos to export",
+              "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+              "type": "/problems/no_media_to_export"
+            },
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "Brak zdjęć do eksportu (`no_media_to_export`): zlecenie nie ma żadnego zdjęcia w stanie `ready`. Odpowiedź nie zdradza liczby plików w kwarantannie."
       },
       "MediaStorageUnavailable": {
         "content": {
@@ -2348,7 +2452,25 @@
           "media_file.original_downloaded",
           "media_file.original_download_denied",
           "media_file.download_alerted",
-          "media_file.download_rejected"
+          "media_file.download_rejected",
+          "document.created",
+          "document.confidentiality_raised",
+          "document_file.downloaded",
+          "document_file.download_denied",
+          "media_asset.metadata_updated",
+          "document.metadata_updated",
+          "media_asset.deleted",
+          "media_asset.restored",
+          "media_asset.file_purged",
+          "document.deleted",
+          "document.restored",
+          "document.file_purged",
+          "media_export.requested",
+          "media_export.ready",
+          "media_export.failed",
+          "media_export.downloaded",
+          "media_export.expired",
+          "media_export.rate_limited"
         ],
         "type": "string"
       },
@@ -2418,7 +2540,7 @@
             ]
           },
           "fromCode": {
-            "description": "Kod statusu obiektu przed zmianą (EVM-054: przejścia transzy — `payment_milestone.invoiced`, `.paid`, `.cancelled`; EVM-057: korekty — `.invoice_withdrawn`, `.invoice_cancelled`, `.payment_undone`, `.restored`; EVM-049: `media_file.rescanned` — `quarantined`; EVM-027: `user.role_changed` — kod roli przed zmianą); `null` (albo brak pola), gdy zdarzenie nie zmienia statusu (także `.amount_corrected` i `.deleted`). Zawsze razem z `toCode`.",
+            "description": "Kod statusu obiektu przed zmianą (EVM-054: przejścia transzy — `payment_milestone.invoiced`, `.paid`, `.cancelled`; EVM-057: korekty — `.invoice_withdrawn`, `.invoice_cancelled`, `.payment_undone`, `.restored`; EVM-049: `media_file.rescanned` — `quarantined`; EVM-027: `user.role_changed` — kod roli przed zmianą; EVM-047: `document.confidentiality_raised` — klasa poufności przed podniesieniem, a przy `document.created`, `document_file.downloaded` i `document_file.download_denied` — klasa dokumentu, powtórzona w obu polach); `null` (albo brak pola), gdy zdarzenie nie zmienia statusu (także `.amount_corrected` i `.deleted`). Zawsze razem z `toCode`.",
             "oneOf": [
               {
                 "maxLength": 40,
@@ -2482,7 +2604,7 @@
             ]
           },
           "toCode": {
-            "description": "Kod statusu obiektu po zmianie (EVM-054; `user.role_changed` — kod roli po zmianie, EVM-027; `media_file.rescanned` — wynik ponownego skanu, `clean`, `quarantined` albo `failed`, EVM-049); `null` (albo brak pola) razem z `fromCode`.",
+            "description": "Kod statusu obiektu po zmianie (EVM-054; `user.role_changed` — kod roli po zmianie, EVM-027; `media_file.rescanned` — wynik ponownego skanu, `clean`, `quarantined` albo `failed`, EVM-049; EVM-047 — klasa poufności dokumentu po podniesieniu albo klasa dokumentu — `standard`, `building_security`, `identity_data`); `null` (albo brak pola) razem z `fromCode`.",
             "oneOf": [
               {
                 "maxLength": 40,
@@ -2553,7 +2675,9 @@
           "procedure_stage",
           "timeline_entry",
           "payment_milestone",
-          "media_asset"
+          "media_asset",
+          "document",
+          "media_export"
         ],
         "type": "string"
       },
@@ -2920,6 +3044,62 @@
           "workOrderId",
           "body",
           "capturedAt"
+        ],
+        "type": "object"
+      },
+      "CreateDocumentRequest": {
+        "additionalProperties": false,
+        "description": "Nowy dokument (wersja 1) z kotwicą zlecenia (domyślnie), lokalizacji albo klienta zlecenia z URL (EVM-050): serwer bierze `siteId` i `customerId` ze zlecenia, klient ich nie podaje (`read_only_field`). `anchor=customer` przy zleceniu bez klienta - `400` (`/anchor`, `no_customer`); `anchor=site` z klasą efektywną `identity_data` (rodzaj albo `containsIdentityData`/`confidentialityOverride`) - `400` (`/anchor`, `identity_data_not_on_site`); `procedureStageId` przy kotwicy innej niż zlecenie - `400` (`/procedureStageId`, `requires_work_order_anchor`). `id` (UUIDv7) nadaje klient. Rodzaj `other` wymaga `containsIdentityData` (brak - `400 validation_failed`, `/containsIdentityData`, `required`); `true` zapisuje klasę `identity_data` jako podniesienie. `containsIdentityData` przy innym rodzaju - `400` (`not_applicable`). `confidentialityOverride` musi być ściśle wyższe od klasy rodzaju (`not_higher`). Rodzaj nieistniejący albo nieaktywny - `400` (`/kindCode`, `unknown_kind`). Pola serwera (`versionNumber`, `fileState`, `confidentiality`, `workOrderId`, `kindName`, `canDownload`, `createdAt`, `version`) - `400 read_only_field`; nieznane - `400 unknown_field`. Tytuł 1 … 200 znaków, opis do 2000, bez znaków sterujących.",
+        "properties": {
+          "anchor": {
+            "$ref": "#/components/schemas/DocumentAnchor"
+          },
+          "confidentialityOverride": {
+            "$ref": "#/components/schemas/DocumentConfidentialityOverride"
+          },
+          "containsIdentityData": {
+            "description": "„Czy dokument zawiera PESEL lub numer dokumentu tożsamości?” - wymagane dla rodzaju `other`, niedozwolone dla innych rodzajów.",
+            "type": "boolean"
+          },
+          "description": {
+            "description": "Opis (do 2000 znaków, zwykły tekst); pominięty = brak.",
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "file": {
+            "$ref": "#/components/schemas/DocumentFile"
+          },
+          "id": {
+            "format": "uuid",
+            "maxLength": 36,
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "kindCode": {
+            "description": "Kod rodzaju dokumentu z katalogu (np. `connection_conditions`).",
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9_]{1,63}$",
+            "type": "string"
+          },
+          "procedureStageId": {
+            "description": "Etap zlecenia z URL (EVM-048 AC1; opcjonalny). Etap innego zlecenia, usunięty albo nieistniejący to jedna odpowiedź `400 validation_failed` (`/procedureStageId`).",
+            "format": "uuid",
+            "maxLength": 36,
+            "type": "string"
+          },
+          "title": {
+            "description": "Tytuł (zwykły tekst).",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kindCode",
+          "title",
+          "file"
         ],
         "type": "object"
       },
@@ -3319,6 +3499,28 @@
           "customerId",
           "siteId",
           "templateId"
+        ],
+        "type": "object"
+      },
+      "CreatedMediaExport": {
+        "additionalProperties": false,
+        "description": "Zlecony eksport (zadanie w tle).",
+        "properties": {
+          "exportId": {
+            "format": "uuid",
+            "maxLength": 36,
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "queued"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "exportId",
+          "state"
         ],
         "type": "object"
       },
@@ -3997,6 +4199,286 @@
         "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
         "type": "string"
       },
+      "Document": {
+        "additionalProperties": false,
+        "description": "Dokument (zlecenia, lokalizacji albo klienta - `anchor`) z jego plikiem (wersja 1). Dokładnie jedno z `workOrderId`, `siteId`, `customerId` jest ustawione; etap (`procedureStageId`) tylko przy kotwicy zlecenia. `confidentiality` to klasa EFEKTYWNA; `confidentialityRaised` mówi, że dokument podniesiono ponad klasę rodzaju. `canDownload` jest `true`, gdy rola wołającego może pobrać plik tej klasy (Administrator i Edytor - każda klasa, Tylko odczyt - tylko `standard`); NIE mówi, że plik jest już po skanie (`fileState`). `stateReasonCode` jest ustawiony wyłącznie dla `failed` z przyczyną `checksum_mismatch`. `version` to wersja zasobu do `If-Match` (`ETag` `\"<version>\"`), `versionNumber` - numer wersji dokumentu (1). Odpowiedź nigdy nie zawiera klucza obiektu, identyfikatora uploadu S3 ani skrótu.",
+        "properties": {
+          "anchor": {
+            "$ref": "#/components/schemas/DocumentAnchor"
+          },
+          "canDownload": {
+            "type": "boolean"
+          },
+          "confidentiality": {
+            "$ref": "#/components/schemas/DocumentConfidentiality"
+          },
+          "confidentialityRaised": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "maxLength": 40,
+            "type": "string"
+          },
+          "customerId": {
+            "description": "Klient kotwicy albo `null`.",
+            "oneOf": [
+              {
+                "format": "uuid",
+                "maxLength": 36,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "readOnly": true
+          },
+          "declaredSize": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "description": {
+            "oneOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fileErasedAt": {
+            "description": "Czas trwałego usunięcia plików dokumentu przez administratora (EVM-051; UTC) albo `null`. Gdy ustawiony: wszystkie wersje pliku są usunięte ze storage'u, tytuł jest zastąpiony znacznikiem „Plik usunięty przez administratora DD.MM.RRRR.”, opis jest usunięty, `canDownload` jest `false`, a rekord zostaje. Pole jest zawsze obecne w odpowiedzi serwera.",
+            "oneOf": [
+              {
+                "format": "date-time",
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fileState": {
+            "$ref": "#/components/schemas/MediaFileState"
+          },
+          "id": {
+            "format": "uuid",
+            "maxLength": 36,
+            "type": "string"
+          },
+          "kindCode": {
+            "maxLength": 64,
+            "type": "string"
+          },
+          "kindName": {
+            "description": "Nazwa rodzaju z katalogu (tekst).",
+            "maxLength": 200,
+            "type": "string"
+          },
+          "originalFilename": {
+            "description": "Oczyszczona nazwa pliku (tekst; dane osobowe możliwe).",
+            "oneOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "procedureStageId": {
+            "description": "Etap zlecenia, do którego przypisano dokument (EVM-048), albo `null` („Bez etapu”).",
+            "oneOf": [
+              {
+                "format": "uuid",
+                "maxLength": 36,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "procedureStageName": {
+            "description": "Nazwa przypisanego etapu (tekst; zostaje także po usunięciu etapu) albo `null`.",
+            "oneOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "siteId": {
+            "description": "Lokalizacja kotwicy albo `null`.",
+            "oneOf": [
+              {
+                "format": "uuid",
+                "maxLength": 36,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "readOnly": true
+          },
+          "stateReasonCode": {
+            "description": "Tylko `checksum_mismatch` (stan `failed`); w każdym innym przypadku `null`.",
+            "oneOf": [
+              {
+                "enum": [
+                  "checksum_mismatch"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": {
+            "maxLength": 200,
+            "type": "string"
+          },
+          "version": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "versionNumber": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "workOrderId": {
+            "description": "Zlecenie kotwicy albo `null` (dokument lokalizacji albo klienta).",
+            "oneOf": [
+              {
+                "format": "uuid",
+                "maxLength": 36,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "readOnly": true
+          }
+        },
+        "required": [
+          "id",
+          "anchor",
+          "workOrderId",
+          "siteId",
+          "customerId",
+          "kindCode",
+          "kindName",
+          "title",
+          "description",
+          "procedureStageId",
+          "procedureStageName",
+          "versionNumber",
+          "confidentiality",
+          "confidentialityRaised",
+          "fileState",
+          "stateReasonCode",
+          "declaredSize",
+          "originalFilename",
+          "canDownload",
+          "createdAt",
+          "version"
+        ],
+        "type": "object"
+      },
+      "DocumentAnchor": {
+        "description": "Kotwica dokumentu (EVM-050; dokładnie jedna): `work_order` - dokument tylko tego zlecenia, `site` - dokument lokalizacji zlecenia (widoczny w zleceniach WSZYSTKICH klientów tej lokalizacji, dlatego nigdy klasy `identity_data`), `customer` - dokument klienta zlecenia (widoczny w jego zleceniach i w szczegółach klienta).",
+        "enum": [
+          "work_order",
+          "site",
+          "customer"
+        ],
+        "type": "string"
+      },
+      "DocumentConfidentiality": {
+        "description": "Klasa poufności dokumentu (zamknięta lista; klient toleruje wartość nieznaną jako najbardziej ograniczoną): `standard` (Standardowy), `building_security` (Bezpieczeństwo budynku), `identity_data` (Dane identyfikacyjne). Porządek: `standard` < `building_security` < `identity_data`. Klasa efektywna to wyższa z klasy rodzaju (katalog) i podniesienia dokumentu; liczy ją serwer.",
+        "enum": [
+          "standard",
+          "building_security",
+          "identity_data"
+        ],
+        "type": "string"
+      },
+      "DocumentConfidentialityOverride": {
+        "description": "Klasa, do której można podnieść dokument (`standard` nie jest podniesieniem). Musi być ściśle wyższa od klasy efektywnej.",
+        "enum": [
+          "building_security",
+          "identity_data"
+        ],
+        "type": "string"
+      },
+      "DocumentDownloadUrl": {
+        "additionalProperties": false,
+        "description": "Podpisany `GET` pliku dokumentu z domeny bucketu, ważny najwyżej 5 minut: typ wykryty przez serwer i `Content-Disposition: attachment; filename*=UTF-8''…` (nazwa oczyszczona). Adres jest sekretem krótkotrwałym - panel trzyma go tylko w pamięci i nie zapisuje w logach.",
+        "properties": {
+          "expiresAt": {
+            "format": "date-time",
+            "maxLength": 40,
+            "type": "string"
+          },
+          "url": {
+            "format": "uri",
+            "maxLength": 4096,
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "expiresAt"
+        ],
+        "type": "object"
+      },
+      "DocumentFile": {
+        "additionalProperties": false,
+        "description": "Plik wersji 1 dokumentu. Nazwa pliku jest tekstem (dane osobowe możliwe) - panel wyświetla ją jako tekst. Serwer sprawdza typ (PDF, DOCX, XLSX, JPEG, PNG), rozszerzenie i rozmiar (1 B … 100 MB): inny typ, SVG, HTML, archiwum, `.docm`, `.xlsm` albo rozmiar spoza zakresu to `400 validation_failed` (`/file/contentType`, `/file/fileName`, `/file/declaredSize`).",
+        "properties": {
+          "contentType": {
+            "description": "Zadeklarowany typ (informacja; serwer wykrywa typ z zawartości po skanie).",
+            "maxLength": 100,
+            "type": "string"
+          },
+          "declaredSize": {
+            "description": "Rozmiar pliku w bajtach (1 … 104 857 600).",
+            "maximum": 104857600,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "fileName": {
+            "description": "Nazwa pliku z urządzenia - serwer zapisuje oczyszczoną (nigdy w kluczu, logach ani audycie).",
+            "maxLength": 1000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "sha256": {
+            "description": "SHA-256 pliku (małe litery szesnastkowo), liczony w przeglądarce; niezgodny z zawartością to `checksum_mismatch`.",
+            "maxLength": 64,
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileName",
+          "contentType",
+          "declaredSize",
+          "sha256"
+        ],
+        "type": "object"
+      },
       "DocumentKind": {
         "properties": {
           "code": {
@@ -4033,6 +4515,89 @@
         "required": [
           "items",
           "nextCursor"
+        ],
+        "type": "object"
+      },
+      "DocumentList": {
+        "additionalProperties": false,
+        "description": "Strona dokumentów zlecenia (`createdAt` malejąco, potem `id`). `totalCount` to liczba dokumentów zlecenia („Dokumenty zlecenia (n)”), niezależna od strony. `nextCursor` jest `null` na ostatniej stronie.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Document"
+            },
+            "maxItems": 100,
+            "type": "array"
+          },
+          "nextCursor": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "pattern": "^[A-Za-z0-9_-]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "totalCount": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor",
+          "totalCount"
+        ],
+        "type": "object"
+      },
+      "DocumentUploadSession": {
+        "additionalProperties": false,
+        "description": "Sesja uploadu pliku dokumentu (jak `UploadSession` medium, z identyfikatorem dokumentu).",
+        "properties": {
+          "documentId": {
+            "format": "uuid",
+            "maxLength": 36,
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "maxLength": 40,
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "maxLength": 36,
+            "type": "string"
+          },
+          "partCount": {
+            "maximum": 1000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "partSize": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "active",
+              "completed",
+              "aborted",
+              "expired"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "documentId",
+          "state",
+          "partSize",
+          "partCount",
+          "expiresAt"
         ],
         "type": "object"
       },
@@ -4330,6 +4895,19 @@
               }
             ]
           },
+          "fileErasedAt": {
+            "description": "Czas trwałego usunięcia pliku przez administratora (EVM-051; UTC) albo `null`. Gdy ustawiony: oryginał i pochodne są usunięte ze storage'u, opis jest usunięty, a rekord zostaje — panel pokazuje „Plik usunięty przez administratora DD.MM.RRRR.” (data w strefie Europe/Warsaw), bez autora i bez akcji na pliku. Pole jest zawsze obecne w odpowiedzi serwera.",
+            "oneOf": [
+              {
+                "format": "date-time",
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "fileState": {
             "$ref": "#/components/schemas/MediaFileState"
           },
@@ -4361,6 +4939,31 @@
             "oneOf": [
               {
                 "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "procedureStageId": {
+            "description": "Etap zlecenia, do którego przypisano medium (EVM-048), albo `null` („Bez etapu”).",
+            "oneOf": [
+              {
+                "format": "uuid",
+                "maxLength": 36,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "procedureStageName": {
+            "description": "Nazwa przypisanego etapu (tekst) albo `null`. Nazwa etapu usuniętego po przypisaniu zostaje (jak w dzienniku zlecenia) — panel pokazuje ją jako tekst, bez akcji na etapie.",
+            "oneOf": [
+              {
+                "maxLength": 200,
                 "type": "string"
               },
               {
@@ -4416,6 +5019,11 @@
               }
             ]
           },
+          "version": {
+            "description": "Wersja zasobu do `If-Match` (`ETag` `\"<version>\"`); rośnie o 1 przy każdej zmianie metadanych (kategoria, opis, etap).",
+            "minimum": 1,
+            "type": "integer"
+          },
           "workOrderId": {
             "format": "uuid",
             "maxLength": 36,
@@ -4428,6 +5036,9 @@
           "mediaType",
           "category",
           "description",
+          "procedureStageId",
+          "procedureStageName",
+          "version",
           "origin",
           "capturedAt",
           "createdAt",
@@ -4493,6 +5104,12 @@
             "format": "uuid",
             "maxLength": 36,
             "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "procedureStageId": {
+            "description": "Etap zlecenia z URL (EVM-048 AC1; opcjonalny). Etap innego zlecenia, usunięty albo nieistniejący to jedna odpowiedź `400 validation_failed` (`/items/N/procedureStageId`); cała partia jest wtedy odrzucona.",
+            "format": "uuid",
+            "maxLength": 36,
             "type": "string"
           },
           "sha256": {
@@ -4589,6 +5206,102 @@
           "thumbnail",
           "preview",
           "original"
+        ],
+        "type": "string"
+      },
+      "MediaExport": {
+        "additionalProperties": false,
+        "description": "Eksport ZIP zdjęć zlecenia. Widzi go wyłącznie zlecający (SR-AUTHZ-06). Nie zawiera klucza obiektu, adresu pliku, nazw plików ani danych klienta.",
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "maxLength": 40,
+            "type": "string"
+          },
+          "expiresAt": {
+            "description": "Koniec życia eksportu (24 godziny od zlecenia) - potem plik jest usuwany, a eksport zwraca `404`.",
+            "format": "date-time",
+            "maxLength": 40,
+            "type": "string"
+          },
+          "failureCode": {
+            "$ref": "#/components/schemas/MediaExportFailureCode"
+          },
+          "fileCount": {
+            "description": "Liczba zdjęć w pliku (od momentu `ready`).",
+            "maximum": 100000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "maxLength": 36,
+            "type": "string"
+          },
+          "readyAt": {
+            "format": "date-time",
+            "maxLength": 40,
+            "type": "string"
+          },
+          "sizeBytes": {
+            "description": "Rozmiar pliku ZIP w bajtach (od momentu `ready`).",
+            "maximum": 12000000000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "state": {
+            "$ref": "#/components/schemas/MediaExportState"
+          },
+          "workOrderId": {
+            "format": "uuid",
+            "maxLength": 36,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "workOrderId",
+          "state",
+          "createdAt",
+          "expiresAt"
+        ],
+        "type": "object"
+      },
+      "MediaExportFailureCode": {
+        "description": "Zamknięty kod przyczyny niepowodzenia (bez komunikatu magazynu, bez stosu): `storage_unavailable` (magazyn nie odpowiedział), `too_large` (zbiór przekroczył limit w chwili budowy), `no_media` (w chwili budowy nie było już żadnego zdjęcia do eksportu), `processing_error`.",
+        "enum": [
+          "storage_unavailable",
+          "too_large",
+          "no_media",
+          "processing_error"
+        ],
+        "type": "string"
+      },
+      "MediaExportList": {
+        "additionalProperties": false,
+        "description": "Aktywne (niewygasłe) eksporty ZIP wołającego dla zlecenia, od najnowszego (najwyżej 5 na dobę, więc bez stronicowania).",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MediaExport"
+            },
+            "maxItems": 10,
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "MediaExportState": {
+        "description": "Stan eksportu widoczny dla zlecającego: `queued` (czeka na worker), `running` (plik się przygotowuje), `ready` (plik gotowy, link jeszcze nie został wystawiony), `downloaded` (link wystawiono - eksport zadziała tylko raz), `failed` (nie udało się przygotować pliku). Eksport po 24 godzinach znika (`404`), więc stanu `expired` API nie zwraca.",
+        "enum": [
+          "queued",
+          "running",
+          "ready",
+          "downloaded",
+          "failed"
         ],
         "type": "string"
       },
@@ -9162,7 +9875,7 @@
       },
       "TimelineEvent": {
         "additionalProperties": false,
-        "description": "Zdarzenie automatyczne (`kind = event`; EVM-038) — kod i dane strukturalne, bez treści: tekst panel składa sam, w formie bezosobowej. `code` to jeden z `work_order_created`, `work_order_status_changed`, `stage_status_changed`, `stage_waiting_on_changed`, `stage_updated`, `work_order_fields_changed`, `scope_item_added`, `scope_item_updated`, `scope_item_removed` (EVM-035), `procedure_added`, `procedure_removed`, `procedure_restored`, `stage_added`, `stage_removed`, `stage_restored` (EVM-042: kod procesu w `procedureCodes`, bez nazw; nazwę usuniętego etapu daje `procedureStageName` wpisu), `payment_milestone_status_changed` (EVM-054 — zmiana statusu transzy, także skutek anulowania zlecenia; bez kwoty, numeru faktury i powodu), `payment_milestone_deleted` (EVM-057 — usunięcie transzy korektą Administratora; bez kwoty, numeru faktury i nazwy), `media_assets_added` (EVM-044 — do zlecenia dodano partię zdjęć w jednym wpisie; odczyt nie niesie liczby, identyfikatorów ani nazw plików, a zdarzenie nie ma statusu ani etapu; etykieta panelu: „Dodano zdjęcia”) — lista rośnie z E6 i E7, klient pokazuje nieznany kod neutralnym tekstem; zapis, którego serwer nie potrafi odczytać, ma kod `unknown_event` i puste pola. `fromStatus` / `toStatus` to kody statusów zlecenia, etapu albo transzy (`null`, gdy zdarzenie nie dotyczy statusu); `waitingOn` i `waitingOnParty` — na kogo czekamy (`null` poza zdarzeniami „Czekamy na…”); `changedFields` — nazwy zmienionych pól etapu (etapu: `responsibleUserId`, `dueDate`; zlecenia: `title`, `description`, `plannedDate`, `coordinator`; pozycji: `parameters`, `notes`; wartości NIE są zapisane). Etap zdarzenia to `procedureStageId` / `procedureStageName` wpisu.",
+        "description": "Zdarzenie automatyczne (`kind = event`; EVM-038) — kod i dane strukturalne, bez treści: tekst panel składa sam, w formie bezosobowej. `code` to jeden z `work_order_created`, `work_order_status_changed`, `stage_status_changed`, `stage_waiting_on_changed`, `stage_updated`, `work_order_fields_changed`, `scope_item_added`, `scope_item_updated`, `scope_item_removed` (EVM-035), `procedure_added`, `procedure_removed`, `procedure_restored`, `stage_added`, `stage_removed`, `stage_restored` (EVM-042: kod procesu w `procedureCodes`, bez nazw; nazwę usuniętego etapu daje `procedureStageName` wpisu), `payment_milestone_status_changed` (EVM-054 — zmiana statusu transzy, także skutek anulowania zlecenia; bez kwoty, numeru faktury i powodu), `payment_milestone_deleted` (EVM-057 — usunięcie transzy korektą Administratora; bez kwoty, numeru faktury i nazwy), `media_assets_added` (EVM-044 — do zlecenia dodano partię zdjęć w jednym wpisie; odczyt nie niesie liczby, identyfikatorów ani nazw plików, a zdarzenie nie ma statusu ani etapu; etykieta panelu: „Dodano zdjęcia”), `document_added` (EVM-047 — do zlecenia dodano dokument; odczyt nie niesie tytułu, nazwy pliku ani rodzaju, a zdarzenie nie ma statusu ani etapu; etykieta panelu: „Dodano dokument”) — lista rośnie z E6 i E7, klient pokazuje nieznany kod neutralnym tekstem; zapis, którego serwer nie potrafi odczytać, ma kod `unknown_event` i puste pola. `fromStatus` / `toStatus` to kody statusów zlecenia, etapu albo transzy (`null`, gdy zdarzenie nie dotyczy statusu); `waitingOn` i `waitingOnParty` — na kogo czekamy (`null` poza zdarzeniami „Czekamy na…”); `changedFields` — nazwy zmienionych pól etapu (etapu: `responsibleUserId`, `dueDate`; zlecenia: `title`, `description`, `plannedDate`, `coordinator`; pozycji: `parameters`, `notes`; wartości NIE są zapisane). Etap zdarzenia to `procedureStageId` / `procedureStageName` wpisu.",
         "properties": {
           "changedFields": {
             "items": {
@@ -9723,6 +10436,85 @@
         "required": [
           "displayName"
         ],
+        "type": "object"
+      },
+      "UpdateDocumentRequest": {
+        "additionalProperties": false,
+        "description": "Zmiana dokumentu (merge-patch; EVM-047 AC4, AC7; EVM-048 AC3, AC4, AC6, AC7) - co najmniej jedno pole (pusta treść - `400 validation_failed`): `title` (1 ... 200 znaków, zwykły tekst; pusty po przycięciu - `400 required`), `description` (do 2000 znaków albo `null`; pusty po przycięciu równa się `null`), `procedureStageId` (etap TEGO zlecenia albo `null`; etap innego zlecenia, usunięty i nieistniejący - jedna odpowiedź `400 validation_failed`) i `confidentialityOverride` (tylko PODNIESIENIE klasy: ściśle wyższa od efektywnej, inaczej `400 validation_failed`, `/confidentialityOverride`, `not_higher`; nigdy poniżej klasy rodzaju). Rodzaj, zlecenie i plik nie zmieniają się: każde inne pole (`kindCode`, `workOrderId`, `fileState`, `version` ...) - `400 read_only_field`, pole spoza schematu - `400 unknown_field`.",
+        "minProperties": 1,
+        "properties": {
+          "confidentialityOverride": {
+            "$ref": "#/components/schemas/DocumentConfidentialityOverride"
+          },
+          "description": {
+            "description": "Opis dokumentu (do 2000 znaków, zwykły tekst) albo `null`, by go usunąć.",
+            "oneOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "procedureStageId": {
+            "description": "Etap tego zlecenia albo `null`, by usunąć przypisanie.",
+            "oneOf": [
+              {
+                "format": "uuid",
+                "maxLength": 36,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": {
+            "description": "Tytuł (zwykły tekst, 1 ... 200 znaków).",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateMediaAssetRequest": {
+        "additionalProperties": false,
+        "description": "Zmiana metadanych medium (merge-patch; EVM-048 AC2, AC4, AC6, AC7): `category`, `description` i/lub `procedureStageId` - co najmniej jedno pole (pusta treść - `400 validation_failed`). Pole nieobecne zostaje bez zmian; `null` czyści opis albo przypisanie do etapu. Opis to zwykły tekst (NFC, przycięty, nowe linie dozwolone, bez znaków sterujących; pusty po przycięciu równa się `null`). Etap musi być etapem TEGO zlecenia - etap innego zlecenia, usunięty i nieistniejący dają jedną odpowiedź `400 validation_failed` (`/procedureStageId`). Pole serwera (`mediaType`, `fileState`, `workOrderId`, `version`, `origin`, `capturedAt`, `createdAt` ...) - `400 read_only_field`, pole spoza schematu - `400 unknown_field`.",
+        "minProperties": 1,
+        "properties": {
+          "category": {
+            "$ref": "#/components/schemas/MediaCategory"
+          },
+          "description": {
+            "description": "Opis medium (1 ... 1000 znaków, zwykły tekst) albo `null`, by go usunąć.",
+            "oneOf": [
+              {
+                "maxLength": 1000,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "procedureStageId": {
+            "description": "Etap tego zlecenia albo `null`, by usunąć przypisanie.",
+            "oneOf": [
+              {
+                "format": "uuid",
+                "maxLength": 36,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
         "type": "object"
       },
       "UploadPart": {
@@ -13938,6 +14730,150 @@
         }
       }
     },
+    "/api/v1/customers/{customerId}/documents": {
+      "get": {
+        "description": "„Dokumenty klienta (n)” W-09 i W-14 (EVM-050 AC2, AC7; SR-AUTHZ-02, SR-AUTHZ-03). Role Administrator, Edytor i Tylko odczyt (metadane WSZYSTKICH klas; pobranie reguluje `canDownload`), kanał `web` (token mobilny - `403 channel_not_allowed`; dokumenty lokalizacji i klienta nie trafiają na telefon), bez audytu odczytu. Zwracane są WYŁĄCZNIE dokumenty z tą kotwicą - nigdy dokumenty ani media zleceń (SR-AUTHZ-08, AB-19). Klient jest rozwiązywany polityką odczytu: nieistniejący i usunięty - `404` dla każdej roli. Kolejność: `createdAt` malejąco, potem `id`; `limit` 1-100 (domyślnie 25); kursor związany z kotwicą i wariantem roli - z innym `400 invalid_cursor`. `totalCount` liczony tym samym predykatem co strona. Odpowiedź nie zawiera klucza obiektu, skrótu ani identyfikatora uploadu S3. `Cache-Control: no-store`.",
+        "operationId": "listCustomerDocuments",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CustomerIdParameter"
+          },
+          {
+            "description": "Liczba pozycji na stronie.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Kursor ze strony poprzedniej (`nextCursor`) - wartość nieprzezroczysta.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "maxLength": 512,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentList"
+                }
+              }
+            },
+            "description": "Strona dokumentów z kotwicą klienta (pusta lista to pusta tablica `items`, `nextCursor` równy `null` i `totalCount` 0)."
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidListQuery"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "summary": "Klient - dokumenty klienta (kursor)",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor",
+            "read_only"
+          ]
+        }
+      }
+    },
+    "/api/v1/customers/{customerId}/documents/{documentId}/download-url": {
+      "post": {
+        "description": "Jak `createDocumentDownloadUrl` (EVM-050 AC3, AC5, AC6; SR-FILE-07, SR-FILE-10, SR-AUTHZ-02, SR-AUTHZ-06, SR-AUTHZ-07). Role Administrator, Edytor i Tylko odczyt, kanał `web`; bez treści; wymaga `X-CSRF-Token`. Kolejność: strażnik → ścieżka (`400`) → klienta przez politykę odczytu (`404`) → JEDNO zapytanie o dokument z TĄ kotwicą (`404`: dokument innej klienta, zlecenia, medium, nieistniejący) → klasa efektywna (Tylko odczyt dla `building_security`/`identity_data` - `403` z audytem odmowy) → stan pliku (`404` poza `clean`/`ready`) → ten sam licznik „oryginały i dokumenty” co pozostałe ścieżki (`429`) → podpis (300 s, `attachment`, typ wykryty przez serwer). Audyt `document_file.downloaded` / `document_file.download_denied` z kodem klasy, bez tytułu, nazwy pliku i adresu.",
+        "operationId": "createCustomerDocumentDownloadUrl",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CustomerIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/DocumentIdParameter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentDownloadUrl"
+                }
+              }
+            },
+            "description": "Podpisany adres pliku.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Zawsze `no-store`.",
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/MediaStorageUnavailable"
+          }
+        },
+        "summary": "Podpisany adres pliku dokumentu klienta (pobranie wg klasy poufności)",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor",
+            "read_only"
+          ]
+        }
+      }
+    },
     "/api/v1/customers/{customerId}/restore": {
       "post": {
         "description": "Przywrócenie klienta usuniętego przez `deleteCustomer` (EVM-041 AC3, AC6, AC7; SR-AUTHZ-05, SR-API-05, SR-API-06, SR-LOG-03): klient znów jest widoczny dla wszystkich ról. Klient zanonimizowany też da się przywrócić (zostaje zanonimizowany). Tylko Administrator, kanał `web` (Edytor i Tylko odczyt — `403 forbidden` przed `404` i `If-Match`; niezalogowany — `401`; token mobilny — `403 channel_not_allowed`), z audytem (`customer.restored` — aktor, identyfikator, wynik, `traceId`; bez wartości). Wymaga `X-CSRF-Token`, `If-Match` (`428` / `400` / `412 version_conflict`) i `Idempotency-Key` (opcjonalny). Klient nieusunięty albo nieistniejący — `404` (tak samo; `If-Match` nie jest wtedy czytany), chyba że to powtórka z kluczem. Powtórka (ten sam klucz i klient) — `200` z bieżącą reprezentacją i `Idempotent-Replayed: true`, także gdy `If-Match` jest nieaktualny. Klucz jest związany z użytkownikiem, metodą, szablonem ścieżki i klientem. Odpowiedź `200` ma nowy `ETag`.",
@@ -14948,6 +15884,150 @@
           "roles": [
             "administrator",
             "editor"
+          ]
+        }
+      }
+    },
+    "/api/v1/sites/{siteId}/documents": {
+      "get": {
+        "description": "„Dokumenty lokalizacji (n)” W-09 (EVM-050 AC2, AC4, AC7; SR-AUTHZ-02, SR-AUTHZ-03, SR-AUTHZ-08). Role Administrator, Edytor i Tylko odczyt (metadane WSZYSTKICH klas; pobranie reguluje `canDownload`), kanał `web` (token mobilny - `403 channel_not_allowed`; dokumenty lokalizacji i klienta nie trafiają na telefon), bez audytu odczytu. Zwracane są WYŁĄCZNIE dokumenty z tą kotwicą - nigdy dokumenty ani media zleceń (SR-AUTHZ-08, AB-19). Lokalizacja jest rozwiązywana polityką odczytu: nieistniejąca i usunięta - `404` dla każdej roli. Kolejność: `createdAt` malejąco, potem `id`; `limit` 1-100 (domyślnie 25); kursor związany z kotwicą i wariantem roli - z innym `400 invalid_cursor`. `totalCount` liczony tym samym predykatem co strona. Odpowiedź nie zawiera klucza obiektu, skrótu ani identyfikatora uploadu S3. `Cache-Control: no-store`.",
+        "operationId": "listSiteDocuments",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SiteIdParameter"
+          },
+          {
+            "description": "Liczba pozycji na stronie.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Kursor ze strony poprzedniej (`nextCursor`) - wartość nieprzezroczysta.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "maxLength": 512,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentList"
+                }
+              }
+            },
+            "description": "Strona dokumentów z kotwicą lokalizacji (pusta lista to pusta tablica `items`, `nextCursor` równy `null` i `totalCount` 0)."
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidListQuery"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "summary": "Lokalizacja - dokumenty lokalizacji (kursor)",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor",
+            "read_only"
+          ]
+        }
+      }
+    },
+    "/api/v1/sites/{siteId}/documents/{documentId}/download-url": {
+      "post": {
+        "description": "Jak `createDocumentDownloadUrl` (EVM-050 AC3, AC5, AC6; SR-FILE-07, SR-FILE-10, SR-AUTHZ-02, SR-AUTHZ-06, SR-AUTHZ-07). Role Administrator, Edytor i Tylko odczyt, kanał `web`; bez treści; wymaga `X-CSRF-Token`. Kolejność: strażnik → ścieżka (`400`) → lokalizację przez politykę odczytu (`404`) → JEDNO zapytanie o dokument z TĄ kotwicą (`404`: dokument innej lokalizacji, zlecenia, medium, nieistniejący) → klasa efektywna (Tylko odczyt dla `building_security`/`identity_data` - `403` z audytem odmowy) → stan pliku (`404` poza `clean`/`ready`) → ten sam licznik „oryginały i dokumenty” co pozostałe ścieżki (`429`) → podpis (300 s, `attachment`, typ wykryty przez serwer). Audyt `document_file.downloaded` / `document_file.download_denied` z kodem klasy, bez tytułu, nazwy pliku i adresu.",
+        "operationId": "createSiteDocumentDownloadUrl",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SiteIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/DocumentIdParameter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentDownloadUrl"
+                }
+              }
+            },
+            "description": "Podpisany adres pliku.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Zawsze `no-store`.",
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/MediaStorageUnavailable"
+          }
+        },
+        "summary": "Podpisany adres pliku dokumentu lokalizacji (pobranie wg klasy poufności)",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor",
+            "read_only"
           ]
         }
       }
@@ -16642,6 +17722,841 @@
         }
       }
     },
+    "/api/v1/work-orders/{workOrderId}/documents": {
+      "get": {
+        "description": "„Dokumenty zlecenia (n)” W-09 (EVM-047 AC1, AC2, AC5, AC7, AC8; SR-AUTHZ-02, SR-AUTHZ-06, SR-AUTHZ-07, SR-API-02). Role Administrator, Edytor i Tylko odczyt (metadane WSZYSTKICH klas - tytuł, rodzaj, klasa, nazwa pliku - widzi także Tylko odczyt; pobranie reguluje `canDownload`), kanał `web` (token mobilny - `403 channel_not_allowed`), bez audytu odczytu. Zlecenie jest rozwiązywane najpierw polityką odczytu: nieistniejące i usunięte - `404`. Kolejność: `createdAt` malejąco, potem `id`; `limit` 1-100 (domyślnie 25); kursor związany z wariantem roli - z innym `400 invalid_cursor`. Jedno zapytanie (dokument, wersja, plik, rodzaj z katalogu), bez N+1. Klasa efektywna jest liczona przez serwer. Odpowiedź nie zawiera klucza obiektu, skrótu ani identyfikatora uploadu S3. `Cache-Control: no-store`.",
+        "operationId": "listDocuments",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "description": "Liczba pozycji na stronie.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Kursor ze strony poprzedniej (`nextCursor`) - wartość nieprzezroczysta.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "maxLength": 512,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentList"
+                }
+              }
+            },
+            "description": "Strona dokumentów (pusta lista to pusta tablica `items`, `nextCursor` równy `null` i `totalCount` 0)."
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidListQuery"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "summary": "Zlecenie - dokumenty z rodzajem i klasą poufności (kursor)",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor",
+            "read_only"
+          ]
+        }
+      },
+      "post": {
+        "description": "EVM-050: opcjonalne `anchor` (`work_order` domyślnie, `site`, `customer`) - dokument lokalizacji albo klienta ZLECENIA ze ścieżki (serwer bierze `siteId`/`customerId` ze zlecenia; w treści - `400 read_only_field`); `anchor=site` z klasą `identity_data` - `400` (`/anchor`, `identity_data_not_on_site`, SR-AUTHZ-08, AB-19); `anchor=customer` bez klienta zlecenia - `400` (`no_customer`); etap przy kotwicy innej niż zlecenie - `400` (`requires_work_order_anchor`). Idempotencja: skrót treści obejmuje `anchor` (ten sam klucz z inną kotwicą - `422 idempotency_mismatch`). Plik kotwicy lokalizacji i klienta wgrywa się ścieżką zlecenia (`upload-sessions`), z którego dokument powstał. Utworzenie dokumentu, jego wersji 1 i rekordu pliku w stanie `pending_upload` (EVM-047 AC1-AC4, AC6, AC7; SR-AUTHZ-02, SR-AUTHZ-05, SR-AUTHZ-07, SR-INPUT-01, SR-FILE-01, SR-FILE-03, SR-API-05, SR-LOG-03). Role Administrator i Edytor (Tylko odczyt - `403 forbidden` przed treścią; niezalogowany - `401`; token mobilny - `403 channel_not_allowed`), kanał `web`, z audytem (`document.created` - aktor, identyfikator, kod klasy, wynik, `traceId`; bez tytułu, opisu i nazwy pliku). Wymaga `X-CSRF-Token` i `Idempotency-Key` (UUIDv7); ten sam klucz albo `id` z inną treścią - `422 idempotency_mismatch` / `409 id_conflict`. Jedna transakcja: zlecenie przez politykę odczytu (`404`), nagłówek i treść schematem (`400`; pola serwera - `read_only_field`), rodzaj z katalogu (nieistniejący lub nieaktywny - `400`), klasa (AC3/AC4), plik (typ, rozszerzenie, rozmiar - `400` ze wskaźnikiem `/file/…`), zapis, JEDEN wpis dziennika zlecenia (`document_added`: identyfikator dokumentu i kod rodzaju - bez tytułu i nazwy) i audyt. Klasa efektywna jest liczona przez serwer. Klucz obiektu nadaje serwer (`documents/{rok}/{miesiąc}/{id pliku}/original`, bez nazwy pliku i numeru zlecenia). Brak konfiguracji magazynu - `503 media_storage_unavailable`. Komunikaty błędów nie powtarzają wartości (tytuł i nazwa pliku mogą być danymi osobowymi).",
+        "operationId": "createDocument",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader-2"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDocumentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Document"
+                }
+              }
+            },
+            "description": "Dokument utworzony (albo powtórka wcześniejszego zapisu, z nagłówkiem `Idempotent-Replayed`).",
+            "headers": {
+              "ETag": {
+                "description": "Wersja zasobu (`\"<version>\"`).",
+                "schema": {
+                  "maxLength": 32,
+                  "type": "string"
+                }
+              },
+              "Idempotent-Replayed": {
+                "description": "`true`, gdy odpowiedź powtarza wcześniejszy zapis (ten sam klucz, zlecenie i treść).",
+                "schema": {
+                  "enum": [
+                    "true"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/MediaConflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/MediaUnprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/MediaStorageUnavailable"
+          }
+        },
+        "summary": "Dodanie dokumentu do zlecenia („Dodaj dokument”)",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "audit": true,
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor"
+          ]
+        }
+      }
+    },
+    "/api/v1/work-orders/{workOrderId}/documents/{documentId}": {
+      "delete": {
+        "description": "Ukrycie dokumentu dodanego przez pomyłkę (EVM-051 AC1, AC4, AC6; SR-AUTHZ-02, SR-AUTHZ-05, SR-LOG-03). Tylko Administrator, kanał `web`, z `X-CSRF-Token` (Edytor i Tylko odczyt - `403 forbidden`, token mobilny - `403 forbidden`, niezalogowany - `401`). Miękkie usunięcie: dokument znika dla każdego czytelnika (listy zlecenia, lokalizacji i klienta, adresy plików - `404`); `restoreDocument` go przywraca. Dokument spoza zakresu zlecenia ze ścieżki (innego zlecenia, lokalizacji albo klienta, których zlecenie nie dotyka), już usunięty i nieistniejący to jedna odpowiedź `404`. Audyt: `document.deleted` (aktor, identyfikator, `traceId`; nigdy tytuł, opis ani nazwa pliku).",
+        "operationId": "deleteDocument",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/DocumentIdParameter"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Dokument usunięty."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "summary": "Usunięcie dokumentu (Administrator; do cofnięcia)",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "audit": true,
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator"
+          ]
+        }
+      },
+      "patch": {
+        "description": "Edycja dokumentu (EVM-047 AC4, AC7 - podniesienie klasy; EVM-048 AC3, AC4, AC6, AC7 - tytuł, opis, etap; SR-AUTHZ-02, SR-AUTHZ-04, SR-AUTHZ-07, SR-INPUT-02, SR-INPUT-05, SR-LOG-03; AB-20). Role Administrator i Edytor (Tylko odczyt - `403` przed `If-Match` i treścią), kanał `web` (token mobilny - `403 forbidden`), z audytem: `document.confidentiality_raised` (aktor, identyfikator, `fromCode` i `toCode`, `traceId`), gdy zmienia się klasa, i `document.metadata_updated` (aktor, identyfikator, `traceId`), gdy zmienia się tytuł, opis albo etap - NIGDY ich wartości. Jedno żądanie podnosi `version` o 1. Wymaga `X-CSRF-Token` i `If-Match` (silny ETag `\"<version>\"`): brak - `428`; zniekształcony - `400`; nieaktualna wersja - `412 version_conflict`. Pola: `title`, `description`, `procedureStageId` (etap TEGO zlecenia - inny, usunięty albo nieistniejący: `400 validation_failed`, `/procedureStageId`) i `confidentialityOverride` (ściśle wyższe od klasy efektywnej, inaczej `400 validation_failed`; nigdy poniżej klasy rodzaju); każde inne - `400 read_only_field`. Rodzaj i zlecenie dokumentu nie zmieniają się. Dokument innego zlecenia niż w ścieżce oraz medium o tym identyfikatorze - `404`. Zlecenie rozliczone albo anulowane nadal przyjmuje zmianę (PO-8). Żądanie bez realnej zmiany - `200` bez zmiany wersji i bez audytu.",
+        "operationId": "updateDocument",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/DocumentIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatchHeader-2"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDocumentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Document"
+                }
+              }
+            },
+            "description": "Dokument po zmianie.",
+            "headers": {
+              "ETag": {
+                "description": "Nowa wersja zasobu (`\"<version>\"`).",
+                "schema": {
+                  "maxLength": 32,
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "412": {
+            "$ref": "#/components/responses/PreconditionFailed"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "428": {
+            "$ref": "#/components/responses/PreconditionRequired"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "summary": "Zmiana tytułu, opisu, etapu i klasy poufności dokumentu",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "audit": true,
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor"
+          ]
+        }
+      }
+    },
+    "/api/v1/work-orders/{workOrderId}/documents/{documentId}/download-url": {
+      "post": {
+        "description": "Podpisany `GET` pliku dokumentu (EVM-047 AC5, AC7; SR-FILE-07, SR-FILE-10, SR-AUTHZ-06, SR-AUTHZ-07, SR-LOG-02, SR-LOG-03). Role Administrator, Edytor i Tylko odczyt, kanał `web`; bez treści; wymaga `X-CSRF-Token`. Kolejność: strażnik (`401`/`403`) → ścieżka (`400`) → zlecenie przez politykę odczytu (`404`) → JEDNO zapytanie o dokument TEGO zlecenia (`404`: nieistniejący, innego zlecenia, medium o tym id) → klasa efektywna wyliczona przez serwer z bazy (rodzaj z katalogu i podniesienie): Tylko odczyt dla klasy `building_security` i `identity_data` - `403 forbidden` NIEZALEŻNIE od stanu pliku (z audytem odmowy `document_file.download_denied` w osobnej transakcji, z kodem klasy, bez nazwy pliku) → plik w stanie innym niż `clean`/`ready` - `404` → limit wystawiania adresów (ten sam licznik „oryginały i dokumenty”: 100 / 10 min per użytkownik, alert od 50; `429` z `Retry-After`) → podpis. Audyt wystawienia (`document_file.downloaded`, kod klasy) jest w transakcji wystawienia (błąd zapisu = brak adresu). Adres jest przypięty do wersji obiektu, która przeszła skan, ważny 300 s, ma `Content-Disposition: attachment; filename*=UTF-8''…` i typ WYKRYTY przez serwer. `Cache-Control: no-store`; adres i nazwa pliku nie są logowane ani audytowane.",
+        "operationId": "createDocumentDownloadUrl",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/DocumentIdParameter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentDownloadUrl"
+                }
+              }
+            },
+            "description": "Podpisany adres pliku.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Zawsze `no-store`.",
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/MediaStorageUnavailable"
+          }
+        },
+        "summary": "Podpisany adres pliku dokumentu (pobranie wg klasy poufności)",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor",
+            "read_only"
+          ]
+        }
+      }
+    },
+    "/api/v1/work-orders/{workOrderId}/documents/{documentId}/purge-file": {
+      "post": {
+        "description": "„Usuń plik trwale…” dla dokumentu (EVM-051 AC2, AC3, AC4, AC6, AC7; SR-PRIV-03, SR-PRIV-04, SR-SESS-08, SR-DATA-08, SR-LOG-03). Tylko Administrator, kanał `web`, `stepUp: true`, `X-CSRF-Token`, `If-Match` - jak `purgeMediaAssetFile`. Usuwa WSZYSTKIE wersje pliku dokumentu (także w kwarantannie i niedokończony upload), tytuł zastępuje znacznikiem „Plik usunięty przez administratora DD.MM.RRRR.”, opis i nazwy plików są usunięte, rekord zostaje. Do rejestru usunięć trafiają identyfikator dokumentu, kod operacji, czas, aktor i właściciel - zlecenie albo kotwica (typ i identyfikator lokalizacji lub klienta), bez tytułu, opisu i nazw plików. Audyt: `document.file_purged`. Po usunięciu: przywrócenie, nowa wersja pliku i ponowny skan - `409 file_erased`, adres pobrania - `404`. Dokument usuniętej lokalizacji albo klienta jest poza zakresem ścieżki zlecenia (`404`).",
+        "operationId": "purgeDocumentFile",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/DocumentIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatchHeader-2"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Pliki usunięte trwale (albo powtórzenie wcześniejszego usunięcia)."
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/MediaErasureConflict"
+          },
+          "412": {
+            "$ref": "#/components/responses/PreconditionFailed"
+          },
+          "428": {
+            "$ref": "#/components/responses/PreconditionRequired"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/MediaErasureUnavailable"
+          }
+        },
+        "summary": "Trwałe usunięcie plików dokumentu (Administrator, step-up)",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "audit": true,
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator"
+          ],
+          "stepUp": true
+        }
+      }
+    },
+    "/api/v1/work-orders/{workOrderId}/documents/{documentId}/restore": {
+      "post": {
+        "description": "„Cofnij” po usunięciu (EVM-051 AC1, AC4, AC6). Tylko Administrator, kanał `web`, z `X-CSRF-Token`. Dokument usunięty (miękko) wraca na listy; dokument nieusunięty - `409 invalid_state_transition`; dokument z trwale usuniętym plikiem - `409 file_erased`; spoza zakresu zlecenia i nieistniejący - `404`. Dokument usuniętej lokalizacji albo klienta jest poza zakresem tej ścieżki (wymaga wcześniejszego przywrócenia kotwicy). Audyt: `document.restored`.",
+        "operationId": "restoreDocument",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/DocumentIdParameter"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Dokument przywrócony."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/MediaErasureConflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "summary": "Przywrócenie usuniętego dokumentu (Administrator)",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "audit": true,
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator"
+          ]
+        }
+      }
+    },
+    "/api/v1/work-orders/{workOrderId}/documents/{documentId}/upload-sessions": {
+      "post": {
+        "description": "Sesja uploadu pliku wersji 1 (EVM-047 AC1, AC6, AC7; SR-FILE-02, SR-AUTHZ-02, SR-AUTHZ-05) - jak `createUploadSession` medium (części 16 MiB, najwyżej 1000, sesja ważna 7 dni, `Idempotency-Key`, wznowienie `200`). Role Administrator i Edytor (Tylko odczyt - `403`), kanał `web`. Sesję otwiera wyłącznie twórca dokumentu albo Administrator (inny Edytor - `404`); dokument innego zlecenia niż w ścieżce oraz MEDIUM o tym identyfikatorze - `404`. Stan pliku inny niż `pending_upload` lub `failed` z `checksum_mismatch` - `409 invalid_state_transition`. Brak konfiguracji magazynu - `503`.",
+        "operationId": "createDocumentUploadSession",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/DocumentIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader-2"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUploadSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentUploadSession"
+                }
+              }
+            },
+            "description": "Istniejąca aktywna sesja wołającego (wznowienie)."
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentUploadSession"
+                }
+              }
+            },
+            "description": "Sesja utworzona (albo powtórka wcześniejszego zapisu, z nagłówkiem `Idempotent-Replayed`)."
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/MediaConflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/MediaUnprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/MediaStorageUnavailable"
+          }
+        },
+        "summary": "Sesja uploadu pliku dokumentu",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor"
+          ]
+        }
+      }
+    },
+    "/api/v1/work-orders/{workOrderId}/documents/{documentId}/upload-sessions/{sessionId}/abort": {
+      "post": {
+        "description": "Jak `abortUploadSession` (EVM-047 AC7). Role Administrator i Edytor, kanał `web`; tylko twórca sesji. Idempotentne; zakończona sesja - `409`.",
+        "operationId": "abortDocumentUploadSession",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/DocumentIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/UploadSessionIdParameter"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Sesja przerwana."
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/MediaConflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/MediaStorageUnavailable"
+          }
+        },
+        "summary": "Przerwanie sesji uploadu pliku dokumentu",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor"
+          ]
+        }
+      }
+    },
+    "/api/v1/work-orders/{workOrderId}/documents/{documentId}/upload-sessions/{sessionId}/complete": {
+      "post": {
+        "description": "Jak `completeUploadSession` (EVM-047 AC1, AC6, AC7; SR-FILE-02): serwer czyta części ze storage'u, składa obiekt i sprawdza rozmiar (≤ 100 MB); plik przechodzi do `uploaded` i czeka na skan (typ z zawartości, makra OOXML, ClamAV). Role Administrator i Edytor, kanał `web`; tylko twórca sesji. Powtórka po złożeniu jest idempotentna. Odpowiedź - dokument z aktualnym stanem pliku.",
+        "operationId": "completeDocumentUploadSession",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/DocumentIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/UploadSessionIdParameter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Document"
+                }
+              }
+            },
+            "description": "Dokument ze stanem pliku po zakończeniu wysyłania."
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/MediaConflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/MediaUnprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/MediaStorageUnavailable"
+          }
+        },
+        "summary": "Zakończenie wysyłania pliku dokumentu",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor"
+          ]
+        }
+      }
+    },
+    "/api/v1/work-orders/{workOrderId}/documents/{documentId}/upload-sessions/{sessionId}/parts": {
+      "get": {
+        "description": "Jak `listUploadParts` (EVM-047 AC6, AC7). Role Administrator i Edytor, kanał `web`; sesję widzi wyłącznie jej twórca (inny użytkownik, sesja innego dokumentu lub zlecenia, nieistniejąca - jedna odpowiedź `404`). Sesja zakończona lub wygasła - `409`. `Cache-Control: no-store`.",
+        "operationId": "listDocumentUploadParts",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/DocumentIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/UploadSessionIdParameter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadPartList"
+                }
+              }
+            },
+            "description": "Części potwierdzone w storage'u."
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/MediaConflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/MediaStorageUnavailable"
+          }
+        },
+        "summary": "Części sesji uploadu dokumentu potwierdzone w storage'u",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor"
+          ]
+        }
+      }
+    },
+    "/api/v1/work-orders/{workOrderId}/documents/{documentId}/upload-sessions/{sessionId}/parts/{partNumber}/url": {
+      "get": {
+        "description": "Jak `getUploadPartUrl` (EVM-047 AC6, AC7; SR-FILE-02, SR-WEB-04): podpisany `PUT` jednej części, związany z kluczem obiektu, identyfikatorem uploadu, numerem części i dokładnym `Content-Length`; ważny 60 minut. Role Administrator i Edytor, kanał `web`; tylko twórca sesji. `Cache-Control: no-store`; adres nie jest logowany.",
+        "operationId": "getDocumentUploadPartUrl",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/DocumentIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/UploadSessionIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/PartNumberParameter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadPartUrl"
+                }
+              }
+            },
+            "description": "Podpisany adres części.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Zawsze `no-store`.",
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/MediaConflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/MediaStorageUnavailable"
+          }
+        },
+        "summary": "Podpisany adres wysłania jednej części pliku dokumentu",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor"
+          ]
+        }
+      }
+    },
     "/api/v1/work-orders/{workOrderId}/media-assets": {
       "get": {
         "description": "Lista „Media i dokumenty” W-09 (EVM-044 AC1, AC4, AC7; SR-AUTHZ-02, SR-AUTHZ-03, SR-AUTHZ-05, SR-API-02). Role Administrator, Edytor i Tylko odczyt (bez audytu odczytu), kanał `web`. Zlecenie jest rozwiązywane najpierw polityką odczytu w zapytaniu: nieistniejące i usunięte — `404`. Kolejność: `createdAt` malejąco, potem `id`; `limit` 1–100 (domyślnie 25); jedno zapytanie ze stanami plików. Filtr `uploadState=unfinished` zwraca WYŁĄCZNIE niedokończone wysyłania wołającego: media z aktywną, niewygasłą (`expiresAt` w przyszłości) sesją uploadu wołającego (twórca: użytkownik i urządzenie) ORAZ media wołającego, których plik wciąż jest w `pending_upload`, a aktywnej sesji brak (przerwana partia: sesja wygasła, została przerwana albo nigdy nie powstała — baner liczy całą partię i nie powstają duplikaty). Tylko te media niosą `originalFilename`, a `uploadSession` jest w nich `null`, gdy sesji nie ma (wtedy wybór pliku otwiera nową sesję). Z nich panel buduje „Nie wysłano N zdjęć — wybierz je ponownie z galerii.” Filtr `needsAttention=true` (EVM-049 AC6) zwraca tylko pliki w kwarantannie `held`; `false` — wszystkie; inna wartość — `400 validation_failed`. `needsAttentionCount` liczy pliki `held` zlecenia tymi samymi regułami widoczności. Przyczyna kwarantanny (`quarantineReasonCode`) wraca WYŁĄCZNIE Administratorowi (polityka `mediaQuarantine.manage`); dla Edytora i Tylko odczyt pola nie ma. Kursor jest związany z filtrem i wariantem polityki — z innym filtrem `400 invalid_cursor`. Odpowiedź nie zawiera klucza obiektu, skrótu ani identyfikatora uploadu S3. Nieznany lub powtórzony parametr — `400`. `Cache-Control: no-store`.",
@@ -16835,6 +18750,137 @@
         }
       }
     },
+    "/api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}": {
+      "delete": {
+        "description": "Ukrycie zdjęcia lub filmu dodanego przez pomyłkę (EVM-051 AC1, AC4, AC6; SR-AUTHZ-02, SR-AUTHZ-05, SR-LOG-03). Tylko Administrator, kanał `web`, z `X-CSRF-Token` (Edytor i Tylko odczyt - `403 forbidden`, token mobilny - `403 forbidden`, niezalogowany - `401`). Miękkie usunięcie: element znika dla każdego czytelnika (lista, pobranie po `id` i adresy plików - `404`), plik zostaje w storage'ie, a `restoreMediaAsset` go przywraca. Medium innego zlecenia niż w ścieżce, już usunięte i nieistniejące to jedna odpowiedź `404`. Audyt: `media_asset.deleted` (aktor, identyfikator, `traceId`; nigdy opis ani nazwa pliku). Podpisane adresy wydane przed usunięciem działają do 5 minut (do ich wygaśnięcia).",
+        "operationId": "deleteMediaAsset",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/MediaAssetIdParameter"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Medium usunięte."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "summary": "Usunięcie medium (Administrator; do cofnięcia)",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "audit": true,
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator"
+          ]
+        }
+      },
+      "patch": {
+        "description": "Edycja metadanych medium (EVM-048 AC2, AC4, AC6, AC7, AC8; SR-AUTHZ-01, SR-AUTHZ-02, SR-AUTHZ-04, SR-AUTHZ-05, SR-INPUT-01, SR-INPUT-02, SR-INPUT-05, SR-LOG-03, SR-API-02). Role Administrator i Edytor (Tylko odczyt - `403 forbidden` przed `If-Match` i treścią; niezalogowany - `401`; token mobilny - `403 forbidden`), kanał `web`, z audytem (`media_asset.metadata_updated` - aktor, identyfikator medium, `traceId`; NIGDY opis ani nazwa etapu). Wymaga `X-CSRF-Token` i `If-Match` (silny ETag `\"<version>\"`): brak - `428`; zniekształcony - `400`; nieaktualna wersja - `412 version_conflict` (dane bez zmian). Kolejność: ścieżka (`400`) -> zlecenie przez politykę odczytu (`404`) -> `If-Match` -> medium TEGO zlecenia pod blokadą wiersza (`404`: medium innego zlecenia, nieistniejące i dokument o tym identyfikatorze to jedna odpowiedź) -> treść (`400`; `read_only_field`, `unknown_field`) -> wersja (`412`) -> etap (`400 validation_failed`, `/procedureStageId`: etap innego zlecenia, usunięty i nieistniejący to jedna odpowiedź) -> zapis (`version + 1`) i audyt w jednej transakcji. Zlecenie rozliczone albo anulowane nadal przyjmuje zmianę (PO-8). Żądanie bez realnej zmiany - `200` bez zmiany wersji i bez audytu. Odpowiedź ma tę samą postać co element listy (przyczyna kwarantanny - tylko Administrator).",
+        "operationId": "updateMediaAsset",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/MediaAssetIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatchHeader-2"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMediaAssetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaAsset"
+                }
+              }
+            },
+            "description": "Medium po zmianie metadanych.",
+            "headers": {
+              "ETag": {
+                "description": "Aktualna wersja zasobu (`\"<version>\"`).",
+                "schema": {
+                  "maxLength": 32,
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "412": {
+            "$ref": "#/components/responses/PreconditionFailed"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "428": {
+            "$ref": "#/components/responses/PreconditionRequired"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "summary": "Zmiana kategorii, opisu i etapu medium",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "audit": true,
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor"
+          ]
+        }
+      }
+    },
     "/api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/download-url": {
       "post": {
         "description": "Podpisany `GET` miniatury, podglądu 1600 px albo oryginału zdjęcia (EVM-068 AC6, AC7; EVM-045 AC2-AC7; SR-FILE-07, SR-FILE-10, SR-WEB-04, SR-AUTHZ-02, SR-AUTHZ-05, SR-AUTHZ-06, SR-LOG-02, SR-LOG-03). Operacja wystawia adres (jak `getUploadPartUrl`), ale jest `POST` z treścią `{ variant }` — adres do pliku nie trafia do ścieżki ani zapytania (api-guidelines, „Pliki i podpisane URL-e”); nie zmienia stanu medium, więc nie ma `Idempotency-Key`. Wystawienie adresu ORYGINAŁU jest zapisane w dzienniku audytu (`media_file.original_downloaded`, w tej samej transakcji co wystawienie — błąd zapisu oznacza brak adresu); audyt dotyczy wystawienia adresu, nie samego pobrania z bucketu. Role Administrator, Edytor i Tylko odczyt, kanał `web` (token mobilny — `403 channel_not_allowed`), wymaga `X-CSRF-Token`; wariant `original` tylko dla Administratora i Edytora — Tylko odczyt dostaje `403 forbidden` PRZED sprawdzeniem medium (odpowiedź nie zdradza, czy medium istnieje). Kolejność: strażnik (`401`/`403`) → ścieżka (`400`) → zlecenie przez politykę odczytu (`404`) → treść (`400`; wariant spoza listy, pola obce) → uprawnienie do wariantu (`403`) → JEDNO zapytanie o medium TEGO zlecenia → `404` w jednym kształcie: zlecenie albo medium nieistniejące, usunięte lub innego zlecenia, plik w stanie niedostępnym (dla pochodnych wymagane `ready`, dla oryginału `clean`, `ready` albo `failed` z przyczyną `processing_error`; plik w kwarantannie, skanowany, nieukończony i `failed` z innej przyczyny — `404`), brak wiersza pochodnej, zdjęcie bez oryginału do pobrania (wideo i dokumenty — EVM-046, EVM-047) → limit wystawiania adresów (`429 rate_limited` z `Retry-After`; osobno miniatury i podglądy: 1000 / 10 min per użytkownik, oryginały: 100 / 10 min; polityka P10, alert „masowe pobranie” od 600 i 50). Adres jest ważny 300 s (stała serwera) i pochodzi z domeny bucketu. `Cache-Control: no-store`; adres i nazwa pliku nie są logowane ani zapisywane w audycie.",
@@ -16920,6 +18966,69 @@
         }
       }
     },
+    "/api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/purge-file": {
+      "post": {
+        "description": "„Usuń plik trwale…” (EVM-051 AC2, AC3, AC4, AC6, AC7; SR-PRIV-03, SR-PRIV-04, SR-SESS-08, SR-DATA-08, SR-LOG-03). Tylko Administrator, kanał `web`, `stepUp: true` (rola przed step-upem: Edytor i Tylko odczyt - `403 forbidden`; Administrator bez uwierzytelnienia kluczem w ciągu 15 minut - `403 step_up_required`). Wymaga `X-CSRF-Token` i `If-Match` (brak - `428`, zniekształcony - `400`, nieaktualny - `412`). Kolejność: zlecenie (`404`), medium TEGO zlecenia pod blokadą (także usunięte miękko; inne zlecenie i nieistniejące - `404`), medium z już usuniętym plikiem - `204` (powtórzenie jest idempotentne i domyka usuwanie obiektów), `If-Match`, wersja (`412`), plik w trakcie skanu lub przetwarzania - `409 file_processing` z `Retry-After` (nic się nie zmienia), POTEM zapis do rejestru usunięć (identyfikator medium, zlecenie, kod operacji, czas, aktor - bez nazwy i opisu; niedostępny rejestr - `503 deletion_register_unavailable`, plik i rekord nietknięte), zmiana w bazie (znacznik, opis usunięty, nazwa pliku usunięta) i dopiero potem usunięcie obiektów (oryginał, miniatura, podgląd, 720p, także w kwarantannie; niedokończony upload zostaje przerwany). Wersje obiektów w buckecie wygasają po 30 dniach (ADR-0009, RR-14); podpisane adresy wydane wcześniej działają do 5 minut. Audyt: `media_asset.file_purged` (aktor, identyfikator, wynik `success` albo `failed`, `reasonCode` `step_up_verified`, `traceId`). Po usunięciu pliku: przywrócenie, nowa sesja uploadu i ponowny skan - `409 file_erased`, adres pobrania - `404`.",
+        "operationId": "purgeMediaAssetFile",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/MediaAssetIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatchHeader-2"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Plik usunięty trwale (albo powtórzenie wcześniejszego usunięcia)."
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/MediaErasureConflict"
+          },
+          "412": {
+            "$ref": "#/components/responses/PreconditionFailed"
+          },
+          "428": {
+            "$ref": "#/components/responses/PreconditionRequired"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/MediaErasureUnavailable"
+          }
+        },
+        "summary": "Trwałe usunięcie pliku medium (Administrator, step-up)",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "audit": true,
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator"
+          ],
+          "stepUp": true
+        }
+      }
+    },
     "/api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/rescan": {
       "post": {
         "description": "Zlecenie ponownego skanu pliku `held` (EVM-049 AC3, AC4, AC8; P5; SR-SESS-08, SR-AUTHZ-05, SR-ERR-01) — JEDYNA operacja zmieniająca stan pliku w kwarantannie (nie ma zwolnienia ani ominięcia skanu). Rola Administrator, kanał `web`, `stepUp: true`. Kolejność odpowiedzi: `401` → `403 forbidden` dla Edytora i Tylko odczyt (bez odczytu stanu; nigdy `step_up_required`) → `403 step_up_required` dla Administratora ze starym uwierzytelnieniem → `404` (zlecenie nieistniejące lub usunięte, medium innego zlecenia niż w ścieżce) → `409 invalid_state_transition` (stan inny niż `quarantined` — w tym `scanning`, `purged` i po terminie 30 dni). Wymaga `X-CSRF-Token` i `Idempotency-Key`; bez `If-Match` (zmiana warunkowa po stanie pliku). Plik przechodzi do `scanning` (przyczyna jest czyszczona); worker wykonuje PEŁNY skan jak za pierwszym razem (suma kontrolna, typ po zawartości, ClamAV). Wynik czysty wraca do przepływu, pozytywny zostawia w kwarantannie bez nowego e-maila i alertu; termin 30 dni liczy się od pierwszego wejścia. Audyt: `media_file.rescan_requested` (Administrator) w tej samej transakcji, potem `media_file.rescanned` (system, wynik). Odpowiedź `202` — medium w stanie `scanning`.",
@@ -16989,6 +19098,53 @@
             "administrator"
           ],
           "stepUp": true
+        }
+      }
+    },
+    "/api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/restore": {
+      "post": {
+        "description": "„Cofnij” po usunięciu (EVM-051 AC1, AC4, AC6; SR-AUTHZ-02, SR-AUTHZ-05). Tylko Administrator, kanał `web`, z `X-CSRF-Token`. Medium usunięte (miękko) wraca na listę; medium nieusunięte - `409 invalid_state_transition`; medium z trwale usuniętym plikiem - `409 file_erased`; medium innego zlecenia i nieistniejące - `404`. Audyt: `media_asset.restored`.",
+        "operationId": "restoreMediaAsset",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/MediaAssetIdParameter"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Medium przywrócone."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/MediaErasureConflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "summary": "Przywrócenie usuniętego medium (Administrator)",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "audit": true,
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator"
+          ]
         }
       }
     },
@@ -17342,6 +19498,245 @@
           "roles": [
             "administrator",
             "editor"
+          ]
+        }
+      }
+    },
+    "/api/v1/work-orders/{workOrderId}/media-exports": {
+      "get": {
+        "description": "Lista eksportów ZIP zlecenia, które zlecił WOŁAJĄCY i które nie wygasły (EVM-052 AC7; SR-AUTHZ-05, SR-AUTHZ-06; CWE-639). Role Administrator, Edytor i Tylko odczyt, kanał `web`; Tylko odczyt i każdy, kto nie zlecił eksportu, widzi pustą listę - nigdy cudzego eksportu. Zlecenie przez politykę odczytu (`404`). Eksport po `expiresAt` nie występuje na liście niezależnie od przebiegu zadania sprzątającego. `Cache-Control: no-store`.",
+        "operationId": "listMediaExports",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaExportList"
+                }
+              }
+            },
+            "description": "Aktywne eksporty wołającego."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "summary": "Zlecenie - własne aktywne eksporty ZIP wołającego",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor",
+            "read_only"
+          ]
+        }
+      },
+      "post": {
+        "description": "Zlecenie zadania w tle, które składa do jednego pliku ZIP oryginały zdjęć zlecenia w stanie `ready` (czyste po skanie; bez kwarantanny, wymazanych, usuniętych, filmów i dokumentów) - EVM-052 AC1, AC2, AC3, AC5; ADR-0009; P10; SR-FILE-07, SR-FILE-09, SR-SESS-08, SR-AUTHZ-05, SR-LOG-03, SR-LOG-07. Role Administrator i Edytor, kanał `web`, `stepUp: true`; Tylko odczyt - `403 forbidden`, niezalogowany - `401`, token mobilny - `403 channel_not_allowed`, Administrator lub Edytor bez świeżego uwierzytelnienia (15 min) - `403 step_up_required`. Wymaga `X-CSRF-Token` i `Idempotency-Key` (powtórka zwraca ten sam eksport i nie liczy się do limitu). Kolejność: strażnik → ścieżka (`400`) → zlecenie przez politykę odczytu (`404`) → blokada użytkownika → limity (`429`) → zbiór zdjęć (`409 no_media_to_export`; `429 export_too_large` powyżej 10 GB) → zapis. Limity per użytkownik: jeden eksport na 10 minut i 5 w kroczących 24 godzinach (nieudane też się liczą; `Retry-After` obcięty do 3600 s; kod `export_rate_limited`, a przy zbiorze powyżej 10 GB `export_too_large`). W tej samej transakcji: audyt `media_export.requested`, e-mail do KAŻDEGO aktywnego Administratora (tylko link do zlecenia; bez danych klienta i bez linku do pliku) i alert `media_export_started`. Odpowiedź `202`.",
+        "operationId": "createMediaExport",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader-2"
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedMediaExport"
+                }
+              }
+            },
+            "description": "Eksport zlecony (albo powtórka wcześniejszego zlecenia, z nagłówkiem `Idempotent-Replayed`).",
+            "headers": {
+              "Idempotent-Replayed": {
+                "description": "`true`, gdy odpowiedź powtarza wcześniejsze zlecenie (ten sam klucz i zlecenie).",
+                "schema": {
+                  "enum": [
+                    "true"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/MediaExportConflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/MediaStorageUnavailable"
+          }
+        },
+        "summary": "Eksport ZIP zdjęć zlecenia (Administrator i Edytor, step-up)",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "audit": true,
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor"
+          ],
+          "stepUp": true
+        }
+      }
+    },
+    "/api/v1/work-orders/{workOrderId}/media-exports/{exportId}": {
+      "get": {
+        "description": "Stan jednego eksportu (EVM-052 AC6, AC7; SR-AUTHZ-05, SR-AUTHZ-06; CWE-639, CWE-203). Role Administrator, Edytor i Tylko odczyt, kanał `web`. Warunek obiektu: eksport TEGO zlecenia ORAZ zlecony przez wołającego, niewygasły - w przeciwnym razie `404` w jednym kształcie (cudzy, innego zlecenia, wygasły, nieistniejący, zlecenie niewidoczne; odpowiedź nie zdradza istnienia). Nie zawiera klucza obiektu ani adresu. `Cache-Control: no-store`.",
+        "operationId": "getMediaExport",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/MediaExportIdParameter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaExport"
+                }
+              }
+            },
+            "description": "Eksport zlecającego."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "summary": "Stan eksportu ZIP (tylko zlecający)",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor",
+            "read_only"
+          ]
+        }
+      }
+    },
+    "/api/v1/work-orders/{workOrderId}/media-exports/{exportId}/download-url": {
+      "post": {
+        "description": "„Pobierz ZIP” (EVM-052 AC1, AC7; SR-FILE-07, SR-AUTHZ-05, SR-AUTHZ-06, SR-LOG-03; CWE-639, CWE-285). Role Administrator, Edytor i Tylko odczyt (Tylko odczyt dostaje `404`, jak każdy, kto eksportu nie zlecił), kanał `web`, `X-CSRF-Token`. Sprawdza BIEŻĄCĄ rolę (Administrator lub Edytor) i aktywne konto w chwili wywołania - nie tylko, kto zlecił. Eksport zużywa się atomowo: pierwsze wywołanie na eksporcie `ready` i niewygasłym wystawia podpisany `GET` (ważny najwyżej 300 s, domena bucketu eksportów, `application/zip`, `attachment` z nazwą nadaną przez serwer, bez nazwiska klienta i adresu); każde kolejne (także równoległe) - `404`. Wystawienie jest zapisane w audycie (`media_export.downloaded`) w tej samej transakcji (błąd zapisu = brak linku). Adres i nazwa pliku nie są logowane ani audytowane. `Cache-Control: no-store`.",
+        "operationId": "createMediaExportDownloadUrl",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/MediaExportIdParameter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaDerivativeUrl"
+                }
+              }
+            },
+            "description": "Podpisany adres pliku ZIP.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Zawsze `no-store`.",
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/MediaStorageUnavailable"
+          }
+        },
+        "summary": "Podpisany link do gotowego ZIP (jednorazowy, tylko zlecający)",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "audit": true,
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor",
+            "read_only"
           ]
         }
       }
@@ -19990,7 +22385,7 @@
       "name": "timeline"
     },
     {
-      "description": "Zdjęcia zlecenia — dodanie partii, wieloczęściowy upload do prywatnego storage'u i stan pliku po skanie (moduł media; tylko panel web w EVM-044).",
+      "description": "Zdjęcia, filmy i dokumenty zlecenia — dodanie, wieloczęściowy upload do prywatnego storage'u, stan pliku po skanie, klasa poufności dokumentu i podpisane adresy pobrania (moduł media; panel web).",
       "name": "media"
     },
     {

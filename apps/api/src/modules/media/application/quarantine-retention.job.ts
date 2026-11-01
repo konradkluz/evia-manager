@@ -25,6 +25,7 @@ import { OBJECT_STORAGE, type ObjectStorage } from '../../../platform/object-sto
 import { CLOCK, DATABASE, EVENT_BUS, LOGGER } from '../../../platform/tokens.ts';
 import type { Kysely } from 'kysely';
 import type { MediaAuditEvent } from '../events.ts';
+import { eventOwnerOfFile } from './quarantine-alert.ts';
 import { lockDueForPurge, markPurged, transitionFile } from '../infrastructure/media-store.ts';
 import { mediaTables } from '../infrastructure/tables.ts';
 
@@ -117,13 +118,14 @@ export class QuarantineRetentionJob {
         }
         if (await markPurged(tables, file.id, now)) {
           purged += 1;
-          if (file.mediaAssetId !== null) {
+          const owner = await eventOwnerOfFile(tx, { media_asset_id: file.mediaAssetId, document_version_id: file.documentVersionId });
+          if (owner !== undefined) {
             const event: MediaAuditEvent = {
               type: 'media_file.quarantine_purged',
               actor: { type: 'system' },
               outcome: 'success',
-              objectType: 'media_asset',
-              objectId: file.mediaAssetId,
+              objectType: owner.objectType,
+              objectId: owner.objectId,
             };
             await this.#events.publish(tx, event, { origin: 'cli', traceId: newTraceId() });
           }

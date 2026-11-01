@@ -28,10 +28,12 @@ import { IDEMPOTENCY, type Idempotency } from '../../../platform/idempotency/ide
 import { CLOCK, DATABASE, EVENT_BUS } from '../../../platform/tokens.ts';
 import { canManageQuarantine } from '../../authorization/index.ts';
 import { WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders/index.ts';
+import { PROCEDURE_STAGE_DIRECTORY, type ProcedureStageDirectory } from '../../procedures/index.ts';
 import type { MediaAuditEvent } from '../events.ts';
 import { findAssetWithFile, requestRescan } from '../infrastructure/media-store.ts';
 import { mediaTables } from '../infrastructure/tables.ts';
 import { idempotencyKeyOf, toMediaAsset } from './media-support.ts';
+import { stageNames } from './stage-support.ts';
 
 export const RESCAN_SCOPE = 'POST /api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/rescan';
 const scopeOf = (workOrderId: string, mediaAssetId: string): string =>
@@ -47,6 +49,7 @@ export interface RescanRequested {
 @Injectable()
 export class RescanMediaService {
   readonly #db: Kysely<Database>;
+  readonly #stages: ProcedureStageDirectory;
   readonly #clock: Clock;
   readonly #events: EventBus;
   readonly #idempotency: Idempotency;
@@ -58,7 +61,9 @@ export class RescanMediaService {
     @Inject(EVENT_BUS) events: EventBus,
     @Inject(IDEMPOTENCY) idempotency: Idempotency,
     @Inject(WORK_ORDER_DIRECTORY) orders: WorkOrderDirectory,
+    @Inject(PROCEDURE_STAGE_DIRECTORY) stages: ProcedureStageDirectory,
   ) {
+    this.#stages = stages;
     this.#db = db;
     this.#clock = clock;
     this.#events = events;
@@ -76,6 +81,8 @@ export class RescanMediaService {
       const tables = mediaTables(tx);
       const found = await findAssetWithFile(tables, order.id, mediaAssetId, true);
       if (found === undefined) throw new ProblemException('not_found');
+      // the file was erased on purpose (EVM-051): nothing to scan
+      if (found.file.erased_at !== null) throw new ProblemException('file_erased');
       const key = idempotencyKeyOf(rawKey);
 
       const perform = async () => {
@@ -98,7 +105,9 @@ export class RescanMediaService {
       // read again with the order of the URL in the condition: the answer is the medium as it is now
       const current = await findAssetWithFile(tables, order.id, mediaAssetId);
       if (current === undefined) throw new ProblemException('not_found');
-      return { asset: toMediaAsset(current, { unfinished: false, manageQuarantine: canManageQuarantine(principal) }), replayed };
+      const names = await stageNames(tx, this.#stages, [{ workOrderId: order.id, stageId: current.asset.procedure_stage_id }]);
+      const asset = toMediaAsset(current, { unfinished: false, manageQuarantine: canManageQuarantine(principal), stageNames: names });
+      return { asset, replayed };
     });
   }
 }

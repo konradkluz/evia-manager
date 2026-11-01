@@ -38,6 +38,9 @@ export const SITE_SUGGESTIONS_KEY = 'site-suggestions' as const;
  */
 export const WORK_ORDER_MEDIA_KEY = 'work-order-media' as const;
 
+/** The documents of the order (EVM-047): titles and file names are personal data - the memory of the tab only. Key: `[name, workOrderId]`. */
+export const WORK_ORDER_DOCUMENTS_KEY = 'work-order-documents' as const;
+
 /** All keys of one order: a `404` removes them together (TM-10 — nothing of a gone order stays in the memory of the tab). */
 export const WORK_ORDER_KEYS = [
   WORK_ORDER_HEADER_KEY,
@@ -50,4 +53,8 @@ export const WORK_ORDER_KEYS = [
   WORK_ORDER_PAYMENTS_KEY,
   WORK_ORDER_JOURNAL_KEY,
   WORK_ORDER_MEDIA_KEY,
+  WORK_ORDER_DOCUMENTS_KEY,
 ] as const;
+
+/** The documents of a customer (EVM-050, W-14): titles and file names are personal data - the memory of the tab only. Key: `[name, customerId]`. */
+export const CUSTOMER_DOCUMENTS_KEY = 'customer-documents' as const;

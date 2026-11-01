@@ -215,6 +215,8 @@ function compose(t: TFunction, event: TimelineEvent, stageName: string | null, n
       };
     case 'media_assets_added':
       return { text: t('workOrder.journal.event.mediaAssetsAdded') };
+    case 'document_added':
+      return { text: t('workOrder.journal.event.documentAdded') };
     default:
       return { text: t('workOrder.journal.event.unknown') };
   }

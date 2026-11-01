@@ -9,6 +9,7 @@ import {
   type MediaCategory,
 } from '@evia/contracts';
 import { ApiError, unwrap } from '../api/client.ts';
+import { isStageRejection } from './stage-choice.ts';
 import { uuidv7 } from '../customers/uuid.ts';
 import { MAX_BATCH } from './media-files.ts';
 
@@ -23,7 +24,7 @@ import { MAX_BATCH } from './media-files.ts';
  * and the verdict of the scan that the screen reads from the list.
  */
 export type ItemStatus = 'hashing' | 'queued' | 'uploading' | 'paused' | 'checking' | 'done' | 'failed' | 'attention';
-export type FailureKind = 'checksum' | 'different' | 'network' | 'rate' | 'storage' | 'incomplete' | 'server';
+export type FailureKind = 'checksum' | 'different' | 'network' | 'rate' | 'storage' | 'incomplete' | 'stage' | 'server';
 
 export interface QueueItem {
   /** The id of the media (UUIDv7 made here). */
@@ -68,6 +69,8 @@ export interface EngineDeps {
 export interface AddOptions {
   readonly category: MediaCategory;
   readonly description: string;
+  /** The stage of the order all the files get (EVM-048 AC1); `null` = none. */
+  readonly procedureStageId?: string | null;
   readonly contentTypes: ReadonlyMap<File, string>;
   /** Unfinished sessions of the person: a chosen file that fits one resumes it instead of creating a new medium. */
   readonly unfinished?: readonly UnfinishedSession[];
@@ -80,6 +83,7 @@ interface Internal {
   contentType: string;
   category: MediaCategory;
   description: string;
+  procedureStageId: string | null;
   session: { id: string; partSize: number; partCount: number } | null;
   sessionKey: string | null;
   created: boolean;
@@ -185,6 +189,7 @@ export class UploadEngine {
         contentType: options.contentTypes.get(file) ?? file.type,
         category: options.category,
         description: options.description,
+        procedureStageId: options.procedureStageId ?? null,
         session: match?.session == null ? null : { ...match.session },
         sessionKey: null,
         created: match !== undefined,
@@ -233,6 +238,7 @@ export class UploadEngine {
               id: entry.item.key,
               category: entry.category,
               ...(entry.description.trim() === '' ? {} : { description: entry.description.trim() }),
+              ...(entry.procedureStageId === null ? {} : { procedureStageId: entry.procedureStageId }),
               fileName: entry.file.name,
               declaredSize: entry.file.size,
               contentType: entry.contentType,
@@ -247,6 +253,8 @@ export class UploadEngine {
       }
     } catch (error) {
       const failure = this.describe(error);
+      // a stage that is gone (AC8): "Ponów" sends the files without a stage, the text says so
+      if (failure.failure === 'stage') for (const entry of entries) entry.procedureStageId = null;
       for (const entry of entries) this.patch(entry.item.key, { status: 'failed', ...failure });
     }
   }
@@ -255,6 +263,7 @@ export class UploadEngine {
     if (error instanceof ApiError) {
       if (error.status === 429) return { failure: 'rate', retryAfterSeconds: error.retryAfterSeconds ?? null };
       if (error.status === 503 && error.code === 'media_storage_unavailable') return { failure: 'storage', retryAfterSeconds: null };
+      if (isStageRejection(error)) return { failure: 'stage', retryAfterSeconds: null };
       if (error.status === 422 && error.code === 'upload_incomplete') return { failure: 'incomplete', retryAfterSeconds: null };
       if (error.status === 0 || error.status >= 500) return { failure: 'network', retryAfterSeconds: null };
       return { failure: 'server', retryAfterSeconds: null };

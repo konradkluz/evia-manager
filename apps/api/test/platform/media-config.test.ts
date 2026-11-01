@@ -54,6 +54,16 @@ describe('EVM-044 AC3 media configuration is all or nothing (P5, fail closed)', 
     expect(full?.bucketOrigin).toBe('https://evia-staging-media.s3.fr-par.scw.cloud');
   });
 
+  it('EVM-052 AC4 the bucket of the exports is optional, a bucket of its own, and never the media bucket (the lifecycle of one day, outside the object lock)', () => {
+    expect(loadConfig(validEnv({ ...MEDIA })).media?.exportBucket).toBeUndefined();
+    expect(loadConfig(validEnv({ ...MEDIA, MEDIA_EXPORT_BUCKET: 'evia-staging-exports' })).media?.exportBucket).toBe(
+      'evia-staging-exports',
+    );
+    expect(keysOf(validEnv({ ...MEDIA, MEDIA_EXPORT_BUCKET: 'evia-staging-media' }))).toEqual(['MEDIA_EXPORT_BUCKET']);
+    expect(keysOf(validEnv({ ...MEDIA, MEDIA_EXPORT_BUCKET: 'Bad Bucket' }))).toEqual(['MEDIA_EXPORT_BUCKET']);
+    expect(keysOf(validEnv({ MEDIA_EXPORT_BUCKET: 'evia-staging-exports' }))).not.toEqual([]);
+  });
+
   it('EVM-044 AC3 invalid values are refused without echoing them (wildcard origin, bad clamd address, bad flag)', () => {
     expect(keysOf(validEnv({ ...MEDIA, MEDIA_BUCKET_ORIGIN: 'https://*.scw.cloud' }))).toEqual(['MEDIA_BUCKET_ORIGIN']);
     expect(keysOf(validEnv({ ...MEDIA, MEDIA_BUCKET_ORIGIN: 'https://bucket.example/path' }))).toEqual(['MEDIA_BUCKET_ORIGIN']);

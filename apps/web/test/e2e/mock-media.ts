@@ -14,6 +14,8 @@ interface Media {
   readonly id: string;
   readonly orderId: string;
   readonly category: string;
+  /** EVM-048: the stage of the order the medium was assigned to at the upload. */
+  readonly stageId: string | null;
   readonly fileName: string;
   readonly size: number;
   readonly userId: string;
@@ -66,6 +68,9 @@ const shown = (entry: Media, withName: boolean, role: Input['role'] = 'administr
   mediaType: 'photo',
   category: entry.category,
   description: null,
+  procedureStageId: entry.stageId,
+  procedureStageName: null,
+  version: 1,
   origin: 'web',
   capturedAt: null,
   createdAt: entry.createdAt,
@@ -104,6 +109,7 @@ export function seedUnfinished(server: MediaServer, orderId: string, userId: str
     id: `01968f3e-0000-7000-8000-00000c${String(n).padStart(6, '0')}`,
     orderId,
     category: 'in_progress',
+    stageId: null,
     fileName: name,
     size,
     userId,
@@ -131,6 +137,7 @@ export function seedQuarantined(
     id: `01968f3e-0000-7000-8000-00000c${String(n).padStart(6, '0')}`,
     orderId,
     category: 'in_progress',
+    stageId: null,
     fileName: 'synthetic.jpg',
     size: 1000,
     userId: '11111111-1111-4111-8111-111111111111',
@@ -180,12 +187,15 @@ export function answerMedia(server: MediaServer, method: string, path: string, q
     if (!writes) return problem(403, 'forbidden');
     const replay = input.key === undefined ? undefined : server.keys.get(input.key);
     if (replay !== undefined) return json(201, JSON.parse(replay) as unknown, { 'Idempotent-Replayed': 'true' });
-    const body = JSON.parse(input.raw) as { items: { id: string; category: string; fileName: string; declaredSize: number }[] };
+    const body = JSON.parse(input.raw) as {
+      items: { id: string; category: string; procedureStageId?: string; fileName: string; declaredSize: number }[];
+    };
     for (const item of body.items) {
       server.media.push({
         id: item.id,
         orderId,
         category: item.category,
+        stageId: item.procedureStageId ?? null,
         fileName: item.fileName,
         size: item.declaredSize,
         userId: input.userId,

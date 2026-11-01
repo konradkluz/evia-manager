@@ -8,6 +8,7 @@ import { sql, type Selectable } from 'kysely';
 import { QUARANTINE_RETENTION_DAYS } from '../domain/quarantine.ts';
 import type { FileState, ReasonCode } from '../domain/scan-outcome.ts';
 import type { DerivativeVariant } from '../domain/derivatives.ts';
+import { findDocumentWithFile, type DocumentScope, type DocumentWithFile } from './document-store.ts';
 import type { MediaDb, MediaAssetsTable, StoredFilesTable, UploadSessionsTable } from './tables.ts';
 
 export type StoredFileRow = Selectable<StoredFilesTable>;
@@ -26,6 +27,7 @@ export interface NewMediaAsset {
   readonly mediaType: 'photo' | 'video';
   readonly category: string;
   readonly description: string | null;
+  readonly procedureStageId?: string | null;
   readonly createdBy: string;
 }
 
@@ -47,7 +49,7 @@ export async function insertMediaAsset(db: MediaDb, asset: NewMediaAsset, now: D
     .values({
       id: asset.id,
       work_order_id: asset.workOrderId,
-      procedure_stage_id: null,
+      procedure_stage_id: asset.procedureStageId ?? null,
       media_type: asset.mediaType,
       category: asset.category,
       description: asset.description,
@@ -113,12 +115,15 @@ export async function findAssetWithFile(
   workOrderId: string,
   mediaAssetId: string,
   lock = false,
+  /** Only the restore and the erasure of a file reach a medium that is soft deleted (EVM-051): every other reader never sees it (SR-AUTHZ-02). */
+  includeDeleted = false,
 ): Promise<AssetWithFile | undefined> {
-  const base = db
+  const visible = db
     .selectFrom('media.media_assets as a')
     .innerJoin('media.stored_files as f', 'f.media_asset_id', 'a.id')
     .where('a.id', '=', mediaAssetId)
-    .where('a.work_order_id', '=', workOrderId)
+    .where('a.work_order_id', '=', workOrderId);
+  const base = (includeDeleted ? visible : visible.where('a.deleted_at', 'is', null))
     .selectAll('f')
     .select([
       'a.id as a_id',
@@ -132,6 +137,11 @@ export async function findAssetWithFile(
       'a.created_at as a_created_at',
       'a.created_by as a_created_by',
       'a.updated_at as a_updated_at',
+      'a.version as a_version',
+      'a.updated_by as a_updated_by',
+      'a.deleted_at as a_deleted_at',
+      'a.deleted_by as a_deleted_by',
+      'a.file_purged_at as a_file_purged_at',
       quarantineExpiry,
     ]);
   const row = await (lock ? base.forNoKeyUpdate('f') : base).executeTakeFirst();
@@ -150,6 +160,11 @@ export type JoinedRow = StoredFileRow & {
   a_created_at: Date;
   a_created_by: string;
   a_updated_at: Date;
+  a_version: number;
+  a_updated_by: string | null;
+  a_deleted_at: Date | null;
+  a_deleted_by: string | null;
+  a_file_purged_at: Date | null;
   quarantine_expires_at: Date | null;
 };
 
@@ -166,6 +181,11 @@ export function splitRow(row: JoinedRow): AssetWithFile {
     a_created_at,
     a_created_by,
     a_updated_at,
+    a_version,
+    a_updated_by,
+    a_deleted_at,
+    a_deleted_by,
+    a_file_purged_at,
     quarantine_expires_at,
     ...file
   } = row;
@@ -184,35 +204,74 @@ export function splitRow(row: JoinedRow): AssetWithFile {
       created_at: a_created_at,
       created_by: a_created_by,
       updated_at: a_updated_at,
+      version: a_version,
+      updated_by: a_updated_by,
+      deleted_at: a_deleted_at,
+      deleted_by: a_deleted_by,
+      file_purged_at: a_file_purged_at,
     },
   };
 }
 
-export interface SessionChain extends AssetWithFile {
+/** The owner of an uploaded file, named by the PATH of the request: a medium or a document (the path decides, never the data). */
+export type OwnerRef = { readonly kind: 'media_asset'; readonly id: string } | { readonly kind: 'document'; readonly id: string };
+
+export type Owned =
+  { readonly kind: 'media_asset'; readonly found: AssetWithFile } | { readonly kind: 'document'; readonly found: DocumentWithFile };
+
+/**
+ * The owner of THIS order with its file, in ONE statement, by the kind the path names (EVM-047): a document used through the path of the media - and the
+ * other way round - is not found, the same absence as a missing one.
+ */
+export async function findOwnerWithFile(
+  db: MediaDb,
+  workOrderId: string,
+  owner: OwnerRef,
+  lock = false,
+  documentScope: DocumentScope = { workOrderId },
+): Promise<Owned | undefined> {
+  if (owner.kind === 'media_asset') {
+    // a MEDIUM is reached through its own order only: the wider scope of the documents (EVM-050) never applies to it (SR-AUTHZ-08)
+    const found = await findAssetWithFile(db, workOrderId, owner.id, lock);
+    return found === undefined ? undefined : { kind: 'media_asset', found };
+  }
+  const found = await findDocumentWithFile(db, documentScope, owner.id, lock);
+  return found === undefined ? undefined : { kind: 'document', found };
+}
+
+export const fileOfOwner = (owned: Owned): StoredFileRow => owned.found.file;
+/** The user who created the owner: only they (or an Administrator) open a session on it. */
+export const creatorOfOwner = (owned: Owned): string =>
+  owned.kind === 'media_asset' ? owned.found.asset.created_by : owned.found.document.created_by;
+
+export interface SessionChain {
+  readonly owned: Owned;
+  readonly file: StoredFileRow;
   readonly session: UploadSessionRow;
 }
 
 /**
- * The chain order → medium → file → session in ONE statement, with the creator in the condition (AC6, AC7): another user's session,
- * another device's, a session of another medium or order and a missing one are all the same absence.
+ * The chain order → owner → file → session in ONE statement, with the creator in the condition (AC6, AC7): another user's session,
+ * another device's, a session of another owner or order and a missing one are all the same absence.
  */
 export async function findSessionChain(
   db: MediaDb,
-  ids: { readonly workOrderId: string; readonly mediaAssetId: string; readonly sessionId: string },
+  ids: { readonly workOrderId: string; readonly owner: OwnerRef; readonly sessionId: string; readonly documentScope?: DocumentScope },
   creator: Creator,
   lock = false,
 ): Promise<SessionChain | undefined> {
-  const found = await findAssetWithFile(db, ids.workOrderId, ids.mediaAssetId, lock);
-  if (found === undefined) return undefined;
+  const owned = await findOwnerWithFile(db, ids.workOrderId, ids.owner, lock, ids.documentScope);
+  if (owned === undefined) return undefined;
+  const file = fileOfOwner(owned);
   const base = db
     .selectFrom('media.upload_sessions')
     .where('id', '=', ids.sessionId)
-    .where('stored_file_id', '=', found.file.id)
+    .where('stored_file_id', '=', file.id)
     .where('user_id', '=', creator.userId)
     .where(sql<boolean>`device_id is not distinct from ${creator.deviceId}`)
     .selectAll();
   const session = await (lock ? base.forUpdate() : base).executeTakeFirst();
-  return session === undefined ? undefined : { ...found, session };
+  return session === undefined ? undefined : { owned, file, session };
 }
 
 /** The active session of a file, whoever made it (at most one: a partial unique index). */
@@ -373,7 +432,8 @@ export async function listAssets(
         .on('s.user_id', '=', creator.userId)
         .on(sql<boolean>`s.device_id is not distinct from ${creator.deviceId}`),
     )
-    .where('a.work_order_id', '=', workOrderId);
+    .where('a.work_order_id', '=', workOrderId)
+    .where('a.deleted_at', 'is', null);
   if (options.unfinishedOnly) {
     query = query.where((eb) =>
       eb.or([
@@ -405,6 +465,11 @@ export async function listAssets(
       'a.created_at as a_created_at',
       'a.created_by as a_created_by',
       'a.updated_at as a_updated_at',
+      'a.version as a_version',
+      'a.updated_by as a_updated_by',
+      'a.deleted_at as a_deleted_at',
+      'a.deleted_by as a_deleted_by',
+      'a.file_purged_at as a_file_purged_at',
       quarantineExpiry,
       's.id as s_id',
       's.expires_at as s_expires_at',
@@ -433,6 +498,7 @@ export async function listAssets(
 export async function findUnscanned(db: MediaDb, staleBefore: Date, limit: number): Promise<Array<{ id: string }>> {
   return db
     .selectFrom('media.stored_files')
+    .where('erased_at', 'is', null)
     .where((eb) =>
       eb.or([
         eb('state', '=', 'uploaded'),
@@ -462,6 +528,7 @@ export async function findAssetsWithFiles(db: MediaDb, workOrderId: string, ids:
     .selectFrom('media.media_assets as a')
     .innerJoin('media.stored_files as f', 'f.media_asset_id', 'a.id')
     .where('a.work_order_id', '=', workOrderId)
+    .where('a.deleted_at', 'is', null)
     .where('a.id', 'in', [...ids])
     .selectAll('f')
     .select([
@@ -476,6 +543,11 @@ export async function findAssetsWithFiles(db: MediaDb, workOrderId: string, ids:
       'a.created_at as a_created_at',
       'a.created_by as a_created_by',
       'a.updated_at as a_updated_at',
+      'a.version as a_version',
+      'a.updated_by as a_updated_by',
+      'a.deleted_at as a_deleted_at',
+      'a.deleted_by as a_deleted_by',
+      'a.file_purged_at as a_file_purged_at',
       quarantineExpiry,
     ])
     .execute();
@@ -505,6 +577,7 @@ export async function claimForScan(db: MediaDb, storedFileId: string, staleBefor
       state_changed_at: sql<Date>`case when state = 'uploaded' then ${now}::timestamptz else state_changed_at end`,
     })
     .where('id', '=', storedFileId)
+    .where('erased_at', 'is', null)
     .where((eb) =>
       eb.or([
         eb('state', '=', 'uploaded'),
@@ -527,6 +600,7 @@ export async function countHeld(db: MediaDb, workOrderId: string): Promise<numbe
     .selectFrom('media.media_assets as a')
     .innerJoin('media.stored_files as f', 'f.media_asset_id', 'a.id')
     .where('a.work_order_id', '=', workOrderId)
+    .where('a.deleted_at', 'is', null)
     .where(HELD)
     .select(sql<string>`count(*)`.as('count'))
     .executeTakeFirstOrThrow();
@@ -546,6 +620,7 @@ export async function requestRescan(db: MediaDb, storedFileId: string, now: Date
     .where('f.id', '=', storedFileId)
     .where('f.state', '=', 'quarantined')
     .where('f.purged_at', 'is', null)
+    .where('f.erased_at', 'is', null)
     .where(sql<boolean>`${now}::timestamptz < media.quarantine_expires_at(f.quarantined_at, ${QUARANTINE_RETENTION_DAYS}::integer)`)
     .returning('f.id')
     .executeTakeFirst();
@@ -557,6 +632,7 @@ export interface DueFile {
   readonly objectKey: string;
   readonly state: FileState;
   readonly mediaAssetId: string | null;
+  readonly documentVersionId: string | null;
 }
 
 /**
@@ -568,15 +644,22 @@ export async function lockDueForPurge(db: MediaDb, now: Date, limit: number): Pr
     .selectFrom('media.stored_files as f')
     .where('f.quarantined_at', 'is not', null)
     .where('f.purged_at', 'is', null)
+    .where('f.erased_at', 'is', null)
     .where('f.state', 'in', ['quarantined', 'scanning'])
     .where(sql<boolean>`media.quarantine_expires_at(f.quarantined_at, ${QUARANTINE_RETENTION_DAYS}::integer) <= ${now}::timestamptz`)
     .orderBy('f.quarantined_at', 'asc')
     .limit(limit)
-    .select(['f.id', 'f.object_key', 'f.state', 'f.media_asset_id'])
+    .select(['f.id', 'f.object_key', 'f.state', 'f.media_asset_id', 'f.document_version_id'])
     .forUpdate()
     .skipLocked()
     .execute();
-  return rows.map((row) => ({ id: row.id, objectKey: row.object_key, state: row.state, mediaAssetId: row.media_asset_id }));
+  return rows.map((row) => ({
+    id: row.id,
+    objectKey: row.object_key,
+    state: row.state,
+    mediaAssetId: row.media_asset_id,
+    documentVersionId: row.document_version_id,
+  }));
 }
 
 /** Marks the object of a quarantined file as removed. @returns whether the mark was set now (`false`: someone set it first - no second audit event) */
@@ -693,6 +776,7 @@ export async function findUnprocessed(
     .selectFrom('media.stored_files as f')
     .innerJoin('media.media_assets as a', 'a.id', 'f.media_asset_id')
     .where('a.media_type', '=', mediaType)
+    .where('f.erased_at', 'is', null)
     .where((eb) =>
       eb.or([
         eb('f.state', '=', 'clean'),
@@ -740,6 +824,7 @@ export async function claimForProcessing(
       state_changed_at: sql<Date>`case when state = 'clean' then ${now}::timestamptz else state_changed_at end`,
     })
     .where('id', '=', storedFileId)
+    .where('erased_at', 'is', null)
     .where('process_attempts', '<', maxAttempts)
     .where((eb) =>
       eb.or([
@@ -813,6 +898,8 @@ export async function findReadyDerivative(
     .innerJoin('media.file_derivatives as d', (join) => join.onRef('d.stored_file_id', '=', 'f.id').on('d.variant', '=', variant))
     .where('a.id', '=', mediaAssetId)
     .where('a.work_order_id', '=', workOrderId)
+    .where('a.deleted_at', 'is', null)
+    .where('f.erased_at', 'is', null)
     .where('f.state', '=', 'ready')
     .select(['d.object_key', 'd.content_type'])
     .executeTakeFirst();
@@ -843,6 +930,8 @@ export async function findOriginal(db: MediaDb, workOrderId: string, mediaAssetI
     .innerJoin('media.stored_files as f', 'f.media_asset_id', 'a.id')
     .where('a.id', '=', mediaAssetId)
     .where('a.work_order_id', '=', workOrderId)
+    .where('a.deleted_at', 'is', null)
+    .where('f.erased_at', 'is', null)
     .where('f.purpose', '=', 'media_original')
     .select([
       'f.object_key',
@@ -913,6 +1002,7 @@ export async function claimVideoForProcessing(
       state_changed_at: sql<Date>`case when state = 'clean' then ${now}::timestamptz else state_changed_at end`,
     })
     .where('id', '=', storedFileId)
+    .where('erased_at', 'is', null)
     .where('process_attempts', '<', maxAttempts)
     .where((eb) =>
       eb.or([
@@ -934,4 +1024,49 @@ export async function claimVideoForProcessing(
 export async function recordedSize(db: MediaDb, storedFileId: string): Promise<number | undefined> {
   const row = await db.selectFrom('media.stored_files').where('id', '=', storedFileId).select('size_bytes').executeTakeFirst();
   return row?.size_bytes == null ? undefined : Number(row.size_bytes);
+}
+
+/** The medium of THIS order, row-locked: another order's medium, a document with that id and a missing one are the same absence (SR-AUTHZ-02). */
+export async function lockAssetOfOrder(db: MediaDb, workOrderId: string, mediaAssetId: string): Promise<MediaAssetRow | undefined> {
+  return db
+    .selectFrom('media.media_assets')
+    .where('id', '=', mediaAssetId)
+    .where('work_order_id', '=', workOrderId)
+    .where('deleted_at', 'is', null)
+    .selectAll()
+    .forNoKeyUpdate()
+    .executeTakeFirst();
+}
+
+/** What a change of a medium sets; a field that is absent stays as it is (`null` clears the description and the stage). */
+export interface AssetChange {
+  readonly category?: string;
+  readonly description?: string | null;
+  readonly procedureStageId?: string | null;
+}
+
+/** Applies a change under the lock of the caller; the version moves by one. @returns the new version, or `undefined` when the version differs */
+export async function updateAssetMetadata(
+  db: MediaDb,
+  mediaAssetId: string,
+  expectedVersion: number,
+  change: AssetChange,
+  userId: string,
+  now: Date,
+): Promise<number | undefined> {
+  const row = await db
+    .updateTable('media.media_assets')
+    .set({
+      ...(change.category === undefined ? {} : { category: change.category }),
+      ...(change.description === undefined ? {} : { description: change.description }),
+      ...(change.procedureStageId === undefined ? {} : { procedure_stage_id: change.procedureStageId }),
+      updated_at: now,
+      updated_by: userId,
+      version: sql<number>`version + 1`,
+    })
+    .where('id', '=', mediaAssetId)
+    .where('version', '=', expectedVersion)
+    .returning('version')
+    .executeTakeFirst();
+  return row?.version;
 }

@@ -101,7 +101,7 @@ describe('the VM side of the channel (EVM-007 AC1, AC4, AC7; architect 3, 12–1
       expect(record(record(channel[service])['environment'])['MEDIA_S3_SECRET_ACCESS_KEY_FILE'], service).toBe(`/run/secrets/${file}`);
   });
 
-  it('EVM-044 (RR-44) EVM-046: clamd runs with explicit limits of 2000M (above SCAN_LIMIT_BYTES), AlertExceedsMax, a scratch directory on a disk volume and timeouts', () => {
+  it('EVM-044 (RR-44) EVM-046: clamd runs with explicit limits of 2000M (above SCAN_LIMIT_BYTES), AlertExceedsMax, the settings against macros and zip bombs (EVM-047), a scratch directory on a disk volume and timeouts', () => {
     const infra = read('infra/runtime/compose.infra.yaml');
     for (const line of [
       'CLAMD_CONF_StreamMaxLength: 2000M',
@@ -111,6 +111,12 @@ describe('the VM side of the channel (EVM-007 AC1, AC4, AC7; architect 3, 12–1
       "CLAMD_CONF_ReadTimeout: '300'",
       'clamav-scan-tmp:/scan-tmp',
       "CLAMD_CONF_AlertExceedsMax: 'yes'",
+      // EVM-047 (P5 point 2): the second line of defence against macros and zip bombs in documents
+      "CLAMD_CONF_AlertOLE2Macros: 'yes'",
+      "CLAMD_CONF_MaxRecursion: '16'",
+      "CLAMD_CONF_MaxFiles: '10000'",
+      "CLAMD_CONF_AlertEncryptedArchive: 'yes'",
+      "CLAMD_CONF_AlertEncryptedDoc: 'no'",
     ])
       expect(infra, line).toContain(line);
     // RR-71: the scratch space of clamd is a separate host mount (encrypted, size-limited by the IaC session), never the root file system

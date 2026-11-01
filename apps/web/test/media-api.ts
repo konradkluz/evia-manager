@@ -1,10 +1,19 @@
 import type { CurrentSession, MediaAsset } from '@evia/contracts';
 import { ACTIVE_SESSION, json, parseBody, problem, SESSION_ROUTE, type Handler, type Recorded } from './api-fake.ts';
 import { journalApi } from './journal-api.ts';
-import { ORDER_ID } from './work-order-api.ts';
+import { PROCEDURE_LIST, stageName } from './stages-api.ts';
+import { HEADER, ORDER_ID } from './work-order-api.ts';
 
 /** Synthetic media of the order ZL-2026-0042 (EVM-044): a fake of the media API with sessions, parts and the verdict of the scan. */
 export const MEDIA_BASE = `/api/v1/work-orders/${ORDER_ID}/media-assets`;
+/** EVM-047: the tab also shows the documents of the order; by default the order has none. */
+export const DOCUMENTS_BASE = `/api/v1/work-orders/${ORDER_ID}/documents`;
+/** EVM-050: the lists of the documents of the site and of the customer of the order (empty by default). */
+export const SITE_DOCUMENTS_ROUTE = `GET /api/v1/sites/${HEADER.site?.id ?? ''}/documents`;
+export const CUSTOMER_DOCUMENTS_ROUTE = `GET /api/v1/customers/${HEADER.customer?.id ?? ''}/documents`;
+export const KINDS_ROUTE = 'GET /api/v1/catalog/document-kinds';
+/** EVM-052: the exports of the caller for the order (none by default). */
+export const EXPORTS_BASE = `/api/v1/work-orders/${ORDER_ID}/media-exports`;
 export const THUMBNAIL_HOST = 'https://bucket.example.test';
 export const BUCKET_URL = 'https://bucket.example.test/media/2026/10/part';
 
@@ -15,6 +24,9 @@ export function asset(n: number, extra: Partial<MediaAsset> = {}): MediaAsset {
     mediaType: 'photo',
     category: 'in_progress',
     description: null,
+    procedureStageId: null,
+    procedureStageName: null,
+    version: 1,
     origin: 'web',
     capturedAt: null,
     createdAt: '2026-10-11T11:55:00.000Z',
@@ -64,6 +76,10 @@ export interface MediaServerOptions {
   readonly rescan?: Handler;
   /** `POST …/media-assets/{id}/download-url` (EVM-068): the address of a thumbnail; the default hands out a synthetic address of the bucket. */
   readonly downloadUrl?: Handler;
+  /** `PATCH …/media-assets/{id}` (EVM-048); the default applies the fields to the medium and raises the version. */
+  readonly update?: Handler;
+  /** `DELETE …/media-assets/{id}` (EVM-051); the default answers `204`. */
+  readonly remove?: Handler;
   readonly routes?: Record<string, Handler>;
 }
 
@@ -71,6 +87,7 @@ export interface MediaServerOptions {
 export function mediaApi(options: MediaServerOptions = {}) {
   const created: MediaAsset[] = [];
   const completed = new Set<string>();
+  const edited = new Map<string, MediaAsset>();
   const finalState = options.stateAfterComplete ?? 'clean';
   const list: Handler = (request) => {
     if (request.query.get('uploadState') === 'unfinished')
@@ -82,19 +99,23 @@ export function mediaApi(options: MediaServerOptions = {}) {
       ...created.map((entry) =>
         completed.has(entry.id) ? { ...entry, fileState: finalState, stateReasonCode: options.stateReasonCode ?? null } : entry,
       ),
-      ...(options.assets ?? []),
+      ...(options.assets ?? []).map((entry) => edited.get(entry.id) ?? entry),
     ];
     return json(200, { items: all, nextCursor: null, needsAttentionCount: held.length });
   };
   const create: Handler =
     options.create ??
     ((request) => {
-      const body = parseBody(request.body) as { items: { id: string; category: MediaAsset['category']; declaredSize: number }[] };
+      const body = parseBody(request.body) as {
+        items: { id: string; category: MediaAsset['category']; declaredSize: number; procedureStageId?: string }[];
+      };
       const items = body.items.map((item, index) =>
         asset(500 + created.length + index, {
           id: item.id,
           category: item.category,
           declaredSize: item.declaredSize,
+          procedureStageId: item.procedureStageId ?? null,
+          procedureStageName: stageName(item.procedureStageId),
           fileState: 'pending_upload',
         }),
       );
@@ -122,12 +143,34 @@ export function mediaApi(options: MediaServerOptions = {}) {
       const found = created.find((entry) => entry.id === id) ?? asset(0, { id });
       return json(200, { ...found, fileState: 'uploaded' });
     });
+  const update: Handler =
+    options.update ??
+    ((request) => {
+      const id = request.path.split('/').at(-1) ?? '';
+      const found = edited.get(id) ?? (options.assets ?? []).find((entry) => entry.id === id);
+      if (found === undefined) return problem(404, 'not_found');
+      const body = parseBody(request.body) as Partial<MediaAsset>;
+      const next: MediaAsset = {
+        ...found,
+        ...body,
+        procedureStageName: 'procedureStageId' in body ? stageName(body.procedureStageId) : found.procedureStageName,
+        version: found.version + 1,
+      };
+      edited.set(id, next);
+      return json(200, next, { ETag: `"${String(next.version)}"` });
+    });
   const api = journalApi({
     entries: [],
     session: options.session ?? ACTIVE_SESSION,
     routes: {
       [`GET ${MEDIA_BASE}`]: list,
       [`POST ${MEDIA_BASE}`]: create,
+      [`GET ${EXPORTS_BASE}`]: () => json(200, { items: [] }),
+      [`GET ${DOCUMENTS_BASE}`]: () => json(200, { items: [], nextCursor: null, totalCount: 0 }),
+      [SITE_DOCUMENTS_ROUTE]: () => json(200, { items: [], nextCursor: null, totalCount: 0 }),
+      [CUSTOMER_DOCUMENTS_ROUTE]: () => json(200, { items: [], nextCursor: null, totalCount: 0 }),
+      [KINDS_ROUTE]: () => json(200, { items: [], nextCursor: null }),
+      [`GET /api/v1/work-orders/${ORDER_ID}/procedures`]: () => json(200, PROCEDURE_LIST),
       ...options.routes,
     },
   });
@@ -148,6 +191,11 @@ export function mediaApi(options: MediaServerOptions = {}) {
         ),
     ],
     [/\/upload-sessions\/[^/]+\/complete$/, complete],
+    [
+      /\/media-assets\/[^/]+$/,
+      (request) =>
+        request.method === 'DELETE' ? (options.remove ?? (() => new Response(null, { status: 204 })))(request) : update(request),
+    ],
     [/\/[^/]+\/rescan$/, options.rescan ?? (() => problem(500, 'internal_error'))],
     [
       /\/[^/]+\/download-url$/,

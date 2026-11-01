@@ -97,7 +97,10 @@ export class InvitationEmailComposer implements EmailComposer {
     if (user.status !== 'active' || user.role !== 'administrator') return { status: 'obsolete' };
     if (!isAlertVariant(message.variant)) throw new EmailPermanentError('invalid_message');
     // the link of a quarantine alert is made of the subject of the row, which must be an identifier (never text from outside)
-    if (message.variant === 'administrator_media_quarantined' && !UUID.test(message.subjectId ?? ''))
+    if (
+      (message.variant === 'administrator_media_quarantined' || message.variant === 'administrator_media_export_started') &&
+      !UUID.test(message.subjectId ?? '')
+    )
       throw new EmailPermanentError('invalid_message');
     const to = parseEmailAddress(user.email);
     if (to === undefined) throw new EmailPermanentError('recipient_rejected');

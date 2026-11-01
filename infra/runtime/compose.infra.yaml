@@ -85,6 +85,14 @@ services:
       CLAMD_CONF_MaxFileSize: 2000M
       CLAMD_CONF_MaxScanSize: 2000M
       CLAMD_CONF_AlertExceedsMax: 'yes'
+      # EVM-047 (P5 point 2, SR-FILE-04): the second line of defence for documents (DOCX/XLSX are the first OOXML uploads): macros in OLE2 containers are alerts, the nesting
+      # and the number of files of an archive are bounded (zip bombs), an encrypted ARCHIVE is an alert (it cannot be scanned), an encrypted office document is left to
+      # the type check of the API (an OLE container is never accepted as DOCX/XLSX).
+      CLAMD_CONF_AlertOLE2Macros: 'yes'
+      CLAMD_CONF_MaxRecursion: '16'
+      CLAMD_CONF_MaxFiles: '10000'
+      CLAMD_CONF_AlertEncryptedArchive: 'yes'
+      CLAMD_CONF_AlertEncryptedDoc: 'no'
       # clamd keeps a stream it scans in TemporaryDirectory: a DISK volume (a tmpfs inside the 2 GB memory limit would not hold a film of 2 GB); a full or missing
       # directory is an error of the scan (the file stays `scanning` and is retried), never a `clean`. The timeouts allow a slow upload of 2 GB (the client of the
       # API waits for the verdict in proportion to the size).

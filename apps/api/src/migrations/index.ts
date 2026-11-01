@@ -56,6 +56,11 @@ import * as syncRemainingEntities from './0055_sync_remaining_entities.ts';
 import * as syncMutations from './0056_sync_mutations.ts';
 import * as mediaVideo from './0057_media_video.ts';
 import * as quickWorkOrder from './0058_quick_work_order.ts';
+import * as documents from './0059_documents.ts';
+import * as mediaMetadata from './0060_media_metadata.ts';
+import * as documentAnchors from './0061_document_anchors.ts';
+import * as mediaDeletion from './0062_media_deletion.ts';
+import * as mediaExports from './0063_media_exports.ts';
 
 export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0001_foundation': foundation,
@@ -114,4 +119,9 @@ export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0056_sync_mutations': syncMutations,
   '0057_media_video': mediaVideo,
   '0058_quick_work_order': quickWorkOrder,
+  '0059_documents': documents,
+  '0060_media_metadata': mediaMetadata,
+  '0061_document_anchors': documentAnchors,
+  '0062_media_deletion': mediaDeletion,
+  '0063_media_exports': mediaExports,
 });

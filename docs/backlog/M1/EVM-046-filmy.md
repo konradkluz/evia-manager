@@ -4,7 +4,7 @@ title: Filmy w zleceniu
 type: story
 milestone: M1
 epic: E6 Dokumenty i media (web)
-status: ready
+status: done
 priority: P1
 owner: backend-developer
 contributors: [web-developer, devops-engineer]

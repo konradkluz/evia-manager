@@ -1,4 +1,11 @@
-import { listMediaAssets, rescanMediaAsset, type MediaAsset, type MediaAssetList } from '@evia/contracts';
+import {
+  listMediaAssets,
+  rescanMediaAsset,
+  updateMediaAsset,
+  type MediaAsset,
+  type MediaAssetList,
+  type UpdateMediaAssetRequest,
+} from '@evia/contracts';
 import {
   useInfiniteQuery,
   useMutation,
@@ -13,9 +20,10 @@ import { ApiError, unwrap } from '../api/client.ts';
 import { StepUpCancelled, useGuardedCall } from '../administration/use-guarded-call.ts';
 import { uuidv7 } from '../customers/uuid.ts';
 import { mediaText } from './media-labels.ts';
+import { isStageRejection } from './stage-choice.ts';
 import { hashFile } from './sha256.ts';
 import { putPart } from './media-put.ts';
-import { WORK_ORDER_MEDIA_KEY } from './query-keys.ts';
+import { WORK_ORDER_MEDIA_KEY, WORK_ORDER_PROCEDURES_KEY } from './query-keys.ts';
 import { UploadEngine, type QueueItem, type UnfinishedSession } from './media-upload-engine.ts';
 
 // The media of an order and of the person's unfinished uploads. Names of files are personal data: the entries live in the memory of
@@ -156,6 +164,55 @@ function rescanFailure(error: unknown): string {
   }
 }
 
+export interface MediaEdit {
+  readonly asset: MediaAsset;
+  /** Only the fields that changed (`description: null` clears it, `procedureStageId: null` = no stage). */
+  readonly patch: UpdateMediaAssetRequest;
+}
+
+/**
+ * "Edytuj opis" of a medium (EVM-048 AC2): `PATCH` with the version of the medium in `If-Match`. The list is read again after every answer
+ * (on `412` the data on the server stay as they were and the dialog shows the fresh ones).
+ */
+export function useUpdateMedia(workOrderId: string) {
+  const client = useApi();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (edit: MediaEdit) =>
+      unwrap(
+        updateMediaAsset({
+          client,
+          path: { workOrderId, mediaAssetId: edit.asset.id },
+          headers: { 'If-Match': `"${String(edit.asset.version)}"` },
+          body: edit.patch,
+        }),
+      ),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: [WORK_ORDER_MEDIA_KEY, workOrderId] }),
+  });
+}
+
+/** The text of a failed edit of a medium (never the description or the name of the stage). */
+export function editFailure(error: unknown): string {
+  if (!(error instanceof ApiError)) return mediaText.editFailed;
+  if (isStageRejection(error)) return mediaText.editStageGone;
+  switch (error.status) {
+    case 400:
+      return mediaText.editRejected;
+    case 403:
+      return mediaText.editForbidden;
+    case 404:
+      return mediaText.editNotFound;
+    case 409:
+    case 412:
+    case 428:
+      return mediaText.editConflict;
+    case 429:
+      return mediaText.rateLimited(error.retryAfterSeconds ?? null);
+    default:
+      return mediaText.editFailed;
+  }
+}
+
 /** The person's unfinished uploads (AC4): the media with an active session of the caller, with the names of the files. */
 export function useUnfinishedMedia(workOrderId: string, enabled: boolean) {
   const client = useApi();
@@ -213,6 +270,11 @@ export function useMediaUpload(workOrderId: string, enabled: boolean): MediaUplo
   useEffect(() => {
     if (signature !== '') void queryClient.invalidateQueries({ queryKey: [WORK_ORDER_MEDIA_KEY, workOrderId] });
   }, [signature, queryClient, workOrderId]);
+  // A stage that is gone (EVM-048 AC8): the list of the stages is read again.
+  const stageGone = items.some((entry) => entry.failure === 'stage');
+  useEffect(() => {
+    if (stageGone) void queryClient.invalidateQueries({ queryKey: [WORK_ORDER_PROCEDURES_KEY, workOrderId] });
+  }, [stageGone, queryClient, workOrderId]);
 
   // Closing the tab or leaving the page with files that are not on the server (AC8): the warning of the browser.
   const unsent = items.some((entry) => ['hashing', 'queued', 'uploading', 'paused', 'failed'].includes(entry.status));

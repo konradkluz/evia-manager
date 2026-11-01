@@ -99,6 +99,8 @@ export const ALERT_VARIANTS = [
   'administrator_second_step_changed',
   // EVM-049 (alert 9): a file of a work order was stopped by the scan; the text is a link to the order and nothing else.
   'administrator_media_quarantined',
+  // EVM-052 (alert 9): a ZIP export of the photos of a work order was ordered; the text is a link to the order and nothing else (no customer, no link to the file).
+  'administrator_media_export_started',
   // EVM-094: an Administrator signed in from a phone the account did not know / a used refresh credential came back (a session of a phone was ended).
   'administrator_new_device',
   'administrator_refresh_reuse',
@@ -120,6 +122,11 @@ const ALERT_KINDS: Readonly<Record<AlertVariant, { readonly kind: string; readon
   administrator_media_quarantined: {
     kind: 'plik zatrzymany przez skan',
     sentence: 'plik dodany do zlecenia został zatrzymany przez skan bezpieczeństwa.',
+    lead: 'zdarzenie dotyczące plików',
+  },
+  administrator_media_export_started: {
+    kind: 'eksport zdjęć zlecenia',
+    sentence: 'zlecono eksport zdjęć zlecenia do pliku ZIP.',
     lead: 'zdarzenie dotyczące plików',
   },
   administrator_new_device: {
@@ -159,7 +166,12 @@ export interface AlertTextInput {
 /** E-mail 9 (an alert for Administrators): the event and the time, no person, no address, no token — who and when is in the audit log. */
 export function alertText(input: AlertTextInput): EmailText {
   const { kind } = ALERT_KINDS[input.variant];
-  const body = input.variant === 'administrator_media_quarantined' ? mediaQuarantineLines(input) : permissionsLines(input);
+  const body =
+    input.variant === 'administrator_media_quarantined'
+      ? mediaQuarantineLines(input)
+      : input.variant === 'administrator_media_export_started'
+        ? mediaExportLines(input)
+        : permissionsLines(input);
   return {
     subject: `EVia Manager: alert bezpieczeństwa — ${kind}`,
     text: [...body, '', footer(input.panelOrigin), ''].join('\n'),
@@ -198,6 +210,23 @@ function mediaQuarantineLines(input: AlertTextInput): string[] {
     `${input.panelOrigin}${WORK_ORDER_PATH}/${input.subjectId ?? ''}`,
     '',
     'Plik nie jest dostępny dla nikogo, dopóki skan go nie zwolni.',
+  ];
+}
+
+/** The ZIP export (EVM-052): only the link to the order - no person, no customer, no file name, never an address of the file. Who and when is in the audit log. */
+function mediaExportLines(input: AlertTextInput): string[] {
+  const { sentence, lead = '' } = ALERT_KINDS[input.variant];
+  return [
+    'Dzień dobry,',
+    '',
+    `w EVia Manager wystąpiło ${lead}`,
+    `(${formatWarsaw(input.occurredAt)}):`,
+    sentence,
+    '',
+    'Zlecenie w panelu (kto zlecił eksport — w dzienniku audytu):',
+    `${input.panelOrigin}${WORK_ORDER_PATH}/${input.subjectId ?? ''}`,
+    '',
+    'Plik jest ważny 24 godziny i może go pobrać tylko osoba, która zleciła eksport.',
   ];
 }
 

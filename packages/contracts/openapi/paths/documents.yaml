@@ -1,0 +1,721 @@
+# Module `media` - documents of a work order (EVM-047; W-09; P5, P6). Web channel only: documents do not go to the phone. Every operation is authorised
+# on the work order of the path AND on the object (the document belongs to the order; the session belongs to its creator): a stranger gets `404`.
+DocumentIdParameter:
+  name: documentId
+  in: path
+  required: true
+  description: Identyfikator dokumentu (UUIDv7).
+  schema:
+    type: string
+    format: uuid
+    maxLength: 36
+IfMatchHeader:
+  name: If-Match
+  in: header
+  required: true
+  description: Silny ETag wersji zasobu - dokumentu albo medium (`"<version>"`, z pola `version` albo `ETag`).
+  schema:
+    type: string
+    pattern: '^"[1-9][0-9]{0,9}"$'
+    maxLength: 12
+workOrderDocuments:
+  get:
+    operationId: listDocuments
+    tags: [media]
+    summary: Zlecenie - dokumenty z rodzajem i klasą poufności (kursor)
+    description: >-
+      „Dokumenty zlecenia (n)” W-09 (EVM-047 AC1, AC2, AC5, AC7, AC8; SR-AUTHZ-02, SR-AUTHZ-06, SR-AUTHZ-07, SR-API-02). Role Administrator, Edytor i Tylko
+      odczyt (metadane WSZYSTKICH klas - tytuł, rodzaj, klasa, nazwa pliku - widzi także Tylko odczyt; pobranie reguluje `canDownload`), kanał `web`
+      (token mobilny - `403 channel_not_allowed`), bez audytu odczytu. Zlecenie jest rozwiązywane najpierw polityką odczytu: nieistniejące i usunięte - `404`.
+      Kolejność: `createdAt` malejąco, potem `id`; `limit` 1-100 (domyślnie 25); kursor związany z wariantem roli - z innym `400 invalid_cursor`.
+      Jedno zapytanie (dokument, wersja, plik, rodzaj z katalogu), bez N+1. Klasa efektywna jest liczona przez serwer. Odpowiedź nie zawiera klucza obiektu,
+      skrótu ani identyfikatora uploadu S3. `Cache-Control: no-store`.
+    x-evia-authz:
+      roles: [administrator, editor, read_only]
+      channels: [web]
+    parameters:
+      - $ref: ./work-orders.yaml#/WorkOrderIdParameter
+      - name: limit
+        in: query
+        required: false
+        description: Liczba pozycji na stronie.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 25
+      - name: cursor
+        in: query
+        required: false
+        description: Kursor ze strony poprzedniej (`nextCursor`) - wartość nieprzezroczysta.
+        schema:
+          type: string
+          maxLength: 512
+          pattern: '^[A-Za-z0-9_-]+$'
+    responses:
+      '200':
+        description: Strona dokumentów (pusta lista to pusta tablica `items`, `nextCursor` równy `null` i `totalCount` 0).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/documents.yaml#/DocumentList
+      '400':
+        $ref: ../components/responses.yaml#/InvalidListQuery
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+  post:
+    operationId: createDocument
+    tags: [media]
+    summary: Dodanie dokumentu do zlecenia („Dodaj dokument”)
+    description: >-
+      EVM-050: opcjonalne `anchor` (`work_order` domyślnie, `site`, `customer`) - dokument lokalizacji albo klienta ZLECENIA ze ścieżki (serwer bierze `siteId`/`customerId`
+      ze zlecenia; w treści - `400 read_only_field`); `anchor=site` z klasą `identity_data` - `400` (`/anchor`, `identity_data_not_on_site`, SR-AUTHZ-08, AB-19);
+      `anchor=customer` bez klienta zlecenia - `400` (`no_customer`); etap przy kotwicy innej niż zlecenie - `400` (`requires_work_order_anchor`).
+      Idempotencja: skrót treści obejmuje `anchor` (ten sam klucz z inną kotwicą - `422 idempotency_mismatch`). Plik kotwicy lokalizacji i klienta wgrywa się
+      ścieżką zlecenia (`upload-sessions`), z którego dokument powstał.
+      Utworzenie dokumentu, jego wersji 1 i rekordu pliku w stanie `pending_upload` (EVM-047 AC1-AC4, AC6, AC7; SR-AUTHZ-02, SR-AUTHZ-05, SR-AUTHZ-07,
+      SR-INPUT-01, SR-FILE-01, SR-FILE-03, SR-API-05, SR-LOG-03). Role Administrator i Edytor (Tylko odczyt - `403 forbidden` przed treścią; niezalogowany
+      - `401`; token mobilny - `403 channel_not_allowed`), kanał `web`, z audytem (`document.created` - aktor, identyfikator, kod klasy, wynik, `traceId`;
+      bez tytułu, opisu i nazwy pliku). Wymaga `X-CSRF-Token` i `Idempotency-Key` (UUIDv7); ten sam klucz albo `id` z inną treścią - `422
+      idempotency_mismatch` / `409 id_conflict`. Jedna transakcja: zlecenie przez politykę odczytu (`404`), nagłówek i treść schematem (`400`; pola
+      serwera - `read_only_field`), rodzaj z katalogu (nieistniejący lub nieaktywny - `400`), klasa (AC3/AC4), plik (typ, rozszerzenie, rozmiar - `400`
+      ze wskaźnikiem `/file/…`), zapis, JEDEN wpis dziennika zlecenia (`document_added`: identyfikator dokumentu i kod rodzaju - bez tytułu i nazwy) i audyt.
+      Klasa efektywna jest liczona przez serwer. Klucz obiektu nadaje serwer (`documents/{rok}/{miesiąc}/{id pliku}/original`, bez nazwy pliku i numeru
+      zlecenia). Brak konfiguracji magazynu - `503 media_storage_unavailable`. Komunikaty błędów nie powtarzają wartości (tytuł i nazwa pliku mogą być danymi osobowymi).
+    x-evia-authz:
+      roles: [administrator, editor]
+      channels: [web]
+      audit: true
+    parameters:
+      - $ref: ./work-orders.yaml#/WorkOrderIdParameter
+      - $ref: ./media.yaml#/IdempotencyKeyHeader
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/documents.yaml#/CreateDocumentRequest
+    responses:
+      '201':
+        description: Dokument utworzony (albo powtórka wcześniejszego zapisu, z nagłówkiem `Idempotent-Replayed`).
+        headers:
+          ETag:
+            description: Wersja zasobu (`"<version>"`).
+            schema:
+              type: string
+              maxLength: 32
+          Idempotent-Replayed:
+            description: '`true`, gdy odpowiedź powtarza wcześniejszy zapis (ten sam klucz, zlecenie i treść).'
+            schema:
+              type: string
+              enum: ['true']
+        content:
+          application/json:
+            schema:
+              $ref: ../components/documents.yaml#/Document
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/media-responses.yaml#/MediaConflict
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '422':
+        $ref: ../components/media-responses.yaml#/MediaUnprocessable
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+      '503':
+        $ref: ../components/media-responses.yaml#/MediaStorageUnavailable
+documentById:
+  patch:
+    operationId: updateDocument
+    tags: [media]
+    summary: Zmiana tytułu, opisu, etapu i klasy poufności dokumentu
+    description: >-
+      Edycja dokumentu (EVM-047 AC4, AC7 - podniesienie klasy; EVM-048 AC3, AC4, AC6, AC7 - tytuł, opis, etap; SR-AUTHZ-02, SR-AUTHZ-04, SR-AUTHZ-07,
+      SR-INPUT-02, SR-INPUT-05, SR-LOG-03; AB-20). Role Administrator i Edytor (Tylko odczyt - `403` przed `If-Match` i treścią), kanał `web` (token
+      mobilny - `403 forbidden`), z audytem: `document.confidentiality_raised` (aktor, identyfikator, `fromCode` i `toCode`, `traceId`), gdy zmienia się
+      klasa, i `document.metadata_updated` (aktor, identyfikator, `traceId`), gdy zmienia się tytuł, opis albo etap - NIGDY ich wartości. Jedno
+      żądanie podnosi `version` o 1. Wymaga `X-CSRF-Token` i `If-Match` (silny ETag `"<version>"`): brak - `428`; zniekształcony - `400`;
+      nieaktualna wersja - `412 version_conflict`. Pola: `title`, `description`, `procedureStageId` (etap TEGO zlecenia - inny, usunięty albo
+      nieistniejący: `400 validation_failed`, `/procedureStageId`) i `confidentialityOverride` (ściśle wyższe od klasy efektywnej, inaczej `400
+      validation_failed`; nigdy poniżej klasy rodzaju); każde inne - `400 read_only_field`. Rodzaj i zlecenie dokumentu nie zmieniają się. Dokument
+      innego zlecenia niż w ścieżce oraz medium o tym identyfikatorze - `404`. Zlecenie rozliczone albo anulowane nadal przyjmuje zmianę (PO-8).
+      Żądanie bez realnej zmiany - `200` bez zmiany wersji i bez audytu.
+    x-evia-authz:
+      roles: [administrator, editor]
+      channels: [web]
+      audit: true
+    parameters:
+      - $ref: ./work-orders.yaml#/WorkOrderIdParameter
+      - $ref: '#/DocumentIdParameter'
+      - $ref: '#/IfMatchHeader'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/documents.yaml#/UpdateDocumentRequest
+    responses:
+      '200':
+        description: Dokument po zmianie.
+        headers:
+          ETag:
+            description: Nowa wersja zasobu (`"<version>"`).
+            schema:
+              type: string
+              maxLength: 32
+        content:
+          application/json:
+            schema:
+              $ref: ../components/documents.yaml#/Document
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '412':
+        $ref: ../components/responses.yaml#/PreconditionFailed
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '428':
+        $ref: ../components/responses.yaml#/PreconditionRequired
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+  delete:
+    operationId: deleteDocument
+    tags: [media]
+    summary: Usunięcie dokumentu (Administrator; do cofnięcia)
+    description: >-
+      Ukrycie dokumentu dodanego przez pomyłkę (EVM-051 AC1, AC4, AC6; SR-AUTHZ-02, SR-AUTHZ-05, SR-LOG-03). Tylko Administrator, kanał `web`, z
+      `X-CSRF-Token` (Edytor i Tylko odczyt - `403 forbidden`, token mobilny - `403 forbidden`, niezalogowany - `401`). Miękkie usunięcie: dokument znika dla
+      każdego czytelnika (listy zlecenia, lokalizacji i klienta, adresy plików - `404`); `restoreDocument` go przywraca. Dokument spoza zakresu zlecenia ze
+      ścieżki (innego zlecenia, lokalizacji albo klienta, których zlecenie nie dotyka), już usunięty i nieistniejący to jedna odpowiedź `404`. Audyt:
+      `document.deleted` (aktor, identyfikator, `traceId`; nigdy tytuł, opis ani nazwa pliku).
+    x-evia-authz:
+      roles: [administrator]
+      channels: [web]
+      audit: true
+    parameters:
+      - $ref: ./work-orders.yaml#/WorkOrderIdParameter
+      - $ref: '#/DocumentIdParameter'
+    responses:
+      '204':
+        description: Dokument usunięty.
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+documentUploadSessions:
+  post:
+    operationId: createDocumentUploadSession
+    tags: [media]
+    summary: Sesja uploadu pliku dokumentu
+    description: >-
+      Sesja uploadu pliku wersji 1 (EVM-047 AC1, AC6, AC7; SR-FILE-02, SR-AUTHZ-02, SR-AUTHZ-05) - jak `createUploadSession` medium (części 16 MiB, najwyżej
+      1000, sesja ważna 7 dni, `Idempotency-Key`, wznowienie `200`). Role Administrator i Edytor (Tylko odczyt - `403`), kanał `web`. Sesję otwiera
+      wyłącznie twórca dokumentu albo Administrator (inny Edytor - `404`); dokument innego zlecenia niż w ścieżce oraz MEDIUM o tym identyfikatorze - `404`.
+      Stan pliku inny niż `pending_upload` lub `failed` z `checksum_mismatch` - `409 invalid_state_transition`. Brak konfiguracji magazynu - `503`.
+    x-evia-authz:
+      roles: [administrator, editor]
+      channels: [web]
+    parameters:
+      - $ref: ./work-orders.yaml#/WorkOrderIdParameter
+      - $ref: '#/DocumentIdParameter'
+      - $ref: ./media.yaml#/IdempotencyKeyHeader
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/media.yaml#/CreateUploadSessionRequest
+    responses:
+      '200':
+        description: Istniejąca aktywna sesja wołającego (wznowienie).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/documents.yaml#/DocumentUploadSession
+      '201':
+        description: Sesja utworzona (albo powtórka wcześniejszego zapisu, z nagłówkiem `Idempotent-Replayed`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/documents.yaml#/DocumentUploadSession
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/media-responses.yaml#/MediaConflict
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '422':
+        $ref: ../components/media-responses.yaml#/MediaUnprocessable
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+      '503':
+        $ref: ../components/media-responses.yaml#/MediaStorageUnavailable
+documentUploadParts:
+  get:
+    operationId: listDocumentUploadParts
+    tags: [media]
+    summary: Części sesji uploadu dokumentu potwierdzone w storage'u
+    description: >-
+      Jak `listUploadParts` (EVM-047 AC6, AC7). Role Administrator i Edytor, kanał `web`; sesję widzi wyłącznie jej twórca (inny użytkownik, sesja innego
+      dokumentu lub zlecenia, nieistniejąca - jedna odpowiedź `404`). Sesja zakończona lub wygasła - `409`. `Cache-Control: no-store`.
+    x-evia-authz:
+      roles: [administrator, editor]
+      channels: [web]
+    parameters:
+      - $ref: ./work-orders.yaml#/WorkOrderIdParameter
+      - $ref: '#/DocumentIdParameter'
+      - $ref: ./media.yaml#/UploadSessionIdParameter
+    responses:
+      '200':
+        description: Części potwierdzone w storage'u.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/media.yaml#/UploadPartList
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/media-responses.yaml#/MediaConflict
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+      '503':
+        $ref: ../components/media-responses.yaml#/MediaStorageUnavailable
+documentUploadPartUrl:
+  get:
+    operationId: getDocumentUploadPartUrl
+    tags: [media]
+    summary: Podpisany adres wysłania jednej części pliku dokumentu
+    description: >-
+      Jak `getUploadPartUrl` (EVM-047 AC6, AC7; SR-FILE-02, SR-WEB-04): podpisany `PUT` jednej części, związany z kluczem obiektu, identyfikatorem
+      uploadu, numerem części i dokładnym `Content-Length`; ważny 60 minut. Role Administrator i Edytor, kanał `web`; tylko twórca sesji.
+      `Cache-Control: no-store`; adres nie jest logowany.
+    x-evia-authz:
+      roles: [administrator, editor]
+      channels: [web]
+    parameters:
+      - $ref: ./work-orders.yaml#/WorkOrderIdParameter
+      - $ref: '#/DocumentIdParameter'
+      - $ref: ./media.yaml#/UploadSessionIdParameter
+      - $ref: ./media.yaml#/PartNumberParameter
+    responses:
+      '200':
+        description: Podpisany adres części.
+        headers:
+          Cache-Control:
+            description: Zawsze `no-store`.
+            schema:
+              type: string
+              enum: [no-store]
+        content:
+          application/json:
+            schema:
+              $ref: ../components/media.yaml#/UploadPartUrl
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/media-responses.yaml#/MediaConflict
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+      '503':
+        $ref: ../components/media-responses.yaml#/MediaStorageUnavailable
+documentUploadComplete:
+  post:
+    operationId: completeDocumentUploadSession
+    tags: [media]
+    summary: Zakończenie wysyłania pliku dokumentu
+    description: >-
+      Jak `completeUploadSession` (EVM-047 AC1, AC6, AC7; SR-FILE-02): serwer czyta części ze storage'u, składa obiekt i sprawdza rozmiar (≤ 100 MB);
+      plik przechodzi do `uploaded` i czeka na skan (typ z zawartości, makra OOXML, ClamAV). Role Administrator i Edytor, kanał `web`; tylko twórca sesji.
+      Powtórka po złożeniu jest idempotentna. Odpowiedź - dokument z aktualnym stanem pliku.
+    x-evia-authz:
+      roles: [administrator, editor]
+      channels: [web]
+    parameters:
+      - $ref: ./work-orders.yaml#/WorkOrderIdParameter
+      - $ref: '#/DocumentIdParameter'
+      - $ref: ./media.yaml#/UploadSessionIdParameter
+    responses:
+      '200':
+        description: Dokument ze stanem pliku po zakończeniu wysyłania.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/documents.yaml#/Document
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/media-responses.yaml#/MediaConflict
+      '422':
+        $ref: ../components/media-responses.yaml#/MediaUnprocessable
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+      '503':
+        $ref: ../components/media-responses.yaml#/MediaStorageUnavailable
+documentUploadAbort:
+  post:
+    operationId: abortDocumentUploadSession
+    tags: [media]
+    summary: Przerwanie sesji uploadu pliku dokumentu
+    description: >-
+      Jak `abortUploadSession` (EVM-047 AC7). Role Administrator i Edytor, kanał `web`; tylko twórca sesji. Idempotentne; zakończona sesja - `409`.
+    x-evia-authz:
+      roles: [administrator, editor]
+      channels: [web]
+    parameters:
+      - $ref: ./work-orders.yaml#/WorkOrderIdParameter
+      - $ref: '#/DocumentIdParameter'
+      - $ref: ./media.yaml#/UploadSessionIdParameter
+    responses:
+      '204':
+        description: Sesja przerwana.
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/media-responses.yaml#/MediaConflict
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+      '503':
+        $ref: ../components/media-responses.yaml#/MediaStorageUnavailable
+documentDownloadUrl:
+  post:
+    operationId: createDocumentDownloadUrl
+    tags: [media]
+    summary: Podpisany adres pliku dokumentu (pobranie wg klasy poufności)
+    description: >-
+      Podpisany `GET` pliku dokumentu (EVM-047 AC5, AC7; SR-FILE-07, SR-FILE-10, SR-AUTHZ-06, SR-AUTHZ-07, SR-LOG-02, SR-LOG-03). Role Administrator, Edytor i
+      Tylko odczyt, kanał `web`; bez treści; wymaga `X-CSRF-Token`. Kolejność: strażnik (`401`/`403`) → ścieżka (`400`) → zlecenie przez politykę odczytu
+      (`404`) → JEDNO zapytanie o dokument TEGO zlecenia (`404`: nieistniejący, innego zlecenia, medium o tym id) → klasa efektywna wyliczona przez serwer z
+      bazy (rodzaj z katalogu i podniesienie): Tylko odczyt dla klasy `building_security` i `identity_data` - `403 forbidden` NIEZALEŻNIE od stanu pliku (z
+      audytem odmowy `document_file.download_denied` w osobnej transakcji, z kodem klasy, bez nazwy pliku) → plik w stanie innym niż `clean`/`ready` -
+      `404` → limit wystawiania adresów (ten sam licznik „oryginały i dokumenty”: 100 / 10 min per użytkownik, alert od 50; `429` z `Retry-After`) →
+      podpis. Audyt wystawienia (`document_file.downloaded`, kod klasy) jest w transakcji wystawienia (błąd zapisu = brak adresu). Adres jest przypięty do
+      wersji obiektu, która przeszła skan, ważny 300 s, ma `Content-Disposition: attachment; filename*=UTF-8''…` i typ WYKRYTY przez serwer.
+      `Cache-Control: no-store`; adres i nazwa pliku nie są logowane ani audytowane.
+    x-evia-authz:
+      roles: [administrator, editor, read_only]
+      channels: [web]
+    parameters:
+      - $ref: ./work-orders.yaml#/WorkOrderIdParameter
+      - $ref: '#/DocumentIdParameter'
+    responses:
+      '200':
+        description: Podpisany adres pliku.
+        headers:
+          Cache-Control:
+            description: Zawsze `no-store`.
+            schema:
+              type: string
+              enum: [no-store]
+        content:
+          application/json:
+            schema:
+              $ref: ../components/documents.yaml#/DocumentDownloadUrl
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+      '503':
+        $ref: ../components/media-responses.yaml#/MediaStorageUnavailable
+listSiteDocuments:
+  get:
+    operationId: listSiteDocuments
+    tags: [media]
+    summary: Lokalizacja - dokumenty lokalizacji (kursor)
+    description: >-
+      „Dokumenty lokalizacji (n)” W-09 (EVM-050 AC2, AC4, AC7; SR-AUTHZ-02, SR-AUTHZ-03, SR-AUTHZ-08). Role Administrator, Edytor i Tylko odczyt (metadane WSZYSTKICH klas; pobranie reguluje `canDownload`), kanał `web` (token mobilny - `403 channel_not_allowed`; dokumenty lokalizacji i klienta nie trafiają na telefon), bez audytu odczytu. Zwracane są WYŁĄCZNIE dokumenty z tą kotwicą - nigdy dokumenty ani media zleceń (SR-AUTHZ-08, AB-19). Lokalizacja jest rozwiązywana polityką odczytu: nieistniejąca i usunięta - `404` dla każdej roli. Kolejność: `createdAt` malejąco, potem `id`; `limit` 1-100 (domyślnie 25); kursor związany z kotwicą i wariantem roli - z innym `400 invalid_cursor`. `totalCount` liczony tym samym predykatem co strona. Odpowiedź nie zawiera klucza obiektu, skrótu ani identyfikatora uploadu S3. `Cache-Control: no-store`.
+    x-evia-authz:
+      roles: [administrator, editor, read_only]
+      channels: [web]
+    parameters:
+      - $ref: ./sites.yaml#/SiteIdParameter
+      - name: limit
+        in: query
+        required: false
+        description: Liczba pozycji na stronie.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 25
+      - name: cursor
+        in: query
+        required: false
+        description: Kursor ze strony poprzedniej (`nextCursor`) - wartość nieprzezroczysta.
+        schema:
+          type: string
+          maxLength: 512
+          pattern: '^[A-Za-z0-9_-]+$'
+    responses:
+      '200':
+        description: Strona dokumentów z kotwicą lokalizacji (pusta lista to pusta tablica `items`, `nextCursor` równy `null` i `totalCount` 0).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/documents.yaml#/DocumentList
+      '400':
+        $ref: ../components/responses.yaml#/InvalidListQuery
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+listCustomerDocuments:
+  get:
+    operationId: listCustomerDocuments
+    tags: [media]
+    summary: Klient - dokumenty klienta (kursor)
+    description: >-
+      „Dokumenty klienta (n)” W-09 i W-14 (EVM-050 AC2, AC7; SR-AUTHZ-02, SR-AUTHZ-03). Role Administrator, Edytor i Tylko odczyt (metadane WSZYSTKICH klas; pobranie reguluje `canDownload`), kanał `web` (token mobilny - `403 channel_not_allowed`; dokumenty lokalizacji i klienta nie trafiają na telefon), bez audytu odczytu. Zwracane są WYŁĄCZNIE dokumenty z tą kotwicą - nigdy dokumenty ani media zleceń (SR-AUTHZ-08, AB-19). Klient jest rozwiązywany polityką odczytu: nieistniejący i usunięty - `404` dla każdej roli. Kolejność: `createdAt` malejąco, potem `id`; `limit` 1-100 (domyślnie 25); kursor związany z kotwicą i wariantem roli - z innym `400 invalid_cursor`. `totalCount` liczony tym samym predykatem co strona. Odpowiedź nie zawiera klucza obiektu, skrótu ani identyfikatora uploadu S3. `Cache-Control: no-store`.
+    x-evia-authz:
+      roles: [administrator, editor, read_only]
+      channels: [web]
+    parameters:
+      - $ref: ./customers.yaml#/CustomerIdParameter
+      - name: limit
+        in: query
+        required: false
+        description: Liczba pozycji na stronie.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 25
+      - name: cursor
+        in: query
+        required: false
+        description: Kursor ze strony poprzedniej (`nextCursor`) - wartość nieprzezroczysta.
+        schema:
+          type: string
+          maxLength: 512
+          pattern: '^[A-Za-z0-9_-]+$'
+    responses:
+      '200':
+        description: Strona dokumentów z kotwicą klienta (pusta lista to pusta tablica `items`, `nextCursor` równy `null` i `totalCount` 0).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/documents.yaml#/DocumentList
+      '400':
+        $ref: ../components/responses.yaml#/InvalidListQuery
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+createSiteDocumentDownloadUrl:
+  post:
+    operationId: createSiteDocumentDownloadUrl
+    tags: [media]
+    summary: Podpisany adres pliku dokumentu lokalizacji (pobranie wg klasy poufności)
+    description: >-
+      Jak `createDocumentDownloadUrl` (EVM-050 AC3, AC5, AC6; SR-FILE-07, SR-FILE-10, SR-AUTHZ-02, SR-AUTHZ-06, SR-AUTHZ-07). Role Administrator, Edytor i Tylko odczyt, kanał `web`; bez treści; wymaga `X-CSRF-Token`. Kolejność: strażnik → ścieżka (`400`) → lokalizację przez politykę odczytu (`404`) → JEDNO zapytanie o dokument z TĄ kotwicą (`404`: dokument innej lokalizacji, zlecenia, medium, nieistniejący) → klasa efektywna (Tylko odczyt dla `building_security`/`identity_data` - `403` z audytem odmowy) → stan pliku (`404` poza `clean`/`ready`) → ten sam licznik „oryginały i dokumenty” co pozostałe ścieżki (`429`) → podpis (300 s, `attachment`, typ wykryty przez serwer). Audyt `document_file.downloaded` / `document_file.download_denied` z kodem klasy, bez tytułu, nazwy pliku i adresu.
+    x-evia-authz:
+      roles: [administrator, editor, read_only]
+      channels: [web]
+    parameters:
+      - $ref: ./sites.yaml#/SiteIdParameter
+      - $ref: '#/DocumentIdParameter'
+    responses:
+      '200':
+        description: Podpisany adres pliku.
+        headers:
+          Cache-Control:
+            description: Zawsze `no-store`.
+            schema:
+              type: string
+              enum: [no-store]
+        content:
+          application/json:
+            schema:
+              $ref: ../components/documents.yaml#/DocumentDownloadUrl
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+      '503':
+        $ref: ../components/media-responses.yaml#/MediaStorageUnavailable
+createCustomerDocumentDownloadUrl:
+  post:
+    operationId: createCustomerDocumentDownloadUrl
+    tags: [media]
+    summary: Podpisany adres pliku dokumentu klienta (pobranie wg klasy poufności)
+    description: >-
+      Jak `createDocumentDownloadUrl` (EVM-050 AC3, AC5, AC6; SR-FILE-07, SR-FILE-10, SR-AUTHZ-02, SR-AUTHZ-06, SR-AUTHZ-07). Role Administrator, Edytor i Tylko odczyt, kanał `web`; bez treści; wymaga `X-CSRF-Token`. Kolejność: strażnik → ścieżka (`400`) → klienta przez politykę odczytu (`404`) → JEDNO zapytanie o dokument z TĄ kotwicą (`404`: dokument innej klienta, zlecenia, medium, nieistniejący) → klasa efektywna (Tylko odczyt dla `building_security`/`identity_data` - `403` z audytem odmowy) → stan pliku (`404` poza `clean`/`ready`) → ten sam licznik „oryginały i dokumenty” co pozostałe ścieżki (`429`) → podpis (300 s, `attachment`, typ wykryty przez serwer). Audyt `document_file.downloaded` / `document_file.download_denied` z kodem klasy, bez tytułu, nazwy pliku i adresu.
+    x-evia-authz:
+      roles: [administrator, editor, read_only]
+      channels: [web]
+    parameters:
+      - $ref: ./customers.yaml#/CustomerIdParameter
+      - $ref: '#/DocumentIdParameter'
+    responses:
+      '200':
+        description: Podpisany adres pliku.
+        headers:
+          Cache-Control:
+            description: Zawsze `no-store`.
+            schema:
+              type: string
+              enum: [no-store]
+        content:
+          application/json:
+            schema:
+              $ref: ../components/documents.yaml#/DocumentDownloadUrl
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+      '503':
+        $ref: ../components/media-responses.yaml#/MediaStorageUnavailable
+documentRestore:
+  post:
+    operationId: restoreDocument
+    tags: [media]
+    summary: Przywrócenie usuniętego dokumentu (Administrator)
+    description: >-
+      „Cofnij” po usunięciu (EVM-051 AC1, AC4, AC6). Tylko Administrator, kanał `web`, z `X-CSRF-Token`. Dokument usunięty (miękko) wraca na listy; dokument
+      nieusunięty - `409 invalid_state_transition`; dokument z trwale usuniętym plikiem - `409 file_erased`; spoza zakresu zlecenia i nieistniejący - `404`.
+      Dokument usuniętej lokalizacji albo klienta jest poza zakresem tej ścieżki (wymaga wcześniejszego przywrócenia kotwicy). Audyt: `document.restored`.
+    x-evia-authz:
+      roles: [administrator]
+      channels: [web]
+      audit: true
+    parameters:
+      - $ref: ./work-orders.yaml#/WorkOrderIdParameter
+      - $ref: '#/DocumentIdParameter'
+    responses:
+      '204':
+        description: Dokument przywrócony.
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/media-responses.yaml#/MediaErasureConflict
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+documentPurgeFile:
+  post:
+    operationId: purgeDocumentFile
+    tags: [media]
+    summary: Trwałe usunięcie plików dokumentu (Administrator, step-up)
+    description: >-
+      „Usuń plik trwale…” dla dokumentu (EVM-051 AC2, AC3, AC4, AC6, AC7; SR-PRIV-03, SR-PRIV-04, SR-SESS-08, SR-DATA-08, SR-LOG-03). Tylko Administrator,
+      kanał `web`, `stepUp: true`, `X-CSRF-Token`, `If-Match` - jak `purgeMediaAssetFile`. Usuwa WSZYSTKIE wersje pliku dokumentu (także w kwarantannie i
+      niedokończony upload), tytuł zastępuje znacznikiem „Plik usunięty przez administratora DD.MM.RRRR.”, opis i nazwy plików są usunięte, rekord zostaje.
+      Do rejestru usunięć trafiają identyfikator dokumentu, kod operacji, czas, aktor i właściciel - zlecenie albo kotwica (typ i identyfikator lokalizacji
+      lub klienta), bez tytułu, opisu i nazw plików. Audyt: `document.file_purged`. Po usunięciu: przywrócenie, nowa wersja pliku i ponowny skan - `409
+      file_erased`, adres pobrania - `404`. Dokument usuniętej lokalizacji albo klienta jest poza zakresem ścieżki zlecenia (`404`).
+    x-evia-authz:
+      roles: [administrator]
+      channels: [web]
+      stepUp: true
+      audit: true
+    parameters:
+      - $ref: ./work-orders.yaml#/WorkOrderIdParameter
+      - $ref: '#/DocumentIdParameter'
+      - $ref: '#/IfMatchHeader'
+    responses:
+      '204':
+        description: Pliki usunięte trwale (albo powtórzenie wcześniejszego usunięcia).
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/media-responses.yaml#/MediaErasureConflict
+      '412':
+        $ref: ../components/responses.yaml#/PreconditionFailed
+      '428':
+        $ref: ../components/responses.yaml#/PreconditionRequired
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+      '503':
+        $ref: ../components/media-responses.yaml#/MediaErasureUnavailable

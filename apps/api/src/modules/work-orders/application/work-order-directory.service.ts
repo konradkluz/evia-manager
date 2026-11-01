@@ -42,6 +42,8 @@ export class WorkOrderDirectoryService implements WorkOrderDirectory {
 
   async #find(tx: Kysely<Database>, principal: Principal, id: string, lock: boolean): Promise<WorkOrderRef | undefined> {
     const row = await findVisibleWorkOrderRef(workOrderTables(tx), principal, id, { lock });
-    return row === undefined ? undefined : { id: row.id, status: row.status, closed: CLOSED_STATUSES.includes(row.status) };
+    return row === undefined
+      ? undefined
+      : { id: row.id, status: row.status, closed: CLOSED_STATUSES.includes(row.status), siteId: row.site_id, customerId: row.customer_id };
   }
 }

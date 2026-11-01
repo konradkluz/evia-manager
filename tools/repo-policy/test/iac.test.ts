@@ -578,4 +578,20 @@ describe('EVM-084 AC2: the SFTP port of the Storage Box in the firewall of the V
     expect(root).toContain('storagebox_cidrs = var.storagebox_cidrs');
     expect(root).toMatch(/variable "storagebox_cidrs" \{[^}]*default\s*=\s*\[\]/);
   });
+
+  it('EVM-051 AC5 (SR-FILE-11): s3:ListBucket on the media bucket is held by server processes only (the API, the worker, the backup reader) - no principal is a client of the browser or the phone', () => {
+    const media = BUCKET_POLICIES['media_allow'] ?? {};
+    const holders = Object.entries(media)
+      .filter(([, actions]) => actions.includes('s3:ListBucket'))
+      .map(([name]) => name)
+      .sort();
+    expect(holders).toEqual(['media_app', 'media_backup_reader', 'media_worker']);
+    for (const policy of Object.values(BUCKET_POLICIES)) {
+      for (const name of Object.keys(policy)) expect(name, name).not.toMatch(/client|browser|mobile|phone|web|panel/);
+    }
+    // the clients get signed addresses only: no output of the module hands out a key
+    const outputs = [...read('infra/tofu/modules/object-storage/main.tf').matchAll(/^output "([^"]+)"/gm)].map((match) => match[1] ?? '');
+    expect(outputs.length).toBeGreaterThan(0);
+    expect(outputs.filter((name) => /key|secret|credential|token/.test(name))).toEqual([]);
+  });
 });

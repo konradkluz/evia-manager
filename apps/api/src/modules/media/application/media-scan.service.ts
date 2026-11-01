@@ -31,13 +31,17 @@ import type { Logger } from '../../../platform/logging/logger.ts';
 import { MalwareScanError, type MalwareScanner } from '../../../platform/malware-scan/malware-scanner.ts';
 import type { ObjectStorage } from '../../../platform/object-storage/object-storage.ts';
 import type { Counter, MetricsRegistry } from '../../../platform/metrics/metrics.ts';
+import { judgeDocument } from '../domain/document-scan.ts';
+import { isOoxml, normalizeDocumentType } from '../domain/document-rules.ts';
+import { HEAD_BYTES } from '../domain/ooxml-inspect.ts';
+import { RollingTail } from '../domain/rolling-tail.ts';
 import { mediaKindOf, normalizeContentType, typeAgrees } from '../domain/file-rules.ts';
 import { decideOutcome } from '../domain/scan-outcome.ts';
 import { SCAN_LIMIT_BYTES, skipsAntivirus } from '../domain/video-rules.ts';
 import type { MediaAuditEvent } from '../events.ts';
 import { claimForScan, countStuck, findUnscanned, transitionFile } from '../infrastructure/media-store.ts';
 import { mediaTables } from '../infrastructure/tables.ts';
-import { publishMediaEvent, raiseQuarantineAlert } from './quarantine-alert.ts';
+import { eventOwnerOfFile, publishMediaEvent, raiseQuarantineAlert, type EventOwner } from './quarantine-alert.ts';
 
 /** A file in `scanning` that nobody has touched for this long is taken again. */
 export const STALE_SCANNING_MS = 2 * 60_000;
@@ -146,6 +150,11 @@ export class MediaScanService {
     }
     const hash = createHash('sha256');
     // mutated by the observer while the scanner reads: one object, so the later reads see the final values
+    const isDocument = file.purpose === 'document';
+    // a document keeps a longer head (the compressed `[Content_Types].xml`) and, for OOXML, the tail (the central directory) of the SAME pinned read
+    const keepHead = isDocument ? HEAD_BYTES : SNIFF_BYTES;
+    const declaredDocument = isDocument ? normalizeDocumentType(file.declared_content_type) : undefined;
+    const tail = declaredDocument !== undefined && isOoxml(declaredDocument) ? new RollingTail() : undefined;
     const seen = { bytes: 0, head: Buffer.alloc(0), oversize: false };
     let infected = false;
     try {
@@ -161,7 +170,8 @@ export class MediaScanService {
             throw new OversizeError();
           }
           hash.update(chunk);
-          if (seen.head.length < SNIFF_BYTES) seen.head = Buffer.concat([seen.head, chunk.subarray(0, SNIFF_BYTES - seen.head.length)]);
+          if (seen.head.length < keepHead) seen.head = Buffer.concat([seen.head, chunk.subarray(0, keepHead - seen.head.length)]);
+          tail?.push(chunk);
           yield chunk;
         }
       }
@@ -189,10 +199,20 @@ export class MediaScanService {
     }
     const sha256 = seen.oversize ? null : hash.digest('hex');
     const detected = seen.oversize ? undefined : await fileTypeFromBuffer(seen.head);
+    const document = isDocument
+      ? judgeDocument({
+          declaredType: file.declared_content_type,
+          fileName: file.original_filename,
+          detectedMime: detected?.mime,
+          head: seen.head,
+          tail: tail?.bytes() ?? Buffer.alloc(0),
+          size: seen.bytes,
+        })
+      : undefined;
     const outcome = decideOutcome({
       infected,
       checksumMatches: !seen.oversize && sha256 === file.declared_sha256 && seen.bytes === declaredSize,
-      typeMatches: typeAgrees(detected?.mime, file.declared_content_type, file.original_filename),
+      typeMatches: document?.typeMatches ?? typeAgrees(detected?.mime, file.declared_content_type, file.original_filename),
     });
     return runInTransaction(db, async (tx) => {
       const tables = mediaTables(tx);
@@ -209,17 +229,19 @@ export class MediaScanService {
           // set EXPLICITLY (never a default): true after the antivirus, false for a video above the limit; an oversize stream was never judged
           ...(seen.oversize ? {} : { avScanned: !skipScan }),
           sha256,
-          contentType: detected === undefined ? null : (normalizeContentType(detected.mime) ?? null),
+          contentType:
+            document !== undefined ? document.contentType : detected === undefined ? null : (normalizeContentType(detected.mime) ?? null),
           // the coalesce of the store keeps the first time: a new scan with a positive result never moves the clock of the retention
           ...(outcome.state === 'quarantined' ? { quarantinedAt: at } : {}),
         },
         at,
       );
       if (!moved) return false;
-      if (file.media_asset_id !== null) {
-        if (rescan)
-          await this.#publish(tx, 'media_file.rescanned', file.media_asset_id, { fromCode: 'quarantined', toCode: outcome.state });
-        else if (outcome.state === 'quarantined') await this.#alert(tx, file.media_asset_id, at);
+      // the file of a medium and the file of a document go through the same audit and the same alert (EVM-047, SR-FILE-05, SR-LOG-07)
+      const owner = await eventOwnerOfFile(tx, file);
+      if (owner !== undefined) {
+        if (rescan) await this.#publish(tx, 'media_file.rescanned', owner, { fromCode: 'quarantined', toCode: outcome.state });
+        else if (outcome.state === 'quarantined') await this.#alert(tx, owner, at);
       }
       if (skipScan && !seen.oversize && outcome.state === 'clean') this.#unscanned?.increment({});
       logger.info(
@@ -231,16 +253,16 @@ export class MediaScanService {
   }
 
   /** The first entry into quarantine: the audit event, one e-mail per active Administrator and a security alert (AC2; SR-FILE-05, SR-LOG-07). */
-  #alert(tx: Kysely<Database>, mediaAssetId: string, at: Date): Promise<void> {
-    return raiseQuarantineAlert(this.#deps, tx, mediaAssetId, at);
+  #alert(tx: Kysely<Database>, owner: EventOwner, at: Date): Promise<void> {
+    return raiseQuarantineAlert(this.#deps, tx, owner, at);
   }
 
   #publish(
     tx: Kysely<Database>,
     type: MediaAuditEvent['type'],
-    mediaAssetId: string,
+    owner: EventOwner,
     codes: Pick<MediaAuditEvent, 'fromCode' | 'toCode'>,
   ): Promise<void> {
-    return publishMediaEvent(this.#deps.events, tx, type, mediaAssetId, codes);
+    return publishMediaEvent(this.#deps.events, tx, type, owner, codes);
   }
 }

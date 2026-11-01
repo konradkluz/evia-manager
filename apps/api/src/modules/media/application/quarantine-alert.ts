@@ -10,8 +10,36 @@ import { enqueueEmailOnce } from '../../../platform/email/email-outbox.ts';
 import type { EventBus } from '../../../platform/events/event-bus.ts';
 import { newTraceId } from '../../../platform/http/request-context.ts';
 import type { MediaAuditEvent } from '../events.ts';
-import { workOrderOfAsset } from '../infrastructure/media-store.ts';
+import { workOrderOfDocument, workOrderOfDocumentVersion } from '../infrastructure/document-store.ts';
+import { workOrderOfAsset, type StoredFileRow } from '../infrastructure/media-store.ts';
 import { mediaTables } from '../infrastructure/tables.ts';
+
+/**
+ * The object an audit event of a file is about: the medium, or - for the file of a document (EVM-047) - the document. The same events, the same alert and
+ * the same e-mails for both; the payload is the identifier and the codes only.
+ */
+export interface EventOwner {
+  readonly objectType: 'media_asset' | 'document';
+  readonly objectId: string;
+}
+
+export const mediaOwner = (mediaAssetId: string): EventOwner => ({ objectType: 'media_asset', objectId: mediaAssetId });
+
+/** The owner of a file for the events; `undefined` for a file nobody owns (it cannot happen: the CHECK of the table wants exactly one owner). */
+export async function eventOwnerOfFile(
+  tx: Kysely<Database>,
+  file: Pick<StoredFileRow, 'media_asset_id' | 'document_version_id'>,
+): Promise<EventOwner | undefined> {
+  if (file.media_asset_id !== null) return mediaOwner(file.media_asset_id);
+  if (file.document_version_id === null) return undefined;
+  const found = await workOrderOfDocumentVersion(mediaTables(tx), file.document_version_id);
+  return found === undefined ? undefined : { objectType: 'document', objectId: found.documentId };
+}
+
+async function workOrderOfOwner(tx: Kysely<Database>, owner: EventOwner): Promise<string | null | undefined> {
+  const tables = mediaTables(tx);
+  return owner.objectType === 'media_asset' ? workOrderOfAsset(tables, owner.objectId) : workOrderOfDocument(tables, owner.objectId);
+}
 
 export interface QuarantineAlertDependencies {
   readonly events: EventBus;
@@ -24,15 +52,15 @@ export async function publishMediaEvent(
   events: EventBus,
   tx: Kysely<Database>,
   type: MediaAuditEvent['type'],
-  mediaAssetId: string,
+  owner: EventOwner,
   codes: Pick<MediaAuditEvent, 'fromCode' | 'toCode'> = {},
 ): Promise<void> {
   const event: MediaAuditEvent = {
     type,
     actor: { type: 'system' },
     outcome: 'success',
-    objectType: 'media_asset',
-    objectId: mediaAssetId,
+    objectType: owner.objectType,
+    objectId: owner.objectId,
     ...codes,
   };
   await events.publish(tx, event, { origin: 'cli', traceId: newTraceId() });
@@ -41,12 +69,12 @@ export async function publishMediaEvent(
 export async function raiseQuarantineAlert(
   deps: QuarantineAlertDependencies,
   tx: Kysely<Database>,
-  mediaAssetId: string,
+  owner: EventOwner,
   at: Date,
 ): Promise<void> {
-  await publishMediaEvent(deps.events, tx, 'media_file.quarantined', mediaAssetId);
-  const workOrderId = await workOrderOfAsset(mediaTables(tx), mediaAssetId);
-  if (workOrderId !== undefined) {
+  await publishMediaEvent(deps.events, tx, 'media_file.quarantined', owner);
+  const workOrderId = await workOrderOfOwner(tx, owner);
+  if (workOrderId !== undefined && workOrderId !== null) {
     for (const recipientUserId of await deps.administrators(tx)) {
       await enqueueEmailOnce(tx, {
         kind: 'administrator_alert',

@@ -11,6 +11,7 @@ import {
   ObjectStorageError,
   type CompletedObject,
   type ObjectHead,
+  type ObjectPage,
   type ObjectStorage,
   type PartUrl,
   type SignedGetInput,
@@ -37,6 +38,8 @@ export class InMemoryObjectStorage implements ObjectStorage {
   readonly #objects = new Map<string, Version[]>();
   /** Keys with a delete marker on top (a versioned bucket: the older versions stay readable by their version id). */
   readonly #markers = new Set<string>();
+  /** When each key was last written (the listing reports it). */
+  readonly #modified = new Map<string, Date>();
   readonly #now: () => Date;
   #counter = 0;
   /** When set, every call fails like an unreachable storage (`unavailable`). */
@@ -115,6 +118,7 @@ export class InMemoryObjectStorage implements ObjectStorage {
       body,
       contentType: upload.contentType,
     };
+    this.#modified.set(key, this.#now());
     this.#objects.set(key, [...(this.#objects.get(key) ?? []), version]);
     this.#markers.delete(key);
     this.#uploads.delete(uploadId);
@@ -131,6 +135,20 @@ export class InMemoryObjectStorage implements ObjectStorage {
     if (this.unavailable) return Promise.reject(new ObjectStorageError('unavailable'));
     if (this.#objects.has(key)) this.#markers.add(key);
     return Promise.resolve();
+  }
+
+  listObjects(prefix: string, limit: number, token?: string): Promise<ObjectPage> {
+    if (this.unavailable) return Promise.reject(new ObjectStorageError('unavailable'));
+    const keys = this.currentKeys().filter((key) => key.startsWith(prefix));
+    const rest = token === undefined ? keys : keys.filter((key) => key > token);
+    const page = rest.slice(0, limit);
+    const objects = page.map((key) => ({ key, modifiedAt: this.#modified.get(key) ?? this.#now() }));
+    return Promise.resolve({ objects, nextToken: rest.length > limit ? page.at(-1) : undefined });
+  }
+
+  /** Test helper: the keys of the objects a plain read still finds (no delete marker on top), in key order. */
+  currentKeys(): string[] {
+    return [...this.#objects.keys()].filter((key) => !this.#markers.has(key)).sort();
   }
 
   head(key: string): Promise<ObjectHead | undefined> {
@@ -155,6 +173,7 @@ export class InMemoryObjectStorage implements ObjectStorage {
     if (this.unavailable) return Promise.reject(new ObjectStorageError('unavailable'));
     if ((this.#objects.get(input.key)?.length ?? 0) > 0) return Promise.reject(new ObjectStorageError('precondition_failed'));
     this.#counter += 1;
+    this.#modified.set(input.key, this.#now());
     this.#objects.set(input.key, [
       {
         versionId: `version-${this.#counter}`,
@@ -179,6 +198,41 @@ export class InMemoryObjectStorage implements ObjectStorage {
     const body = Buffer.concat(chunks);
     if (body.length !== input.size) throw new ObjectStorageError('unavailable');
     await this.putObjectIfAbsent({ key: input.key, body, contentType: input.contentType, cacheControl: input.cacheControl });
+  }
+
+  /** Test helper: how many streamed uploads were started and how many were aborted (a failed stream must leave none open). */
+  readonly streamedUploads = { started: 0, aborted: 0, completed: 0 };
+
+  async uploadStreamIfAbsent(input: {
+    key: string;
+    body: Readable;
+    size: number;
+    contentType: string;
+    cacheControl: string;
+  }): Promise<void> {
+    if (this.unavailable) throw new ObjectStorageError('unavailable');
+    this.streamedUploads.started += 1;
+    try {
+      const chunks: Buffer[] = [];
+      let total = 0;
+      for await (const chunk of input.body) {
+        const buffer = Buffer.from(chunk as Uint8Array);
+        total += buffer.length;
+        if (total > input.size) throw new ObjectStorageError('unavailable');
+        chunks.push(buffer);
+      }
+      if (total !== input.size) throw new ObjectStorageError('unavailable');
+      await this.putObjectIfAbsent({
+        key: input.key,
+        body: Buffer.concat(chunks),
+        contentType: input.contentType,
+        cacheControl: input.cacheControl,
+      });
+      this.streamedUploads.completed += 1;
+    } catch (error) {
+      this.streamedUploads.aborted += 1;
+      throw error;
+    }
   }
 
   presignGet(input: SignedGetInput): Promise<PartUrl> {
@@ -207,9 +261,18 @@ export class InMemoryObjectStorage implements ObjectStorage {
       body,
       contentType: 'application/octet-stream',
     };
+    this.#modified.set(key, this.#now());
     this.#objects.set(key, [...(this.#objects.get(key) ?? []), version]);
     this.#markers.delete(key);
     return { etag: version.etag, versionId: version.versionId };
+  }
+
+  /** Test helper: forgets every object, marker and upload (a test that counts what is in the bucket starts from nothing). */
+  reset(): void {
+    this.#objects.clear();
+    this.#markers.clear();
+    this.#modified.clear();
+    this.#uploads.clear();
   }
 
   /** Test helper: whether the key has a delete marker on top (the object is gone for a plain read). */

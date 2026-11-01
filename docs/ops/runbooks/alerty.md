@@ -101,6 +101,12 @@ Test dostarczenia e-maila wykonywany w sesji IaC: na VM staging zapisz do katalo
 - **Eskalacja:** ograniczenie ruchu na Caddy, zgłoszenie incydentu.
 - **Test:** pięć zdarzeń `account_locked` w 15 min na koncie testowym.
 
+## Rozbieżność storage'u z bazą (EVM-051 AC5, SR-FILE-11)
+- **Źródło:** zadanie workera `media.storage-reconciliation` (co noc, 03:30 `Europe/Warsaw`), klucz workera (`s3:ListBucket`). Tylko raportuje — niczego nie usuwa ani nie naprawia. Wpis logu z polami `alert: "storage_reconciliation"`, `alertCode: "storage_discrepancy"`, `orphanObjects`, `missingObjects` oraz metryki `storage_reconciliation_orphan_objects` i `storage_reconciliation_missing_objects` (reguła Grafana — EVM-062; do tego czasu odczyt z logu). Wpis nie zawiera klucza obiektu, nazwy, opisu ani identyfikatora.
+- **`orphanObjects` > 0:** w buckecie są obiekty (starsze niż godzina), których nie zna żaden rekord `stored_files` ani `file_derivatives`. Zwykle przerwany zapis pochodnej albo ręczna zmiana bucketu. Sprawdź listę kluczy rolą administracyjną (nie kluczem aplikacji) i porównaj z bazą; obiekt bez rekordu usuń ręcznie dopiero po potwierdzeniu, że nic go nie wskazuje (wersje wygasają po 30 dniach).
+- **`missingObjects` > 0:** rekord `ready` (nieusunięty) wskazuje obiekt, którego nie ma w buckecie — plik jest nie do pobrania. Sprawdź, czy bucket nie został odtworzony z kopii bez części obiektów (`restore.md`), i czy `erased_at` nie powinno być ustawione.
+- Rekord z `erased_at` (usunięty przez Administratora) i plik w drodze (`pending_upload`, `uploaded`, `scanning`, `clean`, `processing`) alarmu nie dają. Przebieg przerwany limitem czasu (15 min) albo stron zapisuje w logu `complete: false` i nie alarmuje o niezobaczonej części.
+
 ## Monitoring dostępności (AC3)
 Checki Synthetic Monitoring `/healthz` panelu i API (`infra/observability/synthetic/checks.json`) wysyłają e-mail po przekroczeniu progu porażek i raz po powrocie. To ten sam stos Grafany co metryki, więc awaria stosu wyłącza też ten monitoring (RR-64); niezależny monitor zewnętrzny dopiero przy produkcji (E8).
 

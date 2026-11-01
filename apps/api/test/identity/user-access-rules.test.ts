@@ -176,6 +176,8 @@ describe('the texts of EVM-027 (docs/ux/flows/e-maile.md nr 5 and 9; SR-INPUT-07
         'zmieniono drugi krok logowania konta administratora (dodano albo usunięto metodę albo wygenerowano nowe kody).',
       // EVM-049 (alert 9): a file stopped by the scan
       administrator_media_quarantined: 'plik dodany do zlecenia został zatrzymany przez skan bezpieczeństwa.',
+      // EVM-052 (alert 9): a ZIP export was ordered
+      administrator_media_export_started: 'zlecono eksport zdjęć zlecenia do pliku ZIP.',
       // EVM-094: a phone the account did not know / a used refresh credential came back
       administrator_new_device: 'zalogowano się do konta Administratora z telefonu, którego to konto wcześniej nie używało.',
       administrator_refresh_reuse:

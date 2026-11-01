@@ -17,6 +17,10 @@ export interface WorkOrderRef {
   readonly status: WorkOrderStatus;
   /** Settled or cancelled (PO-8): scope, processes and payments are read-only. */
   readonly closed: boolean;
+  /** The site of the order (`null` for an order created before sites): the anchor of the documents of a site (EVM-050); a key only. */
+  readonly siteId: string | null;
+  /** The customer of the order or `null`: the anchor of the documents of a customer (EVM-050); a key only. */
+  readonly customerId: string | null;
 }
 
 /** The header of an order a list of another module shows: the number, the title and the customer (a key only — the name comes from `customers`). */

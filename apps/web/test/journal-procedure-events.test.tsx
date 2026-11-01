@@ -83,3 +83,14 @@ describe('W-08 Dziennik: zdjęcia dodane do zlecenia (EVM-044)', () => {
     expect(item.textContent).not.toContain('Zdarzenie w zleceniu');
   });
 });
+
+describe('W-08 Dziennik: dokument dodany do zlecenia (EVM-047)', () => {
+  it('EVM-047 AC1 the event document_added is told "Dodano dokument", not as an unknown event', async () => {
+    await renderPanel(PATH, journalApi({ entries: [eventEntry(1, { code: 'document_added', objectType: null })] }));
+    await screen.findByRole('heading', { level: 1, name: 'ZL-2026-0042' });
+    await userEvent.click(await screen.findByRole('tab', { name: 'Dziennik' }));
+    const item = await screen.findByRole('listitem', { name: /^Zmiana w zleceniu:/ });
+    expect(item.textContent).toContain('Dodano dokument');
+    expect(item.textContent).not.toContain('Zdarzenie w zleceniu');
+  });
+});

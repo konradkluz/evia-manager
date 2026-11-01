@@ -24,10 +24,12 @@ import { ProblemException } from '../../../platform/http/problem.ts';
 import { parseInput, strictObjects } from '../../../platform/http/validation.ts';
 import { CLOCK, CURSOR_CODEC, DATABASE } from '../../../platform/tokens.ts';
 import { WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders/index.ts';
+import { PROCEDURE_STAGE_DIRECTORY, type ProcedureStageDirectory } from '../../procedures/index.ts';
 import { canManageQuarantine } from '../../authorization/index.ts';
 import { countHeld, listAssets, type PagePosition } from '../infrastructure/media-store.ts';
 import { mediaTables } from '../infrastructure/tables.ts';
 import { creatorOf, toMediaAsset } from './media-support.ts';
+import { stageNames } from './stage-support.ts';
 
 export const LIST_MEDIA_OPERATION = 'listMediaAssets';
 const DEFAULT_LIMIT = 25;
@@ -55,6 +57,7 @@ const positionSchema = z.tuple([z.iso.datetime(), z.uuid()]);
 @Injectable()
 export class ListMediaAssetsService {
   readonly #db: Kysely<Database>;
+  readonly #stages: ProcedureStageDirectory;
   readonly #clock: Clock;
   readonly #cursors: CursorCodec;
   readonly #orders: WorkOrderDirectory;
@@ -64,7 +67,9 @@ export class ListMediaAssetsService {
     @Inject(CLOCK) clock: Clock,
     @Inject(CURSOR_CODEC) cursors: CursorCodec,
     @Inject(WORK_ORDER_DIRECTORY) orders: WorkOrderDirectory,
+    @Inject(PROCEDURE_STAGE_DIRECTORY) stages: ProcedureStageDirectory,
   ) {
+    this.#stages = stages;
     this.#db = db;
     this.#clock = clock;
     this.#cursors = cursors;
@@ -110,8 +115,13 @@ export class ListMediaAssetsService {
               })
             : null;
         const needsAttentionCount = await countHeld(mediaTables(tx), order.id);
+        const names = await stageNames(
+          tx,
+          this.#stages,
+          shown.map((row) => ({ workOrderId: row.asset.work_order_id, stageId: row.asset.procedure_stage_id })),
+        );
         return {
-          items: shown.map((row) => toMediaAsset(row, { unfinished, session: row.session, manageQuarantine })),
+          items: shown.map((row) => toMediaAsset(row, { unfinished, session: row.session, manageQuarantine, stageNames: names })),
           nextCursor,
           needsAttentionCount,
         };

@@ -21,7 +21,7 @@ const SHARED_KEYS: readonly string[] = ['S3_ENDPOINT', 'S3_REGION'];
 const LIMIT_KEYS = ['MEDIA_MAX_PENDING_PER_USER', 'MEDIA_MAX_PENDING_PER_ORDER', 'MEDIA_ABANDON_AFTER_DAYS'] as const;
 // The processor settings are NOT here: they alone do not switch the media on (the compose file of the channel names them before the IaC session gives the
 // worker the rest of the media settings), they are only checked together with the rest.
-const MEDIA_OPTIONAL_KEYS = ['CLAMD_SOCKET', 'S3_FORCE_PATH_STYLE', 'MEDIA_BUCKET_ORIGIN', ...LIMIT_KEYS] as const;
+const MEDIA_OPTIONAL_KEYS = ['CLAMD_SOCKET', 'S3_FORCE_PATH_STYLE', 'MEDIA_BUCKET_ORIGIN', 'MEDIA_EXPORT_BUCKET', ...LIMIT_KEYS] as const;
 
 /** The limits of unfinished media (EVM-049 D9, RR-NOC-T1-4) and the age after which an unfinished upload without a session is abandoned. */
 export interface MediaLimits {
@@ -57,6 +57,11 @@ export interface MediaConfig {
     /** `false` on Scaleway (virtual-hosted, so the CSP can pin the host of the bucket); `true` only for the S3 server of the tests. */
     readonly forcePathStyle: boolean;
   };
+  /**
+   * The bucket of the ZIP exports (EVM-052; SR-DATA-07): a SEPARATE bucket, never the media bucket (no object lock and no versioning, a lifecycle of one day, outside the
+   * backup of the media), so an export is really gone after 24 hours. Without it the export answers `503 media_storage_unavailable` (fail closed).
+   */
+  readonly exportBucket?: string | undefined;
   readonly clamd: ClamdAddress | undefined;
   /** Without it the worker makes no derivatives and the files stay `clean`; in production the worker refuses to start (EVM-068, fail fast). */
   readonly processor: ImageProcessorConfig | undefined;
@@ -136,6 +141,11 @@ export function loadMediaConfig(env: Env): MediaConfigResult {
   check('MEDIA_BUCKET', bucket.safeParse(value('MEDIA_BUCKET')).success);
   check('MEDIA_S3_ACCESS_KEY_ID', accessKeyId.safeParse(value('MEDIA_S3_ACCESS_KEY_ID')).success);
   check('MEDIA_S3_SECRET_ACCESS_KEY', secretAccessKey.safeParse(value('MEDIA_S3_SECRET_ACCESS_KEY')).success);
+  check(
+    'MEDIA_EXPORT_BUCKET',
+    blank(env['MEDIA_EXPORT_BUCKET']) ||
+      (bucket.safeParse(value('MEDIA_EXPORT_BUCKET')).success && value('MEDIA_EXPORT_BUCKET') !== value('MEDIA_BUCKET')),
+  );
   const clamd = blank(env['CLAMD_SOCKET']) ? undefined : parseClamdAddress(value('CLAMD_SOCKET'));
   check('CLAMD_SOCKET', blank(env['CLAMD_SOCKET']) || clamd !== undefined);
   const hasSocket = !blank(env['MEDIA_PROCESSOR_SOCKET']);
@@ -177,6 +187,7 @@ export function loadMediaConfig(env: Env): MediaConfigResult {
       secretAccessKey: value('MEDIA_S3_SECRET_ACCESS_KEY'),
       forcePathStyle: forcePathStyle === 'true',
     },
+    exportBucket: blank(env['MEDIA_EXPORT_BUCKET']) ? undefined : value('MEDIA_EXPORT_BUCKET'),
     clamd,
     processor:
       hasSocket && hasWorkDir

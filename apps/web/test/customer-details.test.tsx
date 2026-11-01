@@ -70,7 +70,13 @@ function detailsApi(
   role: 'administrator' | 'editor' | 'read_only' = 'administrator',
   extra: Record<string, Handler> = {},
 ) {
-  return activeSessionApi({ [SESSION_ROUTE]: () => json(200, roleSession(role)), [READ]: read, [ORDERS]: history, ...extra });
+  return activeSessionApi({
+    [SESSION_ROUTE]: () => json(200, roleSession(role)),
+    [READ]: read,
+    [ORDERS]: history,
+    [`GET /api/v1/customers/${ID}/documents`]: () => json(200, { items: [], nextCursor: null, totalCount: 0 }),
+    ...extra,
+  });
 }
 
 afterEach(() => {
@@ -363,5 +369,47 @@ describe('W-14 states and roles of the details (EVM-039 AC6, AC7, AC8)', () => {
     await userEvent.click(item);
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(globalThis.localStorage.length + globalThis.sessionStorage.length).toBe(0);
+  });
+});
+
+describe('W-14 the documents of a customer (EVM-050 AC2, AC7)', () => {
+  it('EVM-050 AC2 the details list the documents of the customer; with none the heading says (0) and there is no table', async () => {
+    const item = {
+      id: '01968f3e-0000-7000-8000-00000e000077',
+      anchor: 'customer',
+      workOrderId: null,
+      siteId: null,
+      customerId: ID,
+      kindCode: 'other',
+      kindName: 'Inny dokument',
+      title: 'Umowa ramowa',
+      description: null,
+      procedureStageId: null,
+      procedureStageName: null,
+      versionNumber: 1,
+      confidentiality: 'standard',
+      confidentialityRaised: false,
+      fileState: 'ready',
+      stateReasonCode: null,
+      declaredSize: 10,
+      originalFilename: 'umowa.pdf',
+      canDownload: true,
+      createdAt: '2026-10-11T11:55:00.000Z',
+      version: 1,
+    };
+    await renderPanel(
+      PATH,
+      detailsApi(undefined, undefined, 'read_only', {
+        [`GET /api/v1/customers/${ID}/documents`]: () => json(200, { items: [item], nextCursor: null, totalCount: 1 }),
+      }),
+    );
+    expect(await screen.findByRole('heading', { level: 2, name: 'Dokumenty klienta (1)' })).toBeTruthy();
+    expect(within(await screen.findByRole('table', { name: 'Dokumenty klienta' })).getByText('Umowa ramowa')).toBeTruthy();
+  });
+
+  it('EVM-050 AC7 no documents: "Dokumenty klienta (0)" and no table', async () => {
+    await renderPanel(PATH, detailsApi());
+    expect(await screen.findByRole('heading', { level: 2, name: 'Dokumenty klienta (0)' })).toBeTruthy();
+    expect(screen.queryByRole('table', { name: 'Dokumenty klienta' })).toBeNull();
   });
 });

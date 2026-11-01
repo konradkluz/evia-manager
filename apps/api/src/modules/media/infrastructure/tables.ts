@@ -19,12 +19,23 @@ export interface MediaAssetsTable {
   created_at: Date;
   created_by: string;
   updated_at: Date;
+  /** Optimistic lock of `If-Match` (migration 0060). */
+  version: Generated<number>;
+  /** The last editor of the metadata (migration 0060); `null` = never edited. Not part of the API. */
+  updated_by: Generated<string | null>;
+  /** The soft delete (migration 0062; EVM-051): a deleted medium is absent for every reader; set together with `deleted_by`. */
+  deleted_at: Generated<Date | null>;
+  deleted_by: Generated<string | null>;
+  /** When the file was erased on purpose (write-once): the record stays with the marker, the description is gone. */
+  file_purged_at: Generated<Date | null>;
 }
 
 export interface StoredFilesTable {
   id: Generated<string>;
   purpose: 'media_original' | 'document';
   media_asset_id: string | null;
+  /** The version of a document the file belongs to (migration 0059); exactly one of this and `media_asset_id` is set. */
+  document_version_id: Generated<string | null>;
   object_key: string;
   state: FileState;
   state_reason_code: ReasonCode | null;
@@ -55,6 +66,45 @@ export interface StoredFilesTable {
   duration_seconds: Generated<number | null>;
   /** `true` after the antivirus, `false` for a video above the scan limit, `null` before the scan (migration 0057: no default - fail closed). */
   av_scanned: Generated<boolean | null>;
+  /** When the objects of the file were erased on purpose (migration 0062, write-once); a worker that takes the file after it drops the task. */
+  erased_at: Generated<Date | null>;
+  /** When the objects of an erased file were removed from the storage (migration 0062); `null` after `erased_at` = the job of the worker still has to finish. */
+  objects_erased_at: Generated<Date | null>;
+}
+
+/**
+ * A document of a work order (migration 0059; EVM-047). The kind and the anchor never change; the override of the class only rises (triggers). The
+ * application role has SELECT, INSERT and UPDATE. `version` is the optimistic lock.
+ */
+export interface DocumentsTable {
+  id: string;
+  kind_code: string;
+  title: string;
+  description: string | null;
+  work_order_id: string | null;
+  customer_id: string | null;
+  site_id: string | null;
+  procedure_stage_id: string | null;
+  confidentiality_override: 'building_security' | 'identity_data' | null;
+  created_at: Date;
+  created_by: string;
+  updated_at: Date;
+  updated_by: string;
+  version: Generated<number>;
+  deleted_at: Date | null;
+  deleted_by: string | null;
+  /** When the files of all the versions were erased on purpose (migration 0062, write-once). */
+  file_purged_at: Generated<Date | null>;
+}
+
+/** The versions of a document: append-only (SELECT and INSERT only). */
+export interface DocumentVersionsTable {
+  id: string;
+  document_id: string;
+  version_number: number;
+  change_note: string | null;
+  created_at: Date;
+  created_by: string;
 }
 
 /** The thumbnail and the preview of a photo (migration 0053). The application role has SELECT and INSERT only: a derivative is written once. */
@@ -83,11 +133,35 @@ export interface UploadSessionsTable {
   updated_at: Date;
 }
 
+/**
+ * A ZIP export of the photos of an order (migration 0063; EVM-052). The application role has SELECT, INSERT and UPDATE. The row holds no name, no customer and no
+ * address; the key is chosen by the server at the request.
+ */
+export interface MediaExportsTable {
+  id: string;
+  work_order_id: string;
+  requested_by: string;
+  state: 'queued' | 'running' | 'ready' | 'failed' | 'expired';
+  object_key: string;
+  size_bytes: string | null;
+  file_count: number | null;
+  failure_code: 'storage_unavailable' | 'too_large' | 'no_media' | 'processing_error' | null;
+  created_at: Date;
+  started_at: Date | null;
+  ready_at: Date | null;
+  expires_at: Date;
+  downloaded_at: Date | null;
+  object_removed_at: Date | null;
+}
+
 export type MediaTables = {
   'media.media_assets': MediaAssetsTable;
   'media.stored_files': StoredFilesTable;
+  'media.documents': DocumentsTable;
+  'media.document_versions': DocumentVersionsTable;
   'media.file_derivatives': FileDerivativesTable;
   'media.upload_sessions': UploadSessionsTable;
+  'media.media_exports': MediaExportsTable;
 };
 
 export type MediaDb = Kysely<MediaTables>;

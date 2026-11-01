@@ -648,6 +648,28 @@ describe('audit of the addresses of files (EVM-045 AC3, AC5; SR-LOG-03, SR-FILE-
       'media_file.original_download_denied',
       'media_file.download_alerted',
       'media_file.download_rejected',
+      // EVM-047: the documents
+      'document.created',
+      'document.confidentiality_raised',
+      'document_file.downloaded',
+      'document_file.download_denied',
+      // EVM-048: the metadata
+      'media_asset.metadata_updated',
+      'document.metadata_updated',
+      // EVM-051: the deletion, the restore and the erasure of the file
+      'media_asset.deleted',
+      'media_asset.restored',
+      'media_asset.file_purged',
+      'document.deleted',
+      'document.restored',
+      'document.file_purged',
+      // EVM-052: the ZIP export
+      'media_export.requested',
+      'media_export.ready',
+      'media_export.failed',
+      'media_export.downloaded',
+      'media_export.expired',
+      'media_export.rate_limited',
     ]);
     for (const type of MEDIA_EVENT_TYPES) expect(AUDIT_ACTIONS).toContain(type);
   });

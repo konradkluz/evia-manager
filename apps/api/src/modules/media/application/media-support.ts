@@ -3,7 +3,7 @@
  * and the representation of a medium. The representation NEVER carries the object key, the S3 upload id or the checksum; the reason of a
  * quarantine only for the one who may manage it (`mediaQuarantine.manage`, EVM-049) - for everybody else the field is ABSENT, not `null`.
  */
-import type { MediaAsset, UploadSession } from '@evia/contracts';
+import type { DocumentUploadSession, MediaAsset, UploadSession } from '@evia/contracts';
 import { zCreateMediaAssetsHeaders } from '@evia/contracts/zod';
 import { ProblemException } from '../../../platform/http/problem.ts';
 import type { Principal } from '../../../platform/http/principal.ts';
@@ -53,6 +53,8 @@ interface Representation {
   readonly session?: ListedAsset['session'];
   /** The caller may manage the quarantine (an Administrator): only then the reason is part of the answer. Absent = no (deny by default). */
   readonly manageQuarantine?: boolean;
+  /** The names of the stages by id (EVM-048); a medium whose stage is not in the map gets `null` (no stage). */
+  readonly stageNames?: ReadonlyMap<string, string>;
 }
 
 export function toMediaAsset(row: AssetWithFile, options: Representation = { unfinished: false }): MediaAsset {
@@ -67,6 +69,9 @@ export function toMediaAsset(row: AssetWithFile, options: Representation = { unf
     mediaType: asset.media_type,
     category: asset.category as MediaAsset['category'],
     description: asset.description,
+    procedureStageId: asset.procedure_stage_id,
+    procedureStageName: asset.procedure_stage_id === null ? null : (options.stageNames?.get(asset.procedure_stage_id) ?? null),
+    version: asset.version,
     origin: asset.origin,
     capturedAt: asset.captured_at === null ? null : asset.captured_at.toISOString(),
     createdAt: asset.created_at.toISOString(),
@@ -79,6 +84,7 @@ export function toMediaAsset(row: AssetWithFile, options: Representation = { unf
         ? null
         : { state: quarantine.state, expiresAt: quarantine.expiresAt.toISOString(), purgedAt: quarantine.purgedAt?.toISOString() ?? null },
     ...(reason === undefined ? {} : { quarantineReasonCode: reason }),
+    fileErasedAt: asset.file_purged_at?.toISOString() ?? null,
     declaredSize: Number(file.declared_size_bytes),
     durationSeconds: file.duration_seconds,
     // only an explicit `true` counts: null (not scanned yet) is NOT "scanned" (fail closed, EVM-046 AC3)
@@ -95,6 +101,17 @@ export function toUploadSession(session: UploadSessionRow, mediaAssetId: string)
   return {
     id: session.id,
     mediaAssetId,
+    state: session.state,
+    partSize: Number(session.part_size_bytes),
+    partCount: session.part_count,
+    expiresAt: session.expires_at.toISOString(),
+  };
+}
+
+export function toDocumentUploadSession(session: UploadSessionRow, documentId: string): DocumentUploadSession {
+  return {
+    id: session.id,
+    documentId,
     state: session.state,
     partSize: Number(session.part_size_bytes),
     partCount: session.part_count,

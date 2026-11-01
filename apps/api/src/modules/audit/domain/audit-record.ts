@@ -72,6 +72,8 @@ export const AUDIT_OBJECT_TYPES = [
   'timeline_entry',
   'payment_milestone',
   'media_asset',
+  'document',
+  'media_export',
 ] as const;
 export const AUDIT_OUTCOMES = ['success', 'denied', 'failed'] as const;
 
@@ -80,6 +82,16 @@ const PAYMENT_ACTION_PREFIX = 'payment_milestone.';
 const ROLE_CHANGE_ACTION = 'user.role_changed';
 /** The new scan of a quarantined file carries the state before and after (EVM-049): the result, never the reason. */
 const RESCAN_ACTION = 'media_file.rescanned';
+/**
+ * The events of a document that carry class codes (EVM-047): a raise of the class (the class before and after) and the issue or the refusal of an address of
+ * a file (the class of the document, repeated in both: no file name, never a title).
+ */
+const DOCUMENT_CODE_ACTIONS: ReadonlySet<string> = new Set([
+  'document.created',
+  'document.confidentiality_raised',
+  'document_file.downloaded',
+  'document_file.download_denied',
+]);
 const amountMinor = z.int().min(1).max(99_999_999_999).nullable();
 const entityCount = z.int().min(0).max(1_000_000).nullable();
 /** The one event that carries the counts of the entities by type: the end of a full download of a phone (EVM-096 AC8). */
@@ -136,10 +148,13 @@ export const auditRecordSchema = z
         ? true
         : record.fromCode !== null &&
           record.toCode !== null &&
-          (record.action.startsWith(PAYMENT_ACTION_PREFIX) || record.action === ROLE_CHANGE_ACTION || record.action === RESCAN_ACTION),
+          (record.action.startsWith(PAYMENT_ACTION_PREFIX) ||
+            record.action === ROLE_CHANGE_ACTION ||
+            record.action === RESCAN_ACTION ||
+            DOCUMENT_CODE_ACTIONS.has(record.action)),
     {
       message:
-        'the codes of a status belong to a transition of a payment milestone, a change of a role or a new scan of a file only, both together',
+        'the codes of a status belong to a transition of a payment milestone, a change of a role, a new scan of a file or an event of a document only, both together',
     },
   )
   .refine(

@@ -15,7 +15,7 @@
  */
 import { zPaymentMilestoneStatus, zStageStatus, zStageWaitingOn, zWorkOrderStatus } from '@evia/contracts/zod';
 import { z } from 'zod';
-import type { MediaAssetsAddedEvent } from '../../media/index.ts';
+import type { DocumentAddedEvent, MediaAssetsAddedEvent } from '../../media/index.ts';
 import type { PaymentMilestoneJournalEvent } from '../../payments/index.ts';
 import type { StageJournalChangeEvent } from '../../procedures/index.ts';
 import type { ScopeItemField, WorkOrderEvent, WorkOrderField, WorkOrderJournalChangeEvent } from '../../work-orders/index.ts';
@@ -39,6 +39,7 @@ export const JOURNAL_EVENT_CODES = [
   'payment_milestone_status_changed',
   'payment_milestone_deleted',
   'media_assets_added',
+  'document_added',
 ] as const;
 export type JournalEventCode = (typeof JOURNAL_EVENT_CODES)[number];
 
@@ -107,6 +108,12 @@ const SHAPES = {
     count: z.int().min(1).max(MAX_MEDIA_PER_BATCH),
     mediaAssetIds: z.array(z.uuid()).min(1).max(MAX_MEDIA_PER_BATCH),
   },
+  // EVM-047 AC1: a document was added - its identifier and the code of its kind; never the title, the description or the file name
+  document_added: {
+    objectType: z.literal('document'),
+    objectId: z.uuid(),
+    kindCode: z.string().regex(/^[a-z][a-z0-9_]{1,63}$/),
+  },
 } as const satisfies Record<JournalEventCode, z.ZodRawShape>;
 
 const STRICT = {
@@ -128,12 +135,18 @@ const STRICT = {
   payment_milestone_status_changed: z.strictObject(SHAPES.payment_milestone_status_changed),
   payment_milestone_deleted: z.strictObject(SHAPES.payment_milestone_deleted),
   media_assets_added: z.strictObject(SHAPES.media_assets_added),
+  document_added: z.strictObject(SHAPES.document_added),
 } as const;
 
 /** The source events `timeline` turns into entries (`work_order.created` is the creation event of the order, already audited). */
 export type CreatedEvent = WorkOrderEvent & { readonly type: 'work_order.created' };
 export type JournalSourceEvent =
-  CreatedEvent | WorkOrderJournalChangeEvent | StageJournalChangeEvent | PaymentMilestoneJournalEvent | MediaAssetsAddedEvent;
+  | CreatedEvent
+  | WorkOrderJournalChangeEvent
+  | StageJournalChangeEvent
+  | PaymentMilestoneJournalEvent
+  | MediaAssetsAddedEvent
+  | DocumentAddedEvent;
 
 /** What the store writes: the columns of the entry that an event decides. */
 export interface JournalEventRecord {
@@ -273,6 +286,13 @@ function candidateOf(event: JournalSourceEvent): Candidate {
           count: event.mediaAssetIds.length,
           mediaAssetIds: [...event.mediaAssetIds],
         },
+        workOrderId: event.workOrderId,
+        procedureStageId: null,
+      };
+    case 'media.document_added':
+      return {
+        code: 'document_added',
+        payload: { objectType: 'document', objectId: event.documentId, kindCode: event.kindCode },
         workOrderId: event.workOrderId,
         procedureStageId: null,
       };

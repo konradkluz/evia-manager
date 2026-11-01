@@ -6,22 +6,31 @@ import {
   FilterChip,
   Images,
   InlineAlert,
+  RadioGroup,
   UploadQueueItem,
   Uploader,
   type UploadQueueItemState,
 } from '@evia/ui-web';
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import { useOnline } from '../shell/use-online.ts';
 import { useSession } from '../session/session.ts';
 import { formatDate, formatClock } from './format.ts';
+import { eraseText } from './erase-labels.ts';
+import { useSoftErase, type EraseSubject } from './file-erase.ts';
+import { FilePurgeDialog } from './file-purge-dialog.tsx';
 import { categoryLabel, mediaText, quarantineReasonLabel } from './media-labels.ts';
+import { MediaExportButton, MediaExportStatus } from './media-export-panel.tsx';
+import { useOrderExport } from './media-export.ts';
 import { MediaGallery } from './media-gallery.tsx';
 import { MediaQueue } from './media-queue.tsx';
 import { SectionLoading } from './section-states.tsx';
+import { stageOrder, useStageChoices } from './stage-choice.ts';
 import { useMediaList, useRescan, type MediaUpload } from './use-media.ts';
 
 /** The state of a medium that is on the server, as the list shows it (flows/06 → § 4.14 "Stany pliku na serwerze"). */
 function serverLook(asset: MediaAsset, administrator: boolean): { state: UploadQueueItemState; label: string; detail?: string } {
+  // EVM-051: the file was erased by an administrator; the record stays with the marker (no name, no description, no actions on the file)
+  if (asset.fileErasedAt != null) return { state: 'queued', label: eraseText.erasedBy(asset.fileErasedAt) };
   // The quarantine of EVM-049: a file held ("Wymaga uwagi") or removed after 30 days; the reason only when the server sent it (Administrator).
   if (asset.quarantine?.state === 'purged') return { state: 'queued', label: mediaText.purged, detail: mediaText.purgedDetail };
   // A file held and scanned again is being checked, not "Wymaga uwagi" (the reason of the earlier verdict is no longer current).
@@ -79,8 +88,15 @@ export function MediaSection({ order, media }: { readonly order: WorkOrderDetail
   const canUpload = role === 'administrator' || role === 'editor';
   const checking = media.items.some((item) => item.status === 'checking');
   const [onlyAttention, setOnlyAttention] = useState(false);
+  const [grouping, setGrouping] = useState<'category' | 'stage'>('category');
+  const stages = useStageChoices(order.id);
+  const stageIds = useMemo(() => stageOrder(stages.choices), [stages.choices]);
   const list = useMediaList(order.id, true, checking, onlyAttention);
   const rescan = useRescan(order.id);
+  const softErase = useSoftErase(order.id);
+  const exporter = useOrderExport(order.id);
+  const [purging, setPurging] = useState<EraseSubject | null>(null);
+  const administrator = role === 'administrator';
   const attentionCount = list.data?.pages[0]?.needsAttentionCount ?? 0;
   const assets = list.data?.pages.flatMap((page) => page.items) ?? [];
 
@@ -93,7 +109,7 @@ export function MediaSection({ order, media }: { readonly order: WorkOrderDetail
 
   const own = new Set(media.items.map((item) => item.key));
   // the photos that are `ready` are the gallery (also the ones this tab sent); the rest keep their line with the state of the file
-  const gallery = assets.filter((asset) => asset.fileState === 'ready');
+  const gallery = assets.filter((asset) => asset.fileState === 'ready' && asset.fileErasedAt == null);
   const galleryIds = new Set(gallery.map((asset) => asset.id));
   const rest = assets.filter((asset) => !own.has(asset.id) && !galleryIds.has(asset.id));
   // the heading counts photos and videos separately (everything the tiles and the lines below show)
@@ -129,6 +145,13 @@ export function MediaSection({ order, media }: { readonly order: WorkOrderDetail
               {mediaText.addPhotos}
             </Button>
           </div>
+          <MediaExportButton
+            workOrderId={order.id}
+            hasPhotos={gallery.some((asset) => asset.mediaType === 'photo')}
+            online={online}
+            exporter={exporter}
+          />
+          <MediaExportStatus workOrderId={order.id} online={online} exporter={exporter} />
         </>
       ) : null}
       <MediaQueue media={media} />
@@ -200,7 +223,43 @@ export function MediaSection({ order, media }: { readonly order: WorkOrderDetail
               ? mediaText.attentionHeading(assets.length, list.hasNextPage)
               : mediaText.photosHeading(photos, videos, list.hasNextPage)}
           </h3>
-          <MediaGallery workOrderId={order.id} assets={gallery} online={online} canDownloadOriginal={canUpload} />
+          {gallery.length > 0 ? (
+            <RadioGroup
+              legend={mediaText.groupLegend}
+              options={[
+                { value: 'category', label: mediaText.groupByCategory },
+                { value: 'stage', label: mediaText.groupByStage },
+              ]}
+              value={grouping}
+              onChange={(value) => {
+                setGrouping(value === 'stage' ? 'stage' : 'category');
+              }}
+            />
+          ) : null}
+          <MediaGallery
+            workOrderId={order.id}
+            assets={gallery}
+            online={online}
+            canDownloadOriginal={canUpload}
+            canEdit={canUpload}
+            {...(administrator
+              ? {
+                  eraser: {
+                    remove: (entry: MediaAsset) => {
+                      softErase.remove({ kind: 'media', id: entry.id, version: entry.version });
+                    },
+                    purge: (entry: MediaAsset) => {
+                      setPurging({ kind: 'media', id: entry.id, version: entry.version });
+                    },
+                    failure: softErase.failure,
+                  },
+                }
+              : canUpload
+                ? { eraser: { remove: () => undefined, purge: () => undefined, failure: null, restricted: true } }
+                : {})}
+            grouping={grouping}
+            stageOrder={stageIds}
+          />
           {rest.length > 0 ? (
             <ul aria-label={mediaText.heading} className="flex flex-col">
               {rest.map((asset) => {
@@ -248,6 +307,15 @@ export function MediaSection({ order, media }: { readonly order: WorkOrderDetail
           ) : null}
         </>
       ) : null}
+      {purging === null ? null : (
+        <FilePurgeDialog
+          workOrderId={order.id}
+          subject={purging}
+          onClose={() => {
+            setPurging(null);
+          }}
+        />
+      )}
     </section>
   );
 }

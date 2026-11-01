@@ -15,23 +15,32 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
     expect(AUTHZ_MANIFEST).toEqual(manifest);
     expect(manifest['getHealth']).toEqual({ method: 'get', path: '/api/health', query: [], authz: { public: true } });
     expect(Object.keys(manifest).sort()).toEqual([
+      'abortDocumentUploadSession',
       'abortUploadSession',
       'anonymizeCustomer',
       'changePassword',
       'changeUserRole',
       'checkActivationLink',
       'checkPasswordResetLink',
+      'completeDocumentUploadSession',
       'completePasswordReset',
       'completeUploadSession',
       'confirmDeviceWipe',
       'confirmTotp',
       'createCustomer',
+      'createCustomerDocumentDownloadUrl',
+      'createDocument',
+      'createDocumentDownloadUrl',
+      'createDocumentUploadSession',
       'createMediaAssetDownloadUrl',
       'createMediaAssets',
+      'createMediaExport',
+      'createMediaExportDownloadUrl',
       'createParty',
       'createPaymentMilestone',
       'createProcedureStage',
       'createSite',
+      'createSiteDocumentDownloadUrl',
       'createTimelineEntry',
       'createUploadSession',
       'createWorkOrder',
@@ -39,6 +48,8 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'createWorkOrderScopeItem',
       'deactivateUser',
       'deleteCustomer',
+      'deleteDocument',
+      'deleteMediaAsset',
       'deletePaymentMilestone',
       'deleteProcedureStage',
       'deleteTimelineEntry',
@@ -54,8 +65,10 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'getClientConfig',
       'getCurrentSession',
       'getCustomer',
+      'getDocumentUploadPartUrl',
       'getHealth',
       'getLoginPasskeyOptions',
+      'getMediaExport',
       'getParty',
       'getPasskeyRegistrationOptions',
       'getSite',
@@ -74,13 +87,18 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'listAccountSessions',
       'listAssignableUsers',
       'listAuditEvents',
+      'listCustomerDocuments',
       'listCustomers',
       'listDeletedWorkOrderProcedures',
       'listDocumentKinds',
+      'listDocumentUploadParts',
+      'listDocuments',
       'listMediaAssets',
+      'listMediaExports',
       'listPaymentMilestones',
       'listProcedureTemplates',
       'listServiceItems',
+      'listSiteDocuments',
       'listTimelineEntries',
       'listUnpaidPaymentMilestones',
       'listUploadParts',
@@ -97,6 +115,8 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'mobileLogin',
       'mobileLoginTotp',
       'mobileLogout',
+      'purgeDocumentFile',
+      'purgeMediaAssetFile',
       'pushSyncMutations',
       'reactivateUser',
       'reauthenticate',
@@ -110,6 +130,8 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'resendUserInvitation',
       'resetUserSecondStep',
       'restoreCustomer',
+      'restoreDocument',
+      'restoreMediaAsset',
       'restoreProcedureStage',
       'restoreTimelineEntry',
       'restoreWorkOrder',
@@ -126,6 +148,8 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'transitionWorkOrder',
       'updateAccount',
       'updateCustomer',
+      'updateDocument',
+      'updateMediaAsset',
       'updateParty',
       'updatePaymentMilestone',
       'updateProcedureStage',
@@ -156,6 +180,7 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
     expect(stepUp.map(([id]) => id).sort()).toEqual([
       'anonymizeCustomer',
       'changeUserRole',
+      'createMediaExport',
       'deactivateUser',
       'deletePaymentMilestone',
       'endAccountSession',
@@ -164,6 +189,8 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'inviteUser',
       'listAccountSessions',
       'listAuditEvents',
+      'purgeDocumentFile',
+      'purgeMediaAssetFile',
       'reactivateUser',
       'redactTimelineEntry',
       'rescanMediaAsset',
@@ -175,7 +202,9 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       expect(operation.authz.roles, id).toEqual(
         ['endAccountSession', 'endOtherAccountSessions', 'listAccountSessions'].includes(id)
           ? ['administrator', 'editor', 'read_only']
-          : ['administrator'],
+          : id === 'createMediaExport'
+            ? ['administrator', 'editor']
+            : ['administrator'],
       );
     }
   });
@@ -366,5 +395,34 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
     expect(() => buildAuthzManifest(document({ public: true, roles: ['editor'] }))).toThrow(/must not declare: roles/);
     for (const planned of [false, 'true', 1, null])
       expect(() => buildAuthzManifest(document({ public: true }, planned)), String(planned)).toThrow(/x-evia-planned/);
+  });
+
+  it('EVM-051 AC6 the deletion, the restore and the erasure of a file are Administrator-only on the web; only the erasure needs a step-up', () => {
+    const operations = [
+      'deleteMediaAsset',
+      'restoreMediaAsset',
+      'purgeMediaAssetFile',
+      'deleteDocument',
+      'restoreDocument',
+      'purgeDocumentFile',
+    ];
+    for (const id of operations) {
+      const authz = AUTHZ_MANIFEST[id]?.authz;
+      expect(authz?.roles, id).toEqual(['administrator']);
+      expect(authz?.channels, id).toEqual(['web']);
+      expect(authz?.audit, id).toBe(true);
+      expect(authz?.stepUp === true, id).toBe(id.startsWith('purge'));
+    }
+  });
+
+  it('EVM-052 AC5 AC7 the four operations of the ZIP export are web-only; only the order of the export needs a step-up, only the order and the link are audited', () => {
+    const roles = ['administrator', 'editor', 'read_only'];
+    for (const id of ['listMediaExports', 'getMediaExport', 'createMediaExportDownloadUrl', 'createMediaExport']) {
+      const authz = AUTHZ_MANIFEST[id]?.authz;
+      expect(authz?.channels, id).toEqual(['web']);
+      expect(authz?.roles, id).toEqual(id === 'createMediaExport' ? ['administrator', 'editor'] : roles);
+      expect(authz?.stepUp === true, id).toBe(id === 'createMediaExport');
+      expect(authz?.audit === true, id).toBe(id.startsWith('create'));
+    }
   });
 });
