@@ -4,7 +4,7 @@ title: "Urządzenia: lista, zdalne wylogowanie, „Zablokuj i wyczyść” (API 
 type: story
 milestone: M2
 epic: E9 Dostęp mobilny
-status: draft
+status: in-progress
 priority: P1
 path: pelna             # uwierzytelnianie, uprawnienia
 owner: backend-developer
@@ -67,3 +67,4 @@ Zdalne wymuszenie aktualizacji; e-mail do użytkownika o „Zablokuj i wyczyść
 ## Dziennik
 - 2026-10-27 — utworzono (product-owner)
 - 2026-10-27 — naniesiono konsultacje: security, UX (product-owner)
+- 2026-11-01 — refinement: AC zaakceptowane przez Konrada, status `ready` (tor B nocy 1/2.11)
