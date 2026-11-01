@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { ProfileCard } from '../account/profile-card.tsx';
 import { PasswordCard } from '../account/password-card.tsx';
 import { ACCOUNT_KEY } from '../account/query-keys.ts';
+import { DevicesCard } from '../account/devices-card.tsx';
 import { SecondStepCard } from '../account/second-step-card.tsx';
 import { SessionsCard } from '../account/sessions-card.tsx';
 import { useAccountSessions } from '../account/use-account-sessions.ts';
@@ -24,7 +25,7 @@ import { retryMinutes } from './login-failure.tsx';
  * W-15 "Konto" (EVM-028 AC1–AC8; flows/12): the own account of every role — "Profil", "Hasło", "Drugi krok logowania" (anchor
  * `#drugi-krok`: the focus goes to the heading of that card) and "Moje sesje". The account is the session's: there is no identifier in
  * the address or in a request, so there is no way to ask for somebody else's. The data is personal (e-mail, names of keys) and is not
- * kept in the cache once the page is left (SR-WEB-05); the title of the tab has none of it. "Urządzenia" (E9) is not here yet.
+ * kept in the cache once the page is left (SR-WEB-05); the title of the tab has none of it. "Urządzenia" (EVM-095, anchor `#urzadzenia`) lists the own phones.
  */
 export function AccountPage() {
   const { t } = useTranslation();
@@ -107,6 +108,8 @@ export function AccountPage() {
           <PasswordCard account={account} online={online} onEndOtherSessions={sessions.endOthers} />
           <SecondStepCard account={account} online={online} headingRef={secondStepHeading} />
           <SessionsCard state={sessions} online={online} now={now} />
+          {/* Tylko odczyt has no phone: the section is hidden (the server refuses that role anyway, EVM-095 AC1). */}
+          {account.role === 'read_only' ? null : <DevicesCard online={online} now={now} />}
         </>
       )}
     </div>
