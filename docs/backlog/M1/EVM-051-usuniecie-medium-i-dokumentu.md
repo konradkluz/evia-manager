@@ -99,3 +99,4 @@ _—_
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-11-01 — plan gotowy (backend-developer)
 - 2026-11-01 — backend: kontrakt, migracja 0062, usunięcie/przywrócenie/purge medium i dokumentu, rejestr, zadania workera (uzgadnianie, domykanie), macierz ról i testy integracyjne (backend-developer); panel — osobny krok (web-developer)
+- 2026-11-01 — panel: „Usuń” / „Cofnij” i „Usuń plik trwale…” (AlertDialog + W-04) w lightboxie i menu dokumentu, oznaczenie usuniętego pliku, offline wyłączone, testy `EVM-051 AC#` (web-developer)

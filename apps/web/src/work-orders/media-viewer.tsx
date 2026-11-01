@@ -5,6 +5,8 @@ import { ApiError } from '../api/client.ts';
 import { formatClock, formatDate } from './format.ts';
 import { categoryLabel, mediaAlt, mediaText } from './media-labels.ts';
 import { useVariantRequest, useVariantTicket } from './media-thumbnails.ts';
+import { eraseText } from './erase-labels.ts';
+import { failureText, type EraseFailure } from './file-erase.ts';
 import { MediaEditDialog } from './media-edit-dialog.tsx';
 import { UnscannedMark } from './media-unscanned.tsx';
 import { VideoPlayer } from './media-video-player.tsx';
@@ -120,6 +122,13 @@ function previewFailureText(error: unknown): string {
   return mediaText.thumbnailUnavailable;
 }
 
+/** "Usuń" and "Usuń plik trwale…" of the lightbox (EVM-051; Administrator only - the server decides all the same). */
+export interface MediaEraser {
+  readonly remove: (asset: MediaAsset) => void;
+  readonly purge: (asset: MediaAsset) => void;
+  readonly failure: EraseFailure | null;
+}
+
 /** The lightbox over the photos of the gallery in the order of the tiles; `index` null = closed. */
 export function MediaViewer({
   workOrderId,
@@ -128,6 +137,7 @@ export function MediaViewer({
   online,
   canDownloadOriginal,
   canEdit = false,
+  eraser,
   onIndex,
   onClose,
 }: {
@@ -138,6 +148,8 @@ export function MediaViewer({
   readonly canDownloadOriginal: boolean;
   /** Administrator and Editor (convenience only; the server answers `403` to the others). */
   readonly canEdit?: boolean;
+  /** Administrator: delete and erase the file (EVM-051). */
+  readonly eraser?: MediaEraser;
   readonly onIndex: (index: number) => void;
   readonly onClose: () => void;
 }) {
@@ -291,6 +303,32 @@ export function MediaViewer({
                   {online ? null : <span className="text-body-sm text-text-secondary">{mediaText.editOffline}</span>}
                 </div>
               ) : null}
+              {eraser === undefined ? null : (
+                <div className="flex flex-col gap-stack-xs">
+                  <div className="flex flex-wrap items-center gap-inline-md">
+                    <Button
+                      variant="secondary"
+                      disabled={!online}
+                      onClick={() => {
+                        eraser.remove(asset);
+                      }}
+                    >
+                      {eraseText.remove}
+                    </Button>
+                    <Button
+                      variant="danger"
+                      disabled={!online}
+                      onClick={() => {
+                        eraser.purge(asset);
+                      }}
+                    >
+                      {eraseText.purge}
+                    </Button>
+                    {online ? null : <span className="text-body-sm text-text-secondary">{eraseText.offline}</span>}
+                  </div>
+                  {eraser.failure === null ? null : <InlineAlert tone="error">{failureText(eraser.failure)}</InlineAlert>}
+                </div>
+              )}
               {canDownloadOriginal ? (
                 <div className="flex flex-wrap items-center gap-inline-md">
                   <Button

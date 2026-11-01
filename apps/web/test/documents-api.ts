@@ -52,6 +52,8 @@ export interface DocumentsServerOptions {
   readonly list?: Handler;
   readonly create?: Handler;
   readonly raise?: Handler;
+  /** `DELETE …/documents/{id}` (EVM-051); the default answers `204`. */
+  readonly remove?: Handler;
   readonly download?: Handler;
   readonly complete?: Handler;
   readonly stateAfterComplete?: OrderDocument['fileState'];
@@ -159,22 +161,28 @@ export function documentsApi(options: DocumentsServerOptions = {}) {
     ],
     [
       /\/documents\/[^/]+$/,
-      options.raise ??
-        ((request) => {
-          const body = parseBody(request.body) as Partial<OrderDocument> & { confidentialityOverride?: OrderDocument['confidentiality'] };
-          const id = request.path.split('/').at(-1) ?? '';
-          const found = edited.get(id) ?? (options.documents ?? []).find((entry) => entry.id === id) ?? doc(0, { id });
-          const { confidentialityOverride, ...fields } = body;
-          const next: OrderDocument = {
-            ...found,
-            ...fields,
-            ...(confidentialityOverride === undefined ? {} : { confidentiality: confidentialityOverride, confidentialityRaised: true }),
-            procedureStageName: 'procedureStageId' in body ? stageName(body.procedureStageId) : found.procedureStageName,
-            version: found.version + 1,
-          };
-          edited.set(id, next);
-          return json(200, next, { ETag: `"${String(next.version)}"` });
-        }),
+      (request) => {
+        if (request.method === 'DELETE') return (options.remove ?? (() => new Response(null, { status: 204 })))(request);
+        return (
+          options.raise ??
+          ((raised) => {
+            const body0 = raised;
+            const body = parseBody(body0.body) as Partial<OrderDocument> & { confidentialityOverride?: OrderDocument['confidentiality'] };
+            const id = body0.path.split('/').at(-1) ?? '';
+            const found = edited.get(id) ?? (options.documents ?? []).find((entry) => entry.id === id) ?? doc(0, { id });
+            const { confidentialityOverride, ...fields } = body;
+            const next: OrderDocument = {
+              ...found,
+              ...fields,
+              ...(confidentialityOverride === undefined ? {} : { confidentiality: confidentialityOverride, confidentialityRaised: true }),
+              procedureStageName: 'procedureStageId' in body ? stageName(body.procedureStageId) : found.procedureStageName,
+              version: found.version + 1,
+            };
+            edited.set(id, next);
+            return json(200, next, { ETag: `"${String(next.version)}"` });
+          })
+        )(request);
+      },
     ],
   ]);
   const base = api.fetch;

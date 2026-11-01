@@ -76,6 +76,8 @@ export interface MediaServerOptions {
   readonly downloadUrl?: Handler;
   /** `PATCH …/media-assets/{id}` (EVM-048); the default applies the fields to the medium and raises the version. */
   readonly update?: Handler;
+  /** `DELETE …/media-assets/{id}` (EVM-051); the default answers `204`. */
+  readonly remove?: Handler;
   readonly routes?: Record<string, Handler>;
 }
 
@@ -186,7 +188,11 @@ export function mediaApi(options: MediaServerOptions = {}) {
         ),
     ],
     [/\/upload-sessions\/[^/]+\/complete$/, complete],
-    [/\/media-assets\/[^/]+$/, update],
+    [
+      /\/media-assets\/[^/]+$/,
+      (request) =>
+        request.method === 'DELETE' ? (options.remove ?? (() => new Response(null, { status: 204 })))(request) : update(request),
+    ],
     [/\/[^/]+\/rescan$/, options.rescan ?? (() => problem(500, 'internal_error'))],
     [
       /\/[^/]+\/download-url$/,

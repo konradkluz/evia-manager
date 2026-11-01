@@ -21,6 +21,9 @@ import { useOnline } from '../shell/use-online.ts';
 import { useSession } from '../session/session.ts';
 import { DocumentEditDialog } from './document-edit-dialog.tsx';
 import { DocumentRaiseDialog } from './document-raise-dialog.tsx';
+import { eraseText } from './erase-labels.ts';
+import { failureText, useSoftErase, type EraseSubject } from './file-erase.ts';
+import { FilePurgeDialog } from './file-purge-dialog.tsx';
 import { DocumentUploadDialog } from './document-upload-dialog.tsx';
 import { confidentialityLabel, documentText, higherClasses } from './document-labels.ts';
 import type { DocumentItem } from './document-upload-engine.ts';
@@ -30,6 +33,8 @@ import { documentRequestFailure, useDocumentDownload, useDocumentKinds, useDocum
 
 /** The file of a document as the list shows it (flows/06 → "Stany pliku"); the reason of a quarantine is never shown here. */
 export function fileLook(document: OrderDocument): { label: string; detail?: string } {
+  // EVM-051: the files were erased by an administrator; the title is the marker, nothing else of the file is shown
+  if (document.fileErasedAt != null) return { label: eraseText.erasedBy(document.fileErasedAt) };
   switch (document.fileState) {
     case 'pending_upload':
       return { label: documentText.waiting };
@@ -46,7 +51,7 @@ export function fileLook(document: OrderDocument): { label: string; detail?: str
 }
 
 export const downloadable = (document: OrderDocument) =>
-  document.canDownload && (document.fileState === 'clean' || document.fileState === 'ready');
+  document.canDownload && document.fileErasedAt == null && (document.fileState === 'clean' || document.fileState === 'ready');
 
 function queueLook(item: DocumentItem): { state: UploadQueueItemState; label: string; detail?: string } {
   switch (item.status) {
@@ -78,6 +83,7 @@ export function DocumentsSection({ order, upload }: { readonly order: WorkOrderD
   const online = useOnline();
   const role = useSession().data?.user.role;
   const canEdit = role === 'administrator' || role === 'editor';
+  const administrator = role === 'administrator';
   const { engine, items } = upload;
   const sending = items.some((item) => item.status !== 'done' && item.status !== 'failed');
   const list = useDocumentList(order.id, sending);
@@ -89,6 +95,8 @@ export function DocumentsSection({ order, upload }: { readonly order: WorkOrderD
   const [editingId, setEditingId] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const softErase = useSoftErase(order.id);
+  const [purging, setPurging] = useState<EraseSubject | null>(null);
 
   const documents = list.data?.pages.flatMap((page) => page.items) ?? [];
   const raising = documents.find((entry) => entry.id === raisingId) ?? null;
@@ -113,9 +121,38 @@ export function DocumentsSection({ order, upload }: { readonly order: WorkOrderD
   };
 
   const actionsOf = (document: OrderDocument) => {
+    const erased = document.fileErasedAt != null;
+    const subject: EraseSubject = { kind: 'document', id: document.id, version: document.version };
+    const eraseItems: ActionMenuItem[] = administrator
+      ? [
+          {
+            id: 'remove',
+            label: eraseText.remove,
+            tone: 'danger',
+            startsGroup: true,
+            onSelect: () => {
+              softErase.remove(subject);
+            },
+            ...(online ? {} : { disabledHint: eraseText.offline }),
+          },
+          ...(erased
+            ? []
+            : [
+                {
+                  id: 'purge',
+                  label: eraseText.purge,
+                  tone: 'danger' as const,
+                  onSelect: () => {
+                    setPurging(subject);
+                  },
+                  ...(online ? {} : { disabledHint: eraseText.offline }),
+                },
+              ]),
+        ]
+      : [];
     const canGet = downloadable(document);
     if (!canEdit) {
-      if (!document.canDownload) return null;
+      if (!document.canDownload || erased) return null;
       if (!canGet) return null;
       return (
         <Button
@@ -131,34 +168,38 @@ export function DocumentsSection({ order, upload }: { readonly order: WorkOrderD
         </Button>
       );
     }
-    const menu: ActionMenuItem[] = [
-      {
-        id: 'download',
-        label: documentText.downloadMenu,
-        onSelect: () => {
-          download(document);
-        },
-        ...(canGet && online ? {} : { disabledHint: online ? documentText.checkingDetail : documentText.offlineNote }),
-      },
-      {
-        id: 'edit',
-        label: documentText.editMenu,
-        onSelect: () => {
-          setEditingId(document.id);
-        },
-        ...(online ? {} : { disabledHint: documentText.offlineNote }),
-      },
-      {
-        id: 'raise',
-        label: documentText.raiseMenu,
-        onSelect: () => {
-          setRaisingId(document.id);
-        },
-        ...(higherClasses(document.confidentiality).length > 0 && online
-          ? {}
-          : { disabledHint: online ? documentText.raiseHighest : documentText.offlineNote }),
-      },
-    ];
+    const menu: ActionMenuItem[] = erased
+      ? eraseItems
+      : [
+          {
+            id: 'download',
+            label: documentText.downloadMenu,
+            onSelect: () => {
+              download(document);
+            },
+            ...(canGet && online ? {} : { disabledHint: online ? documentText.checkingDetail : documentText.offlineNote }),
+          },
+          {
+            id: 'edit',
+            label: documentText.editMenu,
+            onSelect: () => {
+              setEditingId(document.id);
+            },
+            ...(online ? {} : { disabledHint: documentText.offlineNote }),
+          },
+          {
+            id: 'raise',
+            label: documentText.raiseMenu,
+            onSelect: () => {
+              setRaisingId(document.id);
+            },
+            ...(higherClasses(document.confidentiality).length > 0 && online
+              ? {}
+              : { disabledHint: online ? documentText.raiseHighest : documentText.offlineNote }),
+          },
+          ...eraseItems,
+        ];
+    if (menu.length === 0) return null;
     const label = documentText.actionsLabel(document.title);
     return (
       <ActionMenu
@@ -262,6 +303,7 @@ export function DocumentsSection({ order, upload }: { readonly order: WorkOrderD
         </ul>
       )}
       {failure === null ? null : <InlineAlert tone="error">{failure}</InlineAlert>}
+      {softErase.failure === null ? null : <InlineAlert tone="error">{failureText(softErase.failure)}</InlineAlert>}
       {list.isPending ? <SectionLoading /> : null}
       {list.isError ? (
         <EmptyState
@@ -353,6 +395,15 @@ export function DocumentsSection({ order, upload }: { readonly order: WorkOrderD
           setRaisingId(null);
         }}
       />
+      {purging === null ? null : (
+        <FilePurgeDialog
+          workOrderId={order.id}
+          subject={purging}
+          onClose={() => {
+            setPurging(null);
+          }}
+        />
+      )}
     </section>
   );
 }

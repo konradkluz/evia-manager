@@ -15,6 +15,9 @@ import { useEffect, useId, useMemo, useState } from 'react';
 import { useOnline } from '../shell/use-online.ts';
 import { useSession } from '../session/session.ts';
 import { formatDate, formatClock } from './format.ts';
+import { eraseText } from './erase-labels.ts';
+import { useSoftErase, type EraseSubject } from './file-erase.ts';
+import { FilePurgeDialog } from './file-purge-dialog.tsx';
 import { categoryLabel, mediaText, quarantineReasonLabel } from './media-labels.ts';
 import { MediaGallery } from './media-gallery.tsx';
 import { MediaQueue } from './media-queue.tsx';
@@ -24,6 +27,8 @@ import { useMediaList, useRescan, type MediaUpload } from './use-media.ts';
 
 /** The state of a medium that is on the server, as the list shows it (flows/06 → § 4.14 "Stany pliku na serwerze"). */
 function serverLook(asset: MediaAsset, administrator: boolean): { state: UploadQueueItemState; label: string; detail?: string } {
+  // EVM-051: the file was erased by an administrator; the record stays with the marker (no name, no description, no actions on the file)
+  if (asset.fileErasedAt != null) return { state: 'queued', label: eraseText.erasedBy(asset.fileErasedAt) };
   // The quarantine of EVM-049: a file held ("Wymaga uwagi") or removed after 30 days; the reason only when the server sent it (Administrator).
   if (asset.quarantine?.state === 'purged') return { state: 'queued', label: mediaText.purged, detail: mediaText.purgedDetail };
   // A file held and scanned again is being checked, not "Wymaga uwagi" (the reason of the earlier verdict is no longer current).
@@ -86,6 +91,9 @@ export function MediaSection({ order, media }: { readonly order: WorkOrderDetail
   const stageIds = useMemo(() => stageOrder(stages.choices), [stages.choices]);
   const list = useMediaList(order.id, true, checking, onlyAttention);
   const rescan = useRescan(order.id);
+  const softErase = useSoftErase(order.id);
+  const [purging, setPurging] = useState<EraseSubject | null>(null);
+  const administrator = role === 'administrator';
   const attentionCount = list.data?.pages[0]?.needsAttentionCount ?? 0;
   const assets = list.data?.pages.flatMap((page) => page.items) ?? [];
 
@@ -98,7 +106,7 @@ export function MediaSection({ order, media }: { readonly order: WorkOrderDetail
 
   const own = new Set(media.items.map((item) => item.key));
   // the photos that are `ready` are the gallery (also the ones this tab sent); the rest keep their line with the state of the file
-  const gallery = assets.filter((asset) => asset.fileState === 'ready');
+  const gallery = assets.filter((asset) => asset.fileState === 'ready' && asset.fileErasedAt == null);
   const galleryIds = new Set(gallery.map((asset) => asset.id));
   const rest = assets.filter((asset) => !own.has(asset.id) && !galleryIds.has(asset.id));
   // the heading counts photos and videos separately (everything the tiles and the lines below show)
@@ -224,6 +232,19 @@ export function MediaSection({ order, media }: { readonly order: WorkOrderDetail
             online={online}
             canDownloadOriginal={canUpload}
             canEdit={canUpload}
+            {...(administrator
+              ? {
+                  eraser: {
+                    remove: (entry: MediaAsset) => {
+                      softErase.remove({ kind: 'media', id: entry.id, version: entry.version });
+                    },
+                    purge: (entry: MediaAsset) => {
+                      setPurging({ kind: 'media', id: entry.id, version: entry.version });
+                    },
+                    failure: softErase.failure,
+                  },
+                }
+              : {})}
             grouping={grouping}
             stageOrder={stageIds}
           />
@@ -274,6 +295,15 @@ export function MediaSection({ order, media }: { readonly order: WorkOrderDetail
           ) : null}
         </>
       ) : null}
+      {purging === null ? null : (
+        <FilePurgeDialog
+          workOrderId={order.id}
+          subject={purging}
+          onClose={() => {
+            setPurging(null);
+          }}
+        />
+      )}
     </section>
   );
 }

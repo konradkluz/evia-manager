@@ -3,7 +3,7 @@ import { CirclePlay, ImageIcon, InlineAlert, Skeleton } from '@evia/ui-web';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { formatDuration, groupLabel, mediaAlt, mediaText } from './media-labels.ts';
 import { UnscannedMark } from './media-unscanned.tsx';
-import { MediaViewer } from './media-viewer.tsx';
+import { MediaViewer, type MediaEraser } from './media-viewer.tsx';
 import { MAX_PARALLEL_URL_REQUESTS, RequestLimiter, useSeen, useThumbnailRequest } from './media-thumbnails.ts';
 
 // The gallery of W-09 (EVM-068 AC1, AC6, AC8; styleguide § 3.11 Thumbnail, Gallery): the photos that are `ready`, grouped by the category, tiles that
@@ -167,6 +167,7 @@ export function MediaGallery({
   online,
   canDownloadOriginal = false,
   canEdit = false,
+  eraser,
   grouping = 'category',
   stageOrder = NO_ORDER,
 }: {
@@ -177,6 +178,8 @@ export function MediaGallery({
   readonly canDownloadOriginal?: boolean;
   /** Administrator and Editor: "Edytuj opis" in the lightbox (the server decides). */
   readonly canEdit?: boolean;
+  /** Administrator: "Usuń" and "Usuń plik trwale…" in the lightbox (EVM-051). */
+  readonly eraser?: MediaEraser;
   /** "Grupuj: Kategoria / Etap" of the tab (EVM-048 AC5). */
   readonly grouping?: 'category' | 'stage';
   /** The ids of the stages in the order of the processes (the order of the groups). */
@@ -227,6 +230,7 @@ export function MediaGallery({
         online={online}
         canDownloadOriginal={canDownloadOriginal}
         canEdit={canEdit}
+        {...(eraser === undefined ? {} : { eraser })}
         onIndex={(index) => {
           setOpenId(flat[index]?.id ?? null);
         }}
