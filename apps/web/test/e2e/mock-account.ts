@@ -324,6 +324,21 @@ function answerDevices(server: AccountServer, request: AccountRequest): Answer |
       }));
     return ok(200, { items, nextCursor: null }, nocache);
   }
+  const summary = /^\/api\/v1\/users\/([^/]+)\/devices\/summary$/.exec(pathname);
+  if (summary !== null && method === 'GET') {
+    if (role !== 'administrator') return problem(403, 'forbidden');
+    if (!request.stepUpFresh) return problem(403, 'step_up_required');
+    const owned = server.devices.filter((device) => device.user.userId === summary[1] && device.state !== 'wiped');
+    return ok(
+      200,
+      {
+        devices: owned.length,
+        activeDevices: owned.filter((device) => device.state === 'active').length,
+        pendingItemsReported: owned.reduce((sum, device) => sum + device.pendingItemsReported, 0),
+      },
+      nocache,
+    );
+  }
   const managed = /^\/api\/v1\/devices\/([^/]+)\/(logout|wipe)$/.exec(pathname);
   if (managed !== null && method === 'POST') {
     if (role !== 'administrator') return problem(403, 'forbidden');
