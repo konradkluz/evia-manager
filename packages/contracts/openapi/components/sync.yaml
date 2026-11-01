@@ -877,6 +877,20 @@ SyncMutationsRequest:
       maxItems: 50
       items:
         $ref: '#/SyncMutation'
+SyncMutationFieldError:
+  type: object
+  description: Błąd jednego pola mutacji — wskaźnik i kod, bez wartości.
+  additionalProperties: false
+  required: [pointer, code]
+  properties:
+    pointer:
+      type: string
+      description: JSON Pointer (RFC 6901) do pola ładunku, np. `/newCustomer/phone`.
+      maxLength: 128
+    code:
+      type: string
+      description: Kod błędu pola (np. `invalid_format`, `required`, `too_long`).
+      maxLength: 64
 SyncMutationResult:
   type: object
   description: >-
@@ -903,7 +917,16 @@ SyncMutationResult:
         - idempotency_mismatch
         - idempotency_in_progress
         - template_unavailable
+        - quota_exceeded
       maxLength: 64
+    errors:
+      type: array
+      description: >-
+        Błędy walidacji — wskaźnik pola (JSON Pointer w ładunku) i kod, NIGDY wartość. Tylko przy `rejected` `validation_failed` komendy
+        `CreateQuickWorkOrder` (EVM-099 AC5); pozostałe komendy nie dostają pola.
+      maxItems: 20
+      items:
+        $ref: '#/SyncMutationFieldError'
     warnings:
       type: array
       description: Ostrzeżenia (zamknięta lista kodów, słownik otwarty).
@@ -914,7 +937,7 @@ SyncMutationResult:
         maxLength: 64
     workOrderNumber:
       type: string
-      description: Numer nadany przez serwer — tylko przy zastosowanym `CreateQuickWorkOrder`.
+      description: Numer nadany przez serwer — tylko przy `applied` i `duplicate` komendy `CreateQuickWorkOrder`.
       maxLength: 32
 SyncMutationsResponse:
   type: object

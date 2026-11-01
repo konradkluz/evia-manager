@@ -208,6 +208,7 @@ describe('the way from "Nowe" to "Rozliczone" (EVM-030 AC1; SR-API-07)', () => {
         'customer',
         'id',
         'number',
+        'origin',
         'site',
         'status',
         'statusChangedAt',

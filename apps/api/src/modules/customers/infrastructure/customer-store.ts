@@ -38,7 +38,13 @@ const COLUMNS = [
  * INSERT only: an existing identifier — also of a soft-deleted customer — inserts nothing (`undefined`), whatever the content, and
  * the caller answers `409 id_conflict` without a word about the existing row.
  */
-export function insertCustomer(db: CustomersDb, customer: NewCustomer, actorUserId: string, now: Date) {
+export function insertCustomer(
+  db: CustomersDb,
+  customer: NewCustomer,
+  actorUserId: string,
+  now: Date,
+  createdViaDeviceId: string | null = null,
+) {
   return db
     .insertInto('customers.customers')
     .values({
@@ -63,10 +69,25 @@ export function insertCustomer(db: CustomersDb, customer: NewCustomer, actorUser
       updated_by: actorUserId,
       deleted_at: null,
       deleted_by: null,
+      created_via_device_id: createdViaDeviceId,
     })
     .onConflict((conflict) => conflict.column('id').doNothing())
     .returning(COLUMNS)
     .executeTakeFirst();
+}
+
+/**
+ * How many customers the device has created since `since` (EVM-099 AC7): ALL rows, a deleted or anonymized one too, so a deletion does not reset the limit.
+ * The window is the time of the server (`created_at`), never a time from the phone (SR-SYNC-05); the partial index of 0058 serves it.
+ */
+export async function countCustomersCreatedBy(db: CustomersDb, deviceId: string, since: Date): Promise<number> {
+  const row = await db
+    .selectFrom('customers.customers')
+    .select((eb) => eb.fn.countAll<string>().as('total'))
+    .where('created_via_device_id', '=', deviceId)
+    .where('created_at', '>', since)
+    .executeTakeFirstOrThrow();
+  return Number(row.total);
 }
 
 export function findVisibleCustomer(db: CustomersDb, principal: Principal, id: string) {
@@ -108,6 +129,22 @@ export function lockVisibleCustomerForOrder(db: CustomersDb, principal: Principa
     .where(visibleCustomers(principal))
     .forKeyShare()
     .executeTakeFirst();
+}
+
+/**
+ * An EXISTING customer a quick work order of the phone may use, LOCKED `FOR KEY SHARE` (EVM-099 AC5): visible to the caller (not deleted) AND not anonymized - a
+ * missing, deleted, anonymized and invisible customer are one answer (`false`). The lock serialises this use with a deletion and an anonymization (`FOR UPDATE`).
+ */
+export async function lockUsableCustomerForQuickOrder(db: CustomersDb, principal: Principal, id: string): Promise<boolean> {
+  const row = await db
+    .selectFrom('customers.customers')
+    .select('id')
+    .where('id', '=', id)
+    .where('anonymized_at', 'is', null)
+    .where(visibleCustomers(principal))
+    .forKeyShare()
+    .executeTakeFirst();
+  return row !== undefined;
 }
 
 /** The columns of the card "Klient" only (the facade `CustomerDirectory`): the name, the telephone, the e-mail and the mark (SR-DATA-03). */

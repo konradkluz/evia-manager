@@ -16,15 +16,33 @@ export const SYNC_EVENT_TYPES = ['sync.full_download', 'sync.full_download_compl
  */
 export const SYNC_MUTATION_EVENT_TYPES = ['sync.mutation_applied'] as const;
 
-/** The commands whose application is audited (EVM-099 adds `CreateQuickWorkOrder` with a migration of its own: the database keeps the same closed list). */
-export const AUDITED_COMMAND_TYPES = ['CreateNote', 'CreateComment'] as const;
+/** The commands whose application is audited (the database keeps the same closed list, widened by 0058 for `CreateQuickWorkOrder`). */
+export const AUDITED_COMMAND_TYPES = ['CreateNote', 'CreateComment', 'CreateQuickWorkOrder'] as const;
+
+/**
+ * The refusal of a command that would pass the limit of new customers or sites of a device (EVM-099 AC7; AB-08, SR-API-07, SR-LOG-03): written in a short transaction
+ * of its own AFTER the rollback of the mutation, once per device, kind and hour. The record has the device and the kind (`customer` | `site`) and nothing else -
+ * no name, no telephone, no address, no identifier of the command.
+ */
+export const SYNC_QUOTA_EVENT_TYPES = ['sync.quota_exceeded'] as const;
+export const QUOTA_KINDS = ['customer', 'site'] as const;
+
+export interface SyncQuotaAuditEvent extends DomainEvent {
+  readonly type: (typeof SYNC_QUOTA_EVENT_TYPES)[number];
+  readonly actor: { readonly type: 'user'; readonly userId: string };
+  readonly outcome: 'denied';
+  readonly objectType: 'device';
+  readonly objectId: string;
+  readonly deviceId: string;
+  readonly quotaKind: (typeof QUOTA_KINDS)[number];
+}
 
 export interface SyncMutationAuditEvent extends DomainEvent {
   readonly type: (typeof SYNC_MUTATION_EVENT_TYPES)[number];
   readonly actor: { readonly type: 'user'; readonly userId: string };
   readonly outcome: 'success';
-  readonly objectType: 'timeline_entry';
-  /** The entry the mutation created. */
+  readonly objectType: 'timeline_entry' | 'work_order';
+  /** The entry (a note, a comment) or the order (`CreateQuickWorkOrder`) the mutation created. */
   readonly objectId: string;
   readonly deviceId: string;
   readonly workOrderId: string;

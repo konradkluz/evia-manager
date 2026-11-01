@@ -21,9 +21,12 @@ import { BULK_READ_EVENT_TYPES, type BulkReadEvent } from '../../../platform/bul
 import {
   AUDITED_COMMAND_TYPES,
   SYNC_EVENT_TYPES,
+  QUOTA_KINDS,
   SYNC_MUTATION_EVENT_TYPES,
+  SYNC_QUOTA_EVENT_TYPES,
   type SyncAuditEvent,
   type SyncMutationAuditEvent,
+  type SyncQuotaAuditEvent,
 } from '../../../platform/sync/sync-event.ts';
 import type { EventContext } from '../../../platform/events/event-bus.ts';
 import { truncateIp } from './ip-prefix.ts';
@@ -43,6 +46,7 @@ export const AUDIT_ACTIONS = [
   ...BULK_READ_EVENT_TYPES,
   ...SYNC_EVENT_TYPES,
   ...SYNC_MUTATION_EVENT_TYPES,
+  ...SYNC_QUOTA_EVENT_TYPES,
   ...CUSTOMER_EVENT_TYPES,
   ...SITE_EVENT_TYPES,
   ...PARTY_EVENT_TYPES,
@@ -84,6 +88,8 @@ const FULL_DOWNLOAD_COMPLETED_ACTION = 'sync.full_download_completed';
 const SNAPSHOT_ACTION = 'sync.work_order_snapshot';
 /** The one event that carries the device, the order and the type of a command: an applied mutation of a phone (EVM-098 AC8). */
 const MUTATION_ACTION = 'sync.mutation_applied';
+/** The one event that carries the device and the kind of an exceeded limit of new customers or sites (EVM-099 AC7). */
+const QUOTA_ACTION = 'sync.quota_exceeded';
 const statusCode = z
   .string()
   .regex(/^[a-z][a-z_]{0,39}$/)
@@ -115,6 +121,7 @@ export const auditRecordSchema = z
     deviceId: z.uuid().nullable(),
     workOrderId: z.uuid().nullable(),
     commandType: z.enum(AUDITED_COMMAND_TYPES).nullable(),
+    quotaKind: z.enum(QUOTA_KINDS).nullable(),
   })
   .refine(
     (record) =>
@@ -149,11 +156,19 @@ export const auditRecordSchema = z
   })
   .refine(
     (record) => {
-      const fields = [record.deviceId, record.workOrderId, record.commandType];
-      return record.action === MUTATION_ACTION ? fields.every((field) => field !== null) : fields.every((field) => field === null);
+      const fields = [record.workOrderId, record.commandType];
+      if (record.action === MUTATION_ACTION) return record.deviceId !== null && fields.every((field) => field !== null);
+      if (record.action === QUOTA_ACTION) return record.deviceId !== null && fields.every((field) => field === null);
+      return record.deviceId === null && fields.every((field) => field === null);
     },
-    { message: 'the device, the order and the type of a command belong to an applied mutation of a phone only, all three together' },
-  );
+    {
+      message:
+        'the device, the order and the type of a command belong to an applied mutation of a phone only, all three together; the device alone to an exceeded limit',
+    },
+  )
+  .refine((record) => (record.action === QUOTA_ACTION ? record.quotaKind !== null : record.quotaKind === null), {
+    message: 'the kind of the limit belongs to an exceeded limit of a phone only',
+  });
 
 export type AuditRecord = z.infer<typeof auditRecordSchema>;
 
@@ -165,6 +180,7 @@ export function toAuditRecord(
     | BulkReadEvent
     | SyncAuditEvent
     | SyncMutationAuditEvent
+    | SyncQuotaAuditEvent
     | CustomerEvent
     | SiteEvent
     | PartyEvent
@@ -194,11 +210,13 @@ export function toAuditRecord(
     ...countsOf(event),
     entityCount: 'entityCount' in event ? (event.entityCount ?? null) : null,
     ...mutationOf(event),
+    quotaKind: 'quotaKind' in event ? event.quotaKind : null,
   });
 }
 
 /** The device, the order and the type of the command of an applied mutation of a phone (EVM-098); `null` for every other event. */
 function mutationOf(event: object): { deviceId: string | null; workOrderId: string | null; commandType: string | null } {
+  if ('quotaKind' in event) return { deviceId: (event as SyncQuotaAuditEvent).deviceId, workOrderId: null, commandType: null };
   if (!('commandType' in event)) return { deviceId: null, workOrderId: null, commandType: null };
   const mutation = event as SyncMutationAuditEvent;
   return { deviceId: mutation.deviceId, workOrderId: mutation.workOrderId, commandType: mutation.commandType };

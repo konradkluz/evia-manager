@@ -4,7 +4,7 @@ title: "API: wysyłanie szybkiego zlecenia (CreateQuickWorkOrder)"
 type: story
 milestone: M2
 epic: E13 Nowe zlecenie z telefonu
-status: ready
+status: in-review
 priority: P1
 path: pelna             # synchronizacja offline, dane osobowe, uprawnienia
 owner: backend-developer
@@ -77,3 +77,6 @@ Podpowiedź duplikatów klientów po stronie biura i telefonu (EVM-106) oraz ded
 - 2026-10-27 — naniesiono konsultacje: architekt, security (product-owner)
 - 2026-10-29 — doprecyzowanie do DoR (product-owner): 8 AC (osobne: duplikaty, atomowość, limit), poprawiony baner (W-06, nie W-09; znika po opuszczeniu stanu „Nowe”), konkretny limit 20 / 24 h i kod `quota_exceeded`, reguła podziału nazwy osoby, kierunek `note`, recenzent solution-architect
 - 2026-10-29 — zaakceptowano przez Konrada: AC1–8 w całości (bez podziału); nazwa osoby jednym wyrazem odrzucana; limit 20 nowych klientów i lokalizacji/24 h blokuje (quota_exceeded, drobny dodatek do katalogu kodów kontraktu EVM-090 z przeglądem architekta); note jako pierwszy wpis dziennika; baner na W-06 bez osobnego znacznika klienta; kolizja id jako outcome conflict; status ready
+- 2026-10-31 — plan gotowy (backend-developer)
+- 2026-10-31 — implementacja backendu (backend-developer): migracja 0058, wspólny WorkOrderComposer, komenda CreateQuickWorkOrder z limitem 20 / 24 h, kontrakt (quota_exceeded, errors[], origin w szczególe), dokumentacja; baner W-06 (web) czeka na web-developera
+- 2026-11-01 — implementacja web (web-developer): baner „Zlecenie założone w terenie" na W-06 (MobileQuickBanner: tylko origin mobile_quick w stanie „Nowe", odnośniki tylko A/E, W-20 z przycisku, kotwica Płatności), ikona ArrowDown w ui-web, testy AC8 web

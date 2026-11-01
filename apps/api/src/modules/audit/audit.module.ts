@@ -9,8 +9,10 @@ import { BULK_READ_EVENT_TYPES, type BulkReadEvent } from '../../platform/bulk-r
 import {
   SYNC_EVENT_TYPES,
   SYNC_MUTATION_EVENT_TYPES,
+  SYNC_QUOTA_EVENT_TYPES,
   type SyncAuditEvent,
   type SyncMutationAuditEvent,
+  type SyncQuotaAuditEvent,
 } from '../../platform/sync/sync-event.ts';
 import type { Clock } from '../../platform/clock/clock.ts';
 import type { EventBus } from '../../platform/events/event-bus.ts';
@@ -92,6 +94,11 @@ export class AuditSubscriber implements OnModuleInit {
     }
     for (const type of SYNC_EVENT_TYPES) {
       this.#events.subscribe<SyncAuditEvent>(type, (tx, event, context) =>
+        insertAuditRecord(tx, toAuditRecord(event, context, this.#clock.now())),
+      );
+    }
+    for (const type of SYNC_QUOTA_EVENT_TYPES) {
+      this.#events.subscribe<SyncQuotaAuditEvent>(type, (tx, event, context) =>
         insertAuditRecord(tx, toAuditRecord(event, context, this.#clock.now())),
       );
     }

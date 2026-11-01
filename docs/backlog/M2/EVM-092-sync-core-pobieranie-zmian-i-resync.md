@@ -4,7 +4,7 @@ title: "sync-core: pobieranie zmian, resync i obiekty oczekujące"
 type: enabler
 milestone: M2
 epic: E10 Zlecenia offline
-status: in-review
+status: done
 priority: P0
 path: pelna             # synchronizacja offline
 owner: mobile-developer

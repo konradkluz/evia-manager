@@ -25,7 +25,9 @@ export type SecurityAlertCode =
   // EVM-096 AB-08: the third full download of one device in a rolling day (the device is named in the audit event of the same trace, never in the alert)
   | 'sync_full_downloads_excess'
   // EVM-097 AB-08: a device asked for more snapshots of an order in an hour than the limit allows (once per device and hour; the device is in the audit event of the same trace)
-  | 'sync_snapshot_rate_exceeded';
+  | 'sync_snapshot_rate_exceeded'
+  // EVM-099 AB-08: a device tried to create more than 20 customers or 20 sites in 24 hours (once per device, kind and hour; the device and the kind are in the audit event of the same trace)
+  | 'sync_quick_create_quota_exceeded';
 
 export interface SecurityAlertsTable {
   id: string;

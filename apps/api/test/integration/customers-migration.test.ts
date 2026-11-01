@@ -84,6 +84,8 @@ describe('migration 0011 — customers (EVM-020 AC1, AC2, AC5, AC7; ADR-0003; ex
       'deleted_by',
       'anonymized_at',
       'anonymized_by',
+      // EVM-099 (0058): the device of the phone that created the customer
+      'created_via_device_id',
     ]);
   });
 
@@ -178,6 +180,7 @@ describe('migration 0011 — customers (EVM-020 AC1, AC2, AC5, AC7; ADR-0003; ex
     const { rows } = await sql<{ indexname: string; indexdef: string }>`
       select indexname, indexdef from pg_indexes where schemaname = 'customers' order by indexname`.execute(admin());
     expect(rows.map((row) => row.indexname)).toEqual([
+      'customers_created_via_device_idx', // EVM-099 (0058): the count of the new customers of a device in 24 hours
       'customers_deleted_sort_name_id_idx',
       'customers_pkey',
       'customers_search_text_trgm_idx',

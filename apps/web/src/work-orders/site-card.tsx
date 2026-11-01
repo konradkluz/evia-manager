@@ -1,7 +1,7 @@
 import type { SiteCard as SiteCardData, SiteOrders } from '@evia/contracts';
 import { ActionMenu, Button, Card, EllipsisVertical, IconButton, InlineAlert, StatusBadge } from '@evia/ui-web';
 import { useQueryClient, type UseQueryResult } from '@tanstack/react-query';
-import { useId, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { siteTypeLabels } from '../i18n/catalog-labels.ts';
 import { EditPartyDialog } from '../parties/edit-party-dialog.tsx';
@@ -30,10 +30,13 @@ export function SiteCard({
   query,
   orders,
   workOrderId,
+  editSignal = 0,
 }: {
   readonly query: UseQueryResult<SiteCardData>;
   readonly orders: UseQueryResult<SiteOrders>;
   readonly workOrderId: string;
+  /** Grows each time the banner "Zlecenie założone w terenie" asks for W-20 (EVM-099); the dialog opens once the card is there. */
+  readonly editSignal?: number;
 }) {
   const { t } = useTranslation();
   const headingId = useId();
@@ -45,6 +48,12 @@ export function SiteCard({
   const [editingSite, setEditingSite] = useState(false);
   const [editingParty, setEditingParty] = useState<string | null>(null);
   const card = query.data;
+  const siteLoaded = card !== undefined;
+  useEffect(() => {
+    if (editSignal > 0 && siteLoaded && canEdit) setEditingSite(true);
+    // Only a new request of the banner opens the dialog; closing it must not open it again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editSignal]);
 
   const reloadCard = () => {
     // The card (names of the parties, the address) and the header (the address) are read again; the old data stays until the new arrives.

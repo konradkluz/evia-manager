@@ -100,8 +100,11 @@ export class ReadWorkOrderService {
     const customer = order.customer_id === null ? undefined : await this.#customers.findVisible(db, principal, order.customer_id);
     const site = order.site_id === null ? undefined : await this.#sites.findVisible(db, principal, order.site_id);
     const coordinatorId = await findCoordinatorUserId(workOrderTables(db), order.id);
-    const names = await this.#users.displayNamesOf(coordinatorId === undefined ? [] : [coordinatorId], db);
+    // ONE call for both people; an author that is gone (a deleted account, an order from before accounts) has no name and the field is absent (EVM-099 AC8)
+    const named = [coordinatorId, order.created_by].filter((id): id is string => id !== undefined && id !== null);
+    const names = await this.#users.displayNamesOf(named, db);
     const coordinatorName = coordinatorId === undefined ? undefined : names.get(coordinatorId);
+    const authorName = order.created_by === null ? undefined : names.get(order.created_by);
     return checked(
       zWorkOrderDetails.safeParse({
         id: order.id,
@@ -134,6 +137,8 @@ export class ReadWorkOrderService {
         ...present('completedOn', order.completed_on),
         version: order.version,
         createdAt: order.created_at.toISOString(),
+        origin: order.origin,
+        ...(authorName === undefined ? {} : { createdBy: { displayName: authorName } }),
       }),
     );
   }

@@ -106,6 +106,7 @@ describe('work order header (EVM-018 AC1, AC5)', () => {
     expect(response.status, JSON.stringify(response.body)).toBe(200);
     expect(response.body).toEqual({
       id: s.orderId,
+      origin: 'office', // EVM-099: read-only; the author is absent here - the fixture order has none
       number: 'ZL-2026-0042',
       title: 'Garaż — pełny proces',
       status: 'new',
