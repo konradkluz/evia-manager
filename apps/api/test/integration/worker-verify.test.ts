@@ -11,7 +11,9 @@ import { createLogger } from '../../src/platform/logging/logger.ts';
 import { PURGE_LOGIN_SECURITY_JOB } from '../../src/modules/identity/application/purge-login-security.job.ts';
 import { PURGE_SESSIONS_JOB } from '../../src/modules/identity/application/purge-sessions.job.ts';
 import { ABANDONED_UPLOADS_JOB } from '../../src/modules/media/application/abandoned-uploads.job.ts';
+import { ERASURE_COMPLETION_JOB } from '../../src/modules/media/application/erasure-completion.job.ts';
 import { QUARANTINE_RETENTION_JOB } from '../../src/modules/media/application/quarantine-retention.job.ts';
+import { STORAGE_RECONCILIATION_JOB } from '../../src/modules/media/application/storage-reconciliation.job.ts';
 import { SIGNATURE_MONITOR_JOB } from '../../src/modules/media/application/signature-monitor.job.ts';
 import { PURGE_IDEMPOTENCY_JOB } from '../../src/platform/idempotency/purge-idempotency.job.ts';
 import { runWorkerFromProcess } from '../../src/worker/worker-process.ts';
@@ -86,8 +88,10 @@ describe('the worker with the nightly verify (EVM-034 W11; ADR-0010, ADR-0017 W1
       { name: PURGE_LOGIN_SECURITY_JOB, cron: '*/15 * * * *', timezone: 'Europe/Warsaw' }, // EVM-026 M6
       { name: PURGE_SESSIONS_JOB, cron: '50 3 * * *', timezone: 'Europe/Warsaw' }, // EVM-028 AC7
       { name: ABANDONED_UPLOADS_JOB, cron: '40 2 * * *', timezone: 'Europe/Warsaw' }, // EVM-049 D9
+      { name: ERASURE_COMPLETION_JOB, cron: '*/10 * * * *', timezone: 'Europe/Warsaw' }, // EVM-051 AC7
       { name: QUARANTINE_RETENTION_JOB, cron: '5 * * * *', timezone: 'Europe/Warsaw' }, // EVM-049 AC5
       { name: SIGNATURE_MONITOR_JOB, cron: '*/15 * * * *', timezone: 'Europe/Warsaw' }, // EVM-049 AC7
+      { name: STORAGE_RECONCILIATION_JOB, cron: '30 3 * * *', timezone: 'Europe/Warsaw' }, // EVM-051 AC5
       { name: VERIFY_PROJECTION_JOB, cron: '30 3 * * *', timezone: 'Europe/Warsaw' },
       { name: PURGE_IDEMPOTENCY_JOB, cron: '10 4 * * *', timezone: 'Europe/Warsaw' }, // EVM-079 AC2
     ]);
