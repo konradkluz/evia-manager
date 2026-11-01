@@ -47,7 +47,7 @@ describe('the retention of sessions (EVM-028 AC7; SR-DATA-07, P4; RODO art. 5(1)
     );
     current.clock.set('2026-10-02T08:00:00.000Z');
     const report = await job().run();
-    expect(report).toEqual({ sessions: 1 });
+    expect(report).toEqual({ sessions: 1, devices: 0 });
     expect(JSON.stringify(report)).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}|@|\./);
     expect(await remaining()).toEqual([]);
     expect(await db().selectFrom('identity.webauthn_challenges').select('id').execute()).toEqual([]);
@@ -64,7 +64,7 @@ describe('the retention of sessions (EVM-028 AC7; SR-DATA-07, P4; RODO art. 5(1)
     const recent = await endedSession(owner.id, new Date('2026-09-03T08:00:00.000Z'));
     current.clock.set(now);
     const live = (await createSession(current.database.admin, current.clock, owner)).id;
-    expect(await job().run()).toEqual({ sessions: 1 });
+    expect(await job().run()).toEqual({ sessions: 1, devices: 0 });
     const left = await remaining();
     expect(left).not.toContain(older);
     expect(left.sort()).toEqual([boundary, recent, live].sort());
@@ -75,7 +75,7 @@ describe('the retention of sessions (EVM-028 AC7; SR-DATA-07, P4; RODO art. 5(1)
     const revoked = await endedSession(owner.id, new Date('2026-09-01T08:00:00.000Z'), { revoked: true });
     current.clock.set('2026-10-02T08:00:00.000Z');
     const live = (await createSession(current.database.admin, current.clock, owner)).id;
-    expect(await job().run()).toEqual({ sessions: 1 });
+    expect(await job().run()).toEqual({ sessions: 1, devices: 0 });
     expect(await remaining()).toEqual([live]);
     expect(await remaining()).not.toContain(revoked);
   });
@@ -92,8 +92,8 @@ describe('the retention of sessions (EVM-028 AC7; SR-DATA-07, P4; RODO art. 5(1)
       (await sql<{ count: string }>`select count(*)::text as count from audit.events`.execute(current.database.admin)).rows[0]?.count;
     const before = await events();
     current.clock.set('2026-10-02T08:00:00.000Z');
-    expect(await job().run()).toEqual({ sessions: 1 });
-    expect(await job().run()).toEqual({ sessions: 0 });
+    expect(await job().run()).toEqual({ sessions: 1, devices: 0 });
+    expect(await job().run()).toEqual({ sessions: 0, devices: 0 });
     expect(await events()).toBe(before);
   });
 });
@@ -116,6 +116,6 @@ describe('the job of retention of sessions fails closed (EVM-028 AC7)', () => {
   it('EVM-028 AC7 the job is a definition of the worker: the name, the nightly schedule in the business zone and a handler that runs the purge', async () => {
     const definition = job().definition();
     expect(definition).toMatchObject({ name: 'identity.purge-sessions', schedule: { cron: '50 3 * * *', timezone: 'Europe/Warsaw' } });
-    expect(await definition.handler({ ids: [] })).toEqual({ sessions: 0 });
+    expect(await definition.handler({ ids: [] })).toEqual({ sessions: 0, devices: 0 });
   });
 });
