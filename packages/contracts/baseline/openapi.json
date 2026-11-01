@@ -113,6 +113,17 @@
           "type": "string"
         }
       },
+      "MediaExportIdParameter": {
+        "description": "Identyfikator eksportu (UUIDv7).",
+        "in": "path",
+        "name": "exportId",
+        "required": true,
+        "schema": {
+          "format": "uuid",
+          "maxLength": 36,
+          "type": "string"
+        }
+      },
       "PartNumberParameter": {
         "description": "Numer części (1 … liczba części sesji).",
         "in": "path",
@@ -676,6 +687,23 @@
             }
           }
         }
+      },
+      "MediaExportConflict": {
+        "content": {
+          "application/problem+json": {
+            "example": {
+              "code": "no_media_to_export",
+              "status": 409,
+              "title": "There are no photos to export",
+              "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+              "type": "/problems/no_media_to_export"
+            },
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "Brak zdjęć do eksportu (`no_media_to_export`): zlecenie nie ma żadnego zdjęcia w stanie `ready`. Odpowiedź nie zdradza liczby plików w kwarantannie."
       },
       "MediaStorageUnavailable": {
         "content": {
@@ -2436,7 +2464,13 @@
           "media_asset.file_purged",
           "document.deleted",
           "document.restored",
-          "document.file_purged"
+          "document.file_purged",
+          "media_export.requested",
+          "media_export.ready",
+          "media_export.failed",
+          "media_export.downloaded",
+          "media_export.expired",
+          "media_export.rate_limited"
         ],
         "type": "string"
       },
@@ -2642,7 +2676,8 @@
           "timeline_entry",
           "payment_milestone",
           "media_asset",
-          "document"
+          "document",
+          "media_export"
         ],
         "type": "string"
       },
@@ -3464,6 +3499,28 @@
           "customerId",
           "siteId",
           "templateId"
+        ],
+        "type": "object"
+      },
+      "CreatedMediaExport": {
+        "additionalProperties": false,
+        "description": "Zlecony eksport (zadanie w tle).",
+        "properties": {
+          "exportId": {
+            "format": "uuid",
+            "maxLength": 36,
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "queued"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "exportId",
+          "state"
         ],
         "type": "object"
       },
@@ -5149,6 +5206,102 @@
           "thumbnail",
           "preview",
           "original"
+        ],
+        "type": "string"
+      },
+      "MediaExport": {
+        "additionalProperties": false,
+        "description": "Eksport ZIP zdjęć zlecenia. Widzi go wyłącznie zlecający (SR-AUTHZ-06). Nie zawiera klucza obiektu, adresu pliku, nazw plików ani danych klienta.",
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "maxLength": 40,
+            "type": "string"
+          },
+          "expiresAt": {
+            "description": "Koniec życia eksportu (24 godziny od zlecenia) - potem plik jest usuwany, a eksport zwraca `404`.",
+            "format": "date-time",
+            "maxLength": 40,
+            "type": "string"
+          },
+          "failureCode": {
+            "$ref": "#/components/schemas/MediaExportFailureCode"
+          },
+          "fileCount": {
+            "description": "Liczba zdjęć w pliku (od momentu `ready`).",
+            "maximum": 100000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "maxLength": 36,
+            "type": "string"
+          },
+          "readyAt": {
+            "format": "date-time",
+            "maxLength": 40,
+            "type": "string"
+          },
+          "sizeBytes": {
+            "description": "Rozmiar pliku ZIP w bajtach (od momentu `ready`).",
+            "maximum": 12000000000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "state": {
+            "$ref": "#/components/schemas/MediaExportState"
+          },
+          "workOrderId": {
+            "format": "uuid",
+            "maxLength": 36,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "workOrderId",
+          "state",
+          "createdAt",
+          "expiresAt"
+        ],
+        "type": "object"
+      },
+      "MediaExportFailureCode": {
+        "description": "Zamknięty kod przyczyny niepowodzenia (bez komunikatu magazynu, bez stosu): `storage_unavailable` (magazyn nie odpowiedział), `too_large` (zbiór przekroczył limit w chwili budowy), `no_media` (w chwili budowy nie było już żadnego zdjęcia do eksportu), `processing_error`.",
+        "enum": [
+          "storage_unavailable",
+          "too_large",
+          "no_media",
+          "processing_error"
+        ],
+        "type": "string"
+      },
+      "MediaExportList": {
+        "additionalProperties": false,
+        "description": "Aktywne (niewygasłe) eksporty ZIP wołającego dla zlecenia, od najnowszego (najwyżej 5 na dobę, więc bez stronicowania).",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MediaExport"
+            },
+            "maxItems": 10,
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "MediaExportState": {
+        "description": "Stan eksportu widoczny dla zlecającego: `queued` (czeka na worker), `running` (plik się przygotowuje), `ready` (plik gotowy, link jeszcze nie został wystawiony), `downloaded` (link wystawiono - eksport zadziała tylko raz), `failed` (nie udało się przygotować pliku). Eksport po 24 godzinach znika (`404`), więc stanu `expired` API nie zwraca.",
+        "enum": [
+          "queued",
+          "running",
+          "ready",
+          "downloaded",
+          "failed"
         ],
         "type": "string"
       },
@@ -19345,6 +19498,245 @@
           "roles": [
             "administrator",
             "editor"
+          ]
+        }
+      }
+    },
+    "/api/v1/work-orders/{workOrderId}/media-exports": {
+      "get": {
+        "description": "Lista eksportów ZIP zlecenia, które zlecił WOŁAJĄCY i które nie wygasły (EVM-052 AC7; SR-AUTHZ-05, SR-AUTHZ-06; CWE-639). Role Administrator, Edytor i Tylko odczyt, kanał `web`; Tylko odczyt i każdy, kto nie zlecił eksportu, widzi pustą listę - nigdy cudzego eksportu. Zlecenie przez politykę odczytu (`404`). Eksport po `expiresAt` nie występuje na liście niezależnie od przebiegu zadania sprzątającego. `Cache-Control: no-store`.",
+        "operationId": "listMediaExports",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaExportList"
+                }
+              }
+            },
+            "description": "Aktywne eksporty wołającego."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "summary": "Zlecenie - własne aktywne eksporty ZIP wołającego",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor",
+            "read_only"
+          ]
+        }
+      },
+      "post": {
+        "description": "Zlecenie zadania w tle, które składa do jednego pliku ZIP oryginały zdjęć zlecenia w stanie `ready` (czyste po skanie; bez kwarantanny, wymazanych, usuniętych, filmów i dokumentów) - EVM-052 AC1, AC2, AC3, AC5; ADR-0009; P10; SR-FILE-07, SR-FILE-09, SR-SESS-08, SR-AUTHZ-05, SR-LOG-03, SR-LOG-07. Role Administrator i Edytor, kanał `web`, `stepUp: true`; Tylko odczyt - `403 forbidden`, niezalogowany - `401`, token mobilny - `403 channel_not_allowed`, Administrator lub Edytor bez świeżego uwierzytelnienia (15 min) - `403 step_up_required`. Wymaga `X-CSRF-Token` i `Idempotency-Key` (powtórka zwraca ten sam eksport i nie liczy się do limitu). Kolejność: strażnik → ścieżka (`400`) → zlecenie przez politykę odczytu (`404`) → blokada użytkownika → limity (`429`) → zbiór zdjęć (`409 no_media_to_export`; `429 export_too_large` powyżej 10 GB) → zapis. Limity per użytkownik: jeden eksport na 10 minut i 5 w kroczących 24 godzinach (nieudane też się liczą; `Retry-After` obcięty do 3600 s; kod `export_rate_limited`, a przy zbiorze powyżej 10 GB `export_too_large`). W tej samej transakcji: audyt `media_export.requested`, e-mail do KAŻDEGO aktywnego Administratora (tylko link do zlecenia; bez danych klienta i bez linku do pliku) i alert `media_export_started`. Odpowiedź `202`.",
+        "operationId": "createMediaExport",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader-2"
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedMediaExport"
+                }
+              }
+            },
+            "description": "Eksport zlecony (albo powtórka wcześniejszego zlecenia, z nagłówkiem `Idempotent-Replayed`).",
+            "headers": {
+              "Idempotent-Replayed": {
+                "description": "`true`, gdy odpowiedź powtarza wcześniejsze zlecenie (ten sam klucz i zlecenie).",
+                "schema": {
+                  "enum": [
+                    "true"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/MediaExportConflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/MediaStorageUnavailable"
+          }
+        },
+        "summary": "Eksport ZIP zdjęć zlecenia (Administrator i Edytor, step-up)",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "audit": true,
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor"
+          ],
+          "stepUp": true
+        }
+      }
+    },
+    "/api/v1/work-orders/{workOrderId}/media-exports/{exportId}": {
+      "get": {
+        "description": "Stan jednego eksportu (EVM-052 AC6, AC7; SR-AUTHZ-05, SR-AUTHZ-06; CWE-639, CWE-203). Role Administrator, Edytor i Tylko odczyt, kanał `web`. Warunek obiektu: eksport TEGO zlecenia ORAZ zlecony przez wołającego, niewygasły - w przeciwnym razie `404` w jednym kształcie (cudzy, innego zlecenia, wygasły, nieistniejący, zlecenie niewidoczne; odpowiedź nie zdradza istnienia). Nie zawiera klucza obiektu ani adresu. `Cache-Control: no-store`.",
+        "operationId": "getMediaExport",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/MediaExportIdParameter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaExport"
+                }
+              }
+            },
+            "description": "Eksport zlecającego."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "summary": "Stan eksportu ZIP (tylko zlecający)",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor",
+            "read_only"
+          ]
+        }
+      }
+    },
+    "/api/v1/work-orders/{workOrderId}/media-exports/{exportId}/download-url": {
+      "post": {
+        "description": "„Pobierz ZIP” (EVM-052 AC1, AC7; SR-FILE-07, SR-AUTHZ-05, SR-AUTHZ-06, SR-LOG-03; CWE-639, CWE-285). Role Administrator, Edytor i Tylko odczyt (Tylko odczyt dostaje `404`, jak każdy, kto eksportu nie zlecił), kanał `web`, `X-CSRF-Token`. Sprawdza BIEŻĄCĄ rolę (Administrator lub Edytor) i aktywne konto w chwili wywołania - nie tylko, kto zlecił. Eksport zużywa się atomowo: pierwsze wywołanie na eksporcie `ready` i niewygasłym wystawia podpisany `GET` (ważny najwyżej 300 s, domena bucketu eksportów, `application/zip`, `attachment` z nazwą nadaną przez serwer, bez nazwiska klienta i adresu); każde kolejne (także równoległe) - `404`. Wystawienie jest zapisane w audycie (`media_export.downloaded`) w tej samej transakcji (błąd zapisu = brak linku). Adres i nazwa pliku nie są logowane ani audytowane. `Cache-Control: no-store`.",
+        "operationId": "createMediaExportDownloadUrl",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/MediaExportIdParameter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaDerivativeUrl"
+                }
+              }
+            },
+            "description": "Podpisany adres pliku ZIP.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Zawsze `no-store`.",
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/MediaStorageUnavailable"
+          }
+        },
+        "summary": "Podpisany link do gotowego ZIP (jednorazowy, tylko zlecający)",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "audit": true,
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor",
+            "read_only"
           ]
         }
       }

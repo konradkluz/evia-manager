@@ -34,6 +34,8 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'createDocumentUploadSession',
       'createMediaAssetDownloadUrl',
       'createMediaAssets',
+      'createMediaExport',
+      'createMediaExportDownloadUrl',
       'createParty',
       'createPaymentMilestone',
       'createProcedureStage',
@@ -66,6 +68,7 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'getDocumentUploadPartUrl',
       'getHealth',
       'getLoginPasskeyOptions',
+      'getMediaExport',
       'getParty',
       'getPasskeyRegistrationOptions',
       'getSite',
@@ -91,6 +94,7 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'listDocumentUploadParts',
       'listDocuments',
       'listMediaAssets',
+      'listMediaExports',
       'listPaymentMilestones',
       'listProcedureTemplates',
       'listServiceItems',
@@ -176,6 +180,7 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
     expect(stepUp.map(([id]) => id).sort()).toEqual([
       'anonymizeCustomer',
       'changeUserRole',
+      'createMediaExport',
       'deactivateUser',
       'deletePaymentMilestone',
       'endAccountSession',
@@ -197,7 +202,9 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       expect(operation.authz.roles, id).toEqual(
         ['endAccountSession', 'endOtherAccountSessions', 'listAccountSessions'].includes(id)
           ? ['administrator', 'editor', 'read_only']
-          : ['administrator'],
+          : id === 'createMediaExport'
+            ? ['administrator', 'editor']
+            : ['administrator'],
       );
     }
   });
@@ -405,6 +412,17 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       expect(authz?.channels, id).toEqual(['web']);
       expect(authz?.audit, id).toBe(true);
       expect(authz?.stepUp === true, id).toBe(id.startsWith('purge'));
+    }
+  });
+
+  it('EVM-052 AC5 AC7 the four operations of the ZIP export are web-only; only the order of the export needs a step-up, only the order and the link are audited', () => {
+    const roles = ['administrator', 'editor', 'read_only'];
+    for (const id of ['listMediaExports', 'getMediaExport', 'createMediaExportDownloadUrl', 'createMediaExport']) {
+      const authz = AUTHZ_MANIFEST[id]?.authz;
+      expect(authz?.channels, id).toEqual(['web']);
+      expect(authz?.roles, id).toEqual(id === 'createMediaExport' ? ['administrator', 'editor'] : roles);
+      expect(authz?.stepUp === true, id).toBe(id === 'createMediaExport');
+      expect(authz?.audit === true, id).toBe(id.startsWith('create'));
     }
   });
 });

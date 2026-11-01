@@ -207,6 +207,12 @@ paths:
     $ref: paths/media.yaml#/mediaAssetRescan
   /api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/download-url:
     $ref: paths/media.yaml#/mediaAssetDownloadUrl
+  /api/v1/work-orders/{workOrderId}/media-exports:
+    $ref: paths/media-exports.yaml#/workOrderMediaExports
+  /api/v1/work-orders/{workOrderId}/media-exports/{exportId}:
+    $ref: paths/media-exports.yaml#/workOrderMediaExportById
+  /api/v1/work-orders/{workOrderId}/media-exports/{exportId}/download-url:
+    $ref: paths/media-exports.yaml#/workOrderMediaExportDownloadUrl
   /api/v1/sites/{siteId}/documents:
     $ref: paths/documents.yaml#/listSiteDocuments
   /api/v1/sites/{siteId}/documents/{documentId}/download-url:

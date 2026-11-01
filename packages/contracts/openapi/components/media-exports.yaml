@@ -1,0 +1,80 @@
+# Module `media` - the ZIP export of the photos of a work order (EVM-052; ADR-0009; P10; SR-FILE-07, SR-FILE-09, SR-DATA-07). Web channel only.
+MediaExportState:
+  type: string
+  description: >-
+    Stan eksportu widoczny dla zlecającego: `queued` (czeka na worker), `running` (plik się przygotowuje), `ready` (plik gotowy, link jeszcze nie
+    został wystawiony), `downloaded` (link wystawiono - eksport zadziała tylko raz), `failed` (nie udało się przygotować pliku). Eksport po
+    24 godzinach znika (`404`), więc stanu `expired` API nie zwraca.
+  enum: [queued, running, ready, downloaded, failed]
+MediaExportFailureCode:
+  type: string
+  description: >-
+    Zamknięty kod przyczyny niepowodzenia (bez komunikatu magazynu, bez stosu): `storage_unavailable` (magazyn nie odpowiedział),
+    `too_large` (zbiór przekroczył limit w chwili budowy), `no_media` (w chwili budowy nie było już żadnego zdjęcia do eksportu), `processing_error`.
+  enum: [storage_unavailable, too_large, no_media, processing_error]
+MediaExport:
+  type: object
+  description: >-
+    Eksport ZIP zdjęć zlecenia. Widzi go wyłącznie zlecający (SR-AUTHZ-06). Nie zawiera klucza obiektu, adresu pliku, nazw plików ani danych klienta.
+  required: [id, workOrderId, state, createdAt, expiresAt]
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      format: uuid
+      maxLength: 36
+    workOrderId:
+      type: string
+      format: uuid
+      maxLength: 36
+    state:
+      $ref: '#/MediaExportState'
+    fileCount:
+      type: integer
+      description: Liczba zdjęć w pliku (od momentu `ready`).
+      minimum: 1
+      maximum: 100000
+    sizeBytes:
+      type: integer
+      description: Rozmiar pliku ZIP w bajtach (od momentu `ready`).
+      minimum: 1
+      maximum: 12000000000
+    failureCode:
+      $ref: '#/MediaExportFailureCode'
+    createdAt:
+      type: string
+      format: date-time
+      maxLength: 40
+    readyAt:
+      type: string
+      format: date-time
+      maxLength: 40
+    expiresAt:
+      type: string
+      format: date-time
+      description: Koniec życia eksportu (24 godziny od zlecenia) - potem plik jest usuwany, a eksport zwraca `404`.
+      maxLength: 40
+CreatedMediaExport:
+  type: object
+  description: Zlecony eksport (zadanie w tle).
+  required: [exportId, state]
+  additionalProperties: false
+  properties:
+    exportId:
+      type: string
+      format: uuid
+      maxLength: 36
+    state:
+      type: string
+      enum: [queued]
+MediaExportList:
+  type: object
+  description: Aktywne (niewygasłe) eksporty ZIP wołającego dla zlecenia, od najnowszego (najwyżej 5 na dobę, więc bez stronicowania).
+  required: [items]
+  additionalProperties: false
+  properties:
+    items:
+      type: array
+      maxItems: 10
+      items:
+        $ref: '#/MediaExport'

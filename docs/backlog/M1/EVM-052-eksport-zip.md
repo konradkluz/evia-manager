@@ -4,7 +4,7 @@ title: Eksport ZIP zdjęć zlecenia (step-up)
 type: story
 milestone: M1
 epic: E6 Dokumenty i media (web)
-status: ready
+status: in-progress
 priority: P2
 owner: backend-developer
 contributors: [web-developer]
@@ -79,7 +79,7 @@ Jako **pracownik biura** chcę **pobrać wszystkie zdjęcia zlecenia jednym plik
 - Zasady wspólne: [README.md](README.md#zasady-wspólne-dla-historyjek-m1).
 
 ## Plan techniczny
-_Uzupełnia wykonawca przed implementacją._
+_Plan roboczy: .scratch/EVM-052/plan.md (nie w repo)._
 
 ## Decyzje
 _—_
@@ -98,3 +98,4 @@ _—_
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — poprawki z przeglądu EVM-010 (security-engineer): AC7 — eksport widzi i pobiera wyłącznie zlecający, pobranie przez autoryzowane `download-url` z audytem; warunek wdrożenia na prod
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-11-01 — plan gotowy (backend-developer)

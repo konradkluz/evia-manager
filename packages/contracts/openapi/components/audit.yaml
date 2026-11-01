@@ -113,6 +113,12 @@ AuditAction:
     - document.deleted
     - document.restored
     - document.file_purged
+    - media_export.requested
+    - media_export.ready
+    - media_export.failed
+    - media_export.downloaded
+    - media_export.expired
+    - media_export.rate_limited
 AuditOutcome:
   type: string
   description: Wynik zdarzenia.
@@ -138,6 +144,7 @@ AuditObjectType:
       payment_milestone,
       media_asset,
       document,
+      media_export,
     ]
 AuditReasonCode:
   type: string
