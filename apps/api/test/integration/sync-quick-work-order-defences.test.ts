@@ -33,12 +33,17 @@ const answers = {
   site: 'created' as Answer,
   order: { ok: true, number: 'ZL-2026-9999' } as QuickCreationResult,
   note: 'applied' as 'applied' | 'invalid' | 'id_conflict',
+  /** The order double throws this instead of answering (an error that is no verdict: a database failure). */
+  failure: undefined as Error | undefined,
+  number: undefined as string | undefined,
 };
 const reset = (): void => {
   answers.customer = 'created';
   answers.site = 'created';
   answers.order = { ok: true, number: 'ZL-2026-9999' };
   answers.note = 'applied';
+  answers.failure = undefined;
+  answers.number = undefined;
 };
 
 const customers: CustomerQuickCreation = {
@@ -54,9 +59,9 @@ const sites: SiteQuickCreation = {
 };
 const orders: WorkOrderQuickCreation = {
   probe: () => Promise.resolve({ kind: 'free' }),
-  numberOf: () => Promise.resolve(undefined),
+  numberOf: () => Promise.resolve(answers.number),
   templateAvailable: () => Promise.resolve(true),
-  create: () => Promise.resolve(answers.order),
+  create: () => (answers.failure === undefined ? Promise.resolve(answers.order) : Promise.reject(answers.failure)),
 };
 const entries: MobileEntryCommands = {
   create: () => Promise.resolve(answers.note),
@@ -135,6 +140,57 @@ describe('results of the other modules that only a race gives (EVM-099 AC4, AC5)
     expect(await resultOf(phone, mutation())).toMatchObject({ outcome: 'conflict', code: 'id_conflict' });
     answers.order = { ok: false, reason: 'target_unavailable' };
     expect(await resultOf(phone, mutation())).toMatchObject({ outcome: 'rejected', code: 'target_unavailable' });
+  });
+});
+
+describe('what is no verdict (EVM-099 AC4, AC6)', () => {
+  it('EVM-099 AC4 an error that is no verdict (a failed write) is a 500 for the batch and the retry is safe: nothing was left behind, the same command is then applied', async () => {
+    current = await createIdentityApp({
+      configure: (builder) =>
+        builder
+          .overrideProvider(CUSTOMER_QUICK_CREATION)
+          .useValue(customers)
+          .overrideProvider(SITE_QUICK_CREATION)
+          .useValue(sites)
+          .overrideProvider(WORK_ORDER_QUICK_CREATION)
+          .useValue(orders)
+          .overrideProvider(MOBILE_ENTRY_COMMANDS)
+          .useValue(entries),
+    });
+    const { phone } = await editor(current);
+    const command = mutation();
+    answers.failure = new Error('injected failure');
+    const broken = await phone.post(PATH, { mutations: [command] }, phone.authorised());
+    expect(broken.status).toBe(500);
+    expect(JSON.stringify(broken.body)).not.toContain('injected');
+    expect(await n(sql`select count(*)::text as n from platform.idempotency_records`)).toBe(0);
+    answers.failure = undefined;
+    expect(await resultOf(phone, command)).toMatchObject({ outcome: 'applied', workOrderNumber: 'ZL-2026-9999' });
+  });
+
+  it('EVM-099 AC6 a repeat whose order is gone for good is still a duplicate - without a number, not a failure', async () => {
+    current = await createIdentityApp({
+      configure: (builder) =>
+        builder
+          .overrideProvider(CUSTOMER_QUICK_CREATION)
+          .useValue(customers)
+          .overrideProvider(SITE_QUICK_CREATION)
+          .useValue(sites)
+          .overrideProvider(WORK_ORDER_QUICK_CREATION)
+          .useValue(orders)
+          .overrideProvider(MOBILE_ENTRY_COMMANDS)
+          .useValue(entries),
+    });
+    const { phone } = await editor(current);
+    const command = mutation();
+    expect((await resultOf(phone, command))['outcome']).toBe('applied');
+    expect(await resultOf(phone, command)).toEqual({ mutationId: command.mutationId, outcome: 'duplicate' });
+    answers.number = 'ZL-2026-0001';
+    expect(await resultOf(phone, command)).toEqual({
+      mutationId: command.mutationId,
+      outcome: 'duplicate',
+      workOrderNumber: 'ZL-2026-0001',
+    });
   });
 });
 

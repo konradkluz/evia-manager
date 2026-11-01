@@ -97,6 +97,9 @@ export interface QuickCommand {
   readonly newCustomer: QuickNewCustomer | undefined;
   readonly siteId: string | undefined;
   readonly newSite: QuickNewSite | undefined;
+  /** The customer and the site of the order: the existing ones or the new ones (exactly one of each pair is set, so there is always one). */
+  readonly customerRef: string;
+  readonly siteRef: string;
   /** `null` - no note (absent or blank). */
   readonly note: string | null;
   /** The same identifier twice in the command (the order, the new customer, the new site): `conflict id_conflict` without a write. */
@@ -278,6 +281,8 @@ function decodeQuickWorkOrder(payload: unknown, hash: string): DecodedMutation {
       newCustomer: input.newCustomer,
       siteId: input.siteId,
       newSite: input.newSite,
+      customerRef: (input.customerId ?? input.newCustomer?.id) as string,
+      siteRef: (input.siteId ?? input.newSite?.id) as string,
       note,
       duplicateIds: new Set(ids).size !== ids.length,
     },

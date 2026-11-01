@@ -244,8 +244,8 @@ export class PushMutationsService {
         );
         // a repeat answers the number of the order the first time created: the key belongs to this user and device, so no read policy applies (the order may be deleted since)
         if (!run.replayed) return { replayed: false, number: run.value };
-        const number = run.result.resourceId === null ? undefined : await this.#quickOrders.numberOf(tx, run.result.resourceId);
-        return { replayed: true, number };
+        // the same key and the same hash: the command is the one that was applied, so its identifier is the resource of the record
+        return { replayed: true, number: await this.#quickOrders.numberOf(tx, quick.workOrderId) };
       });
       const withNumber = outcome.number === undefined ? {} : { workOrderNumber: outcome.number };
       return { mutationId, outcome: outcome.replayed ? 'duplicate' : 'applied', ...withNumber };
@@ -313,8 +313,8 @@ export class PushMutationsService {
         id: quick.workOrderId,
         templateId: quick.templateId,
         title: quick.title,
-        customerId: quick.customerId ?? quick.newCustomer?.id ?? '',
-        siteId: quick.siteId ?? quick.newSite?.id ?? '',
+        customerId: quick.customerRef,
+        siteId: quick.siteRef,
       },
       context,
     );
