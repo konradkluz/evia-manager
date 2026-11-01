@@ -4,7 +4,7 @@ title: Usunięcie medium lub dokumentu i trwałe usunięcie pliku (Administrator
 type: story
 milestone: M1
 epic: E6 Dokumenty i media (web)
-status: ready
+status: in-progress
 priority: P1
 owner: backend-developer
 contributors: [web-developer]
@@ -98,3 +98,4 @@ _—_
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`; priorytet P2 → P1 — trwałe usunięcie pliku przed realnymi danymi)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-11-01 — plan gotowy (backend-developer)
+- 2026-11-01 — backend: kontrakt, migracja 0062, usunięcie/przywrócenie/purge medium i dokumentu, rejestr, zadania workera (uzgadnianie, domykanie), macierz ról i testy integracyjne (backend-developer); panel — osobny krok (web-developer)
