@@ -1,7 +1,11 @@
 import {
+  createCustomerDocumentDownloadUrl,
   createDocumentDownloadUrl,
+  createSiteDocumentDownloadUrl,
+  listCustomerDocuments,
   listDocumentKinds,
   listDocuments,
+  listSiteDocuments,
   updateDocument,
   type DocumentList,
   type UpdateDocumentRequest,
@@ -213,4 +217,44 @@ export function editDocumentFailure(error: unknown): string {
     default:
       return documentText.editFailed;
   }
+}
+
+/** Whose documents a list shows (EVM-050): the location or the customer; the order is the original list of `useDocumentList`. */
+export type DocumentOwner = { readonly anchor: 'site' | 'customer'; readonly id: string };
+
+/**
+ * The documents anchored to a location or a customer ("Dokumenty lokalizacji (n)" / "Dokumenty klienta (n)", W-09 and W-14): only the documents
+ * with that anchor - the server never returns the documents or the media of the orders (SR-AUTHZ-08). `key` is the key of the cache; it starts
+ * with `[WORK_ORDER_DOCUMENTS_KEY, workOrderId]` on the page of an order, so an upload or a gone order refreshes or removes it together.
+ */
+export function useAnchoredDocumentList(owner: DocumentOwner, key: readonly unknown[], enabled: boolean, sending: boolean) {
+  const client = useApi();
+  return useInfiniteQuery({
+    queryKey: key,
+    enabled,
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam, signal }) => {
+      const query = { limit: DOCUMENTS_PAGE_SIZE, ...(pageParam === null ? {} : { cursor: pageParam }) };
+      return unwrap(
+        owner.anchor === 'site'
+          ? listSiteDocuments({ client, signal, path: { siteId: owner.id }, query })
+          : listCustomerDocuments({ client, signal, path: { customerId: owner.id }, query }),
+      );
+    },
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+    refetchInterval: (query) => documentsPollInterval(query.state.data?.pages.flatMap((page) => page.items) ?? [], sending),
+    gcTime: 0,
+    retry: false,
+  });
+}
+
+/** The address of the file of a document of a location or a customer (attachment, at most 5 minutes); returned to the caller, never kept. */
+export function useAnchoredDownload(owner: DocumentOwner) {
+  const client = useApi();
+  return (documentId: string): Promise<string> =>
+    unwrap(
+      owner.anchor === 'site'
+        ? createSiteDocumentDownloadUrl({ client, path: { siteId: owner.id, documentId } })
+        : createCustomerDocumentDownloadUrl({ client, path: { customerId: owner.id, documentId } }),
+    ).then((answer) => answer.url);
 }

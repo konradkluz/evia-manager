@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { WORK_ORDERS_PATH } from '../paths.ts';
 import { useOnline } from '../shell/use-online.ts';
 import { usePageTitle } from '../shell/use-page-title.ts';
+import { AnchoredDocumentsSection } from '../work-orders/anchored-documents-section.tsx';
 import { DocumentsSection } from '../work-orders/documents-section.tsx';
 import { MediaSection } from '../work-orders/media-section.tsx';
 import { MediaUnfinishedBanner } from '../work-orders/media-unfinished-banner.tsx';
@@ -17,7 +18,7 @@ import { JournalSection } from '../work-orders/journal-section.tsx';
 import { ClosedBanner } from '../work-orders/closed-banner.tsx';
 import { CustomerCard } from '../work-orders/customer-card.tsx';
 import { formatClock } from '../work-orders/format.ts';
-import { WORK_ORDER_KEYS } from '../work-orders/query-keys.ts';
+import { WORK_ORDER_DOCUMENTS_KEY, WORK_ORDER_KEYS } from '../work-orders/query-keys.ts';
 import { OrderSummary } from '../work-orders/order-summary.tsx';
 import { canReadPayments } from '../payments/payment-access.ts';
 import { useSession } from '../session/session.ts';
@@ -176,6 +177,22 @@ export function WorkOrderPage() {
               <div className="flex flex-col gap-stack-lg">
                 <MediaSection order={order} media={media} />
                 <DocumentsSection order={order} upload={documents} />
+                {order.site === null ? null : (
+                  <AnchoredDocumentsSection
+                    owner={{ anchor: 'site', id: order.site.id }}
+                    queryKey={[WORK_ORDER_DOCUMENTS_KEY, id, 'site', order.site.id]}
+                    enabled
+                    sending={documents.items.some((item) => item.status !== 'done' && item.status !== 'failed')}
+                  />
+                )}
+                {order.customer === null ? null : (
+                  <AnchoredDocumentsSection
+                    owner={{ anchor: 'customer', id: order.customer.id }}
+                    queryKey={[WORK_ORDER_DOCUMENTS_KEY, id, 'customer', order.customer.id]}
+                    enabled
+                    sending={documents.items.some((item) => item.status !== 'done' && item.status !== 'failed')}
+                  />
+                )}
               </div>
             ) : (
               <div className="flex flex-col gap-stack-lg">

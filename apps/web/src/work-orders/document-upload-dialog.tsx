@@ -1,4 +1,4 @@
-import type { DocumentKind } from '@evia/contracts';
+import type { DocumentAnchor, DocumentKind } from '@evia/contracts';
 import { Button, Dialog, FileText, InlineAlert, RadioGroup, Select, TextArea, TextField, Uploader } from '@evia/ui-web';
 import { useEffect, useState } from 'react';
 import { checkDocumentFile, DOCUMENT_ACCEPT } from './document-files.ts';
@@ -17,6 +17,7 @@ interface Errors {
   file?: string;
   kind?: string;
   identity?: string;
+  anchor?: string;
   title?: string;
 }
 
@@ -28,6 +29,8 @@ interface Errors {
 export function DocumentUploadDialog({
   open,
   workOrderId,
+  hasSite,
+  hasCustomer,
   kinds,
   kindsFailed,
   engine,
@@ -35,6 +38,9 @@ export function DocumentUploadDialog({
 }: {
   readonly open: boolean;
   readonly workOrderId: string;
+  /** The order has a location / a customer to anchor the document to (EVM-050); an option that cannot work is not offered. */
+  readonly hasSite: boolean;
+  readonly hasCustomer: boolean;
   readonly kinds: readonly DocumentKind[];
   readonly kindsFailed: boolean;
   readonly engine: DocumentUploadEngine;
@@ -48,6 +54,7 @@ export function DocumentUploadDialog({
   const [description, setDescription] = useState('');
   const [raise, setRaise] = useState('');
   const [stage, setStage] = useState(NO_STAGE);
+  const [anchor, setAnchor] = useState<DocumentAnchor>('work_order');
   const stages = useStageChoices(workOrderId);
   const [errors, setErrors] = useState<Errors>({});
 
@@ -61,6 +68,7 @@ export function DocumentUploadDialog({
     setDescription('');
     setRaise('');
     setStage(NO_STAGE);
+    setAnchor('work_order');
     setErrors({});
   }, [open]);
 
@@ -95,6 +103,9 @@ export function DocumentUploadDialog({
     if (kind === undefined) next.kind = documentText.kindMissing;
     if (isOther && identity === '') next.identity = documentText.identityMissing;
     if (title.trim() === '') next.title = documentText.titleMissing;
+    // identity data never sits on a location (AB-19, SR-AUTHZ-08): the server refuses it too (`400 identity_data_not_on_site`)
+    if (anchor === 'site' && kind !== undefined && (effective === 'identity_data' || raise === 'identity_data'))
+      next.anchor = documentText.anchorIdentityOnSite;
     setErrors(next);
     if (file === null || kind === undefined || Object.keys(next).length > 0) return;
     const override = raiseOptions.find((value) => value === raise);
@@ -108,7 +119,9 @@ export function DocumentUploadDialog({
       description: trimmedDescription,
       containsIdentityData: isOther ? identity === 'yes' : null,
       confidentialityOverride: override ?? null,
-      procedureStageId: stage === NO_STAGE || !stages.choices.some((choice) => choice.id === stage) ? null : stage,
+      procedureStageId:
+        anchor !== 'work_order' || stage === NO_STAGE || !stages.choices.some((choice) => choice.id === stage) ? null : stage,
+      anchor,
     });
   };
 
@@ -187,6 +200,22 @@ export function DocumentUploadDialog({
           setTitle(event.target.value.slice(0, TITLE_MAX));
         }}
       />
+      <RadioGroup
+        legend={documentText.anchorLegend}
+        options={[
+          { value: 'work_order', label: documentText.anchorOrder },
+          ...(hasSite ? [{ value: 'site', label: documentText.anchorSite }] : []),
+          ...(hasCustomer ? [{ value: 'customer', label: documentText.anchorCustomer }] : []),
+        ]}
+        value={anchor}
+        {...(errors.anchor === undefined ? {} : { error: errors.anchor })}
+        onChange={(value) => {
+          setAnchor(value as DocumentAnchor);
+          setErrors((current) => ({ ...current, anchor: undefined }));
+        }}
+      />
+      {anchor === 'site' ? <InlineAlert tone="info">{documentText.anchorSiteNote}</InlineAlert> : null}
+      {anchor === 'customer' ? <p className="text-body text-text-secondary">{documentText.anchorCustomerNote}</p> : null}
       {kind === undefined ? null : (
         <p className="text-body text-text-secondary">{documentText.classFromKind(confidentialityLabel(effective))}</p>
       )}
@@ -202,13 +231,15 @@ export function DocumentUploadDialog({
           onChange={setRaise}
         />
       ) : null}
-      <Select
-        label={documentText.stage}
-        value={stage}
-        options={stageSelectOptions(stages.choices, documentText.noStage)}
-        onChange={setStage}
-      />
-      {stages.failed ? <InlineAlert tone="error">{documentText.stagesFailed}</InlineAlert> : null}
+      {anchor === 'work_order' ? (
+        <Select
+          label={documentText.stage}
+          value={stage}
+          options={stageSelectOptions(stages.choices, documentText.noStage)}
+          onChange={setStage}
+        />
+      ) : null}
+      {anchor === 'work_order' && stages.failed ? <InlineAlert tone="error">{documentText.stagesFailed}</InlineAlert> : null}
       <TextArea
         label={documentText.descriptionField}
         value={description}

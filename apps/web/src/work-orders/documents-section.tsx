@@ -29,7 +29,7 @@ import { SectionLoading } from './section-states.tsx';
 import { documentRequestFailure, useDocumentDownload, useDocumentKinds, useDocumentList, type DocumentUpload } from './use-documents.ts';
 
 /** The file of a document as the list shows it (flows/06 → "Stany pliku"); the reason of a quarantine is never shown here. */
-function fileLook(document: OrderDocument): { label: string; detail?: string } {
+export function fileLook(document: OrderDocument): { label: string; detail?: string } {
   switch (document.fileState) {
     case 'pending_upload':
       return { label: documentText.waiting };
@@ -45,7 +45,7 @@ function fileLook(document: OrderDocument): { label: string; detail?: string } {
   }
 }
 
-const downloadable = (document: OrderDocument) =>
+export const downloadable = (document: OrderDocument) =>
   document.canDownload && (document.fileState === 'clean' || document.fileState === 'ready');
 
 function queueLook(item: DocumentItem): { state: UploadQueueItemState; label: string; detail?: string } {
@@ -330,6 +330,8 @@ export function DocumentsSection({ order, upload }: { readonly order: WorkOrderD
       <DocumentUploadDialog
         open={adding}
         workOrderId={order.id}
+        hasSite={order.site !== null}
+        hasCustomer={order.customer !== null}
         kinds={kinds.data ?? []}
         kindsFailed={kinds.isError}
         engine={engine}

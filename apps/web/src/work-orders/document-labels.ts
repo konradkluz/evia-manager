@@ -105,6 +105,22 @@ export const documentText = {
     seconds === null
       ? 'Zbyt wiele zapytań. Spróbuj ponownie za chwilę.'
       : `Zbyt wiele zapytań. Spróbuj ponownie za ${seconds >= 60 ? `${String(Math.ceil(seconds / 60))} min` : `${String(seconds)} s`}.`,
+  // EVM-050: the anchor of a document (W-09 "Przypisz do") and the sections "Dokumenty lokalizacji" / "Dokumenty klienta"
+  anchorLegend: 'Przypisz do',
+  anchorOrder: 'Zlecenia',
+  anchorSite: 'Lokalizacji',
+  anchorCustomer: 'Klienta',
+  anchorSiteNote:
+    'Dokument zobaczą zlecenia wszystkich klientów w tej lokalizacji, także przyszłe. Nie dodawaj dokumentów z danymi osobowymi klienta.',
+  anchorCustomerNote: 'Dokument zobaczysz w każdym zleceniu tego klienta i w szczegółach klienta.',
+  anchorIdentityOnSite: 'Dokumentu z danymi identyfikacyjnymi nie można przypisać do lokalizacji. Przypisz go do zlecenia albo klienta.',
+  siteHeading: (count: number) => `Dokumenty lokalizacji (${String(count)})`,
+  customerHeading: (count: number) => `Dokumenty klienta (${String(count)})`,
+  siteCaption: 'Dokumenty lokalizacji',
+  customerCaption: 'Dokumenty klienta',
+  siteEmpty: 'Brak dokumentów lokalizacji.',
+  customerEmpty: 'Brak dokumentów klienta.',
+  anchoredEmptyHint: 'Dodaj dokument w zleceniu, wybierając „Przypisz do”.',
   // state of the file
   waiting: 'Czeka na plik',
   checking: 'Sprawdzanie pliku',

@@ -2,12 +2,15 @@ import type { CurrentSession, MediaAsset } from '@evia/contracts';
 import { ACTIVE_SESSION, json, parseBody, problem, SESSION_ROUTE, type Handler, type Recorded } from './api-fake.ts';
 import { journalApi } from './journal-api.ts';
 import { PROCEDURE_LIST, stageName } from './stages-api.ts';
-import { ORDER_ID } from './work-order-api.ts';
+import { HEADER, ORDER_ID } from './work-order-api.ts';
 
 /** Synthetic media of the order ZL-2026-0042 (EVM-044): a fake of the media API with sessions, parts and the verdict of the scan. */
 export const MEDIA_BASE = `/api/v1/work-orders/${ORDER_ID}/media-assets`;
 /** EVM-047: the tab also shows the documents of the order; by default the order has none. */
 export const DOCUMENTS_BASE = `/api/v1/work-orders/${ORDER_ID}/documents`;
+/** EVM-050: the lists of the documents of the site and of the customer of the order (empty by default). */
+export const SITE_DOCUMENTS_ROUTE = `GET /api/v1/sites/${HEADER.site?.id ?? ''}/documents`;
+export const CUSTOMER_DOCUMENTS_ROUTE = `GET /api/v1/customers/${HEADER.customer?.id ?? ''}/documents`;
 export const KINDS_ROUTE = 'GET /api/v1/catalog/document-kinds';
 export const THUMBNAIL_HOST = 'https://bucket.example.test';
 export const BUCKET_URL = 'https://bucket.example.test/media/2026/10/part';
@@ -159,6 +162,8 @@ export function mediaApi(options: MediaServerOptions = {}) {
       [`GET ${MEDIA_BASE}`]: list,
       [`POST ${MEDIA_BASE}`]: create,
       [`GET ${DOCUMENTS_BASE}`]: () => json(200, { items: [], nextCursor: null, totalCount: 0 }),
+      [SITE_DOCUMENTS_ROUTE]: () => json(200, { items: [], nextCursor: null, totalCount: 0 }),
+      [CUSTOMER_DOCUMENTS_ROUTE]: () => json(200, { items: [], nextCursor: null, totalCount: 0 }),
       [KINDS_ROUTE]: () => json(200, { items: [], nextCursor: null }),
       [`GET /api/v1/work-orders/${ORDER_ID}/procedures`]: () => json(200, PROCEDURE_LIST),
       ...options.routes,

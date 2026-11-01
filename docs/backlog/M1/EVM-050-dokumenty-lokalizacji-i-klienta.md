@@ -4,7 +4,7 @@ title: Dokumenty lokalizacji i klienta
 type: story
 milestone: M1
 epic: E6 Dokumenty i media (web)
-status: in-review
+status: in-progress
 priority: P1
 owner: backend-developer
 contributors: [web-developer]

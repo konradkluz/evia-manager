@@ -2,7 +2,10 @@ import type { CurrentSession, Document as OrderDocument, DocumentKind } from '@e
 import { json, parseBody, problem, type Handler, type Recorded } from './api-fake.ts';
 import { BUCKET_URL, DOCUMENTS_BASE, KINDS_ROUTE, mediaApi } from './media-api.ts';
 import { stageName } from './stages-api.ts';
-import { ORDER_ID } from './work-order-api.ts';
+import { HEADER, ORDER_ID } from './work-order-api.ts';
+
+export const SITE_ID = HEADER.site?.id ?? '';
+export const CUSTOMER_ID = HEADER.customer?.id ?? '';
 
 export { DOCUMENTS_BASE };
 
@@ -52,6 +55,8 @@ export interface DocumentsServerOptions {
   readonly download?: Handler;
   readonly complete?: Handler;
   readonly stateAfterComplete?: OrderDocument['fileState'];
+  /** EVM-050: extra routes (the lists and the downloads of the site and of the customer). */
+  readonly routes?: Record<string, Handler>;
 }
 
 /** Created documents appear in the list in `pending_upload`, then in `stateAfterComplete` after `complete`. */
@@ -77,6 +82,7 @@ export function documentsApi(options: DocumentsServerOptions = {}) {
         kindCode: string;
         title: string;
         description?: string;
+        anchor?: OrderDocument['anchor'];
         procedureStageId?: string;
         containsIdentityData?: boolean;
         confidentialityOverride?: OrderDocument['confidentiality'];
@@ -87,6 +93,8 @@ export function documentsApi(options: DocumentsServerOptions = {}) {
         body.containsIdentityData === true ? 'identity_data' : (body.confidentialityOverride ?? kind?.confidentiality ?? 'standard');
       const made = doc(600 + created.length, {
         id: body.id,
+        ...(body.anchor === 'site' ? { anchor: 'site' as const, workOrderId: null, siteId: SITE_ID } : {}),
+        ...(body.anchor === 'customer' ? { anchor: 'customer' as const, workOrderId: null, customerId: CUSTOMER_ID } : {}),
         kindCode: body.kindCode,
         kindName: kind?.name ?? body.kindCode,
         title: body.title,
@@ -108,6 +116,7 @@ export function documentsApi(options: DocumentsServerOptions = {}) {
       [`GET ${DOCUMENTS_BASE}`]: list,
       [`POST ${DOCUMENTS_BASE}`]: create,
       [KINDS_ROUTE]: () => json(200, { items: options.kinds ?? KINDS, nextCursor: null }),
+      ...options.routes,
     },
   });
   const dynamic = new Map<RegExp, Handler>([

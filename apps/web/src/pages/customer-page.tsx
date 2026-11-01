@@ -34,6 +34,8 @@ import { RouterLink } from '../shell/router-link.tsx';
 import { useToast } from '../shell/toast-context.tsx';
 import { useOnline } from '../shell/use-online.ts';
 import { usePageTitle } from '../shell/use-page-title.ts';
+import { AnchoredDocumentsSection } from '../work-orders/anchored-documents-section.tsx';
+import { CUSTOMER_DOCUMENTS_KEY } from '../work-orders/query-keys.ts';
 import { formatClock } from '../work-orders/format.ts';
 import { isNotFound } from '../work-orders/use-work-order.ts';
 import { retryMinutes } from './login-failure.tsx';
@@ -290,6 +292,7 @@ export function CustomerPage() {
         </aside>
         <div className="expanded:order-1 expanded:col-span-2">
           <CustomerHistory customerId={id} enabled={active} />
+          <AnchoredDocumentsSection owner={{ anchor: 'customer', id }} queryKey={[CUSTOMER_DOCUMENTS_KEY, id]} enabled={active} />
         </div>
       </div>
       {anonymizing ? (

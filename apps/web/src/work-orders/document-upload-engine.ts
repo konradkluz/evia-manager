@@ -5,6 +5,7 @@ import {
   getDocumentUploadPartUrl,
   listDocumentUploadParts,
   type Client,
+  type DocumentAnchor,
   type DocumentConfidentiality,
 } from '@evia/contracts';
 import { ApiError, unwrap } from '../api/client.ts';
@@ -40,8 +41,10 @@ export interface NewDocument {
   /** Asked for the kind "Inny dokument" only; `null` = not asked. */
   readonly containsIdentityData: boolean | null;
   readonly confidentialityOverride: Exclude<DocumentConfidentiality, 'standard'> | null;
-  /** The stage of the order (EVM-048 AC1); `null`/absent = none. */
+  /** The stage of the order (EVM-048 AC1); `null`/absent = none. Never sent for a document of a site or a customer. */
   readonly procedureStageId?: string | null;
+  /** EVM-050: whom the document belongs to; absent = the order. The server takes the site and the customer from the order in the path. */
+  readonly anchor?: DocumentAnchor;
 }
 
 export interface DocumentEngineDeps {
@@ -161,7 +164,10 @@ export class DocumentUploadEngine {
             kindCode: input.kindCode,
             title: input.title,
             ...(input.description === '' ? {} : { description: input.description }),
-            ...(input.procedureStageId == null ? {} : { procedureStageId: input.procedureStageId }),
+            ...(input.anchor === undefined || input.anchor === 'work_order' ? {} : { anchor: input.anchor }),
+            ...(input.procedureStageId == null || (input.anchor ?? 'work_order') !== 'work_order'
+              ? {}
+              : { procedureStageId: input.procedureStageId }),
             ...(input.containsIdentityData === null ? {} : { containsIdentityData: input.containsIdentityData }),
             ...(input.confidentialityOverride === null ? {} : { confidentialityOverride: input.confidentialityOverride }),
             file: {

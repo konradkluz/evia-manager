@@ -55,3 +55,6 @@ export const WORK_ORDER_KEYS = [
   WORK_ORDER_MEDIA_KEY,
   WORK_ORDER_DOCUMENTS_KEY,
 ] as const;
+
+/** The documents of a customer (EVM-050, W-14): titles and file names are personal data - the memory of the tab only. Key: `[name, customerId]`. */
+export const CUSTOMER_DOCUMENTS_KEY = 'customer-documents' as const;
