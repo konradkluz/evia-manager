@@ -117,6 +117,18 @@ describe('lock of the app (EVM-101 AC3, P7)', () => {
     expect(cold.guard.getSnapshot().locked).toBe(false);
   });
 
+  it('EVM-101 AC1, AC3: without a screen lock the app is not locked (no credential to ask for); with the lock back it is locked again', async () => {
+    const cold = rig();
+    cold.facts.secure = false;
+    cold.facts.auth = 'error';
+    cold.guard.start();
+    await cold.guard.refresh();
+    expect(cold.guard.getSnapshot()).toMatchObject({ screenSecure: false, locked: false, hidden: 'screen_lock_off' });
+    cold.facts.secure = true;
+    await cold.guard.refresh();
+    expect(cold.guard.getSnapshot().locked).toBe(true);
+  });
+
   it('EVM-101 AC3: less than 5 minutes in the background does not lock, more does', async () => {
     const r = await started();
     r.appState.emit('inactive');

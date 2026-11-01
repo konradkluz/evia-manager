@@ -6,6 +6,7 @@
  */
 import { requireOptionalNativeModule } from 'expo';
 import { AppState } from 'react-native';
+import type { SessionClock } from '../auth/ports';
 import type { AppStateName, AppStateSource, Authenticator, BootClock, DeviceLock, PatchSource } from './ports';
 
 export interface UnlockTexts {
@@ -15,6 +16,8 @@ export interface UnlockTexts {
 interface GuardNative {
   isDeviceSecure(): boolean;
   elapsedRealtime(): number;
+  /** `Settings.Global.BOOT_COUNT`; negative = unknown. */
+  bootCount?(): number;
   authenticate(title: string): Promise<string>;
   deviceInfo(): { securityPatch?: string };
 }
@@ -42,6 +45,39 @@ export function createBootClock(native: GuardNative | null = load()): BootClock 
       } catch {
         return null;
       }
+    },
+  };
+}
+
+/**
+ * The clock of the 7-day rule (EVM-101 AC2, SR-MOB-05): the boot clock (`elapsedRealtime`, counts deep sleep) as the monotonic
+ * reading and the boot counter as the boot id, so a phone asleep in the background of a living process still ages the contact.
+ * Without the native module the readings are invalid (`NaN`, empty boot id) and `evaluateContact` fails closed: the data stay hidden.
+ * Without a boot counter the id is derived from the wall clock and the boot clock (a flip only falls back to the wall delta).
+ */
+export function createContactClock(native: GuardNative | null = load(), wall: () => number = Date.now): SessionClock {
+  const elapsed = (): number | null => {
+    try {
+      const value = native?.elapsedRealtime();
+      return typeof value === 'number' && Number.isFinite(value) ? value : null;
+    } catch {
+      return null;
+    }
+  };
+  return {
+    now: wall,
+    monotonicNow: () => elapsed() ?? Number.NaN,
+    bootId: () => {
+      const real = elapsed();
+      if (real === null) return '';
+      let count: unknown;
+      try {
+        count = native?.bootCount?.();
+      } catch {
+        count = undefined;
+      }
+      if (typeof count === 'number' && Number.isInteger(count) && count >= 0) return `boot-${String(count)}`;
+      return `boot-w${String(Math.round((wall() - real) / 60_000))}`;
     },
   };
 }

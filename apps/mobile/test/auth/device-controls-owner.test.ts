@@ -1,6 +1,6 @@
 import { LoginMachine } from '../../src/auth/login-machine';
 import { FakeAuthServer } from './fake-auth-server';
-import { FakeWipe, issued, newPhone, ok, signedIn, start, type Phone } from './fakes';
+import { FakeClock, FakeWipe, issued, newPhone, ok, signedIn, start, type Phone } from './fakes';
 import { T0, USER_A } from './fixtures';
 
 const DAY = 86_400_000;
@@ -48,6 +48,49 @@ describe('session owner: the 7-day rule and the queue list (EVM-101 AC2, AC8)', 
     expect(await fresh.owner.contactStatus()).toBeNull();
   });
 
+  it('EVM-101 AC2: a refresh never brings back hidden data - the window elapsed stays hidden until a FULL sign-in', async () => {
+    const rig = await signedIn(phone);
+    rig.clock.mono += 8 * DAY;
+    rig.clock.wall += 8 * DAY;
+    expect((await rig.owner.contactStatus())?.status).toMatchObject({ visible: false, reason: 'window_elapsed' });
+    rig.client.refreshScript.push(ok(issued({ n: 2, serverTime: T0 + 8 * DAY })));
+    expect(await rig.owner.refresh()).toBe('refreshed');
+    expect((await rig.owner.contactStatus())?.status.visible).toBe(false);
+    expect(phone.contact).toMatchObject({ serverTime: T0 });
+    // the password and the code again: the contact is recorded and the data are visible
+    const again = await signedIn(phone, 3, start(phone, { clock: rig.clock }));
+    expect((await again.owner.contactStatus())?.status.visible).toBe(true);
+  });
+
+  it('EVM-101 AC2: a clock anomaly is not cleared by a refresh either', async () => {
+    const rig = await signedIn(phone);
+    rig.clock.mono -= 1;
+    expect((await rig.owner.contactStatus())?.status).toMatchObject({ visible: false, reason: 'clock_anomaly' });
+    rig.client.refreshScript.push(ok(issued({ n: 2, serverTime: T0 })));
+    await rig.owner.refresh();
+    expect((await rig.owner.contactStatus())?.status.visible).toBe(false);
+  });
+
+  it('EVM-101 AC2: the 7 days are measured by the boot clock - a process clock stopped by sleep (+1 h) with the wall +8 days still hides the data', async () => {
+    const boot = new FakeClock();
+    const clock = new FakeClock();
+    const rig = await signedIn(phone, 1, start(phone, { clock, contactClock: boot }));
+    clock.mono += 60 * 60_000; // performance.now(): stood still while the phone slept
+    clock.wall += 8 * DAY;
+    boot.mono += 8 * DAY; // CLOCK_BOOTTIME counted the sleep
+    expect((await rig.owner.contactStatus())?.status).toMatchObject({ visible: false, reason: 'window_elapsed' });
+  });
+
+  it('EVM-101 AC2: no boot clock (module missing) is fail-closed - the data are hidden, the session itself works', async () => {
+    const boot = new FakeClock();
+    boot.mono = Number.NaN;
+    boot.boot = '';
+    phone.hasData = true;
+    const rig = await signedIn(phone, 1, start(phone, { contactClock: boot }));
+    expect((await rig.owner.contactStatus())?.status).toMatchObject({ visible: false, reason: 'no_contact_record' });
+    expect(await rig.owner.currentUserId()).not.toBeNull();
+  });
+
   it('EVM-101 AC8: the queue list drops the contents at the source unless labels are asked for', async () => {
     const rig = await signedIn(phone);
     phone.queueRecords = [
@@ -78,7 +121,8 @@ describe('session owner: ending the session for a wipe (EVM-101 AC4, AC5)', () =
     expect(phone.slots.has('sessionMeta')).toBe(false);
     expect(phone.slots.has('revocationToken')).toBe(false);
     expect(await rig.owner.currentUserId()).toBeNull();
-    expect(events).toEqual([{ reason: 'signed_out', unsentItems: 0 }]);
+    // no `SessionEnded`: "Wylogowano" with a count of unsent items would be shown over the running wipe
+    expect(events).toEqual([]);
   });
 
   it('EVM-101 AC4: offline no request is made', async () => {

@@ -185,7 +185,9 @@ export class DeviceGuard {
     const hidden = hiddenReason({ screenSecure: this.#screenSecure, contact: this.#contact, wiping: this.#wiping });
     return {
       screenSecure: this.#screenSecure,
-      locked: this.#lock.locked,
+      // without a screen lock the phone has no credential to ask for: the cover would never open. The data are hidden then (the
+      // notice "Włącz blokadę ekranu"), the camera and the queue stay reachable (AC1); the lock returns with the screen lock
+      locked: this.#lock.locked && this.#screenSecure !== false,
       prompting: this.#prompting,
       contact: this.#contact,
       wiping: this.#wiping,

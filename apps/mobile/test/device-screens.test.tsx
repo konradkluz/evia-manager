@@ -154,6 +154,20 @@ describe('lock of the app (EVM-101 AC3)', () => {
     expect(rig.device.facts.authCalls).toBe(2);
   });
 
+  it('EVM-101 AC1, AC3: a cold start on a phone WITHOUT a screen lock does not stay behind the cover - the notice, the camera and the queue are reachable', async () => {
+    const rig = stubPorts();
+    rig.owner.queue = [{ id: 'm-1', type: 'CreateNote', state: 'pending', label: SYNTHETIC_TEXT }];
+    rig.device.facts.secure = false;
+    rig.device.facts.auth = 'error';
+    await open(rig);
+    expect(screen.queryByTestId('lock-overlay')).toBeNull();
+    expect(screen.getByTestId('hidden-screen_lock_off')).toBeOnTheScreen();
+    expect(screen.getByTestId('lock-content', { includeHiddenElements: true })).toHaveProp('pointerEvents', 'auto');
+    await fireEvent.press(screen.getByRole('tab', { name: pl.shell.queue.title }));
+    await settle();
+    expect(screen.getByTestId('queue-hidden-count')).toBeOnTheScreen();
+  });
+
   it('EVM-101 AC3: after more than 5 minutes in the background the cover returns; before that it does not', async () => {
     const rig = stubPorts();
     await open(rig);
@@ -226,14 +240,32 @@ describe('wipe of company data (EVM-101 AC4)', () => {
     expect(screen.getByTestId('wipe-body')).toHaveTextContent(new RegExp(text));
   });
 
-  it('EVM-101 AC4: an unfinished wipe is told and can be repeated', async () => {
+  it('EVM-101 AC4: a finished wipe says nothing about unsent items (they are gone) - only "Wylogowano"', async () => {
+    const rig = stubPorts();
+    rig.owner.unsent = 5;
+    await toWipeDialog(rig);
+    await fireEvent.press(screen.getByTestId('wipe-confirm'));
+    await settle();
+    expect(screen.getByTestId('device-state-signed_out')).toBeOnTheScreen();
+    expect(screen.queryByText(/Niewysłane elementy/)).toBeNull();
+    expect(whole()).not.toContain('zaszyfrowane');
+  });
+
+  it('EVM-101 AC4: an unfinished wipe keeps the dialog with "Nie dokończyliśmy czyszczenia" and can be repeated', async () => {
     const rig = stubPorts();
     rig.manualWipes.result = 'incomplete';
     await toWipeDialog(rig);
-    // keep the shell mounted: the stub owner ends the session, so the dialog result is read from the guard-less flow
     await fireEvent.press(screen.getByTestId('wipe-confirm'));
     await settle();
     expect(rig.manualWipes.count).toBe(1);
+    expect(screen.queryByTestId('device-state-signed_out')).toBeNull();
+    expect(screen.getByTestId('wipe-body')).toHaveTextContent(pl.wipe.failed);
+    expect(screen.getByTestId('wipe-confirm')).toHaveTextContent(pl.wipe.retry);
+    rig.manualWipes.result = 'done';
+    await fireEvent.press(screen.getByTestId('wipe-confirm'));
+    await settle();
+    expect(rig.manualWipes.count).toBe(2);
+    expect(screen.getByTestId('device-state-signed_out')).toBeOnTheScreen();
   });
 
   it('EVM-101 AC4: a wipe in progress hides the data (hidden-data mode) until it ends', async () => {

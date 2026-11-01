@@ -4,6 +4,7 @@ import android.app.KeyguardManager
 import android.content.Context
 import android.os.Build
 import android.os.SystemClock
+import android.provider.Settings
 import android.security.keystore.KeyInfo
 import android.security.keystore.KeyProperties
 import androidx.biometric.BiometricManager
@@ -67,6 +68,16 @@ class EviaKeystoreModule : Module() {
     /** EVM-101 AC3: time since boot INCLUDING deep sleep (CLOCK_BOOTTIME), for the 5-minute app lock; unlike `performance.now()`. */
     Function("elapsedRealtime") {
       SystemClock.elapsedRealtime().toDouble()
+    }
+
+    /** EVM-101 AC2: the boot counter (`Settings.Global.BOOT_COUNT`) tells one boot from another for the 7-day rule; -1 = unknown. */
+    Function("bootCount") {
+      try {
+        val resolver = appContext.reactContext?.contentResolver
+        if (resolver == null) -1 else Settings.Global.getInt(resolver, Settings.Global.BOOT_COUNT, -1)
+      } catch (error: Exception) {
+        -1
+      }
     }
 
     /**

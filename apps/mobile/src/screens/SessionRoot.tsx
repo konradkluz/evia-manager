@@ -186,7 +186,14 @@ export function SessionRoot({ ports, children }: { ports: SessionPorts; children
       },
       wipeCompanyData: async () => {
         await owner.endSessionForWipe({ online });
-        return (await ports.companyWipe.runManual()) === 'done';
+        const done = (await ports.companyWipe.runManual()) === 'done';
+        // only a finished wipe leaves the shell: "Wylogowano" then says the truth (nothing unsent is left to count); an unfinished
+        // one keeps the dialog with its retry
+        if (done) {
+          guard.signedOut();
+          setView({ kind: 'state', variant: 'signed_out', unsent: 0, fromSignIn: false });
+        }
+        return done;
       },
       reSignIn: async () => {
         await owner.signOut({ online });
@@ -199,7 +206,7 @@ export function SessionRoot({ ports, children }: { ports: SessionPorts; children
     }),
     // the name is read again whenever the view changes (a new sign-in)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `view` refreshes the display name
-    [owner, ports, online, view],
+    [owner, ports, online, view, guard],
   );
 
   switch (view.kind) {

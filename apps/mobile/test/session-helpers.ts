@@ -77,8 +77,8 @@ export function stubOwner(signIn: SignInClient = okSignIn()): StubOwner {
       return Promise.resolve(owner.queue.map((row) => ({ ...row, label: withLabels ? row.label : null })));
     },
     endSessionForWipe: ({ online }) => {
+      // the real owner emits no `SessionEnded` here: the screen shows the result of the wipe itself
       owner.calls.push(`endSessionForWipe:${online ? 'online' : 'offline'}`);
-      owner.end({ reason: 'signed_out', unsentItems: 0 });
       return Promise.resolve();
     },
   };

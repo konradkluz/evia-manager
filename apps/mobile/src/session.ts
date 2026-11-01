@@ -10,7 +10,14 @@ import { MobileSessionOwner } from './auth/session-owner';
 import { readRuntimeConfig, type RuntimeConfig } from './config';
 import { readDeviceInfo } from './device/device-info';
 import { DeviceGuard } from './device-guard/device-guard';
-import { createAuthenticator, createBootClock, createDeviceLock, createPatchSource, reactNativeAppState } from './device-guard/native';
+import {
+  createAuthenticator,
+  createBootClock,
+  createContactClock,
+  createDeviceLock,
+  createPatchSource,
+  reactNativeAppState,
+} from './device-guard/native';
 import { overrideBootClock, overrideLock, overrideSessionClock } from './device-guard/overrides';
 import { deviceOverrides } from './e2e-hooks';
 import { i18next } from './i18n';
@@ -54,7 +61,9 @@ export function createSessionPorts(config: RuntimeConfig | null = readRuntimeCon
   const clock = overrideSessionClock(systemClock, deviceOverrides);
   const deviceLock = overrideLock(createDeviceLock(), deviceOverrides);
   const companyWipe = new CompanyDataWipe({ host, client, now: Date.now, diagnostics: logDiagnostic });
-  const owner = new MobileSessionOwner({ client, tokens: tokenStore, host, wipe: companyWipe, clock });
+  // the 7-day rule reads the boot clock (counts the phone's sleep), shifted like the session clock in the e2e variant (EVM-101 AC2)
+  const contactClock = overrideSessionClock(createContactClock(), deviceOverrides);
+  const owner = new MobileSessionOwner({ client, tokens: tokenStore, host, wipe: companyWipe, clock, contactClock });
   const guard = new DeviceGuard({
     deviceLock,
     boot: overrideBootClock(createBootClock(), deviceOverrides),

@@ -43,6 +43,8 @@ export interface SessionOwnerDeps {
   readonly host: { openForUser(userId: string): Promise<OpenResult> };
   readonly wipe: WipeSignal;
   readonly clock: SessionClock;
+  /** Clock of the 7-day rule (boot clock, EVM-101 AC2); `clock` when absent. */
+  readonly contactClock?: SessionClock;
   /** For `authorizedFetch`; the default is the global fetch. */
   readonly fetch?: (request: Request) => Promise<Response>;
 }
@@ -259,10 +261,14 @@ export class MobileSessionOwner implements SessionOwner {
    * A contact with the server (an authenticated 2xx with a valid `serverTime`): the checkpoint of the 7-day rule (EVM-101 AC2,
    * sync-core `ContactClock`, EVM-092 AC7). A failing write never fails the session — the data then stay hidden (no record).
    */
-  async #recordContact(serverTime: number): Promise<void> {
+  async #recordContact(serverTime: number, { onlyIfVisible = false }: { readonly onlyIfVisible?: boolean } = {}): Promise<void> {
     const store = this.#store;
     if (store === null) return;
-    await new ContactClock(store.replica, this.#deps.clock, this.#deps.clock).record(serverTime).catch(() => undefined);
+    // a refresh never brings back data that were already hidden (window elapsed, clock anomaly, no record): only a full sign-in does
+    if (onlyIfVisible && (await this.contactStatus().catch(() => null))?.status.visible !== true) return;
+    await new ContactClock(store.replica, this.#deps.clock, this.#deps.contactClock ?? this.#deps.clock)
+      .record(serverTime)
+      .catch(() => undefined);
   }
 
   /**
@@ -274,7 +280,7 @@ export class MobileSessionOwner implements SessionOwner {
     if (store === null) return null;
     const state = await store.replica.loadState();
     const config = typeof state.config === 'object' && state.config !== null ? parseClientConfig(state.config) : null;
-    const clock = new ContactClock(store.replica, this.#deps.clock, this.#deps.clock);
+    const clock = new ContactClock(store.replica, this.#deps.clock, this.#deps.contactClock ?? this.#deps.clock);
     const windowDays: unknown = config?.offlineContactWindowDays;
     return { status: await clock.status(state.contact, state.hasData, windowDays), windowDays };
   }
@@ -304,17 +310,18 @@ export class MobileSessionOwner implements SessionOwner {
   /**
    * "Wyczyść dane firmowe" / "Usuń i zaloguj" (EVM-101 AC4, AC5): ends the session on the phone before the wipe — the server is asked to
    * end it first when the network is there (the tokens are about to be removed), the store is locked, the tokens go. No pending
-   * revocation is kept (the wipe removes the secure store; the server ends an idle session after 14 days anyway).
+   * revocation is kept (the wipe removes the secure store; the server ends an idle session after 14 days anyway). Emits no
+   * `SessionEnded`: the screen that asked for the wipe decides what comes next once the wipe has a result.
    */
   endSessionForWipe({ online }: { readonly online: boolean }): Promise<void> {
     return this.#exclusive(async () => {
       const access = this.#access !== null && this.#deps.clock.now() < this.#access.until - ACCESS_SKEW_MS ? this.#access.token : null;
       const store = this.#store;
-      const unsentItems = store === null ? 0 : await store.unsentItemCount().catch(() => 0);
       store?.lock();
       await this.#clearSession();
       if (online && access !== null) await this.#deps.client.logout(access).catch(() => undefined);
-      this.#emit({ reason: 'signed_out', unsentItems });
+      // no `SessionEnded` event: the caller shows the result of the wipe (done / unfinished) itself - an event here would put
+      // "Wylogowano" (and a sentence about unsent items that the wipe is about to remove) over the running wipe
     });
   }
 
@@ -379,7 +386,7 @@ export class MobileSessionOwner implements SessionOwner {
           this.#meta = next;
       }
       this.#access = { token: data.accessToken, until: clock.now() + data.accessTokenTtlMs };
-      await this.#recordContact(data.serverTime);
+      await this.#recordContact(data.serverTime, { onlyIfVisible: true });
       return 'refreshed';
     }
     if (outcome.kind === 'problem' && outcome.status === 401) {
