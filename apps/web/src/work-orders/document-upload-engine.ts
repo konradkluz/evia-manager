@@ -56,7 +56,7 @@ interface Internal {
   input: NewDocument;
   sha256: string;
   createKey: string;
-  sessionKey: string;
+  sessionKey: string | null;
   created: boolean;
   session: { id: string; partSize: number; partCount: number } | null;
   controller: AbortController | null;
@@ -120,7 +120,7 @@ export class DocumentUploadEngine {
       input,
       sha256: '',
       createKey: this.id(),
-      sessionKey: this.id(),
+      sessionKey: null,
       created: false,
       session: null,
       controller: null,
@@ -234,8 +234,10 @@ export class DocumentUploadEngine {
         void this.resumeWhenOnline();
         return;
       }
-      // an expired session is opened again by the retry
+      // The session is opened again by the retry. The same `Idempotency-Key` would give the same session after a transient failure, but for an
+      // aborted or expired one the server answers `409 invalid_state_transition`: then the retry needs a new key.
       entry.session = null;
+      if (isEndedSession(error)) entry.sessionKey = null;
       this.patch(key, { status: 'failed', failure: describe(error) });
     } finally {
       entry.controller = null;
@@ -243,6 +245,7 @@ export class DocumentUploadEngine {
   }
 
   private async openSession(entry: Internal): Promise<{ id: string; partSize: number; partCount: number }> {
+    entry.sessionKey ??= this.id();
     const session = await unwrap(
       createDocumentUploadSession({
         client: this.deps.client,
@@ -289,10 +292,16 @@ export class DocumentUploadEngine {
   }
 }
 
+/** `409 invalid_state_transition`: the session was aborted or expired on the server (not a clash of ids). */
+function isEndedSession(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 409 && error.code === 'invalid_state_transition';
+}
+
 function describe(error: unknown): DocumentFailure {
   if (!(error instanceof ApiError)) return 'network';
   if (error.status === 429) return 'rate';
   if (error.status === 403) return 'forbidden';
+  if (isEndedSession(error)) return 'server';
   if (error.status === 409) return 'conflict';
   if (error.status === 400 || error.status === 422) return 'validation';
   if (error.status === 0) return 'network';

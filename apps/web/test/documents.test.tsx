@@ -451,6 +451,53 @@ describe('EVM-047 AC7 permissions', () => {
   });
 });
 
+describe('EVM-047 AC1 AC8 an upload session that ended on the server', () => {
+  it('EVM-047 AC1 AC8 an expired session (409 invalid_state_transition) offers "Ponów", which opens a new session with a new key and finishes', async () => {
+    let attempts = 0;
+    const api = await openDocuments({
+      complete: (request) => {
+        attempts += 1;
+        const id = request.path.split('/')[6] ?? '';
+        return attempts === 1 ? problem(409, 'invalid_state_transition') : json(200, { ...doc(0, { id }), fileState: 'uploaded' });
+      },
+    });
+    await fillAndSend({ kind: 'Warunki przyłączenia', title: 'Warunki' });
+    const panel = await screen.findByRole('list', { name: 'Wysyłanie dokumentu' });
+    expect(await within(panel).findByText('Nie udało się wysłać dokumentu. Spróbuj ponownie.')).toBeTruthy();
+    await userEvent.click(within(panel).getByRole('button', { name: 'Ponów' }));
+    await waitFor(() => {
+      expect(attempts).toBe(2);
+    });
+    const [create] = api.calls(`POST ${DOCUMENTS_BASE}`);
+    const documentId = (JSON.parse(create?.body ?? '{}') as { id: string }).id;
+    const [first, second] = api.calls(`POST ${DOCUMENTS_BASE}/${documentId}/upload-sessions`);
+    expect(second).toBeDefined();
+    expect(second?.headers.get('Idempotency-Key')).toMatch(UUIDV7);
+    expect(second?.headers.get('Idempotency-Key')).not.toBe(first?.headers.get('Idempotency-Key'));
+  });
+
+  it('EVM-047 AC8 a transient failure keeps the session key, so the retry gets the same session', async () => {
+    let attempts = 0;
+    const api = await openDocuments({
+      complete: (request) => {
+        attempts += 1;
+        const id = request.path.split('/')[6] ?? '';
+        return attempts === 1 ? problem(500, 'internal_error') : json(200, { ...doc(0, { id }), fileState: 'uploaded' });
+      },
+    });
+    await fillAndSend({ kind: 'Warunki przyłączenia', title: 'Warunki' });
+    const panel = await screen.findByRole('list', { name: 'Wysyłanie dokumentu' });
+    await userEvent.click(await within(panel).findByRole('button', { name: 'Ponów' }));
+    await waitFor(() => {
+      expect(attempts).toBe(2);
+    });
+    const [create] = api.calls(`POST ${DOCUMENTS_BASE}`);
+    const documentId = (JSON.parse(create?.body ?? '{}') as { id: string }).id;
+    const [first, second] = api.calls(`POST ${DOCUMENTS_BASE}/${documentId}/upload-sessions`);
+    expect(second?.headers.get('Idempotency-Key')).toBe(first?.headers.get('Idempotency-Key'));
+  });
+});
+
 describe('EVM-047 AC8 states', () => {
   it('EVM-047 AC8 an empty list says "Brak dokumentów." with "Dodaj dokument" for the Editor and without it for Tylko odczyt', async () => {
     await openDocuments();
