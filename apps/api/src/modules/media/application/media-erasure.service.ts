@@ -71,6 +71,7 @@ import {
   type FileToErase,
   type OpenUpload,
 } from '../infrastructure/erasure-store.ts';
+import { expireExportsOfOrder } from '../infrastructure/export-store.ts';
 import { mediaTables, type MediaDb } from '../infrastructure/tables.ts';
 import { DocumentScopes } from './document-scope.ts';
 import { requireStorage, viaStorage } from './media-support.ts';
@@ -306,6 +307,8 @@ export class MediaErasureService {
     await closeSessionsOf(tables, fileIds, now);
     await markFilesErased(tables, fileIds, now);
     await kind.markPurged(tables, id, principal.userId, now);
+    // EVM-052 (SR-PRIV-04, SR-DATA-07): the ZIP exports of the order may hold the erased photo - they end now, the sweep of the worker removes their objects
+    if (kind.objectType === 'media_asset') await expireExportsOfOrder(tables, workOrderId);
     await this.#events.publish(tx, this.#event(kind, 'purge', principal, id, 'success'), request);
     return planned;
   }

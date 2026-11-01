@@ -663,6 +663,13 @@ describe('audit of the addresses of files (EVM-045 AC3, AC5; SR-LOG-03, SR-FILE-
       'document.deleted',
       'document.restored',
       'document.file_purged',
+      // EVM-052: the ZIP export
+      'media_export.requested',
+      'media_export.ready',
+      'media_export.failed',
+      'media_export.downloaded',
+      'media_export.expired',
+      'media_export.rate_limited',
     ]);
     for (const type of MEDIA_EVENT_TYPES) expect(AUDIT_ACTIONS).toContain(type);
   });

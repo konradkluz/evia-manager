@@ -200,6 +200,41 @@ export class InMemoryObjectStorage implements ObjectStorage {
     await this.putObjectIfAbsent({ key: input.key, body, contentType: input.contentType, cacheControl: input.cacheControl });
   }
 
+  /** Test helper: how many streamed uploads were started and how many were aborted (a failed stream must leave none open). */
+  readonly streamedUploads = { started: 0, aborted: 0, completed: 0 };
+
+  async uploadStreamIfAbsent(input: {
+    key: string;
+    body: Readable;
+    size: number;
+    contentType: string;
+    cacheControl: string;
+  }): Promise<void> {
+    if (this.unavailable) throw new ObjectStorageError('unavailable');
+    this.streamedUploads.started += 1;
+    try {
+      const chunks: Buffer[] = [];
+      let total = 0;
+      for await (const chunk of input.body) {
+        const buffer = Buffer.from(chunk as Uint8Array);
+        total += buffer.length;
+        if (total > input.size) throw new ObjectStorageError('unavailable');
+        chunks.push(buffer);
+      }
+      if (total !== input.size) throw new ObjectStorageError('unavailable');
+      await this.putObjectIfAbsent({
+        key: input.key,
+        body: Buffer.concat(chunks),
+        contentType: input.contentType,
+        cacheControl: input.cacheControl,
+      });
+      this.streamedUploads.completed += 1;
+    } catch (error) {
+      this.streamedUploads.aborted += 1;
+      throw error;
+    }
+  }
+
   presignGet(input: SignedGetInput): Promise<PartUrl> {
     if (this.unavailable) return Promise.reject(new ObjectStorageError('unavailable'));
     if (input.expiresInSeconds < 1 || input.expiresInSeconds > DERIVATIVE_URL_SECONDS)

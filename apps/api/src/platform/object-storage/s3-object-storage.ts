@@ -52,6 +52,8 @@ export interface S3ObjectStorageSettings {
 
 /** Control operations answer in well under a second; a few seconds means the storage hangs. */
 export const DEFAULT_TIMEOUTS = { connectionMs: 3000, requestMs: 8000 } as const;
+/** The size of one part of a streamed upload: 8 MiB (the minimum of S3 is 5 MiB, the maximum is 10 000 parts - 10 GiB needs 1 280). */
+export const UPLOAD_PART_BYTES = 8 * 1024 * 1024;
 /** One try and one retry: a request of a user waits at most about twice the timeout. */
 export const MAX_ATTEMPTS = 2;
 
@@ -284,6 +286,88 @@ export class S3ObjectStorage implements ObjectStorage {
       );
     } catch (error) {
       throw translateS3Error(error);
+    }
+  }
+
+  async uploadStreamIfAbsent(input: {
+    key: string;
+    body: Readable;
+    size: number;
+    contentType: string;
+    cacheControl: string;
+  }): Promise<void> {
+    let uploadId: string;
+    try {
+      const created = await this.#client.send(
+        new CreateMultipartUploadCommand({
+          Bucket: this.#bucket,
+          Key: input.key,
+          ContentType: input.contentType,
+          CacheControl: input.cacheControl,
+        }),
+      );
+      if (created.UploadId === undefined) throw new ObjectStorageError('unavailable');
+      uploadId = created.UploadId;
+    } catch (error) {
+      throw translateS3Error(error);
+    }
+    try {
+      const parts: StoredPart[] = [];
+      let total = 0;
+      let pending: Buffer[] = [];
+      let pendingBytes = 0;
+      const flush = async (): Promise<void> => {
+        const body = Buffer.concat(pending, pendingBytes);
+        pending = [];
+        pendingBytes = 0;
+        const partNumber = parts.length + 1;
+        let etag: string | undefined;
+        try {
+          const out = await this.#client.send(
+            new UploadPartCommand({
+              Bucket: this.#bucket,
+              Key: input.key,
+              UploadId: uploadId,
+              PartNumber: partNumber,
+              Body: body,
+              ContentLength: body.length,
+            }),
+          );
+          etag = out.ETag;
+        } catch (error) {
+          throw translateS3Error(error);
+        }
+        if (etag === undefined) throw new ObjectStorageError('unavailable');
+        parts.push({ partNumber, size: body.length, etag });
+      };
+      for await (const chunk of input.body) {
+        const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as Uint8Array);
+        total += buffer.length;
+        if (total > input.size) throw new ObjectStorageError('unavailable');
+        pending.push(buffer);
+        pendingBytes += buffer.length;
+        if (pendingBytes >= UPLOAD_PART_BYTES) await flush();
+      }
+      if (total !== input.size) throw new ObjectStorageError('unavailable');
+      if (pendingBytes > 0 || parts.length === 0) await flush();
+      try {
+        await this.#client.send(
+          new CompleteMultipartUploadCommand({
+            Bucket: this.#bucket,
+            Key: input.key,
+            UploadId: uploadId,
+            IfNoneMatch: '*',
+            MultipartUpload: { Parts: parts.map((part) => ({ PartNumber: part.partNumber, ETag: part.etag })) },
+          }),
+        );
+      } catch (error) {
+        throw translateS3Error(error);
+      }
+    } catch (error) {
+      // no orphaned parts: the abort is best effort (the lifecycle rule of the bucket is the second line), the first error is the one that matters
+      await this.abortMultipartUpload(input.key, uploadId).catch(() => undefined);
+      input.body.destroy();
+      throw error;
     }
   }
 

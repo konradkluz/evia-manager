@@ -15,7 +15,7 @@ import { FakeVideoProcessor } from '../../src/platform/media-processing/fake-vid
 import { VIDEO_PROCESSOR } from '../../src/platform/media-processing/video-processor.ts';
 import { MALWARE_SCANNER } from '../../src/platform/malware-scan/malware-scanner.ts';
 import { InMemoryObjectStorage } from '../../src/platform/object-storage/in-memory-object-storage.ts';
-import { OBJECT_STORAGE } from '../../src/platform/object-storage/object-storage.ts';
+import { EXPORT_STORAGE, OBJECT_STORAGE } from '../../src/platform/object-storage/object-storage.ts';
 import { CLOCK, SLEEPER } from '../../src/platform/tokens.ts';
 import { migratedDatabase, type MigratedDatabase } from '../integration/database.ts';
 import { createTestApp, PANEL_ORIGIN, type TestApp } from './app.ts';
@@ -55,6 +55,8 @@ export interface IdentityApp extends TestApp {
   readonly sleeper: RecordingSleeper;
   /** The object storage and the malware scanner of the media pipeline (EVM-044): in memory, no network. */
   readonly storage: InMemoryObjectStorage;
+  /** The bucket of the ZIP exports (EVM-052): a double of its own, never the bucket of the media. */
+  readonly exportStorage: InMemoryObjectStorage;
   readonly scanner: FakeMalwareScanner;
   /** The image processor of the media pipeline (EVM-068): a double, no socket. */
   readonly imageProcessor: FakeImageProcessor;
@@ -86,6 +88,7 @@ export async function createIdentityApp(options: IdentityAppOptions = {}): Promi
   const breaches = new FakeBreachedPasswords();
   const sleeper = new RecordingSleeper();
   const storage = new InMemoryObjectStorage(() => clock.now());
+  const exportStorage = new InMemoryObjectStorage(() => clock.now());
   const scanner = new FakeMalwareScanner();
   const imageProcessor = new FakeImageProcessor();
   const videoProcessor = new FakeVideoProcessor();
@@ -102,6 +105,8 @@ export async function createIdentityApp(options: IdentityAppOptions = {}): Promi
         .useValue(sleeper)
         .overrideProvider(OBJECT_STORAGE)
         .useValue(storage)
+        .overrideProvider(EXPORT_STORAGE)
+        .useValue(exportStorage)
         .overrideProvider(MALWARE_SCANNER)
         .useValue(scanner)
         .overrideProvider(IMAGE_PROCESSOR)
@@ -118,6 +123,7 @@ export async function createIdentityApp(options: IdentityAppOptions = {}): Promi
     breaches,
     sleeper,
     storage,
+    exportStorage,
     scanner,
     imageProcessor,
     videoProcessor,

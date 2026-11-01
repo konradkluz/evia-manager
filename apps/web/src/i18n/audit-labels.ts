@@ -124,6 +124,12 @@ export const auditActionLabels: Readonly<Record<AuditAction, string>> = {
   'document.deleted': 'Usunięcie dokumentu',
   'document.restored': 'Przywrócenie dokumentu',
   'document.file_purged': 'Trwałe usunięcie plików dokumentu',
+  'media_export.requested': 'Zlecenie eksportu zdjęć zlecenia (ZIP)',
+  'media_export.ready': 'Plik eksportu zdjęć (ZIP) gotowy',
+  'media_export.failed': 'Nie udało się przygotować eksportu zdjęć (ZIP)',
+  'media_export.downloaded': 'Adres do pobrania eksportu zdjęć (ZIP)',
+  'media_export.expired': 'Wygaśnięcie eksportu zdjęć (ZIP) i usunięcie pliku',
+  'media_export.rate_limited': 'Odmowa eksportu zdjęć (ZIP) — limit',
   'timeline_entry.deleted': 'Usunięcie wpisu dziennika',
   'timeline_entry.restored': 'Przywrócenie wpisu dziennika',
   'timeline_entry.redacted': 'Redakcja treści wpisu dziennika',
@@ -256,6 +262,12 @@ export const auditActionGroups: ReadonlyArray<{ readonly label: string; readonly
       'media_asset.deleted',
       'media_asset.restored',
       'media_asset.file_purged',
+      'media_export.requested',
+      'media_export.ready',
+      'media_export.failed',
+      'media_export.downloaded',
+      'media_export.expired',
+      'media_export.rate_limited',
     ],
   },
   {
@@ -296,6 +308,7 @@ export const auditObjectTypeLabels: Readonly<Record<AuditObjectType, string>> = 
   payment_milestone: 'Transza płatności',
   media_asset: 'Zdjęcie',
   document: 'Dokument',
+  media_export: 'Eksport zdjęć (ZIP)',
 };
 
 /** Events of the server itself (a job, an emergency command) — the API sends no person for them ("System"). */

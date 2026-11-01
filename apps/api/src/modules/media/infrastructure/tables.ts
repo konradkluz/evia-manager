@@ -133,6 +133,27 @@ export interface UploadSessionsTable {
   updated_at: Date;
 }
 
+/**
+ * A ZIP export of the photos of an order (migration 0063; EVM-052). The application role has SELECT, INSERT and UPDATE. The row holds no name, no customer and no
+ * address; the key is chosen by the server at the request.
+ */
+export interface MediaExportsTable {
+  id: string;
+  work_order_id: string;
+  requested_by: string;
+  state: 'queued' | 'running' | 'ready' | 'failed' | 'expired';
+  object_key: string;
+  size_bytes: string | null;
+  file_count: number | null;
+  failure_code: 'storage_unavailable' | 'too_large' | 'no_media' | 'processing_error' | null;
+  created_at: Date;
+  started_at: Date | null;
+  ready_at: Date | null;
+  expires_at: Date;
+  downloaded_at: Date | null;
+  object_removed_at: Date | null;
+}
+
 export type MediaTables = {
   'media.media_assets': MediaAssetsTable;
   'media.stored_files': StoredFilesTable;
@@ -140,6 +161,7 @@ export type MediaTables = {
   'media.document_versions': DocumentVersionsTable;
   'media.file_derivatives': FileDerivativesTable;
   'media.upload_sessions': UploadSessionsTable;
+  'media.media_exports': MediaExportsTable;
 };
 
 export type MediaDb = Kysely<MediaTables>;

@@ -329,6 +329,9 @@ export async function paymentObjects(app: IdentityApp): Promise<Record<string, O
  * of the "own" path belongs to a user the matrix does not use, so the cells of "own" answer 404 — "not 401/403" is what they ask for; the
  * creator-only rule has its own tests (media-upload tests).
  */
+/** An export that does not exist: the cells of the matrix look at the guard and at the absence, the rows are in the tests of the endpoint. */
+const EXPORT_ID = '0198a7a0-1234-7000-8000-0000000000e1';
+
 export async function mediaObjects(app: IdentityApp): Promise<Record<string, ObjectPaths>> {
   const db = app.database.admin;
   const customerId = await insertCustomer(db, { email: 'jan@example.invalid' });
@@ -355,6 +358,10 @@ export async function mediaObjects(app: IdentityApp): Promise<Record<string, Obj
     own: () => `${WORK_ORDERS}/${own}/media-assets`,
     foreign: () => `${WORK_ORDERS}/${deleted}/media-assets`,
   };
+  const exportsLevel: ObjectPaths = {
+    own: () => `${WORK_ORDERS}/${own}/media-exports`,
+    foreign: () => `${WORK_ORDERS}/${deleted}/media-exports`,
+  };
   const session = (suffix: string): ObjectPaths => ({
     own: () => `${WORK_ORDERS}/${own}/media-assets/${mine.mediaAssetId}/upload-sessions/${mine.sessionId}${suffix}`,
     foreign: () => `${WORK_ORDERS}/${own}/media-assets/${theirs.mediaAssetId}/upload-sessions/${theirs.sessionId}${suffix}`,
@@ -374,6 +381,18 @@ export async function mediaObjects(app: IdentityApp): Promise<Record<string, Obj
     createMediaAssetDownloadUrl: {
       own: () => `${WORK_ORDERS}/${own}/media-assets/${mine.mediaAssetId}/download-url`,
       foreign: () => `${WORK_ORDERS}/${deleted}/media-assets/${mine.mediaAssetId}/download-url`,
+    },
+    // EVM-052: the ZIP export - the order level (the list and the order of an export) and one export ("foreign" is the soft deleted order; the export of another
+    // user, of another order and the expired one are in the tests of the endpoint, with real rows)
+    listMediaExports: exportsLevel,
+    createMediaExport: exportsLevel,
+    getMediaExport: {
+      own: () => `${WORK_ORDERS}/${own}/media-exports/${EXPORT_ID}`,
+      foreign: () => `${WORK_ORDERS}/${deleted}/media-exports/${EXPORT_ID}`,
+    },
+    createMediaExportDownloadUrl: {
+      own: () => `${WORK_ORDERS}/${own}/media-exports/${EXPORT_ID}/download-url`,
+      foreign: () => `${WORK_ORDERS}/${deleted}/media-exports/${EXPORT_ID}/download-url`,
     },
     // EVM-049: the new scan of a quarantined file - "foreign" is a medium of another live order named in the path of the first
     // EVM-048: the change of the metadata of a medium - "foreign" is a medium of another live order named in the path of the first

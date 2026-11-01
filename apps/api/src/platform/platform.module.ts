@@ -53,8 +53,8 @@ import { createVideoProcessor } from './media-processing/create-video-processor.
 import { VIDEO_PROCESSOR } from './media-processing/video-processor.ts';
 import { createMalwareScanner } from './malware-scan/create-malware-scanner.ts';
 import { MALWARE_SCANNER } from './malware-scan/malware-scanner.ts';
-import { createObjectStorage } from './object-storage/create-object-storage.ts';
-import { OBJECT_STORAGE } from './object-storage/object-storage.ts';
+import { createExportStorage, createObjectStorage } from './object-storage/create-object-storage.ts';
+import { EXPORT_STORAGE, OBJECT_STORAGE } from './object-storage/object-storage.ts';
 
 export interface PlatformDependencies {
   readonly config: AppConfig;
@@ -93,6 +93,7 @@ export class PlatformModule {
         { provide: FIELD_ENCRYPTION, useFactory: () => fieldEncryptionFor(config.fieldEncryptionKeys) },
         // EVM-044: both are `null` without the media configuration (fail closed: the upload answers 503, nothing is scanned or served)
         { provide: OBJECT_STORAGE, useFactory: () => createObjectStorage(config.media) },
+        { provide: EXPORT_STORAGE, useFactory: () => createExportStorage(config.media) },
         { provide: MALWARE_SCANNER, useFactory: () => createMalwareScanner(config.media) },
         // EVM-068: `null` without the processor settings - no derivatives are made and the photos stay `clean`
         { provide: IMAGE_PROCESSOR, useFactory: () => createImageProcessor(config.media) },
@@ -156,6 +157,7 @@ export class PlatformModule {
         FIELD_ENCRYPTION,
         BULK_READ_CONTROL,
         OBJECT_STORAGE,
+        EXPORT_STORAGE,
         MALWARE_SCANNER,
         IMAGE_PROCESSOR,
         VIDEO_PROCESSOR,

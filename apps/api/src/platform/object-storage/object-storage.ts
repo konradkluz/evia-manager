@@ -10,6 +10,8 @@ import type { Disposition } from './content-disposition.ts';
 export type { Disposition };
 
 export const OBJECT_STORAGE = Symbol('OBJECT_STORAGE');
+/** The storage of the ZIP exports (EVM-052): the SAME port over ANOTHER bucket (no lock, no versioning, one-day lifecycle); `null` without `MEDIA_EXPORT_BUCKET`. */
+export const EXPORT_STORAGE = Symbol('EXPORT_STORAGE');
 
 export type ObjectStorageErrorCode = 'no_such_upload' | 'no_such_object' | 'precondition_failed' | 'unavailable';
 
@@ -129,6 +131,20 @@ export interface ObjectStorage {
    * @throws ObjectStorageError `precondition_failed` when the object already exists
    */
   putObjectStreamIfAbsent(input: {
+    readonly key: string;
+    readonly body: Readable;
+    readonly size: number;
+    readonly contentType: string;
+    readonly cacheControl: string;
+  }): Promise<void>;
+  /**
+   * Writes a whole object of a known size from a stream as a MULTIPART upload with parts of a fixed size, never holding more than one part in memory and never
+   * using a temporary file (EVM-052: the ZIP of up to 10 GiB; a single PUT is limited to 5 GB). Add-only (`If-None-Match: *`). Any failure - of the storage or of the
+   * stream - aborts the multipart upload before the error is rethrown (no orphaned parts); a stream that delivers a number of bytes other than `size` is an error and
+   * nothing is stored. An error of the stream itself is rethrown as it is, an error of the storage as {@link ObjectStorageError}.
+   * @throws ObjectStorageError `precondition_failed` when the object already exists
+   */
+  uploadStreamIfAbsent(input: {
     readonly key: string;
     readonly body: Readable;
     readonly size: number;

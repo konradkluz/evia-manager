@@ -9,3 +9,9 @@ import { createS3Client, S3ObjectStorage } from './s3-object-storage.ts';
 export function createObjectStorage(media: MediaConfig | undefined): ObjectStorage | null {
   return media === undefined ? null : new S3ObjectStorage(createS3Client(media.s3), media.s3.bucket);
 }
+
+/** The storage of the exports: the same server and credentials, the bucket of the exports; `null` when the bucket is not configured (fail closed). */
+export function createExportStorage(media: MediaConfig | undefined): ObjectStorage | null {
+  if (media?.exportBucket === undefined) return null;
+  return new S3ObjectStorage(createS3Client(media.s3), media.exportBucket);
+}

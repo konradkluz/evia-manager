@@ -55,6 +55,8 @@ export const PROBLEMS = Object.freeze({
   entry_superseded: { status: 409, title: 'The entry already has a correction' },
   file_processing: { status: 409, title: 'The file is still being processed' },
   file_erased: { status: 409, title: 'The file was erased' },
+  // EVM-052: the ZIP export
+  no_media_to_export: { status: 409, title: 'There are no photos to export' },
   entry_is_event: { status: 409, title: 'The entry is an automatic event' },
   already_redacted: { status: 409, title: 'The entry text is already redacted' },
   procedure_already_active: { status: 409, title: 'A process with this code is already active in the work order' },
@@ -70,6 +72,8 @@ export const PROBLEMS = Object.freeze({
   client_version_unsupported: { status: 426, title: 'Client version is no longer supported' },
   precondition_required: { status: 428, title: 'Precondition required' },
   rate_limited: { status: 429, title: 'Too many requests' },
+  export_rate_limited: { status: 429, title: 'Too many exports' },
+  export_too_large: { status: 429, title: 'The photos of the order are too large to export' },
   internal_error: { status: 500, title: 'Internal server error' },
   service_unavailable: { status: 503, title: 'Service unavailable' },
   media_storage_unavailable: { status: 503, title: 'Media storage is unavailable' },

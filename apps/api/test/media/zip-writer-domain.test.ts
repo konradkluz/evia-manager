@@ -15,6 +15,7 @@ import {
   ZipSourceError,
   type ZipEntry,
 } from '../../src/modules/media/domain/zip-writer.ts';
+import { readZip } from '../support/zip-reader.ts';
 
 const AT = new Date('2026-11-01T10:20:30Z');
 const entry = (name: string, content: Buffer, override?: Partial<ZipEntry>): ZipEntry => ({
@@ -29,45 +30,6 @@ async function collect(stream: Readable): Promise<Buffer> {
   return Buffer.concat(chunks);
 }
 
-interface ReadEntry {
-  name: string;
-  crc: number;
-  size: number;
-  offset: number;
-  flags: number;
-  body: Buffer;
-}
-
-/** A reader of the archive written independently of the writer: walks the central directory (ZIP64 aware). */
-function read(archive: Buffer): ReadEntry[] {
-  let end = archive.length - 22;
-  while (archive.readUInt32LE(end) !== 0x06054b50) end -= 1;
-  let count = archive.readUInt16LE(end + 10);
-  let directory = archive.readUInt32LE(end + 16);
-  if (count === 0xffff || directory === 0xffffffff) {
-    const record = Number(archive.readBigUInt64LE(end - 20 + 8));
-    count = Number(archive.readBigUInt64LE(record + 32));
-    directory = Number(archive.readBigUInt64LE(record + 48));
-  }
-  const out: ReadEntry[] = [];
-  let at = directory;
-  for (let index = 0; index < count; index += 1) {
-    expect(archive.readUInt32LE(at)).toBe(0x02014b50);
-    const flags = archive.readUInt16LE(at + 8);
-    const crc = archive.readUInt32LE(at + 16);
-    const size = archive.readUInt32LE(at + 24);
-    const nameLength = archive.readUInt16LE(at + 28);
-    const extraLength = archive.readUInt16LE(at + 30);
-    const offset = archive.readUInt32LE(at + 42);
-    const name = archive.subarray(at + 46, at + 46 + nameLength).toString('utf8');
-    const localName = archive.readUInt16LE(offset + 26);
-    const start = offset + 30 + localName + archive.readUInt16LE(offset + 28);
-    out.push({ name, crc, size, offset, flags, body: archive.subarray(start, start + size) });
-    at += 46 + nameLength + extraLength;
-  }
-  return out;
-}
-
 describe('EVM-052 AC1 the streaming ZIP writer (STORE, data descriptors, UTF-8 names)', () => {
   it('EVM-052 AC1 the archive read by an independent reader holds exactly the entries, bytes and CRC-32; the declared size is the real size', async () => {
     const entries = [
@@ -77,7 +39,7 @@ describe('EVM-052 AC1 the streaming ZIP writer (STORE, data descriptors, UTF-8 n
     ];
     const archive = await collect(zipStream(entries, AT));
     expect(archive.length).toBe(zipSize(entries));
-    const items = read(archive);
+    const items = readZip(archive);
     expect(items.map((e) => e.name)).toEqual(['001-a.jpg', '002-zażółć.png', '003-empty.webp']);
     expect(items.map((e) => e.body.toString())).toEqual(['first photo', 'second', '']);
     expect(items.map((e) => e.crc)).toEqual([crc32(Buffer.from('first photo')), crc32(Buffer.from('second')), 0]);
@@ -89,7 +51,7 @@ describe('EVM-052 AC1 the streaming ZIP writer (STORE, data descriptors, UTF-8 n
     const archive = await collect(zipStream(entries, AT));
     expect(archive.length).toBe(zipSize(entries));
     expect(archive.readUInt32LE(archive.length - 22 - 20 - 56)).toBe(0x06064b50);
-    expect(read(archive)).toHaveLength(70_000);
+    expect(readZip(archive)).toHaveLength(70_000);
   });
 
   it('EVM-052 AC1 the offset of an entry beyond 4 GiB goes to the ZIP64 extra field, the end records say ZIP64 and the size arithmetic follows', () => {

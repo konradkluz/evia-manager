@@ -39,6 +39,14 @@ export const MEDIA_EVENT_TYPES = [
   'document.deleted',
   'document.restored',
   'document.file_purged',
+  // EVM-052: the ZIP export of the photos of an order - ordered, ready, failed (a closed code in the row, never a reason), the address issued, expired, refused by a limit.
+  // The object is the export; the order, the count and the size are in the row of the export (no name, no address, no key in the trail)
+  'media_export.requested',
+  'media_export.ready',
+  'media_export.failed',
+  'media_export.downloaded',
+  'media_export.expired',
+  'media_export.rate_limited',
 ] as const;
 
 /** The confidentiality classes as the codes of an audit event (a closed list; never a title, a name or a reason). */
@@ -52,7 +60,7 @@ export interface MediaAuditEvent extends DomainEvent {
   /** Only the erasure of a file (EVM-051): the step-up the Administrator passed. A code, never a reason in words. */
   readonly reasonCode?: 'step_up_verified';
   /** A medium, or - for the events of EVM-047 and the quarantine of the file of a document - a document (the object is its id). */
-  readonly objectType: 'media_asset' | 'document';
+  readonly objectType: 'media_asset' | 'document' | 'media_export' | 'work_order';
   readonly objectId: string;
   /** Only `media_file.rescanned`: the state before and after the new scan (a closed list of codes, never a reason). */
   readonly fromCode?: 'quarantined' | ClassCode;

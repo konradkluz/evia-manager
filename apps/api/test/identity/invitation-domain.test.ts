@@ -96,6 +96,7 @@ describe('the fixed texts of the e-mails (EVM-024 AC2; docs/ux/flows/e-maile.md)
       'administrator_new_browser', // EVM-026 (alert 9)
       'administrator_second_step_changed', // EVM-028 (alert 9)
       'administrator_media_quarantined', // EVM-049 (alert 9)
+      'administrator_media_export_started', // EVM-052 (alert 9)
       'administrator_new_device', // EVM-094
       'administrator_refresh_reuse',
     ]);
@@ -178,5 +179,23 @@ describe('the query of the list of users (EVM-024 AC5; SR-INPUT-01)', () => {
     const id = uuidv7();
     expect(parseUserPosition([id])).toBe(id);
     for (const bad of [[], ['not-a-uuid'], [id, id], ['']]) expect(parseUserPosition(bad)).toBeUndefined();
+  });
+});
+
+describe('EVM-052 AC3 the e-mail to the Administrators when a ZIP export starts', () => {
+  const ORDER = '0198a7a0-1234-7000-8000-000000000001';
+
+  it('EVM-052 AC3 the text is the link to the order and nothing else: no customer, no file name, no link to the file, no person', () => {
+    const { subject, text } = alertText({
+      panelOrigin: 'https://panel.example.test',
+      variant: 'administrator_media_export_started',
+      occurredAt: new Date('2026-11-01T10:00:00Z'),
+      subjectId: ORDER,
+    });
+    expect(subject).toBe('EVia Manager: alert bezpieczeństwa — eksport zdjęć zlecenia');
+    expect(text).toContain(`https://panel.example.test/work-orders/${ORDER}`);
+    expect(text).toContain('zlecono eksport zdjęć zlecenia do pliku ZIP.');
+    expect(text).not.toMatch(/\.zip\b.*https?:|X-Amz|@|token/i);
+    expect(text.match(/https?:\/\//g)).toHaveLength(2);
   });
 });

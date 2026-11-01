@@ -54,10 +54,14 @@ import { SessionAccess } from './application/session-access.ts';
 import { UploadPartsService } from './application/upload-parts.service.ts';
 import { DocumentsController } from './http/documents.controller.ts';
 import { MediaController } from './http/media.controller.ts';
+import { MediaExportsController } from './http/media-exports.controller.ts';
+import { MediaExportBuilder } from './application/media-export-builder.ts';
+import { MediaExportReadService } from './application/media-export-read.service.ts';
+import { RequestMediaExportService } from './application/request-media-export.service.ts';
 
 @Module({
   imports: [WorkOrdersModule, IdentityModule, CatalogModule, ProceduresModule, SitesModule, CustomersModule],
-  controllers: [MediaController, DocumentsController, AnchoredDocumentsController],
+  controllers: [MediaController, DocumentsController, AnchoredDocumentsController, MediaExportsController],
   providers: [
     CreateMediaAssetsService,
     ListMediaAssetsService,
@@ -67,6 +71,9 @@ import { MediaController } from './http/media.controller.ts';
     SessionAccess,
     RescanMediaService,
     MediaDownloadUrlService,
+    RequestMediaExportService,
+    MediaExportReadService,
+    MediaExportBuilder,
     DocumentScopes,
     ListAnchoredDocumentsService,
     AnchoredDocumentDownloadUrlService,
@@ -137,6 +144,7 @@ import { MediaController } from './http/media.controller.ts';
     },
   ],
   exports: [
+    MediaExportBuilder,
     MediaScanService,
     MediaProcessingService,
     VideoProcessingService,

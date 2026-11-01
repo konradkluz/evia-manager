@@ -73,6 +73,7 @@ export const AUDIT_OBJECT_TYPES = [
   'payment_milestone',
   'media_asset',
   'document',
+  'media_export',
 ] as const;
 export const AUDIT_OUTCOMES = ['success', 'denied', 'failed'] as const;
 

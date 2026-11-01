@@ -165,6 +165,10 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
       'listMediaAssets',
       // EVM-068: the signed address of a thumbnail or a preview (every role of the web)
       'createMediaAssetDownloadUrl',
+      // EVM-052: the list, the state and the address of a ZIP export (every role of the web is let through by the guard; the use case answers 404 to all but the requester)
+      'listMediaExports',
+      'getMediaExport',
+      'createMediaExportDownloadUrl',
       // EVM-047: the list of the documents and the address of a file (the class is decided by the use case; every role of the web is let through by the guard)
       'listDocuments',
       'createDocumentDownloadUrl',
@@ -253,6 +257,7 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
       'anonymizeCustomer', // EVM-041: the anonymization of a customer
       'purgeMediaAssetFile', // EVM-051: the erasure of the file of a medium
       'purgeDocumentFile', // EVM-051: the erasure of the files of a document
+      'createMediaExport', // EVM-052: the ZIP export (the Administrator with a fresh key; the Editor's cells are in the tests of the endpoint)
     ];
     // EVM-097: the snapshot of an order is an operation of the mobile channel - its IDOR cells are the Administrator and the Editor with a Bearer token
     const mobileObjects = ['getSyncWorkOrder'];
