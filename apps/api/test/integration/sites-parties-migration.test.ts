@@ -212,6 +212,8 @@ describe('migration 0014 — sites (EVM-021 AC1, AC2, AC3, AC5, AC6; ADR-0003; e
       'version',
       'deleted_at',
       'deleted_by',
+      // EVM-099 (0058): the device of the phone that created the site
+      'created_via_device_id',
     ]);
   });
 
@@ -294,8 +296,9 @@ describe('migration 0014 — sites (EVM-021 AC1, AC2, AC3, AC5, AC6; ADR-0003; e
   it('EVM-021 AC1 the only index besides the key is a partial GIN trigram index on the search text (deleted_at is null)', async () => {
     const { rows } = await sql<{ indexname: string; indexdef: string }>`
       select indexname, indexdef from pg_indexes where schemaname = 'sites' order by indexname`.execute(admin());
-    expect(rows.map((row) => row.indexname)).toEqual(['sites_pkey', 'sites_search_text_trgm_idx']);
-    expect(rows[1]?.indexdef).toMatch(/USING gin \(search_text gin_trgm_ops\) WHERE \(deleted_at IS NULL\)/);
+    // EVM-099 (0058) adds the partial index of the count of the new sites of a device in 24 hours
+    expect(rows.map((row) => row.indexname)).toEqual(['sites_created_via_device_idx', 'sites_pkey', 'sites_search_text_trgm_idx']);
+    expect(rows[2]?.indexdef).toMatch(/USING gin \(search_text gin_trgm_ops\) WHERE \(deleted_at IS NULL\)/);
   });
 
   it('EVM-021 AC1 a search by 3 or more characters uses the trigram indexes of both tables (the planner is forced off the sequential scan: the tables are small)', async () => {
