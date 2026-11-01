@@ -244,7 +244,9 @@ export function MediaSection({ order, media }: { readonly order: WorkOrderDetail
                     failure: softErase.failure,
                   },
                 }
-              : {})}
+              : canUpload
+                ? { eraser: { remove: () => undefined, purge: () => undefined, failure: null, restricted: true } }
+                : {})}
             grouping={grouping}
             stageOrder={stageIds}
           />

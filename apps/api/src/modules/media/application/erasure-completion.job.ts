@@ -74,6 +74,23 @@ export class ErasureCompletionJob {
     return { completed, failed };
   }
 
+  /**
+   * Best effort: the key of the worker may not abort a multipart upload (the bucket policy gives it Get/Delete/List only), and the lifecycle rule
+   * `abort_incomplete_multipart_upload_days` cleans what is left. A refusal must never block the removal of the objects or its confirmation.
+   */
+  async #abortUploads(storage: ObjectStorage, tables: ReturnType<typeof mediaTables>, storedFileId: string): Promise<void> {
+    for (const upload of await uploadIdsOf(tables, [storedFileId])) {
+      try {
+        await storage.abortMultipartUpload(upload.objectKey, upload.uploadId);
+      } catch (error) {
+        this.#logger.warn(
+          { job: ERASURE_COMPLETION_JOB, storedFileId, errorType: error instanceof Error ? error.name : 'unknown' },
+          'erasure completion: a multipart upload could not be aborted; the lifecycle rule cleans it',
+        );
+      }
+    }
+  }
+
   async #batch(storage: ObjectStorage): Promise<{ taken: number; completed: number; failed: number }> {
     return runInTransaction(this.#db, async (tx) => {
       const now = this.#clock.now();
@@ -83,7 +100,7 @@ export class ErasureCompletionJob {
       let failed = 0;
       for (const file of due) {
         try {
-          for (const upload of await uploadIdsOf(tables, [file.id])) await storage.abortMultipartUpload(upload.objectKey, upload.uploadId);
+          await this.#abortUploads(storage, tables, file.id);
           for (const key of [file.objectKey, ...(await derivativeKeysOf(tables, [file.id]))]) await storage.deleteObject(key);
         } catch {
           failed += 1;

@@ -12,6 +12,12 @@ import { ORDER_ID } from './work-order-api.ts';
 
 // W-09 "Usuń" and "Usuń plik trwale…" of a medium and of a document (EVM-051 AC1, AC2, AC3, AC6, AC7).
 const PATH = `/work-orders/${ORDER_ID}`;
+const describedBy = (element: HTMLElement) =>
+  (element.getAttribute('aria-describedby') ?? '')
+    .split(' ')
+    .map((id) => document.getElementById(id)?.textContent ?? '')
+    .join(' ')
+    .trim();
 const role = (value: 'administrator' | 'editor' | 'read_only') => ({ ...ACTIVE_SESSION, user: { ...ACTIVE_SESSION.user, role: value } });
 const ready = (n: number, extra: Partial<MediaAsset> = {}) => asset(n, { fileState: 'ready', ...extra });
 const MEDIUM = ready(1, { version: 3 });
@@ -108,11 +114,22 @@ describe('EVM-051 AC1 AC6 "Usuń" of a medium', () => {
     expect(await screen.findByText('Przywrócono.')).toBeTruthy();
   });
 
-  it.each(['editor', 'read_only'] as const)('EVM-051 AC6 %s sees neither "Usuń" nor "Usuń plik trwale…"', async (name) => {
-    await openMedia({ session: role(name), assets: [MEDIUM] });
+  it('EVM-051 AC6 the Editor sees "Usuń" disabled with an accessible hint and no "Usuń plik trwale…"', async () => {
+    await openMedia({ session: role('editor'), assets: [MEDIUM] });
+    const lightbox = await openLightbox();
+    const remove = within(lightbox).getByRole('button', { name: 'Usuń' });
+    expect(remove.getAttribute('aria-disabled')).toBe('true');
+    expect(describedBy(remove)).toBe('Usunąć plik może tylko administrator.');
+    expect(within(lightbox).getByText('Usunąć plik może tylko administrator.')).toBeTruthy();
+    expect(within(lightbox).queryByRole('button', { name: 'Usuń plik trwale…' })).toBeNull();
+  });
+
+  it('EVM-051 AC6 Tylko odczyt sees neither "Usuń" nor "Usuń plik trwale…"', async () => {
+    await openMedia({ session: role('read_only'), assets: [MEDIUM] });
     const lightbox = await openLightbox();
     expect(within(lightbox).queryByRole('button', { name: 'Usuń' })).toBeNull();
     expect(within(lightbox).queryByRole('button', { name: 'Usuń plik trwale…' })).toBeNull();
+    expect(within(lightbox).queryByText('Usunąć plik może tylko administrator.')).toBeNull();
   });
 
   it('EVM-051 AC7 offline both actions are disabled and say why', async () => {
@@ -256,11 +273,13 @@ describe('EVM-051 AC1 AC2 AC6 documents', () => {
     expect(screen.queryByRole('menuitem', { name: 'Edytuj…' })).toBeNull();
   });
 
-  it('EVM-051 AC6 the Editor has no "Usuń" and no "Usuń plik trwale…" in the menu', async () => {
+  it('EVM-051 AC6 the Editor sees "Usuń" disabled with a hint and no "Usuń plik trwale…" in the menu', async () => {
     await openDocuments({ session: role('editor'), documents: [DOCUMENT] });
     await userEvent.click(await screen.findByRole('button', { name: 'Akcje dokumentu: Warunki' }));
     expect(await screen.findByRole('menuitem', { name: 'Edytuj…' })).toBeTruthy();
-    expect(screen.queryByRole('menuitem', { name: 'Usuń' })).toBeNull();
+    const remove = screen.getByRole('menuitem', { name: /^Usuń/ });
+    expect(remove.getAttribute('aria-disabled')).toBe('true');
+    expect(describedBy(remove)).toBe('Usunąć plik może tylko administrator.');
     expect(screen.queryByRole('menuitem', { name: 'Usuń plik trwale…' })).toBeNull();
   });
 

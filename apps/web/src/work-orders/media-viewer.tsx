@@ -127,6 +127,8 @@ export interface MediaEraser {
   readonly remove: (asset: MediaAsset) => void;
   readonly purge: (asset: MediaAsset) => void;
   readonly failure: EraseFailure | null;
+  /** Editor: "Usuń" is shown disabled with a hint, "Usuń plik trwale…" is absent (EVM-051 AC6). */
+  readonly restricted?: boolean;
 }
 
 /** The lightbox over the photos of the gallery in the order of the tiles; `index` null = closed. */
@@ -303,7 +305,16 @@ export function MediaViewer({
                   {online ? null : <span className="text-body-sm text-text-secondary">{mediaText.editOffline}</span>}
                 </div>
               ) : null}
-              {eraser === undefined ? null : (
+              {eraser?.restricted === true ? (
+                <div className="flex flex-wrap items-center gap-inline-md">
+                  <Button variant="secondary" disabled aria-describedby="media-erase-restricted-hint">
+                    {eraseText.remove}
+                  </Button>
+                  <span id="media-erase-restricted-hint" className="text-body-sm text-text-secondary">
+                    {eraseText.administratorOnly}
+                  </span>
+                </div>
+              ) : eraser === undefined ? null : (
                 <div className="flex flex-col gap-stack-xs">
                   <div className="flex flex-wrap items-center gap-inline-md">
                     <Button

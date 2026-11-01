@@ -149,7 +149,18 @@ export function DocumentsSection({ order, upload }: { readonly order: WorkOrderD
                 },
               ]),
         ]
-      : [];
+      : canEdit && !erased
+        ? [
+            {
+              id: 'remove',
+              label: eraseText.remove,
+              tone: 'danger',
+              startsGroup: true,
+              onSelect: () => undefined,
+              disabledHint: eraseText.administratorOnly,
+            },
+          ]
+        : [];
     const canGet = downloadable(document);
     if (!canEdit) {
       if (!document.canDownload || erased) return null;

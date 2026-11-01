@@ -221,4 +221,31 @@ describe('EVM-051 AC7 the completion of an erasure (CWE-459)', () => {
     expect(await new ErasureCompletionJob(admin(), current.clock, logger(), null).run()).toEqual({ completed: 0, failed: 0 });
     expect(await completion().run()).toEqual({ completed: 1, failed: 0 });
   });
+
+  it('EVM-051 AC7 a refused abort of a multipart upload (the worker key may not abort) does not block the removal of the objects or its confirmation', async () => {
+    const old = await erasedFile(LEAVE_TO_REQUEST_MS / 1000 + 60);
+    await sql`insert into media.upload_sessions (id, stored_file_id, user_id, s3_upload_id, part_size_bytes, part_count, state, expires_at, created_at, updated_at)
+      values (${uuidv7()}, ${old.storedFileId}, ${userId}, 'upload-refused', 16777216, 1, 'aborted', ${NOW}, ${NOW}, ${NOW})`.execute(
+      admin(),
+    );
+    const refusing = new Proxy(current.storage, {
+      get: (target, property) =>
+        property === 'abortMultipartUpload'
+          ? () => Promise.reject(new Error('AccessDenied'))
+          : (target[property as keyof ObjectStorage] as unknown as { bind: (self: unknown) => unknown }).bind(target),
+    });
+    const job = new ErasureCompletionJob(
+      current.app.get(DATABASE, { strict: false }),
+      current.app.get<Clock>(CLOCK, { strict: false }),
+      logger(),
+      refusing,
+    );
+
+    expect(await job.run()).toEqual({ completed: 1, failed: 0 });
+
+    expect(current.storage.currentKeys()).not.toContain(old.objectKey);
+    expect(current.storage.currentKeys()).not.toContain(old.thumbnail);
+    expect(await objectsErased(old.storedFileId)).toEqual(new Date(NOW));
+    expect(JSON.stringify(current.logs.lines)).not.toContain('upload-refused');
+  });
 });

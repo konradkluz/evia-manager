@@ -8,6 +8,7 @@ import { formatDate } from './format.ts';
 export const eraseText = {
   remove: 'Usuń',
   purge: 'Usuń plik trwale…',
+  administratorOnly: 'Usunąć plik może tylko administrator.',
   removed: 'Usunięto.',
   undo: 'Cofnij',
   restored: 'Przywrócono.',
