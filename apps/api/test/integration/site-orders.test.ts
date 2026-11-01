@@ -182,12 +182,12 @@ describe('no access to the data of an order through its site (EVM-036 AC6; SR-AU
     expect(direct.body).toMatchObject({ displayName: 'Jan Klient-B' });
   });
 
-  it('EVM-036 AC6 there is no route that reaches the media, the documents, the orders or the customers by the id of a site: all 404, for every role', async () => {
+  it('EVM-036 AC6 there is no route that reaches the media, the orders or the customers by the id of a site: all 404, for every role (the documents anchored to the site itself are EVM-050, anchored-documents.test.ts)', async () => {
     const siteId = await insertSite(admin());
     await orders([{ number: 'ZL-2026-0001', siteId }]);
     for (const role of ['administrator', 'editor', 'read_only'] as const) {
       const browser = await signIn(role);
-      for (const suffix of ['media', 'documents', 'work-orders', 'orders', 'customers', 'site-orders']) {
+      for (const suffix of ['media', 'work-orders', 'orders', 'customers', 'site-orders']) {
         const response = await browser.panel.get(`/api/v1/sites/${siteId}/${suffix}`);
         expect(response.status, `${role} ${suffix}`).toBe(404);
       }
