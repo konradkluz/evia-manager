@@ -112,7 +112,16 @@ export type PullFailureCode =
   | 'unexpected_status';
 
 /** Typed errors carry a fixed code and never data from the payload. */
-export type QueueErrorCode = 'no_session' | 'invalid_input' | 'payload_too_large' | 'owner_mismatch' | 'storage_failure';
+export type QueueErrorCode =
+  | 'no_session'
+  | 'invalid_input'
+  | 'payload_too_large'
+  | 'owner_mismatch'
+  | 'storage_failure'
+  /** The entry is not in the queue any more. */
+  | 'not_found'
+  /** The operation applies to "needs attention" entries only. */
+  | 'not_attention';
 
 export class QueueError extends Error {
   readonly code: QueueErrorCode;

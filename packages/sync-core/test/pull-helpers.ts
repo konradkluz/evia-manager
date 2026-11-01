@@ -537,6 +537,7 @@ export function makePull(
     transport?: FakePullTransport;
     options?: PullOptions;
     seed?: number;
+    pullFirstUntilLoaded?: boolean;
   } = {},
 ): PullHarness {
   const queue = o.queue ?? new InMemoryQueueStore();
@@ -547,7 +548,13 @@ export function makePull(
   const replica = o.replica ?? new FakeReplica(o.disk);
   const transport = o.transport ?? new FakePullTransport();
   const events: EngineEvent[] = [];
-  const pullDeps: PullDepsConfig = { transport, replica, monotonic: mono, ...(o.options === undefined ? {} : { options: o.options }) };
+  const pullDeps: PullDepsConfig = {
+    transport,
+    replica,
+    monotonic: mono,
+    ...(o.pullFirstUntilLoaded === true ? { pullFirstUntilLoaded: true } : {}),
+    ...(o.options === undefined ? {} : { options: o.options }),
+  };
   const core = createSyncCore({
     store: queue,
     transport: server,

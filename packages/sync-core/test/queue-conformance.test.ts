@@ -11,4 +11,7 @@ queueStoreConformance({
     const fake = store as InMemoryQueueStore;
     fake.failOn = { method: 'settle', call: 1 };
   },
+  injectRewriteFailure: (store) => {
+    (store as InMemoryQueueStore).failOn = { method: 'rewrite', call: 1 };
+  },
 });

@@ -44,6 +44,10 @@ queueStoreConformance({
   injectSettleFailure: (store) => {
     handles.get(store)?.engine.failNext((sql) => sql.startsWith('INSERT INTO settled_results'));
   },
+  // a crash after the removals of rewrite, before the new records are stored
+  injectRewriteFailure: (store) => {
+    handles.get(store)?.engine.failNext((sql) => sql.startsWith('INSERT INTO queue_entries'));
+  },
   // a restart: the old connection is closed, a new engine opens the same file
   reopen: async (store) => {
     const handle = handles.get(store);

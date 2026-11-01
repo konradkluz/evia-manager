@@ -17,6 +17,11 @@ export interface QueueConformanceOptions {
    * the SQL driver, never through the store's internals). Without it the atomicity case is skipped (the fake is atomic by construction).
    */
   readonly injectSettleFailure?: (store: QueueStore) => void;
+  /**
+   * Arms a crash INSIDE the next `rewrite` of this store, after the removals and before the new records are stored. Without it the
+   * atomicity case of `rewrite` is skipped.
+   */
+  readonly injectRewriteFailure?: (store: QueueStore) => void;
   /** Reopens the store on the same durable data ("restart"); defaults to the same instance. */
   readonly reopen?: (store: QueueStore) => QueueStore | Promise<QueueStore>;
 }
@@ -125,6 +130,35 @@ export function queueStoreConformance(options: QueueConformanceOptions): void {
       await store.append(record(3));
       expect(idsOf(await store.readAll())).toEqual([mutationId(1), mutationId(3)]);
     });
+
+    it('EVM-107 AC4: rewrite removes the given entries and appends the new records at the end, in one call; unknown ids are ignored', async () => {
+      const store = await options.create();
+      for (const n of [1, 2, 3]) await store.append(record(n));
+      await store.rewrite([mutationId(1), mutationId(2), mutationId(99)], [record(4), record(5)]);
+      expect(idsOf(await store.readAll())).toEqual([mutationId(3), mutationId(4), mutationId(5)]);
+      const again = await reopen(store);
+      expect(idsOf(await again.readAll())).toEqual([mutationId(3), mutationId(4), mutationId(5)]);
+      await again.rewrite([mutationId(3)], []);
+      expect(idsOf(await again.readAll())).toEqual([mutationId(4), mutationId(5)]);
+    });
+
+    if (options.injectRewriteFailure !== undefined) {
+      const inject = options.injectRewriteFailure;
+      it('EVM-107 AC4: a crash inside rewrite changes nothing (the removals are rolled back)', async () => {
+        const store = await options.create();
+        for (const n of [1, 2]) await store.append(record(n));
+        inject(store);
+        const failed = await (async () => store.rewrite([mutationId(1)], [record(3)]))().then(
+          () => false,
+          () => true,
+        );
+        expect(failed).toBe(true);
+        const again = await reopen(store);
+        expect(idsOf(await again.readAll())).toEqual([mutationId(1), mutationId(2)]);
+        await again.rewrite([mutationId(1)], [record(3)]);
+        expect(idsOf(await again.readAll())).toEqual([mutationId(2), mutationId(3)]);
+      });
+    }
 
     if (options.injectSettleFailure !== undefined) {
       const inject = options.injectSettleFailure;

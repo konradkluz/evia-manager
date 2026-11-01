@@ -1,10 +1,12 @@
 export { SyncEngine } from './engine.ts';
 export type { EngineDeps, EngineOptions, EngineStatus, FlushOptions, FlushResult } from './engine.ts';
 export { MutationQueue } from './queue.ts';
-export type { EnqueueInput, QueueDeps, QueueEntry } from './queue.ts';
+export type { DiscardResult, EnqueueInput, QueueDeps, QueueEntry, RecreateInput, RetargetInput } from './queue.ts';
+export { attentionPlan } from './attention.ts';
+export type { AttentionAction, AttentionPlan, AttentionReason } from './attention.ts';
 export { createUuidV7 } from './uuidv7.ts';
 export { createSyncCore } from './core.ts';
-export type { SyncCore, SyncCoreDeps } from './core.ts';
+export type { AttentionOperations, SyncCore, SyncCoreDeps, SyncOptions } from './core.ts';
 export * from './types.ts';
 export type {
   Clock,
