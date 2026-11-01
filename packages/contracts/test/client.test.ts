@@ -95,6 +95,7 @@ describe('generated client and schemas (EVM-008 AC2)', () => {
       '/api/v1/work-orders/{workOrderId}/timeline/{entryId}/restore',
       '/api/v1/work-orders/{workOrderId}/timeline/{entryId}/redact',
       '/api/v1/work-orders/{workOrderId}/media-assets',
+      '/api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}',
       '/api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/upload-sessions',
       '/api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/upload-sessions/{sessionId}/parts',
       '/api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/upload-sessions/{sessionId}/parts/{partNumber}/url',

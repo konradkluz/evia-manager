@@ -114,6 +114,8 @@ export const auditActionLabels: Readonly<Record<AuditAction, string>> = {
   'document.confidentiality_raised': 'Podniesienie klasy poufności dokumentu',
   'document_file.downloaded': 'Adres do pobrania pliku dokumentu',
   'document_file.download_denied': 'Odmowa adresu pliku dokumentu (klasa poufności)',
+  'media_asset.metadata_updated': 'Zmiana kategorii, opisu lub etapu zdjęcia lub filmu',
+  'document.metadata_updated': 'Zmiana tytułu, opisu lub etapu dokumentu',
   'timeline_entry.deleted': 'Usunięcie wpisu dziennika',
   'timeline_entry.restored': 'Przywrócenie wpisu dziennika',
   'timeline_entry.redacted': 'Redakcja treści wpisu dziennika',
@@ -241,11 +243,18 @@ export const auditActionGroups: ReadonlyArray<{ readonly label: string; readonly
       'media_file.original_download_denied',
       'media_file.download_alerted',
       'media_file.download_rejected',
+      'media_asset.metadata_updated',
     ],
   },
   {
     label: 'Dokumenty',
-    actions: ['document.created', 'document.confidentiality_raised', 'document_file.downloaded', 'document_file.download_denied'],
+    actions: [
+      'document.created',
+      'document.confidentiality_raised',
+      'document.metadata_updated',
+      'document_file.downloaded',
+      'document_file.download_denied',
+    ],
   },
 ];
 

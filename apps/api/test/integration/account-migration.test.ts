@@ -47,6 +47,7 @@ beforeAll(async () => {
     '0056_sync_mutations',
     '0057_media_video',
     '0059_documents',
+    '0060_media_metadata',
   ]);
 });
 afterAll(async () => {

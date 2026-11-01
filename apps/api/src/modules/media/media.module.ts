@@ -22,11 +22,13 @@ import type { MetricsRegistry } from '../../platform/metrics/metrics.ts';
 import { CLOCK, DATABASE, EVENT_BUS, LOGGER, METRICS } from '../../platform/tokens.ts';
 import { AdministratorDirectory, IdentityModule } from '../identity/index.ts';
 import { CatalogModule } from '../catalog/index.ts';
+import { ProceduresModule } from '../procedures/index.ts';
 import { WorkOrdersModule } from '../work-orders/index.ts';
 import { CreateDocumentService } from './application/create-document.service.ts';
 import { DocumentDownloadUrlService } from './application/document-download-url.service.ts';
 import { ListDocumentsService } from './application/list-documents.service.ts';
-import { RaiseDocumentConfidentialityService } from './application/raise-document-confidentiality.service.ts';
+import { UpdateDocumentService } from './application/update-document.service.ts';
+import { UpdateMediaAssetService } from './application/update-media-asset.service.ts';
 import { CreateMediaAssetsService } from './application/create-media-assets.service.ts';
 import { CreateUploadSessionService } from './application/create-upload-session.service.ts';
 import { FinishUploadService } from './application/finish-upload.service.ts';
@@ -45,7 +47,7 @@ import { DocumentsController } from './http/documents.controller.ts';
 import { MediaController } from './http/media.controller.ts';
 
 @Module({
-  imports: [WorkOrdersModule, IdentityModule, CatalogModule],
+  imports: [WorkOrdersModule, IdentityModule, CatalogModule, ProceduresModule],
   controllers: [MediaController, DocumentsController],
   providers: [
     CreateMediaAssetsService,
@@ -58,7 +60,8 @@ import { MediaController } from './http/media.controller.ts';
     MediaDownloadUrlService,
     CreateDocumentService,
     ListDocumentsService,
-    RaiseDocumentConfidentialityService,
+    UpdateDocumentService,
+    UpdateMediaAssetService,
     DocumentDownloadUrlService,
     QuarantineRetentionJob,
     AbandonedUploadsJob,

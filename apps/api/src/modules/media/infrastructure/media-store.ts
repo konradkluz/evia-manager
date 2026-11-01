@@ -27,6 +27,7 @@ export interface NewMediaAsset {
   readonly mediaType: 'photo' | 'video';
   readonly category: string;
   readonly description: string | null;
+  readonly procedureStageId?: string | null;
   readonly createdBy: string;
 }
 
@@ -48,7 +49,7 @@ export async function insertMediaAsset(db: MediaDb, asset: NewMediaAsset, now: D
     .values({
       id: asset.id,
       work_order_id: asset.workOrderId,
-      procedure_stage_id: null,
+      procedure_stage_id: asset.procedureStageId ?? null,
       media_type: asset.mediaType,
       category: asset.category,
       description: asset.description,
@@ -133,6 +134,8 @@ export async function findAssetWithFile(
       'a.created_at as a_created_at',
       'a.created_by as a_created_by',
       'a.updated_at as a_updated_at',
+      'a.version as a_version',
+      'a.updated_by as a_updated_by',
       quarantineExpiry,
     ]);
   const row = await (lock ? base.forNoKeyUpdate('f') : base).executeTakeFirst();
@@ -151,6 +154,8 @@ export type JoinedRow = StoredFileRow & {
   a_created_at: Date;
   a_created_by: string;
   a_updated_at: Date;
+  a_version: number;
+  a_updated_by: string | null;
   quarantine_expires_at: Date | null;
 };
 
@@ -167,6 +172,8 @@ export function splitRow(row: JoinedRow): AssetWithFile {
     a_created_at,
     a_created_by,
     a_updated_at,
+    a_version,
+    a_updated_by,
     quarantine_expires_at,
     ...file
   } = row;
@@ -185,6 +192,8 @@ export function splitRow(row: JoinedRow): AssetWithFile {
       created_at: a_created_at,
       created_by: a_created_by,
       updated_at: a_updated_at,
+      version: a_version,
+      updated_by: a_updated_by,
     },
   };
 }
@@ -433,6 +442,8 @@ export async function listAssets(
       'a.created_at as a_created_at',
       'a.created_by as a_created_by',
       'a.updated_at as a_updated_at',
+      'a.version as a_version',
+      'a.updated_by as a_updated_by',
       quarantineExpiry,
       's.id as s_id',
       's.expires_at as s_expires_at',
@@ -504,6 +515,8 @@ export async function findAssetsWithFiles(db: MediaDb, workOrderId: string, ids:
       'a.created_at as a_created_at',
       'a.created_by as a_created_by',
       'a.updated_at as a_updated_at',
+      'a.version as a_version',
+      'a.updated_by as a_updated_by',
       quarantineExpiry,
     ])
     .execute();
@@ -969,4 +982,48 @@ export async function claimVideoForProcessing(
 export async function recordedSize(db: MediaDb, storedFileId: string): Promise<number | undefined> {
   const row = await db.selectFrom('media.stored_files').where('id', '=', storedFileId).select('size_bytes').executeTakeFirst();
   return row?.size_bytes == null ? undefined : Number(row.size_bytes);
+}
+
+/** The medium of THIS order, row-locked: another order's medium, a document with that id and a missing one are the same absence (SR-AUTHZ-02). */
+export async function lockAssetOfOrder(db: MediaDb, workOrderId: string, mediaAssetId: string): Promise<MediaAssetRow | undefined> {
+  return db
+    .selectFrom('media.media_assets')
+    .where('id', '=', mediaAssetId)
+    .where('work_order_id', '=', workOrderId)
+    .selectAll()
+    .forNoKeyUpdate()
+    .executeTakeFirst();
+}
+
+/** What a change of a medium sets; a field that is absent stays as it is (`null` clears the description and the stage). */
+export interface AssetChange {
+  readonly category?: string;
+  readonly description?: string | null;
+  readonly procedureStageId?: string | null;
+}
+
+/** Applies a change under the lock of the caller; the version moves by one. @returns the new version, or `undefined` when the version differs */
+export async function updateAssetMetadata(
+  db: MediaDb,
+  mediaAssetId: string,
+  expectedVersion: number,
+  change: AssetChange,
+  userId: string,
+  now: Date,
+): Promise<number | undefined> {
+  const row = await db
+    .updateTable('media.media_assets')
+    .set({
+      ...(change.category === undefined ? {} : { category: change.category }),
+      ...(change.description === undefined ? {} : { description: change.description }),
+      ...(change.procedureStageId === undefined ? {} : { procedure_stage_id: change.procedureStageId }),
+      updated_at: now,
+      updated_by: userId,
+      version: sql<number>`version + 1`,
+    })
+    .where('id', '=', mediaAssetId)
+    .where('version', '=', expectedVersion)
+    .returning('version')
+    .executeTakeFirst();
+  return row?.version;
 }

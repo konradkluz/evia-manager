@@ -53,6 +53,8 @@ interface Representation {
   readonly session?: ListedAsset['session'];
   /** The caller may manage the quarantine (an Administrator): only then the reason is part of the answer. Absent = no (deny by default). */
   readonly manageQuarantine?: boolean;
+  /** The names of the stages by id (EVM-048); a medium whose stage is not in the map gets `null` (no stage). */
+  readonly stageNames?: ReadonlyMap<string, string>;
 }
 
 export function toMediaAsset(row: AssetWithFile, options: Representation = { unfinished: false }): MediaAsset {
@@ -67,6 +69,9 @@ export function toMediaAsset(row: AssetWithFile, options: Representation = { unf
     mediaType: asset.media_type,
     category: asset.category as MediaAsset['category'],
     description: asset.description,
+    procedureStageId: asset.procedure_stage_id,
+    procedureStageName: asset.procedure_stage_id === null ? null : (options.stageNames?.get(asset.procedure_stage_id) ?? null),
+    version: asset.version,
     origin: asset.origin,
     capturedAt: asset.captured_at === null ? null : asset.captured_at.toISOString(),
     createdAt: asset.created_at.toISOString(),

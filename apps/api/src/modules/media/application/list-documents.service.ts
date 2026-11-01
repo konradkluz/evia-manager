@@ -19,6 +19,7 @@ import { parseInput, strictObjects } from '../../../platform/http/validation.ts'
 import { CURSOR_CODEC, DATABASE } from '../../../platform/tokens.ts';
 import { DOCUMENT_KIND_DIRECTORY, type DocumentKindDirectory } from '../../catalog/index.ts';
 import { WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders/index.ts';
+import { PROCEDURE_STAGE_DIRECTORY, type ProcedureStageDirectory } from '../../procedures/index.ts';
 import { countDocuments, listDocuments, type DocumentPagePosition } from '../infrastructure/document-store.ts';
 import { mediaTables } from '../infrastructure/tables.ts';
 import { presentDocuments } from './document-support.ts';
@@ -47,6 +48,7 @@ const positionSchema = z.tuple([z.iso.datetime(), z.uuid()]);
 @Injectable()
 export class ListDocumentsService {
   readonly #db: Kysely<Database>;
+  readonly #stages: ProcedureStageDirectory;
   readonly #cursors: CursorCodec;
   readonly #orders: WorkOrderDirectory;
   readonly #kinds: DocumentKindDirectory;
@@ -56,7 +58,9 @@ export class ListDocumentsService {
     @Inject(CURSOR_CODEC) cursors: CursorCodec,
     @Inject(WORK_ORDER_DIRECTORY) orders: WorkOrderDirectory,
     @Inject(DOCUMENT_KIND_DIRECTORY) kinds: DocumentKindDirectory,
+    @Inject(PROCEDURE_STAGE_DIRECTORY) stages: ProcedureStageDirectory,
   ) {
+    this.#stages = stages;
     this.#db = db;
     this.#cursors = cursors;
     this.#orders = orders;
@@ -89,7 +93,7 @@ export class ListDocumentsService {
               })
             : null;
         return {
-          items: await presentDocuments(tx, this.#kinds, principal.role, shown),
+          items: await presentDocuments(tx, this.#kinds, this.#stages, principal.role, shown),
           nextCursor,
           totalCount: await countDocuments(tables, order.id),
         };

@@ -187,6 +187,8 @@ paths:
     $ref: paths/timeline.yaml#/timelineEntryRedact
   /api/v1/work-orders/{workOrderId}/media-assets:
     $ref: paths/media.yaml#/workOrderMediaAssets
+  /api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}:
+    $ref: paths/media.yaml#/mediaAssetById
   /api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/upload-sessions:
     $ref: paths/media.yaml#/mediaAssetUploadSessions
   /api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/upload-sessions/{sessionId}/parts:
@@ -509,6 +511,8 @@ components:
       $ref: components/media.yaml#/MediaAssetCreateItem
     CreateMediaAssetsRequest:
       $ref: components/media.yaml#/CreateMediaAssetsRequest
+    UpdateMediaAssetRequest:
+      $ref: components/media.yaml#/UpdateMediaAssetRequest
     MediaAssetBatch:
       $ref: components/media.yaml#/MediaAssetBatch
     MediaAssetList:
@@ -541,8 +545,8 @@ components:
       $ref: components/documents.yaml#/Document
     DocumentList:
       $ref: components/documents.yaml#/DocumentList
-    RaiseDocumentConfidentialityRequest:
-      $ref: components/documents.yaml#/RaiseDocumentConfidentialityRequest
+    UpdateDocumentRequest:
+      $ref: components/documents.yaml#/UpdateDocumentRequest
     DocumentUploadSession:
       $ref: components/documents.yaml#/DocumentUploadSession
     DocumentDownloadUrl:

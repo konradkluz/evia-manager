@@ -511,7 +511,7 @@ describe('EVM-047 AC4 the class can only be raised, with If-Match and an audit e
     expect(standardFloor.status).toBe(400);
   });
 
-  it('EVM-047 AC4 If-Match: missing is 428, malformed is 400, stale is 412; the kind, the title and every other field are read-only (400 read_only_field)', async () => {
+  it('EVM-047 AC4 If-Match: missing is 428, malformed is 400, stale is 412; the kind and every other field of the server are read-only (400 read_only_field)', async () => {
     const orderId = await order();
     const editor = await signIn('editor');
     const body = documentBody(pdf());
@@ -523,7 +523,8 @@ describe('EVM-047 AC4 the class can only be raised, with If-Match and an audit e
     const stale = await raise(editor, orderId, body.id, target, '"7"');
     expect(stale.status).toBe(412);
     expect(codeOf(stale.body)).toBe('version_conflict');
-    for (const field of ['title', 'kindCode', 'versionNumber', 'fileState', 'confidentiality', 'workOrderId', 'description']) {
+    // EVM-048: the title and the description are editable now (see media-metadata.test.ts); the kind, the order and the file are not
+    for (const field of ['kindCode', 'versionNumber', 'fileState', 'confidentiality', 'workOrderId']) {
       const answer = await raise(editor, orderId, body.id, { [field]: 'x', ...target });
       expect(answer.status, field).toBe(400);
       expect(errorsOf(answer.body), field).toEqual([{ pointer: `/${field}`, code: 'read_only_field' }]);

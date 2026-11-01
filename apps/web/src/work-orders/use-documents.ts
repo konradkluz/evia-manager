@@ -2,7 +2,7 @@ import {
   createDocumentDownloadUrl,
   listDocumentKinds,
   listDocuments,
-  raiseDocumentConfidentiality,
+  updateDocument,
   type DocumentList,
   type DocumentKind,
   type Document as OrderDocument,
@@ -141,7 +141,7 @@ export function useRaiseClass(workOrderId: string) {
   return useMutation({
     mutationFn: (input: { readonly document: OrderDocument; readonly confidentialityOverride: 'building_security' | 'identity_data' }) =>
       unwrap(
-        raiseDocumentConfidentiality({
+        updateDocument({
           client,
           path: { workOrderId, documentId: input.document.id },
           headers: { 'If-Match': `"${String(input.document.version)}"` },

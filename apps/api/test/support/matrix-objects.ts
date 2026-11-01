@@ -369,6 +369,11 @@ export async function mediaObjects(app: IdentityApp): Promise<Record<string, Obj
       foreign: () => `${WORK_ORDERS}/${deleted}/media-assets/${mine.mediaAssetId}/download-url`,
     },
     // EVM-049: the new scan of a quarantined file - "foreign" is a medium of another live order named in the path of the first
+    // EVM-048: the change of the metadata of a medium - "foreign" is a medium of another live order named in the path of the first
+    updateMediaAsset: {
+      own: () => `${WORK_ORDERS}/${own}/media-assets/${mine.mediaAssetId}`,
+      foreign: () => `${WORK_ORDERS}/${own}/media-assets/${theirs.mediaAssetId}`,
+    },
     rescanMediaAsset: {
       own: () => `${WORK_ORDERS}/${own}/media-assets/${mine.mediaAssetId}/rescan`,
       foreign: () => `${WORK_ORDERS}/${own}/media-assets/${theirs.mediaAssetId}/rescan`,
@@ -403,7 +408,8 @@ async function documentObjects(
   return {
     listDocuments: orderLevel,
     createDocument: orderLevel,
-    raiseDocumentConfidentiality: document(''),
+    // EVM-048: the change of the metadata of a document (the same path as the raise of the class before it)
+    updateDocument: document(''),
     createDocumentUploadSession: document('/upload-sessions'),
     listDocumentUploadParts: session('/parts'),
     getDocumentUploadPartUrl: session('/parts/1/url'),

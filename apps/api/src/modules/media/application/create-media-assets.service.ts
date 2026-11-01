@@ -31,7 +31,9 @@ import type { AppConfig } from '../../../platform/config/config.ts';
 import { DEFAULT_MEDIA_LIMITS, type MediaLimits } from '../../../platform/config/media-config.ts';
 import { APP_CONFIG, CLOCK, DATABASE, EVENT_BUS } from '../../../platform/tokens.ts';
 import { WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders/index.ts';
+import { PROCEDURE_STAGE_DIRECTORY, type ProcedureStageDirectory } from '../../procedures/index.ts';
 import { checkDeclaration, type CheckedDeclaration } from '../domain/file-rules.ts';
+import { MEDIA_DESCRIPTION_MAX, normaliseDescription } from '../domain/metadata-patch.ts';
 import { objectKeyFor } from '../domain/upload-plan.ts';
 import type { MediaAssetsAddedEvent, MediaAuditEvent } from '../events.ts';
 import {
@@ -45,6 +47,7 @@ import {
 } from '../infrastructure/media-store.ts';
 import { mediaTables, type MediaDb } from '../infrastructure/tables.ts';
 import { idempotencyKeyOf, requireStorage, toMediaAsset } from './media-support.ts';
+import { assertStageInOrder, stageNames } from './stage-support.ts';
 
 export const CREATE_MEDIA_SCOPE = 'POST /api/v1/work-orders/{workOrderId}/media-assets';
 const scopeOf = (workOrderId: string): string => CREATE_MEDIA_SCOPE.replace('{workOrderId}', workOrderId);
@@ -58,6 +61,7 @@ interface Item {
   readonly id: string;
   readonly category: string;
   readonly description?: string | undefined;
+  readonly procedureStageId?: string | undefined;
   readonly fileName: string;
   readonly declaredSize: number;
   readonly contentType: string;
@@ -72,6 +76,7 @@ export interface CreatedMedia {
 @Injectable()
 export class CreateMediaAssetsService {
   readonly #db: Kysely<Database>;
+  readonly #stages: ProcedureStageDirectory;
   readonly #clock: Clock;
   readonly #events: EventBus;
   readonly #idempotency: Idempotency;
@@ -87,7 +92,9 @@ export class CreateMediaAssetsService {
     @Inject(WORK_ORDER_DIRECTORY) orders: WorkOrderDirectory,
     @Inject(OBJECT_STORAGE) storage: ObjectStorage | null,
     @Inject(APP_CONFIG) config: AppConfig,
+    @Inject(PROCEDURE_STAGE_DIRECTORY) stages: ProcedureStageDirectory,
   ) {
+    this.#stages = stages;
     this.#db = db;
     this.#clock = clock;
     this.#events = events;
@@ -129,7 +136,12 @@ export class CreateMediaAssetsService {
         order.id,
         items.map((item) => item.id),
       );
-      return { batch: { items: rows.map((row) => toMediaAsset(row)) }, replayed };
+      const names = await stageNames(
+        tx,
+        this.#stages,
+        rows.map((row) => ({ workOrderId: row.asset.work_order_id, stageId: row.asset.procedure_stage_id })),
+      );
+      return { batch: { items: rows.map((row) => toMediaAsset(row, { unfinished: false, stageNames: names })) }, replayed };
     });
   }
 
@@ -162,6 +174,12 @@ export class CreateMediaAssetsService {
     const now = this.#clock.now();
     const tables = mediaTables(tx);
     await this.#checkLimits(tables, principal.userId, workOrderId, items.length);
+    // the stage must be a live stage of THIS order (EVM-048 AC1, AC4; SR-AUTHZ-02): ONE answer for a stranger's, a deleted and a missing one
+    for (const [index, item] of items.entries()) {
+      if (item.procedureStageId !== undefined) {
+        await assertStageInOrder(tx, this.#stages, workOrderId, item.procedureStageId, `/items/${index}/procedureStageId`);
+      }
+    }
     const fileIds = await newFileIds(tables, items.length);
     for (const [index, item] of items.entries()) {
       const declaration = checked[index] as CheckedDeclaration;
@@ -173,6 +191,7 @@ export class CreateMediaAssetsService {
           mediaType: declaration.mediaType,
           category: item.category,
           description: item.description ?? null,
+          procedureStageId: item.procedureStageId ?? null,
           createdBy: principal.userId,
         },
         now,
@@ -224,6 +243,10 @@ function parseItems(rawBody: unknown): { items: Item[]; checked: CheckedDeclarat
   for (const [index, item] of body.items.entries()) {
     if (seen.has(item.id)) errors.push({ pointer: `/items/${index}/id`, code: 'duplicate' });
     seen.add(item.id);
+    const description = normaliseDescription(item.description, MEDIA_DESCRIPTION_MAX);
+    if (!description.ok) errors.push({ pointer: `/items/${index}/description`, code: description.issue.code });
+    else if (description.value === null || description.value === undefined) delete (item as { description?: string }).description;
+    else (item as { description?: string }).description = description.value;
     const declaration = checkDeclaration(item);
     if (declaration.ok) checked.push(declaration.value);
     else for (const issue of declaration.issues) errors.push({ pointer: `/items/${index}/${issue.field}`, code: issue.code });

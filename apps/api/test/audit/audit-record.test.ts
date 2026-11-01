@@ -647,6 +647,9 @@ describe('audit of the addresses of files (EVM-045 AC3, AC5; SR-LOG-03, SR-FILE-
       'document.confidentiality_raised',
       'document_file.downloaded',
       'document_file.download_denied',
+      // EVM-048: the metadata
+      'media_asset.metadata_updated',
+      'document.metadata_updated',
     ]);
     for (const type of MEDIA_EVENT_TYPES) expect(AUDIT_ACTIONS).toContain(type);
   });

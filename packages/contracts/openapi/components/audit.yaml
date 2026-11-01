@@ -104,6 +104,8 @@ AuditAction:
     - document.confidentiality_raised
     - document_file.downloaded
     - document_file.download_denied
+    - media_asset.metadata_updated
+    - document.metadata_updated
 AuditOutcome:
   type: string
   description: Wynik zdarzenia.

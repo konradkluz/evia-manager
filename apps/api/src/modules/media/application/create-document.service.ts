@@ -31,6 +31,7 @@ import { OBJECT_STORAGE, type ObjectStorage } from '../../../platform/object-sto
 import { CLOCK, DATABASE, EVENT_BUS } from '../../../platform/tokens.ts';
 import { DOCUMENT_KIND_DIRECTORY, type DocumentKindDirectory, type DocumentKindForDocument } from '../../catalog/index.ts';
 import { WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders/index.ts';
+import { PROCEDURE_STAGE_DIRECTORY, type ProcedureStageDirectory } from '../../procedures/index.ts';
 import { effectiveClass, resolveNewDocumentClass, type ConfidentialityOverride } from '../domain/confidentiality.ts';
 import { checkDocumentDeclaration } from '../domain/document-rules.ts';
 import { documentObjectKeyFor } from '../domain/upload-plan.ts';
@@ -39,6 +40,7 @@ import { findDocumentWithFile, insertDocument, insertDocumentFile, insertDocumen
 import { newFileIds } from '../infrastructure/media-store.ts';
 import { mediaTables } from '../infrastructure/tables.ts';
 import { presentDocuments } from './document-support.ts';
+import { assertStageInOrder } from './stage-support.ts';
 import { idempotencyKeyOf, requireStorage } from './media-support.ts';
 
 export const CREATE_DOCUMENT_SCOPE = 'POST /api/v1/work-orders/{workOrderId}/documents';
@@ -74,6 +76,7 @@ interface Input {
   readonly kindCode: string;
   readonly title: string;
   readonly description?: string | undefined;
+  readonly procedureStageId?: string | undefined;
   readonly containsIdentityData?: boolean | undefined;
   readonly confidentialityOverride?: ConfidentialityOverride | undefined;
   readonly file: { readonly fileName: string; readonly contentType: string; readonly declaredSize: number; readonly sha256: string };
@@ -94,6 +97,7 @@ export interface CreatedDocument {
 @Injectable()
 export class CreateDocumentService {
   readonly #db: Kysely<Database>;
+  readonly #stages: ProcedureStageDirectory;
   readonly #clock: Clock;
   readonly #events: EventBus;
   readonly #idempotency: Idempotency;
@@ -109,7 +113,9 @@ export class CreateDocumentService {
     @Inject(WORK_ORDER_DIRECTORY) orders: WorkOrderDirectory,
     @Inject(DOCUMENT_KIND_DIRECTORY) kinds: DocumentKindDirectory,
     @Inject(OBJECT_STORAGE) storage: ObjectStorage | null,
+    @Inject(PROCEDURE_STAGE_DIRECTORY) stages: ProcedureStageDirectory,
   ) {
+    this.#stages = stages;
     this.#db = db;
     this.#clock = clock;
     this.#events = events;
@@ -149,7 +155,7 @@ export class CreateDocumentService {
       // read again with the order of the URL in the condition: a repeat never names a document of another order
       const found = await findDocumentWithFile(mediaTables(tx), order.id, input.id);
       if (found === undefined) throw new ProblemException('not_found');
-      const [document] = await presentDocuments(tx, this.#kinds, principal.role, [found]);
+      const [document] = await presentDocuments(tx, this.#kinds, this.#stages, principal.role, [found]);
       return { document: document as Document, replayed };
     });
   }
@@ -201,6 +207,10 @@ export class CreateDocumentService {
   ): Promise<void> {
     const now = this.#clock.now();
     const tables = mediaTables(tx);
+    // the stage must be a live stage of THIS order (EVM-048 AC1, AC4; SR-AUTHZ-02): ONE answer for a stranger's, a deleted and a missing one
+    if (input.procedureStageId !== undefined) {
+      await assertStageInOrder(tx, this.#stages, workOrderId, input.procedureStageId, '/procedureStageId');
+    }
     const inserted = await insertDocument(
       tables,
       {
@@ -209,6 +219,7 @@ export class CreateDocumentService {
         title: input.title.trim(),
         description: input.description ?? null,
         workOrderId,
+        procedureStageId: input.procedureStageId ?? null,
         confidentialityOverride: checked.override,
         createdBy: principal.userId,
       },

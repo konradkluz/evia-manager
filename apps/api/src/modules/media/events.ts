@@ -29,6 +29,9 @@ export const MEDIA_EVENT_TYPES = [
   'document.confidentiality_raised',
   'document_file.downloaded',
   'document_file.download_denied',
+  // EVM-048: the metadata of a medium or of a document changed - the actor and the object only, NEVER a title, a description or a stage name
+  'media_asset.metadata_updated',
+  'document.metadata_updated',
 ] as const;
 
 /** The confidentiality classes as the codes of an audit event (a closed list; never a title, a name or a reason). */

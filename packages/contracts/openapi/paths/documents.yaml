@@ -13,7 +13,7 @@ IfMatchHeader:
   name: If-Match
   in: header
   required: true
-  description: Silny ETag wersji dokumentu (`"<version>"`, z pola `version` albo `ETag`).
+  description: Silny ETag wersji zasobu - dokumentu albo medium (`"<version>"`, z pola `version` albo `ETag`).
   schema:
     type: string
     pattern: '^"[1-9][0-9]{0,9}"$'
@@ -136,15 +136,20 @@ workOrderDocuments:
         $ref: ../components/media-responses.yaml#/MediaStorageUnavailable
 documentById:
   patch:
-    operationId: raiseDocumentConfidentiality
+    operationId: updateDocument
     tags: [media]
-    summary: Podniesienie klasy poufności dokumentu („Podnieś klasę”)
+    summary: Zmiana tytułu, opisu, etapu i klasy poufności dokumentu
     description: >-
-      Podniesienie klasy dokumentu (EVM-047 AC4, AC7; SR-AUTHZ-07, SR-LOG-03; AB-20). Role Administrator i Edytor (Tylko odczyt - `403` przed treścią),
-      kanał `web`, z audytem (`document.confidentiality_raised` - aktor, identyfikator, `fromCode` i `toCode`, `traceId`; bez tytułu). Wymaga `X-CSRF-Token`
-      i `If-Match` (silny ETag `"<version>"`): brak - `428`; zniekształcony - `400`; nieaktualna wersja - `412 version_conflict`. Jedyne pole to
-      `confidentialityOverride` (ściśle wyższe od klasy efektywnej, inaczej `400 validation_failed`); każde inne - `400 read_only_field`. Rodzaj i zlecenie
-      dokumentu nie zmieniają się. Dokument innego zlecenia niż w ścieżce - `404` (jak nieistniejący).
+      Edycja dokumentu (EVM-047 AC4, AC7 - podniesienie klasy; EVM-048 AC3, AC4, AC6, AC7 - tytuł, opis, etap; SR-AUTHZ-02, SR-AUTHZ-04, SR-AUTHZ-07,
+      SR-INPUT-02, SR-INPUT-05, SR-LOG-03; AB-20). Role Administrator i Edytor (Tylko odczyt - `403` przed `If-Match` i treścią), kanał `web` (token
+      mobilny - `403 forbidden`), z audytem: `document.confidentiality_raised` (aktor, identyfikator, `fromCode` i `toCode`, `traceId`), gdy zmienia się
+      klasa, i `document.metadata_updated` (aktor, identyfikator, `traceId`), gdy zmienia się tytuł, opis albo etap - NIGDY ich wartości. Jedno
+      żądanie podnosi `version` o 1. Wymaga `X-CSRF-Token` i `If-Match` (silny ETag `"<version>"`): brak - `428`; zniekształcony - `400`;
+      nieaktualna wersja - `412 version_conflict`. Pola: `title`, `description`, `procedureStageId` (etap TEGO zlecenia - inny, usunięty albo
+      nieistniejący: `400 validation_failed`, `/procedureStageId`) i `confidentialityOverride` (ściśle wyższe od klasy efektywnej, inaczej `400
+      validation_failed`; nigdy poniżej klasy rodzaju); każde inne - `400 read_only_field`. Rodzaj i zlecenie dokumentu nie zmieniają się. Dokument
+      innego zlecenia niż w ścieżce oraz medium o tym identyfikatorze - `404`. Zlecenie rozliczone albo anulowane nadal przyjmuje zmianę (PO-8).
+      Żądanie bez realnej zmiany - `200` bez zmiany wersji i bez audytu.
     x-evia-authz:
       roles: [administrator, editor]
       channels: [web]
@@ -158,10 +163,10 @@ documentById:
       content:
         application/json:
           schema:
-            $ref: ../components/documents.yaml#/RaiseDocumentConfidentialityRequest
+            $ref: ../components/documents.yaml#/UpdateDocumentRequest
     responses:
       '200':
-        description: Dokument po podniesieniu klasy.
+        description: Dokument po zmianie.
         headers:
           ETag:
             description: Nowa wersja zasobu (`"<version>"`).

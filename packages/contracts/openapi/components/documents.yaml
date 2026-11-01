@@ -72,6 +72,13 @@ CreateDocumentRequest:
       description: Opis (do 2000 znaków, zwykły tekst); pominięty = brak.
       minLength: 1
       maxLength: 2000
+    procedureStageId:
+      type: string
+      description: >-
+        Etap zlecenia z URL (EVM-048 AC1; opcjonalny). Etap innego zlecenia, usunięty albo nieistniejący to jedna odpowiedź `400 validation_failed`
+        (`/procedureStageId`).
+      format: uuid
+      maxLength: 36
     containsIdentityData:
       type: boolean
       description: >-
@@ -95,6 +102,8 @@ Document:
     - kindName
     - title
     - description
+    - procedureStageId
+    - procedureStageName
     - versionNumber
     - confidentiality
     - confidentialityRaised
@@ -129,6 +138,19 @@ Document:
       oneOf:
         - type: string
           maxLength: 2000
+        - type: 'null'
+    procedureStageId:
+      description: Etap zlecenia, do którego przypisano dokument (EVM-048), albo `null` („Bez etapu”).
+      oneOf:
+        - type: string
+          format: uuid
+          maxLength: 36
+        - type: 'null'
+    procedureStageName:
+      description: Nazwa przypisanego etapu (tekst; zostaje także po usunięciu etapu) albo `null`.
+      oneOf:
+        - type: string
+          maxLength: 200
         - type: 'null'
     versionNumber:
       type: integer
@@ -185,14 +207,36 @@ DocumentList:
     totalCount:
       type: integer
       minimum: 0
-RaiseDocumentConfidentialityRequest:
+UpdateDocumentRequest:
   type: object
   description: >-
-    „Podnieś klasę” (merge-patch): jedyne pole, które można zmienić. Klasa musi być ściśle wyższa od efektywnej, inaczej `400 validation_failed`
-    (`/confidentialityOverride`, `not_higher`). Każde inne pole (`title`, `kindCode`, `versionNumber` …) - `400 read_only_field`.
-  required: [confidentialityOverride]
+    Zmiana dokumentu (merge-patch; EVM-047 AC4, AC7; EVM-048 AC3, AC4, AC6, AC7) - co najmniej jedno pole (pusta treść - `400 validation_failed`):
+    `title` (1 ... 200 znaków, zwykły tekst; pusty po przycięciu - `400 required`), `description` (do 2000 znaków albo `null`; pusty po przycięciu
+    równa się `null`), `procedureStageId` (etap TEGO zlecenia albo `null`; etap innego zlecenia, usunięty i nieistniejący - jedna odpowiedź `400
+    validation_failed`) i `confidentialityOverride` (tylko PODNIESIENIE klasy: ściśle wyższa od efektywnej, inaczej `400 validation_failed`,
+    `/confidentialityOverride`, `not_higher`; nigdy poniżej klasy rodzaju). Rodzaj, zlecenie i plik nie zmieniają się: każde inne pole
+    (`kindCode`, `workOrderId`, `fileState`, `version` ...) - `400 read_only_field`, pole spoza schematu - `400 unknown_field`.
+  minProperties: 1
   additionalProperties: false
   properties:
+    title:
+      type: string
+      description: Tytuł (zwykły tekst, 1 ... 200 znaków).
+      minLength: 1
+      maxLength: 200
+    description:
+      description: Opis dokumentu (do 2000 znaków, zwykły tekst) albo `null`, by go usunąć.
+      oneOf:
+        - type: string
+          maxLength: 2000
+        - type: 'null'
+    procedureStageId:
+      description: Etap tego zlecenia albo `null`, by usunąć przypisanie.
+      oneOf:
+        - type: string
+          format: uuid
+          maxLength: 36
+        - type: 'null'
     confidentialityOverride:
       $ref: '#/DocumentConfidentialityOverride'
 DocumentUploadSession:

@@ -92,7 +92,7 @@
         }
       },
       "IfMatchHeader-2": {
-        "description": "Silny ETag wersji dokumentu (`\"<version>\"`, z pola `version` albo `ETag`).",
+        "description": "Silny ETag wersji zasobu - dokumentu albo medium (`\"<version>\"`, z pola `version` albo `ETag`).",
         "in": "header",
         "name": "If-Match",
         "required": true,
@@ -2373,7 +2373,9 @@
           "document.created",
           "document.confidentiality_raised",
           "document_file.downloaded",
-          "document_file.download_denied"
+          "document_file.download_denied",
+          "media_asset.metadata_updated",
+          "document.metadata_updated"
         ],
         "type": "string"
       },
@@ -2979,6 +2981,12 @@
             "description": "Kod rodzaju dokumentu z katalogu (np. `connection_conditions`).",
             "maxLength": 64,
             "pattern": "^[a-z][a-z0-9_]{1,63}$",
+            "type": "string"
+          },
+          "procedureStageId": {
+            "description": "Etap zlecenia z URL (EVM-048 AC1; opcjonalny). Etap innego zlecenia, usunięty albo nieistniejący to jedna odpowiedź `400 validation_failed` (`/procedureStageId`).",
+            "format": "uuid",
+            "maxLength": 36,
             "type": "string"
           },
           "title": {
@@ -4132,6 +4140,31 @@
               }
             ]
           },
+          "procedureStageId": {
+            "description": "Etap zlecenia, do którego przypisano dokument (EVM-048), albo `null` („Bez etapu”).",
+            "oneOf": [
+              {
+                "format": "uuid",
+                "maxLength": 36,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "procedureStageName": {
+            "description": "Nazwa przypisanego etapu (tekst; zostaje także po usunięciu etapu) albo `null`.",
+            "oneOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "stateReasonCode": {
             "description": "Tylko `checksum_mismatch` (stan `failed`); w każdym innym przypadku `null`.",
             "oneOf": [
@@ -4171,6 +4204,8 @@
           "kindName",
           "title",
           "description",
+          "procedureStageId",
+          "procedureStageName",
           "versionNumber",
           "confidentiality",
           "confidentialityRaised",
@@ -4712,6 +4747,31 @@
               }
             ]
           },
+          "procedureStageId": {
+            "description": "Etap zlecenia, do którego przypisano medium (EVM-048), albo `null` („Bez etapu”).",
+            "oneOf": [
+              {
+                "format": "uuid",
+                "maxLength": 36,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "procedureStageName": {
+            "description": "Nazwa przypisanego etapu (tekst) albo `null`. Nazwa etapu usuniętego po przypisaniu zostaje (jak w dzienniku zlecenia) — panel pokazuje ją jako tekst, bez akcji na etapie.",
+            "oneOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "processingFailed": {
             "description": "Występuje (i jest `true`) WYŁĄCZNIE dla pliku w stanie `failed` z przyczyną `processing_error` (EVM-068 AC4): plik przeszedł skan, ale nie udało się przygotować miniatury i podglądu po kolejnych próbach — panel pokazuje „Nie udało się przygotować podglądu. Spróbujemy ponownie.” Oryginał pozostaje (pobranie: EVM-045). W każdym innym przypadku pola nie ma.",
             "type": "boolean"
@@ -4760,6 +4820,11 @@
               }
             ]
           },
+          "version": {
+            "description": "Wersja zasobu do `If-Match` (`ETag` `\"<version>\"`); rośnie o 1 przy każdej zmianie metadanych (kategoria, opis, etap).",
+            "minimum": 1,
+            "type": "integer"
+          },
           "workOrderId": {
             "format": "uuid",
             "maxLength": 36,
@@ -4772,6 +4837,9 @@
           "mediaType",
           "category",
           "description",
+          "procedureStageId",
+          "procedureStageName",
+          "version",
           "origin",
           "capturedAt",
           "createdAt",
@@ -4837,6 +4905,12 @@
             "format": "uuid",
             "maxLength": 36,
             "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "procedureStageId": {
+            "description": "Etap zlecenia z URL (EVM-048 AC1; opcjonalny). Etap innego zlecenia, usunięty albo nieistniejący to jedna odpowiedź `400 validation_failed` (`/items/N/procedureStageId`); cała partia jest wtedy odrzucona.",
+            "format": "uuid",
+            "maxLength": 36,
             "type": "string"
           },
           "sha256": {
@@ -6760,19 +6834,6 @@
         "required": [
           "items",
           "nextCursor"
-        ],
-        "type": "object"
-      },
-      "RaiseDocumentConfidentialityRequest": {
-        "additionalProperties": false,
-        "description": "„Podnieś klasę” (merge-patch): jedyne pole, które można zmienić. Klasa musi być ściśle wyższa od efektywnej, inaczej `400 validation_failed` (`/confidentialityOverride`, `not_higher`). Każde inne pole (`title`, `kindCode`, `versionNumber` …) - `400 read_only_field`.",
-        "properties": {
-          "confidentialityOverride": {
-            "$ref": "#/components/schemas/DocumentConfidentialityOverride"
-          }
-        },
-        "required": [
-          "confidentialityOverride"
         ],
         "type": "object"
       },
@@ -10050,6 +10111,85 @@
         "required": [
           "displayName"
         ],
+        "type": "object"
+      },
+      "UpdateDocumentRequest": {
+        "additionalProperties": false,
+        "description": "Zmiana dokumentu (merge-patch; EVM-047 AC4, AC7; EVM-048 AC3, AC4, AC6, AC7) - co najmniej jedno pole (pusta treść - `400 validation_failed`): `title` (1 ... 200 znaków, zwykły tekst; pusty po przycięciu - `400 required`), `description` (do 2000 znaków albo `null`; pusty po przycięciu równa się `null`), `procedureStageId` (etap TEGO zlecenia albo `null`; etap innego zlecenia, usunięty i nieistniejący - jedna odpowiedź `400 validation_failed`) i `confidentialityOverride` (tylko PODNIESIENIE klasy: ściśle wyższa od efektywnej, inaczej `400 validation_failed`, `/confidentialityOverride`, `not_higher`; nigdy poniżej klasy rodzaju). Rodzaj, zlecenie i plik nie zmieniają się: każde inne pole (`kindCode`, `workOrderId`, `fileState`, `version` ...) - `400 read_only_field`, pole spoza schematu - `400 unknown_field`.",
+        "minProperties": 1,
+        "properties": {
+          "confidentialityOverride": {
+            "$ref": "#/components/schemas/DocumentConfidentialityOverride"
+          },
+          "description": {
+            "description": "Opis dokumentu (do 2000 znaków, zwykły tekst) albo `null`, by go usunąć.",
+            "oneOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "procedureStageId": {
+            "description": "Etap tego zlecenia albo `null`, by usunąć przypisanie.",
+            "oneOf": [
+              {
+                "format": "uuid",
+                "maxLength": 36,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": {
+            "description": "Tytuł (zwykły tekst, 1 ... 200 znaków).",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateMediaAssetRequest": {
+        "additionalProperties": false,
+        "description": "Zmiana metadanych medium (merge-patch; EVM-048 AC2, AC4, AC6, AC7): `category`, `description` i/lub `procedureStageId` - co najmniej jedno pole (pusta treść - `400 validation_failed`). Pole nieobecne zostaje bez zmian; `null` czyści opis albo przypisanie do etapu. Opis to zwykły tekst (NFC, przycięty, nowe linie dozwolone, bez znaków sterujących; pusty po przycięciu równa się `null`). Etap musi być etapem TEGO zlecenia - etap innego zlecenia, usunięty i nieistniejący dają jedną odpowiedź `400 validation_failed` (`/procedureStageId`). Pole serwera (`mediaType`, `fileState`, `workOrderId`, `version`, `origin`, `capturedAt`, `createdAt` ...) - `400 read_only_field`, pole spoza schematu - `400 unknown_field`.",
+        "minProperties": 1,
+        "properties": {
+          "category": {
+            "$ref": "#/components/schemas/MediaCategory"
+          },
+          "description": {
+            "description": "Opis medium (1 ... 1000 znaków, zwykły tekst) albo `null`, by go usunąć.",
+            "oneOf": [
+              {
+                "maxLength": 1000,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "procedureStageId": {
+            "description": "Etap tego zlecenia albo `null`, by usunąć przypisanie.",
+            "oneOf": [
+              {
+                "format": "uuid",
+                "maxLength": 36,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
         "type": "object"
       },
       "UploadPart": {
@@ -17106,8 +17246,8 @@
     },
     "/api/v1/work-orders/{workOrderId}/documents/{documentId}": {
       "patch": {
-        "description": "Podniesienie klasy dokumentu (EVM-047 AC4, AC7; SR-AUTHZ-07, SR-LOG-03; AB-20). Role Administrator i Edytor (Tylko odczyt - `403` przed treścią), kanał `web`, z audytem (`document.confidentiality_raised` - aktor, identyfikator, `fromCode` i `toCode`, `traceId`; bez tytułu). Wymaga `X-CSRF-Token` i `If-Match` (silny ETag `\"<version>\"`): brak - `428`; zniekształcony - `400`; nieaktualna wersja - `412 version_conflict`. Jedyne pole to `confidentialityOverride` (ściśle wyższe od klasy efektywnej, inaczej `400 validation_failed`); każde inne - `400 read_only_field`. Rodzaj i zlecenie dokumentu nie zmieniają się. Dokument innego zlecenia niż w ścieżce - `404` (jak nieistniejący).",
-        "operationId": "raiseDocumentConfidentiality",
+        "description": "Edycja dokumentu (EVM-047 AC4, AC7 - podniesienie klasy; EVM-048 AC3, AC4, AC6, AC7 - tytuł, opis, etap; SR-AUTHZ-02, SR-AUTHZ-04, SR-AUTHZ-07, SR-INPUT-02, SR-INPUT-05, SR-LOG-03; AB-20). Role Administrator i Edytor (Tylko odczyt - `403` przed `If-Match` i treścią), kanał `web` (token mobilny - `403 forbidden`), z audytem: `document.confidentiality_raised` (aktor, identyfikator, `fromCode` i `toCode`, `traceId`), gdy zmienia się klasa, i `document.metadata_updated` (aktor, identyfikator, `traceId`), gdy zmienia się tytuł, opis albo etap - NIGDY ich wartości. Jedno żądanie podnosi `version` o 1. Wymaga `X-CSRF-Token` i `If-Match` (silny ETag `\"<version>\"`): brak - `428`; zniekształcony - `400`; nieaktualna wersja - `412 version_conflict`. Pola: `title`, `description`, `procedureStageId` (etap TEGO zlecenia - inny, usunięty albo nieistniejący: `400 validation_failed`, `/procedureStageId`) i `confidentialityOverride` (ściśle wyższe od klasy efektywnej, inaczej `400 validation_failed`; nigdy poniżej klasy rodzaju); każde inne - `400 read_only_field`. Rodzaj i zlecenie dokumentu nie zmieniają się. Dokument innego zlecenia niż w ścieżce oraz medium o tym identyfikatorze - `404`. Zlecenie rozliczone albo anulowane nadal przyjmuje zmianę (PO-8). Żądanie bez realnej zmiany - `200` bez zmiany wersji i bez audytu.",
+        "operationId": "updateDocument",
         "parameters": [
           {
             "$ref": "#/components/parameters/WorkOrderIdParameter"
@@ -17123,7 +17263,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/RaiseDocumentConfidentialityRequest"
+                "$ref": "#/components/schemas/UpdateDocumentRequest"
               }
             }
           },
@@ -17138,7 +17278,7 @@
                 }
               }
             },
-            "description": "Dokument po podniesieniu klasy.",
+            "description": "Dokument po zmianie.",
             "headers": {
               "ETag": {
                 "description": "Nowa wersja zasobu (`\"<version>\"`).",
@@ -17177,7 +17317,7 @@
             "$ref": "#/components/responses/RateLimited"
           }
         },
-        "summary": "Podniesienie klasy poufności dokumentu („Podnieś klasę”)",
+        "summary": "Zmiana tytułu, opisu, etapu i klasy poufności dokumentu",
         "tags": [
           "media"
         ],
@@ -17794,6 +17934,95 @@
           }
         },
         "summary": "Dodanie partii medium do zlecenia („Wyślij N plików”)",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "audit": true,
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor"
+          ]
+        }
+      }
+    },
+    "/api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}": {
+      "patch": {
+        "description": "Edycja metadanych medium (EVM-048 AC2, AC4, AC6, AC7, AC8; SR-AUTHZ-01, SR-AUTHZ-02, SR-AUTHZ-04, SR-AUTHZ-05, SR-INPUT-01, SR-INPUT-02, SR-INPUT-05, SR-LOG-03, SR-API-02). Role Administrator i Edytor (Tylko odczyt - `403 forbidden` przed `If-Match` i treścią; niezalogowany - `401`; token mobilny - `403 forbidden`), kanał `web`, z audytem (`media_asset.metadata_updated` - aktor, identyfikator medium, `traceId`; NIGDY opis ani nazwa etapu). Wymaga `X-CSRF-Token` i `If-Match` (silny ETag `\"<version>\"`): brak - `428`; zniekształcony - `400`; nieaktualna wersja - `412 version_conflict` (dane bez zmian). Kolejność: ścieżka (`400`) -> zlecenie przez politykę odczytu (`404`) -> `If-Match` -> medium TEGO zlecenia pod blokadą wiersza (`404`: medium innego zlecenia, nieistniejące i dokument o tym identyfikatorze to jedna odpowiedź) -> treść (`400`; `read_only_field`, `unknown_field`) -> wersja (`412`) -> etap (`400 validation_failed`, `/procedureStageId`: etap innego zlecenia, usunięty i nieistniejący to jedna odpowiedź) -> zapis (`version + 1`) i audyt w jednej transakcji. Zlecenie rozliczone albo anulowane nadal przyjmuje zmianę (PO-8). Żądanie bez realnej zmiany - `200` bez zmiany wersji i bez audytu. Odpowiedź ma tę samą postać co element listy (przyczyna kwarantanny - tylko Administrator).",
+        "operationId": "updateMediaAsset",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/MediaAssetIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatchHeader-2"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMediaAssetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaAsset"
+                }
+              }
+            },
+            "description": "Medium po zmianie metadanych.",
+            "headers": {
+              "ETag": {
+                "description": "Aktualna wersja zasobu (`\"<version>\"`).",
+                "schema": {
+                  "maxLength": 32,
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "412": {
+            "$ref": "#/components/responses/PreconditionFailed"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "428": {
+            "$ref": "#/components/responses/PreconditionRequired"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "summary": "Zmiana kategorii, opisu i etapu medium",
         "tags": [
           "media"
         ],

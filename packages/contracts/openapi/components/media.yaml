@@ -32,6 +32,9 @@ MediaAsset:
     - mediaType
     - category
     - description
+    - procedureStageId
+    - procedureStageName
+    - version
     - origin
     - capturedAt
     - createdAt
@@ -65,6 +68,25 @@ MediaAsset:
         - type: string
           maxLength: 1000
         - type: 'null'
+    procedureStageId:
+      description: Etap zlecenia, do którego przypisano medium (EVM-048), albo `null` („Bez etapu”).
+      oneOf:
+        - type: string
+          format: uuid
+          maxLength: 36
+        - type: 'null'
+    procedureStageName:
+      description: >-
+        Nazwa przypisanego etapu (tekst) albo `null`. Nazwa etapu usuniętego po przypisaniu zostaje (jak w dzienniku zlecenia) — panel pokazuje
+        ją jako tekst, bez akcji na etapie.
+      oneOf:
+        - type: string
+          maxLength: 200
+        - type: 'null'
+    version:
+      type: integer
+      description: Wersja zasobu do `If-Match` (`ETag` `"<version>"`); rośnie o 1 przy każdej zmianie metadanych (kategoria, opis, etap).
+      minimum: 1
     origin:
       type: string
       enum: [web, mobile]
@@ -204,6 +226,13 @@ MediaAssetCreateItem:
       type: string
       description: Opis (do 1000 znaków, zwykły tekst); pominięty = brak.
       maxLength: 1000
+    procedureStageId:
+      type: string
+      description: >-
+        Etap zlecenia z URL (EVM-048 AC1; opcjonalny). Etap innego zlecenia, usunięty albo nieistniejący to jedna odpowiedź `400 validation_failed`
+        (`/items/N/procedureStageId`); cała partia jest wtedy odrzucona.
+      format: uuid
+      maxLength: 36
     fileName:
       type: string
       description: Nazwa pliku z urządzenia — serwer zapisuje oczyszczoną (nigdy w kluczu, logach ani audycie).
@@ -223,6 +252,34 @@ MediaAssetCreateItem:
       description: SHA-256 pliku (małe litery szesnastkowo), liczony w przeglądarce; niezgodny z zawartością to `checksum_mismatch`.
       pattern: '^[a-f0-9]{64}$'
       maxLength: 64
+UpdateMediaAssetRequest:
+  type: object
+  description: >-
+    Zmiana metadanych medium (merge-patch; EVM-048 AC2, AC4, AC6, AC7): `category`, `description` i/lub `procedureStageId` - co najmniej jedno pole
+    (pusta treść - `400 validation_failed`). Pole nieobecne zostaje bez zmian; `null` czyści opis albo przypisanie do etapu. Opis to zwykły
+    tekst (NFC, przycięty, nowe linie dozwolone, bez znaków sterujących; pusty po przycięciu równa się `null`). Etap musi być etapem
+    TEGO zlecenia - etap innego zlecenia, usunięty i nieistniejący dają jedną odpowiedź `400 validation_failed` (`/procedureStageId`).
+    Pole serwera (`mediaType`, `fileState`, `workOrderId`, `version`, `origin`, `capturedAt`, `createdAt` ...) - `400 read_only_field`, pole spoza
+    schematu - `400 unknown_field`.
+  minProperties: 1
+  additionalProperties: false
+  properties:
+    category:
+      $ref: '#/MediaCategory'
+    description:
+      description: Opis medium (1 ... 1000 znaków, zwykły tekst) albo `null`, by go usunąć.
+      oneOf:
+        - type: string
+          minLength: 1
+          maxLength: 1000
+        - type: 'null'
+    procedureStageId:
+      description: Etap tego zlecenia albo `null`, by usunąć przypisanie.
+      oneOf:
+        - type: string
+          format: uuid
+          maxLength: 36
+        - type: 'null'
 CreateMediaAssetsRequest:
   type: object
   description: Partia mediów jednego zlecenia (najwyżej 50). Serwer tworzy po jednym medium i pliku w stanie `pending_upload` w jednej transakcji.

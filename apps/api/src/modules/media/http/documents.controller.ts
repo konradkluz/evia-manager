@@ -1,5 +1,5 @@
 /**
- * HTTP surface of the documents of an order (EVM-047): the list, the creation, the raise of the class, the six operations of the upload session of the
+ * HTTP surface of the documents of an order (EVM-047): the list, the creation, the change (the class of confidentiality, the title, the description, the stage), the six operations of the upload session of the
  * file and the signed address of the download. The handlers contain no authorization - the global guard decides before they run (operation in the
  * manifest, CSRF, channel, role); here only the call and the headers of the answer. The answers are never cached (the global `Cache-Control: no-store`).
  */
@@ -24,7 +24,7 @@ import { CreateUploadSessionService } from '../application/create-upload-session
 import { DocumentDownloadUrlService } from '../application/document-download-url.service.ts';
 import { FinishUploadService } from '../application/finish-upload.service.ts';
 import { ListDocumentsService } from '../application/list-documents.service.ts';
-import { RaiseDocumentConfidentialityService } from '../application/raise-document-confidentiality.service.ts';
+import { UpdateDocumentService } from '../application/update-document.service.ts';
 import { UploadPartsService } from '../application/upload-parts.service.ts';
 
 function requirePrincipal(request: Request): Principal {
@@ -40,7 +40,7 @@ const SESSION = `${BASE}/:documentId/upload-sessions/:sessionId`;
 export class DocumentsController {
   readonly #lists: ListDocumentsService;
   readonly #creations: CreateDocumentService;
-  readonly #raises: RaiseDocumentConfidentialityService;
+  readonly #updates: UpdateDocumentService;
   readonly #sessions: CreateUploadSessionService;
   readonly #parts: UploadPartsService;
   readonly #finish: FinishUploadService;
@@ -49,7 +49,7 @@ export class DocumentsController {
   constructor(
     @Inject(ListDocumentsService) lists: ListDocumentsService,
     @Inject(CreateDocumentService) creations: CreateDocumentService,
-    @Inject(RaiseDocumentConfidentialityService) raises: RaiseDocumentConfidentialityService,
+    @Inject(UpdateDocumentService) updates: UpdateDocumentService,
     @Inject(CreateUploadSessionService) sessions: CreateUploadSessionService,
     @Inject(UploadPartsService) parts: UploadPartsService,
     @Inject(FinishUploadService) finish: FinishUploadService,
@@ -57,7 +57,7 @@ export class DocumentsController {
   ) {
     this.#lists = lists;
     this.#creations = creations;
-    this.#raises = raises;
+    this.#updates = updates;
     this.#sessions = sessions;
     this.#parts = parts;
     this.#finish = finish;
@@ -93,15 +93,15 @@ export class DocumentsController {
   }
 
   @Patch(`${BASE}/:documentId`)
-  @OperationId('raiseDocumentConfidentiality')
-  async raiseDocumentConfidentiality(
+  @OperationId('updateDocument')
+  async updateDocument(
     @Param() params: unknown,
     @Body() body: unknown,
     @Headers('if-match') ifMatch: string | undefined,
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ): Promise<Document> {
-    const { document } = await this.#raises.raise(requirePrincipal(request), params, body, ifMatch, webEventContext(request, response));
+    const { document } = await this.#updates.update(requirePrincipal(request), params, body, ifMatch, webEventContext(request, response));
     response.set('ETag', entityTag(document.version));
     return document;
   }

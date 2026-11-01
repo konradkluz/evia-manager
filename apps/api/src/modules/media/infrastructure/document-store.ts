@@ -25,6 +25,7 @@ export interface NewDocument {
   readonly title: string;
   readonly description: string | null;
   readonly workOrderId: string;
+  readonly procedureStageId?: string | null;
   readonly confidentialityOverride: 'building_security' | 'identity_data' | null;
   readonly createdBy: string;
 }
@@ -41,7 +42,7 @@ export async function insertDocument(db: MediaDb, document: NewDocument, now: Da
       work_order_id: document.workOrderId,
       customer_id: null,
       site_id: null,
-      procedure_stage_id: null,
+      procedure_stage_id: document.procedureStageId ?? null,
       confidentiality_override: document.confidentialityOverride,
       created_at: now,
       created_by: document.createdBy,
@@ -286,18 +287,46 @@ export async function countDocuments(db: MediaDb, workOrderId: string): Promise<
   return Number(row.count);
 }
 
-/** Raises the override under the lock of the caller; the version moves by one. @returns the new version, or `undefined` when the version differs */
-export async function raiseOverride(
+/** The document of THIS order (not deleted), row-locked: another order's document, a medium with that id and a missing one are the same absence. */
+export async function lockDocumentOfOrder(db: MediaDb, workOrderId: string, documentId: string): Promise<DocumentRow | undefined> {
+  return db
+    .selectFrom('media.documents')
+    .where('id', '=', documentId)
+    .where('work_order_id', '=', workOrderId)
+    .where('deleted_at', 'is', null)
+    .selectAll()
+    .forNoKeyUpdate()
+    .executeTakeFirst();
+}
+
+/** What a change of a document sets; a field that is absent stays as it is (`null` clears the description and the stage). */
+export interface DocumentChange {
+  readonly title?: string;
+  readonly description?: string | null;
+  readonly procedureStageId?: string | null;
+  readonly confidentialityOverride?: 'building_security' | 'identity_data';
+}
+
+/** Applies a change under the lock of the caller; the version moves by one. @returns the new version, or `undefined` when the version differs */
+export async function updateDocument(
   db: MediaDb,
   documentId: string,
   expectedVersion: number,
-  override: 'building_security' | 'identity_data',
+  change: DocumentChange,
   userId: string,
   now: Date,
 ): Promise<number | undefined> {
   const row = await db
     .updateTable('media.documents')
-    .set({ confidentiality_override: override, updated_at: now, updated_by: userId, version: sql<number>`version + 1` })
+    .set({
+      ...(change.title === undefined ? {} : { title: change.title }),
+      ...(change.description === undefined ? {} : { description: change.description }),
+      ...(change.procedureStageId === undefined ? {} : { procedure_stage_id: change.procedureStageId }),
+      ...(change.confidentialityOverride === undefined ? {} : { confidentiality_override: change.confidentialityOverride }),
+      updated_at: now,
+      updated_by: userId,
+      version: sql<number>`version + 1`,
+    })
     .where('id', '=', documentId)
     .where('version', '=', expectedVersion)
     .returning('version')

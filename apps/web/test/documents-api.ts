@@ -21,6 +21,8 @@ export function doc(n: number, extra: Partial<OrderDocument> = {}): OrderDocumen
     kindName: 'Warunki przyłączenia',
     title: `Dokument ${String(n)}`,
     description: null,
+    procedureStageId: null,
+    procedureStageName: null,
     versionNumber: 1,
     confidentiality: 'standard',
     confidentialityRaised: false,

@@ -397,6 +397,67 @@ uploadSessionAbort:
         $ref: ../components/responses.yaml#/RateLimited
       '503':
         $ref: ../components/media-responses.yaml#/MediaStorageUnavailable
+mediaAssetById:
+  patch:
+    operationId: updateMediaAsset
+    tags: [media]
+    summary: Zmiana kategorii, opisu i etapu medium
+    description: >-
+      Edycja metadanych medium (EVM-048 AC2, AC4, AC6, AC7, AC8; SR-AUTHZ-01, SR-AUTHZ-02, SR-AUTHZ-04, SR-AUTHZ-05, SR-INPUT-01, SR-INPUT-02,
+      SR-INPUT-05, SR-LOG-03, SR-API-02). Role Administrator i Edytor (Tylko odczyt - `403 forbidden` przed `If-Match` i treścią; niezalogowany - `401`;
+      token mobilny - `403 forbidden`), kanał `web`, z audytem (`media_asset.metadata_updated` - aktor, identyfikator medium, `traceId`; NIGDY
+      opis ani nazwa etapu). Wymaga `X-CSRF-Token` i `If-Match` (silny ETag `"<version>"`): brak - `428`; zniekształcony - `400`; nieaktualna
+      wersja - `412 version_conflict` (dane bez zmian). Kolejność: ścieżka (`400`) -> zlecenie przez politykę odczytu (`404`) -> `If-Match` ->
+      medium TEGO zlecenia pod blokadą wiersza (`404`: medium innego zlecenia, nieistniejące i dokument o tym identyfikatorze to jedna
+      odpowiedź) -> treść (`400`; `read_only_field`, `unknown_field`) -> wersja (`412`) -> etap (`400 validation_failed`, `/procedureStageId`: etap
+      innego zlecenia, usunięty i nieistniejący to jedna odpowiedź) -> zapis (`version + 1`) i audyt w jednej transakcji. Zlecenie rozliczone albo
+      anulowane nadal przyjmuje zmianę (PO-8). Żądanie bez realnej zmiany - `200` bez zmiany wersji i bez audytu. Odpowiedź ma tę samą postać co
+      element listy (przyczyna kwarantanny - tylko Administrator).
+    x-evia-authz:
+      roles: [administrator, editor]
+      channels: [web]
+      audit: true
+    parameters:
+      - $ref: ./work-orders.yaml#/WorkOrderIdParameter
+      - $ref: '#/MediaAssetIdParameter'
+      - $ref: ./documents.yaml#/IfMatchHeader
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/media.yaml#/UpdateMediaAssetRequest
+    responses:
+      '200':
+        description: Medium po zmianie metadanych.
+        headers:
+          ETag:
+            description: Aktualna wersja zasobu (`"<version>"`).
+            schema:
+              type: string
+              maxLength: 32
+        content:
+          application/json:
+            schema:
+              $ref: ../components/media.yaml#/MediaAsset
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '412':
+        $ref: ../components/responses.yaml#/PreconditionFailed
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '428':
+        $ref: ../components/responses.yaml#/PreconditionRequired
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
 mediaAssetRescan:
   post:
     operationId: rescanMediaAsset

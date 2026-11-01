@@ -198,7 +198,9 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
       'abortUploadSession',
       // EVM-047: the creation of a document, the raise of its class and the six operations of the upload session of its file
       'createDocument',
-      'raiseDocumentConfidentiality',
+      // EVM-048: the change of the metadata of a medium and of a document (title, description, stage, class)
+      'updateMediaAsset',
+      'updateDocument',
       'createDocumentUploadSession',
       'listDocumentUploadParts',
       'getDocumentUploadPartUrl',

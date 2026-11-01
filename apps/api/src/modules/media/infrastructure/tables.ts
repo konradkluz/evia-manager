@@ -19,6 +19,10 @@ export interface MediaAssetsTable {
   created_at: Date;
   created_by: string;
   updated_at: Date;
+  /** Optimistic lock of `If-Match` (migration 0060). */
+  version: Generated<number>;
+  /** The last editor of the metadata (migration 0060); `null` = never edited. Not part of the API. */
+  updated_by: Generated<string | null>;
 }
 
 export interface StoredFilesTable {

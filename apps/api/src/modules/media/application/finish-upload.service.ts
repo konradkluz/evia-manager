@@ -31,6 +31,7 @@ import {
 import { CLOCK, DATABASE } from '../../../platform/tokens.ts';
 import { checkStoredParts } from '../domain/upload-plan.ts';
 import { DOCUMENT_KIND_DIRECTORY, type DocumentKindDirectory } from '../../catalog/index.ts';
+import { PROCEDURE_STAGE_DIRECTORY, type ProcedureStageDirectory } from '../../procedures/index.ts';
 import { findDocumentWithFile, type DocumentWithFile } from '../infrastructure/document-store.ts';
 import {
   findAssetWithFile,
@@ -41,6 +42,7 @@ import {
 } from '../infrastructure/media-store.ts';
 import { mediaTables } from '../infrastructure/tables.ts';
 import { requireStorage, toMediaAsset, viaStorage } from './media-support.ts';
+import { stageNames } from './stage-support.ts';
 import { parseOwnerPath, type OwnerKind, type OwnerPath } from './owner-path.ts';
 import { presentDocuments } from './document-support.ts';
 import { SessionAccess } from './session-access.ts';
@@ -48,6 +50,7 @@ import { SessionAccess } from './session-access.ts';
 @Injectable()
 export class FinishUploadService {
   readonly #db: Kysely<Database>;
+  readonly #stages: ProcedureStageDirectory;
   readonly #clock: Clock;
   readonly #access: SessionAccess;
   readonly #storage: ObjectStorage | null;
@@ -59,7 +62,9 @@ export class FinishUploadService {
     @Inject(SessionAccess) access: SessionAccess,
     @Inject(OBJECT_STORAGE) storage: ObjectStorage | null,
     @Inject(DOCUMENT_KIND_DIRECTORY) kinds: DocumentKindDirectory,
+    @Inject(PROCEDURE_STAGE_DIRECTORY) stages: ProcedureStageDirectory,
   ) {
+    this.#stages = stages;
     this.#db = db;
     this.#clock = clock;
     this.#access = access;
@@ -70,7 +75,7 @@ export class FinishUploadService {
   /** `complete` of a session of a MEDIUM: the answer is the medium (read again: the chain was read and locked in this very transaction, so the row is there). */
   completeMedia(principal: Principal, rawParams: unknown): Promise<MediaAsset> {
     return this.#complete(principal, rawParams, 'media_asset', async (tx, _chain, ids) =>
-      toMediaAsset((await findAssetWithFile(mediaTables(tx), ids.workOrderId, ids.owner.id)) as AssetWithFile),
+      this.#presentMedia(tx, (await findAssetWithFile(mediaTables(tx), ids.workOrderId, ids.owner.id)) as AssetWithFile),
     );
   }
 
@@ -78,8 +83,13 @@ export class FinishUploadService {
   completeDocument(principal: Principal, rawParams: unknown): Promise<Document> {
     return this.#complete(principal, rawParams, 'document', async (tx, _chain, ids) => {
       const found = (await findDocumentWithFile(mediaTables(tx), ids.workOrderId, ids.owner.id)) as DocumentWithFile;
-      return (await presentDocuments(tx, this.#kinds, principal.role, [found]))[0] as Document;
+      return (await presentDocuments(tx, this.#kinds, this.#stages, principal.role, [found]))[0] as Document;
     });
+  }
+
+  async #presentMedia(tx: Kysely<Database>, row: AssetWithFile): Promise<MediaAsset> {
+    const names = await stageNames(tx, this.#stages, [{ workOrderId: row.asset.work_order_id, stageId: row.asset.procedure_stage_id }]);
+    return toMediaAsset(row, { unfinished: false, stageNames: names });
   }
 
   async #complete<T>(
