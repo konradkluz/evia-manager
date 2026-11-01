@@ -43,6 +43,7 @@ import {
   transitionFile,
 } from '../infrastructure/media-store.ts';
 import { mediaTables } from '../infrastructure/tables.ts';
+import { DocumentScopes } from './document-scope.ts';
 import { creatorOf, idempotencyKeyOf, requireStorage, toDocumentUploadSession, toUploadSession, viaStorage } from './media-support.ts';
 import { parseOwnerPath, type OwnerKind } from './owner-path.ts';
 
@@ -72,6 +73,7 @@ export class CreateUploadSessionService {
   readonly #idempotency: Idempotency;
   readonly #orders: WorkOrderDirectory;
   readonly #storage: ObjectStorage | null;
+  readonly #scopes: DocumentScopes;
 
   constructor(
     @Inject(DATABASE) db: Kysely<Database>,
@@ -79,7 +81,9 @@ export class CreateUploadSessionService {
     @Inject(IDEMPOTENCY) idempotency: Idempotency,
     @Inject(WORK_ORDER_DIRECTORY) orders: WorkOrderDirectory,
     @Inject(OBJECT_STORAGE) storage: ObjectStorage | null,
+    @Inject(DocumentScopes) scopes: DocumentScopes,
   ) {
+    this.#scopes = scopes;
     this.#db = db;
     this.#clock = clock;
     this.#idempotency = idempotency;
@@ -101,7 +105,8 @@ export class CreateUploadSessionService {
       const order = await this.#orders.findVisible(tx, principal, workOrderId);
       if (order === undefined) throw new ProblemException('not_found');
       const tables = mediaTables(tx);
-      const found = await findOwnerWithFile(tables, order.id, owner, true);
+      const documentScope = owner.kind === 'document' ? await this.#scopes.ofOrder(tx, principal, order) : undefined;
+      const found = await findOwnerWithFile(tables, order.id, owner, true, documentScope);
       // the creator of the medium or document, or an Administrator (RR-NOC-T1-8): a colleague cannot open a session on what he did not add
       if (found === undefined || (creatorOfOwner(found) !== principal.userId && principal.role !== 'administrator')) {
         throw new ProblemException('not_found');
@@ -176,7 +181,13 @@ export class CreateUploadSessionService {
       if (outcome.replayed) status = outcome.result.status === 200 ? 200 : 201;
       // read again with the order, the medium and the creator in the condition — a repeat never names the session of another
       const chain =
-        resourceId === null ? undefined : await findSessionChain(tables, { workOrderId: order.id, owner, sessionId: resourceId }, creator);
+        resourceId === null
+          ? undefined
+          : await findSessionChain(
+              tables,
+              { workOrderId: order.id, owner, sessionId: resourceId, ...(documentScope === undefined ? {} : { documentScope }) },
+              creator,
+            );
       if (chain === undefined) throw new ProblemException('not_found');
       // a repeat of a creation whose session is gone must not answer 201 with a session nobody can use: the client opens a new one
       if (outcome.replayed && sessionIsGone(chain.session, now)) throw new ProblemException('invalid_state_transition');

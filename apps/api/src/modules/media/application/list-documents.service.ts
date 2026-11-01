@@ -25,11 +25,11 @@ import { mediaTables } from '../infrastructure/tables.ts';
 import { presentDocuments } from './document-support.ts';
 
 export const LIST_DOCUMENTS_OPERATION = 'listDocuments';
-const DEFAULT_LIMIT = 25;
+export const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 100;
 
 const pathSchema = strictObjects(zListDocumentsPath);
-const querySchema = z.strictObject({
+export const listQuerySchema = z.strictObject({
   limit: z
     .string()
     .regex(/^[0-9]{1,3}$/)
@@ -43,7 +43,7 @@ const querySchema = z.strictObject({
     .optional(),
 });
 
-const positionSchema = z.tuple([z.iso.datetime(), z.uuid()]);
+export const positionSchema = z.tuple([z.iso.datetime(), z.uuid()]);
 
 @Injectable()
 export class ListDocumentsService {
@@ -69,7 +69,7 @@ export class ListDocumentsService {
 
   async list(principal: Principal, rawParams: unknown, rawQuery: unknown): Promise<DocumentList> {
     const { workOrderId } = parseInput(pathSchema, rawParams) as { workOrderId: string };
-    const query = parseInput(querySchema, rawQuery);
+    const query = parseInput(listQuerySchema, rawQuery);
     const limit = query.limit ?? DEFAULT_LIMIT;
     // `canDownload` depends on the role, so the cursor is bound to it (a cursor of one role never opens a page of another)
     const scope = scopeOf([workOrderId, `role:${principal.role}`]);
@@ -81,7 +81,9 @@ export class ListDocumentsService {
         const order = await this.#orders.findVisible(tx, principal, workOrderId);
         if (order === undefined) throw new ProblemException('not_found');
         const tables = mediaTables(tx);
-        const rows = await listDocuments(tables, order.id, { limit, ...(position === undefined ? {} : { position }) });
+        // the list of an ORDER holds the documents of the order only; the sections of its site and its customer are read from their own lists (EVM-050 AC2)
+        const documents = { workOrderId: order.id };
+        const rows = await listDocuments(tables, documents, { limit, ...(position === undefined ? {} : { position }) });
         const shown = rows.slice(0, limit);
         const last = shown.at(-1);
         const nextCursor =
@@ -95,7 +97,7 @@ export class ListDocumentsService {
         return {
           items: await presentDocuments(tx, this.#kinds, this.#stages, principal.role, shown),
           nextCursor,
-          totalCount: await countDocuments(tables, order.id),
+          totalCount: await countDocuments(tables, documents),
         };
       },
       { isolationLevel: 'repeatable read' },

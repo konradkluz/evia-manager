@@ -88,6 +88,7 @@ describe('first migration (EVM-008 AC1; ADR-0003)', () => {
       '0057_media_video',
       '0059_documents',
       '0060_media_metadata',
+      '0061_document_anchors',
     ]);
     for (const migration of Object.values(MIGRATIONS)) expect(Object.keys(migration)).toEqual(['up']);
   });

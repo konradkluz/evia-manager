@@ -24,8 +24,14 @@ import { AdministratorDirectory, IdentityModule } from '../identity/index.ts';
 import { CatalogModule } from '../catalog/index.ts';
 import { ProceduresModule } from '../procedures/index.ts';
 import { WorkOrdersModule } from '../work-orders/index.ts';
+import { SitesModule } from '../sites/index.ts';
+import { CustomersModule } from '../customers/index.ts';
 import { CreateDocumentService } from './application/create-document.service.ts';
 import { DocumentDownloadUrlService } from './application/document-download-url.service.ts';
+import { DocumentScopes } from './application/document-scope.ts';
+import { ListAnchoredDocumentsService } from './application/list-anchored-documents.service.ts';
+import { AnchoredDocumentDownloadUrlService } from './application/anchored-document-download-url.service.ts';
+import { AnchoredDocumentsController } from './http/anchored-documents.controller.ts';
 import { ListDocumentsService } from './application/list-documents.service.ts';
 import { UpdateDocumentService } from './application/update-document.service.ts';
 import { UpdateMediaAssetService } from './application/update-media-asset.service.ts';
@@ -47,8 +53,8 @@ import { DocumentsController } from './http/documents.controller.ts';
 import { MediaController } from './http/media.controller.ts';
 
 @Module({
-  imports: [WorkOrdersModule, IdentityModule, CatalogModule, ProceduresModule],
-  controllers: [MediaController, DocumentsController],
+  imports: [WorkOrdersModule, IdentityModule, CatalogModule, ProceduresModule, SitesModule, CustomersModule],
+  controllers: [MediaController, DocumentsController, AnchoredDocumentsController],
   providers: [
     CreateMediaAssetsService,
     ListMediaAssetsService,
@@ -58,6 +64,9 @@ import { MediaController } from './http/media.controller.ts';
     SessionAccess,
     RescanMediaService,
     MediaDownloadUrlService,
+    DocumentScopes,
+    ListAnchoredDocumentsService,
+    AnchoredDocumentDownloadUrlService,
     CreateDocumentService,
     ListDocumentsService,
     UpdateDocumentService,

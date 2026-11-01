@@ -33,12 +33,20 @@ import { DOCUMENT_KIND_DIRECTORY, type DocumentKindDirectory, type DocumentKindF
 import { WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders/index.ts';
 import { PROCEDURE_STAGE_DIRECTORY, type ProcedureStageDirectory } from '../../procedures/index.ts';
 import { effectiveClass, resolveNewDocumentClass, type ConfidentialityOverride } from '../domain/confidentiality.ts';
+import { checkAnchor, type DocumentAnchor } from '../domain/document-anchor.ts';
 import { checkDocumentDeclaration } from '../domain/document-rules.ts';
 import { documentObjectKeyFor } from '../domain/upload-plan.ts';
 import type { DocumentAddedEvent, MediaAuditEvent } from '../events.ts';
-import { findDocumentWithFile, insertDocument, insertDocumentFile, insertDocumentVersion } from '../infrastructure/document-store.ts';
+import {
+  findDocumentWithFile,
+  insertDocument,
+  insertDocumentFile,
+  insertDocumentVersion,
+  type DocumentScope,
+} from '../infrastructure/document-store.ts';
 import { newFileIds } from '../infrastructure/media-store.ts';
 import { mediaTables } from '../infrastructure/tables.ts';
+import { DocumentScopes } from './document-scope.ts';
 import { presentDocuments } from './document-support.ts';
 import { assertStageInOrder } from './stage-support.ts';
 import { idempotencyKeyOf, requireStorage } from './media-support.ts';
@@ -51,6 +59,8 @@ const bodySchema = strictObjects(zCreateDocumentBody);
 /** Fields of the server the client names in vain (`read_only_field` at the root; nested ones are unknown fields). */
 const SERVER_FIELDS: ReadonlySet<string> = new Set([
   'workOrderId',
+  'siteId',
+  'customerId',
   'kindName',
   'versionNumber',
   'fileState',
@@ -73,6 +83,7 @@ const hasForbidden = (value: string, allowBreaks: boolean): boolean =>
 
 interface Input {
   readonly id: string;
+  readonly anchor?: DocumentAnchor | undefined;
   readonly kindCode: string;
   readonly title: string;
   readonly description?: string | undefined;
@@ -89,6 +100,29 @@ interface Checked {
   readonly originalFilename: string;
 }
 
+interface AnchorColumns {
+  readonly workOrderId: string | null;
+  readonly siteId: string | null;
+  readonly customerId: string | null;
+}
+
+/** The ids of the anchor the document is stored with: the server takes them from the order of the PATH, the client names none (SR-AUTHZ-04). */
+const anchorColumns = (anchor: DocumentAnchor, scope: DocumentScope): AnchorColumns => ({
+  workOrderId: anchor === 'work_order' ? (scope.workOrderId as string) : null,
+  siteId: anchor === 'site' ? (scope.siteId as string) : null,
+  customerId: anchor === 'customer' ? (scope.customerId as string) : null,
+});
+
+/** The scope that holds ONLY the anchor of the document just written. */
+const onlyAnchor = (anchor: DocumentAnchor, scope: DocumentScope): DocumentScope => {
+  const columns = anchorColumns(anchor, scope);
+  return {
+    workOrderId: columns.workOrderId ?? undefined,
+    siteId: columns.siteId ?? undefined,
+    customerId: columns.customerId ?? undefined,
+  };
+};
+
 export interface CreatedDocument {
   readonly document: Document;
   readonly replayed: boolean;
@@ -104,6 +138,7 @@ export class CreateDocumentService {
   readonly #orders: WorkOrderDirectory;
   readonly #kinds: DocumentKindDirectory;
   readonly #storage: ObjectStorage | null;
+  readonly #scopes: DocumentScopes;
 
   constructor(
     @Inject(DATABASE) db: Kysely<Database>,
@@ -114,7 +149,9 @@ export class CreateDocumentService {
     @Inject(DOCUMENT_KIND_DIRECTORY) kinds: DocumentKindDirectory,
     @Inject(OBJECT_STORAGE) storage: ObjectStorage | null,
     @Inject(PROCEDURE_STAGE_DIRECTORY) stages: ProcedureStageDirectory,
+    @Inject(DocumentScopes) scopes: DocumentScopes,
   ) {
+    this.#scopes = scopes;
     this.#stages = stages;
     this.#db = db;
     this.#clock = clock;
@@ -141,19 +178,21 @@ export class CreateDocumentService {
       requireStorage(this.#storage);
       const key = idempotencyKeyOf(rawKey);
       const input = parseInput(bodySchema, rawBody, SERVER_FIELDS) as Input;
-      const checked = await this.#validate(tx, input);
+      const anchor = input.anchor ?? 'work_order';
+      const scope = await this.#scopes.ofOrder(tx, principal, order);
+      const checked = await this.#validate(tx, input, anchor, scope);
 
       const perform = async () => {
-        await this.#add(tx, principal, order.id, input, checked, request);
+        await this.#add(tx, principal, order.id, anchorColumns(anchor, scope), input, checked, request);
         return { value: undefined, result: { status: 201, code: 'created', resourceId: input.id } };
       };
       const { replayed } = await this.#idempotency.run(
         tx,
-        { userId: principal.userId, deviceId: null, key, scope: scopeOf(order.id), bodyHash: requestHash(input) },
+        { userId: principal.userId, deviceId: null, key, scope: scopeOf(order.id), bodyHash: requestHash({ ...input, anchor }) },
         perform,
       );
-      // read again with the order of the URL in the condition: a repeat never names a document of another order
-      const found = await findDocumentWithFile(mediaTables(tx), order.id, input.id);
+      // read again with the anchor of the URL in the condition: a repeat never names a document of another anchor (the key binds the anchor too)
+      const found = await findDocumentWithFile(mediaTables(tx), onlyAnchor(anchor, scope), input.id);
       if (found === undefined) throw new ProblemException('not_found');
       const [document] = await presentDocuments(tx, this.#kinds, this.#stages, principal.role, [found]);
       return { document: document as Document, replayed };
@@ -161,7 +200,7 @@ export class CreateDocumentService {
   }
 
   /** Everything the client may get wrong, as codes at pointers (never values): the texts, the kind, the class and the file. */
-  async #validate(tx: Kysely<Database>, input: Input): Promise<Checked> {
+  async #validate(tx: Kysely<Database>, input: Input, anchor: DocumentAnchor, scope: DocumentScope): Promise<Checked> {
     const errors: Array<{ pointer: string; code: string }> = [];
     const title = input.title.trim();
     if (title === '') errors.push({ pointer: '/title', code: 'required' });
@@ -184,6 +223,18 @@ export class CreateDocumentService {
     if (classification !== undefined && !classification.ok) {
       for (const issue of classification.issues) errors.push({ pointer: `/${issue.field}`, code: issue.code });
     }
+    if (kind !== undefined && classification !== undefined && classification.ok) {
+      const documentClass = effectiveClass(kind.confidentiality, classification.override);
+      errors.push(
+        ...checkAnchor({
+          anchor,
+          hasSite: scope.siteId !== undefined,
+          hasCustomer: scope.customerId !== undefined,
+          hasStage: input.procedureStageId !== undefined,
+          documentClass,
+        }),
+      );
+    }
     const declaration = checkDocumentDeclaration(input.file);
     if (!declaration.ok) for (const issue of declaration.issues) errors.push({ pointer: `/file/${issue.field}`, code: issue.code });
     if (errors.length > 0 || kind === undefined || classification === undefined || !classification.ok || !declaration.ok) {
@@ -201,6 +252,7 @@ export class CreateDocumentService {
     tx: Kysely<Database>,
     principal: Principal,
     workOrderId: string,
+    anchorIds: AnchorColumns,
     input: Input,
     checked: Checked,
     request: EventContext,
@@ -218,7 +270,7 @@ export class CreateDocumentService {
         kindCode: checked.kind.code,
         title: input.title.trim(),
         description: input.description ?? null,
-        workOrderId,
+        ...anchorIds,
         procedureStageId: input.procedureStageId ?? null,
         confidentialityOverride: checked.override,
         createdBy: principal.userId,

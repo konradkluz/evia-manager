@@ -34,8 +34,9 @@ import { WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders
 import { mayDownloadDocument, type ConfidentialityClass } from '../domain/confidentiality.ts';
 import { documentDownloadName, isDocumentOriginalReleasable, normalizeDocumentType } from '../domain/document-rules.ts';
 import type { MediaAuditEvent } from '../events.ts';
-import { findDocumentWithFile } from '../infrastructure/document-store.ts';
+import { findDocumentWithFile, type DocumentWithFile } from '../infrastructure/document-store.ts';
 import { mediaTables } from '../infrastructure/tables.ts';
+import { DocumentScopes } from './document-scope.ts';
 import { classOfDocument } from './document-support.ts';
 import { requireStorage, viaStorage } from './media-support.ts';
 import { ORIGINAL_CACHE_CONTROL, SIGNED_URL_ALERT_METRIC, SIGNED_URL_REJECTED_METRIC } from './media-download-url.service.ts';
@@ -65,6 +66,7 @@ export class DocumentDownloadUrlService {
   readonly #logger: Logger;
   readonly #alerts: Counter;
   readonly #rejections: Counter;
+  readonly #scopes: DocumentScopes;
 
   constructor(
     @Inject(DATABASE) db: Kysely<Database>,
@@ -75,7 +77,9 @@ export class DocumentDownloadUrlService {
     @Inject(SIGNED_URL_METERS) meters: SignedUrlMeters,
     @Inject(LOGGER) logger: Logger,
     @Inject(METRICS) metrics: MetricsRegistry,
+    @Inject(DocumentScopes) scopes: DocumentScopes,
   ) {
+    this.#scopes = scopes;
     this.#db = db;
     this.#orders = orders;
     this.#kinds = kinds;
@@ -87,13 +91,30 @@ export class DocumentDownloadUrlService {
     this.#rejections = metrics.counter(SIGNED_URL_REJECTED_METRIC, ['class']);
   }
 
-  async create(principal: Principal, rawParams: unknown, context: EventContext): Promise<DocumentDownloadUrl> {
+  /** The path of an ORDER: the documents of the order, of its site and of its customer (the site and the customer while visible; EVM-050 W2). */
+  create(principal: Principal, rawParams: unknown, context: EventContext): Promise<DocumentDownloadUrl> {
     const { workOrderId, documentId } = parseInput(pathSchema, rawParams) as { workOrderId: string; documentId: string };
+    return this.issue(principal, documentId, context, async (tx) => {
+      const order = await this.#orders.findVisible(tx, principal, workOrderId);
+      if (order === undefined) return undefined;
+      return findDocumentWithFile(mediaTables(tx), await this.#scopes.ofOrder(tx, principal, order), documentId);
+    });
+  }
+
+  /**
+   * The part every path shares (the order, the site, the customer): `find` resolves the anchor of the PATH and reads the document in ONE statement
+   * (`undefined` = `404`, the same for a missing anchor, a missing document and a document of another anchor); then the class, the state of the
+   * file, the ONE counter, the signature and the audit - in that order, so no answer tells more than the one before it allowed.
+   */
+  async issue(
+    principal: Principal,
+    documentId: string,
+    context: EventContext,
+    find: (tx: Kysely<Database>) => Promise<DocumentWithFile | undefined>,
+  ): Promise<DocumentDownloadUrl> {
     const request = { ...context, sessionId: principal.sessionId };
     const result = await runInTransaction(this.#db, async (tx): Promise<Outcome> => {
-      const order = await this.#orders.findVisible(tx, principal, workOrderId);
-      if (order === undefined) throw new ProblemException('not_found');
-      const found = await findDocumentWithFile(mediaTables(tx), order.id, documentId);
+      const found = await find(tx);
       if (found === undefined) throw new ProblemException('not_found');
       const kinds = await this.#kinds.findByCodes(tx, [found.document.kind_code]);
       const classCode = classOfDocument(found, kinds.get(found.document.kind_code));

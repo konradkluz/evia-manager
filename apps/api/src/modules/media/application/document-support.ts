@@ -8,6 +8,7 @@ import type { Kysely } from 'kysely';
 import type { Database } from '../../../platform/database/database.ts';
 import type { DocumentKindDirectory, DocumentKindForDocument } from '../../catalog/index.ts';
 import type { ProcedureStageDirectory } from '../../procedures/index.ts';
+import { anchorOf } from '../domain/document-anchor.ts';
 import { effectiveClass, isRaised, mayDownloadDocument, type ConfidentialityClass } from '../domain/confidentiality.ts';
 import type { DocumentWithFile } from '../infrastructure/document-store.ts';
 import { stageNames } from './stage-support.ts';
@@ -32,7 +33,10 @@ export function toDocument(
   const checksumMismatch = file.state === 'failed' && file.state_reason_code === 'checksum_mismatch';
   return {
     id: document.id,
-    workOrderId: document.work_order_id as string,
+    anchor: anchorOf(document),
+    workOrderId: document.work_order_id,
+    siteId: document.site_id,
+    customerId: document.customer_id,
     kindCode: document.kind_code,
     kindName: kind?.name ?? document.kind_code,
     title: document.title,

@@ -31,6 +31,7 @@ import { DOCUMENT_KIND_DIRECTORY, type DocumentKindDirectory } from '../../catal
 import { PROCEDURE_STAGE_DIRECTORY, type ProcedureStageDirectory } from '../../procedures/index.ts';
 import { WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders/index.ts';
 import { canRaiseTo, effectiveClass, type ConfidentialityOverride } from '../domain/confidentiality.ts';
+import { anchorOf, mayRaiseOnAnchor } from '../domain/document-anchor.ts';
 import {
   DOCUMENT_DESCRIPTION_MAX,
   isEmpty,
@@ -40,8 +41,9 @@ import {
   type FieldIssue,
 } from '../domain/metadata-patch.ts';
 import type { MediaAuditEvent } from '../events.ts';
-import { findDocumentWithFile, lockDocumentOfOrder, updateDocument, type DocumentChange } from '../infrastructure/document-store.ts';
+import { findDocumentWithFile, lockDocumentInScope, updateDocument, type DocumentChange } from '../infrastructure/document-store.ts';
 import { mediaTables } from '../infrastructure/tables.ts';
+import { DocumentScopes } from './document-scope.ts';
 import { kindClassOf, presentDocuments } from './document-support.ts';
 import { assertStageInOrder } from './stage-support.ts';
 
@@ -88,6 +90,7 @@ export class UpdateDocumentService {
   readonly #orders: WorkOrderDirectory;
   readonly #kinds: DocumentKindDirectory;
   readonly #stages: ProcedureStageDirectory;
+  readonly #scopes: DocumentScopes;
 
   constructor(
     @Inject(DATABASE) db: Kysely<Database>,
@@ -96,7 +99,9 @@ export class UpdateDocumentService {
     @Inject(WORK_ORDER_DIRECTORY) orders: WorkOrderDirectory,
     @Inject(DOCUMENT_KIND_DIRECTORY) kinds: DocumentKindDirectory,
     @Inject(PROCEDURE_STAGE_DIRECTORY) stages: ProcedureStageDirectory,
+    @Inject(DocumentScopes) scopes: DocumentScopes,
   ) {
+    this.#scopes = scopes;
     this.#db = db;
     this.#clock = clock;
     this.#events = events;
@@ -120,8 +125,10 @@ export class UpdateDocumentService {
       if (order === undefined) throw new ProblemException('not_found');
       const expectedVersion = parseIfMatch(ifMatch);
       const tables = mediaTables(tx);
-      if ((await lockDocumentOfOrder(tables, order.id, documentId)) === undefined) throw new ProblemException('not_found');
-      const found = await findDocumentWithFile(tables, order.id, documentId, true);
+      // the documents of the order, of its site and of its customer (the last two while visible; EVM-050 W2) - never a document of another order
+      const scope = await this.#scopes.ofOrder(tx, principal, order);
+      if ((await lockDocumentInScope(tables, scope, documentId)) === undefined) throw new ProblemException('not_found');
+      const found = await findDocumentWithFile(tables, scope, documentId, true);
       if (found === undefined) throw new ProblemException('not_found');
       const body = parseInput(bodySchema, rawBody, READ_ONLY_FIELDS) as Body;
       if (Object.keys(body).length === 0) {
@@ -140,6 +147,16 @@ export class UpdateDocumentService {
       const raiseTo = body.confidentialityOverride;
       if (raiseTo !== undefined && !canRaiseTo(kindClass, document.confidentiality_override, raiseTo)) {
         throw new ProblemException('validation_failed', { errors: [{ pointer: '/confidentialityOverride', code: 'not_higher' }] });
+      }
+      // a site document is shown in the orders of every customer of the site: the class only goes up, so it must never reach identity data (AB-19)
+      const anchor = anchorOf(document);
+      if (raiseTo !== undefined && !mayRaiseOnAnchor(anchor, raiseTo)) {
+        throw new ProblemException('validation_failed', {
+          errors: [{ pointer: '/confidentialityOverride', code: 'identity_data_not_on_site' }],
+        });
+      }
+      if (body.procedureStageId != null && anchor !== 'work_order') {
+        throw new ProblemException('validation_failed', { errors: [{ pointer: '/procedureStageId', code: 'requires_work_order_anchor' }] });
       }
       const metadata: Pick<DocumentChange, 'title' | 'description' | 'procedureStageId'> = realChange(
         { title: title.value, description: description.value, procedureStageId: body.procedureStageId },
@@ -183,7 +200,7 @@ export class UpdateDocumentService {
           await this.#events.publish(tx, updated, request);
         }
       }
-      const fresh = await findDocumentWithFile(tables, order.id, documentId);
+      const fresh = await findDocumentWithFile(tables, scope, documentId);
       if (fresh === undefined) throw new ProblemException('not_found');
       const [presented] = await presentDocuments(tx, this.#kinds, this.#stages, principal.role, [fresh]);
       return { document: presented as Document };

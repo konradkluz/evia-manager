@@ -3,7 +3,7 @@
  * statement (SR-AUTHZ-02, CWE-639): a document of another order is simply not found, and so is a medium (or a document) used through the other path.
  * Nothing here selects the checksum or the upload id; the object key only where the service must sign it.
  */
-import { sql, type Selectable } from 'kysely';
+import { sql, type ExpressionBuilder, type Selectable } from 'kysely';
 import type { DocumentsTable, DocumentVersionsTable, MediaDb, StoredFilesTable } from './tables.ts';
 import { QUARANTINE_RETENTION_DAYS } from '../domain/quarantine.ts';
 
@@ -19,12 +19,41 @@ export interface DocumentWithFile {
   readonly quarantineExpiresAt: Date | null;
 }
 
+/**
+ * Which documents a statement may reach: a document whose anchor is ANY of the named ones (EVM-050; SR-AUTHZ-02, SR-AUTHZ-08). The order of an order's
+ * own list is `{ workOrderId }`, the list of a site is `{ siteId }`, the list of a customer is `{ customerId }`; the operations on the path of an order
+ * (the change, the upload, the download) name all three of the order, because the document of a site or a customer is added in an order and its file is
+ * uploaded there. A key that is not named is never in the condition, so the media and the documents of the other orders of a site stay out of reach.
+ */
+export interface DocumentScope {
+  readonly workOrderId?: string | undefined;
+  readonly siteId?: string | undefined;
+  readonly customerId?: string | undefined;
+}
+
+type DocumentScopeBuilder = ExpressionBuilder<{ d: DocumentsTable }, 'd'>;
+
+/** The ONE predicate of a scope; an empty scope matches nothing (fail closed). */
+function inScope(scope: DocumentScope) {
+  return (eb: DocumentScopeBuilder) => {
+    const parts = [
+      ...(scope.workOrderId === undefined ? [] : [eb('d.work_order_id', '=', scope.workOrderId)]),
+      ...(scope.siteId === undefined ? [] : [eb('d.site_id', '=', scope.siteId)]),
+      ...(scope.customerId === undefined ? [] : [eb('d.customer_id', '=', scope.customerId)]),
+    ];
+    return parts.length === 0 ? sql<boolean>`false` : eb.or(parts);
+  };
+}
+
 export interface NewDocument {
   readonly id: string;
   readonly kindCode: string;
   readonly title: string;
   readonly description: string | null;
-  readonly workOrderId: string;
+  /** EXACTLY one of the three is set (the check `documents_one_anchor`). */
+  readonly workOrderId: string | null;
+  readonly siteId: string | null;
+  readonly customerId: string | null;
   readonly procedureStageId?: string | null;
   readonly confidentialityOverride: 'building_security' | 'identity_data' | null;
   readonly createdBy: string;
@@ -40,8 +69,8 @@ export async function insertDocument(db: MediaDb, document: NewDocument, now: Da
       title: document.title,
       description: document.description,
       work_order_id: document.workOrderId,
-      customer_id: null,
-      site_id: null,
+      customer_id: document.customerId,
+      site_id: document.siteId,
       procedure_stage_id: document.procedureStageId ?? null,
       confidentiality_override: document.confidentialityOverride,
       created_at: now,
@@ -226,23 +255,23 @@ function splitDocumentRow(row: JoinedDocumentRow): DocumentWithFile {
   };
 }
 
-function baseQuery(db: MediaDb, workOrderId: string) {
+function baseQuery(db: MediaDb, scope: DocumentScope) {
   return db
     .selectFrom('media.documents as d')
     .innerJoin('media.document_versions as v', 'v.document_id', 'd.id')
     .innerJoin('media.stored_files as f', 'f.document_version_id', 'v.id')
-    .where('d.work_order_id', '=', workOrderId)
+    .where(inScope(scope))
     .where('d.deleted_at', 'is', null);
 }
 
-/** The document of THIS order (not deleted) with its newest version and that version's file, row-locked when `lock`. */
+/** The document of THIS scope (not deleted) with its newest version and that version's file, row-locked when `lock`. */
 export async function findDocumentWithFile(
   db: MediaDb,
-  workOrderId: string,
+  scope: DocumentScope,
   documentId: string,
   lock = false,
 ): Promise<DocumentWithFile | undefined> {
-  const base = baseQuery(db, workOrderId)
+  const base = baseQuery(db, scope)
     .where('d.id', '=', documentId)
     .selectAll('f')
     .select([...DOCUMENT_COLUMNS, quarantineExpiry])
@@ -257,13 +286,13 @@ export interface DocumentPagePosition {
   readonly id: string;
 }
 
-/** One page of the documents of an order, ONE statement (no N+1); `limit + 1` rows come back so the caller knows whether there is a next page. */
+/** One page of the documents of a scope, ONE statement (no N+1); `limit + 1` rows come back so the caller knows whether there is a next page. */
 export async function listDocuments(
   db: MediaDb,
-  workOrderId: string,
+  scope: DocumentScope,
   options: { readonly position?: DocumentPagePosition; readonly limit: number },
 ): Promise<DocumentWithFile[]> {
-  let query = baseQuery(db, workOrderId);
+  let query = baseQuery(db, scope);
   if (options.position !== undefined) {
     query = query.where(sql<boolean>`(d.created_at, d.id) < (${options.position.createdAt}, ${options.position.id})`);
   }
@@ -277,24 +306,25 @@ export async function listDocuments(
   return rows.map((row) => splitDocumentRow(row as JoinedDocumentRow));
 }
 
-export async function countDocuments(db: MediaDb, workOrderId: string): Promise<number> {
+/** The same predicate as {@link listDocuments}: the total and the page can never disagree. */
+export async function countDocuments(db: MediaDb, scope: DocumentScope): Promise<number> {
   const row = await db
-    .selectFrom('media.documents')
-    .where('work_order_id', '=', workOrderId)
-    .where('deleted_at', 'is', null)
+    .selectFrom('media.documents as d')
+    .where(inScope(scope))
+    .where('d.deleted_at', 'is', null)
     .select(sql<string>`count(*)`.as('count'))
     .executeTakeFirstOrThrow();
   return Number(row.count);
 }
 
-/** The document of THIS order (not deleted), row-locked: another order's document, a medium with that id and a missing one are the same absence. */
-export async function lockDocumentOfOrder(db: MediaDb, workOrderId: string, documentId: string): Promise<DocumentRow | undefined> {
+/** The document of THIS scope (not deleted), row-locked: a document outside it, a medium with that id and a missing one are the same absence. */
+export async function lockDocumentInScope(db: MediaDb, scope: DocumentScope, documentId: string): Promise<DocumentRow | undefined> {
   return db
-    .selectFrom('media.documents')
-    .where('id', '=', documentId)
-    .where('work_order_id', '=', workOrderId)
-    .where('deleted_at', 'is', null)
-    .selectAll()
+    .selectFrom('media.documents as d')
+    .where('d.id', '=', documentId)
+    .where(inScope(scope))
+    .where('d.deleted_at', 'is', null)
+    .selectAll('d')
     .forNoKeyUpdate()
     .executeTakeFirst();
 }

@@ -534,7 +534,7 @@ Każdy przypadek: aktor, scenariusz, warunki, wpływ, ocena, mitygacje, wykrywan
 - **Ocena:** P2 × W3 = 6 High → 1 × 2 = 2 Low.
 - **Mitygacje:** SR-AUTHZ-08 (kotwica zlecenia źródłowego, bez `identity_data`, tylko panel, przegląd security przy `/refine`).
 - **Wykrywanie:** —.
-- **Weryfikacja:** macierz ról z przypadkiem „IDOR przez `siteId`” (E3/E6). Wdrożone częściowo w EVM-036 (metadane innych zleceń, kotwica zlecenia, tylko panel): `GET /work-orders/{id}/site-orders` bierze `siteId` wyłącznie z wiersza zlecenia po polityce odczytu, zwraca `id`, `number`, `title`, `status`, `closedAt` i nie ma tras `/sites/{siteId}/…` do mediów, dokumentów, zleceń i klientów; test IDOR przez `siteId` w `site-orders.test.ts`. Pełna historia lokalizacji (dokumenty i zdjęcia) — M3, z przeglądem `security-engineer`; oceny bez zmian.
+- **Weryfikacja:** macierz ról z przypadkiem „IDOR przez `siteId`” (E3/E6). Wdrożone częściowo w EVM-036 (metadane innych zleceń, kotwica zlecenia, tylko panel): `GET /work-orders/{id}/site-orders` bierze `siteId` wyłącznie z wiersza zlecenia po polityce odczytu, zwraca `id`, `number`, `title`, `status`, `closedAt` i nie ma tras `/sites/{siteId}/…` do mediów, dokumentów, zleceń i klientów; test IDOR przez `siteId` w `site-orders.test.ts`. Pełna historia lokalizacji (dokumenty i zdjęcia) — M3, z przeglądem `security-engineer`; oceny bez zmian. **Wdrożone w EVM-050 (dokumenty z kotwicą lokalizacji):** `GET /sites/{siteId}/documents` i `POST /sites/{siteId}/documents/{documentId}/download-url` czytają WYŁĄCZNIE dokumenty, których własna kotwica to ta lokalizacja (nigdy dokumenty ani media zleceń; brak tras `/sites/{id}/media` i `/sites/{id}/work-orders`); dokument lokalizacji nie może mieć klasy `identity_data` (kolejny klient w tej samej lokalizacji zobaczyłby dane poprzedniego): odmowa przy tworzeniu (rodzaj albo nadpisanie) i przy podniesieniu klasy (`400 identity_data_not_on_site`) oraz `CHECK` w bazie (0061); zakres ścieżki zlecenia (zmiana, upload, pobranie) obejmuje dokumenty lokalizacji i klienta tylko dopóki lokalizacja i klient są widoczni (usunięta lokalizacja lub klient = `404` także tą ścieżką); zakres mediów bez zmian (zlecenie ze ścieżki); testy IDOR przez `siteId` i przez ścieżkę zlecenia w `anchored-documents.test.ts`.
 
 ### AB-20 — Skan dowodu jako dokument `other` lub zdjęcie dokumentu tożsamości (uwaga 8)
 - **Aktor:** pracownik (błąd), TA-4. **Cel:** A-04.
@@ -632,6 +632,8 @@ Przyrost 2026-10-21 (EVM-007 / 007a, TM-115…TM-122 — tabela wyżej do przeli
 Przyrost 2026-10-28 (PR #107–#110, TM-124…TM-132 — tabela wyżej do przeliczenia przy zamknięciu M1): bazowe — High +2 (TM-125, TM-130), Medium +4 (TM-124, TM-126, TM-128, TM-129), Low +3 (TM-127, TM-131, TM-132); rezydualne — Medium +1 (TM-129), Low +8; razem TM: 130 (TM-123 bez wiersza). Po mitygacjach nadal **bez ryzyk High i Critical**; nowe ryzyka rezydualne RR-42…RR-70 (Medium: RR-42, RR-44, RR-48, RR-50, RR-55, RR-60, RR-61).
 
 Przyrost 2026-11-01 (EVM-047, dokumenty): bez nowych wierszy TM — zaktualizowane mitygacje TM-36, TM-37, TM-38, AB-05, AB-20 (oceny bez zmian); nowe ryzyka rezydualne RR-79…RR-82 — wszystkie Low.
+
+Przyrost 2026-11-01 (EVM-050, dokumenty lokalizacji i klienta; `backend-developer`, do przeglądu `security-engineer`): bez nowych wierszy TM. TM-17 (IDOR) — cztery nowe operacje (listy i adresy pobrania dla lokalizacji i klienta) rozwiązują kotwicę ścieżki polityką odczytu jej modułu, a dokument jedną instrukcją po własnej kolumnie kotwicy (`404` jednakowe dla cudzej, nieistniejącej, dokumentu zlecenia i medium); `siteId` i `customerId` zapisuje serwer ze zlecenia ze ścieżki (`read_only_field` w treści). AB-19 — patrz weryfikacja AB-19. Nowe ryzyko rezydualne **RR-83** (Medium): dokument `standard` albo `building_security` przypięty do lokalizacji może zawierać dane osobowe poprzedniego klienta (np. oświadczenie), a reguła blokuje tylko `identity_data`; mitygacje: informacja w panelu, audyt pobrań, purge przez Administratora — do akceptacji albo historyjka (np. ograniczenie kotwicy lokalizacji do rodzajów „budynkowych”). **RR-84** (Low): retencja dokumentów klienta i lokalizacji nie jest zdefiniowana (rodo.md). 
 
 Przyrost 2026-11-01 (EVM-048, metadane mediów i dokumentów; `security-engineer`, przegląd kodu gałęzi, migracji 0060 i testów): bez nowych wierszy TM i bez nowych RR — oceny bez zmian. TM-17 (IDOR) — etap z treści żądania (`procedureStageId` przy wysyłaniu i w `PATCH …/media-assets/{id}` / `PATCH …/documents/{id}`) sprawdzany przez fasadę `procedures` w zleceniu ze ścieżki pod blokadą `FOR SHARE`; etap innego zlecenia, usunięty i nieistniejący to jedna odpowiedź `400 validation_failed` (`unknown_stage`); druga linia w bazie — klucze złożone `(procedure_stage_id, work_order_id)` w `media.media_assets` i `media.documents`; medium/dokument innego zlecenia i identyfikator obiektu innego typu → jedno `404`; komórki IDOR macierzy dla `updateMediaAsset` i `updateDocument`. TM-18 (mass assignment) — pola serwera (`mediaType`, `fileState`, `workOrderId`, `kindCode`, `version` …) → `read_only_field`, nieznane → `unknown_field`, R → `403` przed `If-Match` i treścią, token mobilny → `403`; podniesienie klasy (AB-20) w tym samym `PATCH` dokumentu nadal tylko w górę (także razem z tytułem). TM-21 (rozliczalność) — `media_asset.metadata_updated` i `document.metadata_updated` (aktor, obiekt, `traceId`; bez tytułu, opisu i nazwy etapu), `media_assets.updated_by`; opisy i tytuły to zwykły tekst (SR-INPUT-05, SR-WEB-03). Nazwa etapu (tekst swobodny, widoczny dla A/E/R jak w dzienniku) pojawia się teraz także przy mediach i dokumentach — bez nowego odbiorcy.
 
@@ -1336,6 +1338,24 @@ Każde ryzyko: opis, źródło, ryzyko po mitygacjach, rekomendacja (akceptacja 
 - **Rekomendacja:** akceptuj; backlog: ostrzeżenie o metadanych obrazu przy pobraniu obrazu-dokumentu albo usuwanie EXIF z obrazów-dokumentów po skanie (M3).
 - **Właściciel:** `security-engineer`.
 - **Decyzja Konrada:** **do akceptacji na demo EVM-047**.
+
+### RR-83 — Dane osobowe poprzedniego klienta w dokumencie `standard` albo `building_security` przypiętym do lokalizacji (EVM-050 AC2; AB-19)
+- **Opis:** dokument lokalizacji jest widoczny w zleceniach wszystkich klientów tej lokalizacji. Reguła (serwis i `CHECK` 0061) blokuje tylko klasę `identity_data`; dokument `standard` lub `building_security` (np. oświadczenie, protokół) może jednak zawierać dane osobowe poprzedniego klienta, które zobaczy następny.
+- **Mitygacje:** domyślny wybór „Przypisz do” to „Zlecenia”, a przy „Lokalizacji” panel informuje, że dokument zobaczą zlecenia innych klientów; audyt pobrań; purge przez Administratora (SR-DATA-08).
+- **Źródło:** EVM-050 (konsultacja `security-engineer`, W1); SR-AUTHZ-08, CWE-200.
+- **Ryzyko po mitygacjach:** P2 × W2 = 4 Medium.
+- **Rekomendacja:** akceptuj; kandydat do backlogu: ograniczenie kotwicy lokalizacji do rodzajów „budynkowych”.
+- **Właściciel:** `security-engineer`.
+- **Decyzja Konrada:** **do akceptacji na demo EVM-050**.
+
+### RR-84 — Retencja dokumentów klienta i lokalizacji nie jest zdefiniowana (EVM-050; SR-DATA-01)
+- **Opis:** dokumenty z kotwicą klienta lub lokalizacji nie są związane z zamknięciem zlecenia, więc retencja zlecenia ich nie obejmuje; anonimizacja klienta nie usuwa jego dokumentów (usuwa je purge przez Administratora, art. 17).
+- **Mitygacje:** purge przez Administratora; wpis w `rodo.md` (wiersz `Document`).
+- **Źródło:** EVM-050; SR-DATA-01, SR-DATA-08.
+- **Ryzyko po mitygacjach:** P1 × W2 = 2 Low.
+- **Rekomendacja:** uzupełnić przy `/milestone close M1` albo w historyjce retencji.
+- **Właściciel:** `security-engineer`.
+- **Decyzja Konrada:** **do akceptacji na demo EVM-050**.
 
 ## 9. Aktualizacja modelu
 - **Kiedy:** przy `/milestone close` każdego kamienia milowego; przy nowej integracji, roli lub kanale (np. Monter, portal klienta, iOS); przy zmianie architektury (nowy ADR); po incydencie bezpieczeństwa; przy zmianie dostawcy.

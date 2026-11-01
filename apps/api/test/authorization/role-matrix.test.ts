@@ -168,6 +168,11 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
       // EVM-047: the list of the documents and the address of a file (the class is decided by the use case; every role of the web is let through by the guard)
       'listDocuments',
       'createDocumentDownloadUrl',
+      // EVM-050: the lists and the addresses of the files of the documents of a site and of a customer (the same guard; the IDOR cell is another site's or customer's document)
+      'listSiteDocuments',
+      'listCustomerDocuments',
+      'createSiteDocumentDownloadUrl',
+      'createCustomerDocumentDownloadUrl',
     ];
     const writers = [
       'transitionWorkOrder',

@@ -277,7 +277,11 @@ export async function updateWorkOrderStatus(
  * needs. With `lock` the row is taken `FOR NO KEY UPDATE` (the caller is in a transaction of a change that depends on the status).
  */
 export function findVisibleWorkOrderRef(db: WorkOrdersDb, principal: Principal, id: string, options: { readonly lock: boolean }) {
-  const query = db.selectFrom('work_orders.work_orders').select(['id', 'status']).where('id', '=', id).where(visibleWorkOrders(principal));
+  const query = db
+    .selectFrom('work_orders.work_orders')
+    .select(['id', 'status', 'site_id', 'customer_id'])
+    .where('id', '=', id)
+    .where(visibleWorkOrders(principal));
   return (options.lock ? query.forNoKeyUpdate() : query).executeTakeFirst();
 }
 

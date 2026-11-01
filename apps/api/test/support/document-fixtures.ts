@@ -13,7 +13,10 @@ import { assertSyntheticDataAllowed } from './work-order-fixtures.ts';
 const AT = new Date('2026-10-31T08:00:00.000Z');
 
 export interface DocumentSpec {
-  readonly workOrderId: string;
+  /** EXACTLY one of `workOrderId`, `siteId`, `customerId` (the anchor, EVM-050). */
+  readonly workOrderId?: string;
+  readonly siteId?: string;
+  readonly customerId?: string;
   readonly createdBy: string;
   readonly kindCode?: string;
   readonly title?: string;
@@ -56,9 +59,9 @@ export async function insertDocumentRow(db: Kysely<Database>, spec: DocumentSpec
       kind_code: spec.kindCode ?? 'connection_conditions',
       title: spec.title ?? 'Warunki przylaczenia - tytul testowy',
       description: spec.description ?? null,
-      work_order_id: spec.workOrderId,
-      customer_id: null,
-      site_id: null,
+      work_order_id: spec.workOrderId ?? null,
+      customer_id: spec.customerId ?? null,
+      site_id: spec.siteId ?? null,
       procedure_stage_id: null,
       confidentiality_override: spec.override ?? null,
       created_at: at,

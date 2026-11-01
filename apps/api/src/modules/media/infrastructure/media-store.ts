@@ -8,7 +8,7 @@ import { sql, type Selectable } from 'kysely';
 import { QUARANTINE_RETENTION_DAYS } from '../domain/quarantine.ts';
 import type { FileState, ReasonCode } from '../domain/scan-outcome.ts';
 import type { DerivativeVariant } from '../domain/derivatives.ts';
-import { findDocumentWithFile, type DocumentWithFile } from './document-store.ts';
+import { findDocumentWithFile, type DocumentScope, type DocumentWithFile } from './document-store.ts';
 import type { MediaDb, MediaAssetsTable, StoredFilesTable, UploadSessionsTable } from './tables.ts';
 
 export type StoredFileRow = Selectable<StoredFilesTable>;
@@ -208,12 +208,19 @@ export type Owned =
  * The owner of THIS order with its file, in ONE statement, by the kind the path names (EVM-047): a document used through the path of the media - and the
  * other way round - is not found, the same absence as a missing one.
  */
-export async function findOwnerWithFile(db: MediaDb, workOrderId: string, owner: OwnerRef, lock = false): Promise<Owned | undefined> {
+export async function findOwnerWithFile(
+  db: MediaDb,
+  workOrderId: string,
+  owner: OwnerRef,
+  lock = false,
+  documentScope: DocumentScope = { workOrderId },
+): Promise<Owned | undefined> {
   if (owner.kind === 'media_asset') {
+    // a MEDIUM is reached through its own order only: the wider scope of the documents (EVM-050) never applies to it (SR-AUTHZ-08)
     const found = await findAssetWithFile(db, workOrderId, owner.id, lock);
     return found === undefined ? undefined : { kind: 'media_asset', found };
   }
-  const found = await findDocumentWithFile(db, workOrderId, owner.id, lock);
+  const found = await findDocumentWithFile(db, documentScope, owner.id, lock);
   return found === undefined ? undefined : { kind: 'document', found };
 }
 
@@ -234,11 +241,11 @@ export interface SessionChain {
  */
 export async function findSessionChain(
   db: MediaDb,
-  ids: { readonly workOrderId: string; readonly owner: OwnerRef; readonly sessionId: string },
+  ids: { readonly workOrderId: string; readonly owner: OwnerRef; readonly sessionId: string; readonly documentScope?: DocumentScope },
   creator: Creator,
   lock = false,
 ): Promise<SessionChain | undefined> {
-  const owned = await findOwnerWithFile(db, ids.workOrderId, ids.owner, lock);
+  const owned = await findOwnerWithFile(db, ids.workOrderId, ids.owner, lock, ids.documentScope);
   if (owned === undefined) return undefined;
   const file = fileOfOwner(owned);
   const base = db

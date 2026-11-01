@@ -81,8 +81,15 @@ export class FinishUploadService {
 
   /** `complete` of a session of a DOCUMENT: the answer is the document (the kind and the class are the server's, from the catalog). */
   completeDocument(principal: Principal, rawParams: unknown): Promise<Document> {
-    return this.#complete(principal, rawParams, 'document', async (tx, _chain, ids) => {
-      const found = (await findDocumentWithFile(mediaTables(tx), ids.workOrderId, ids.owner.id)) as DocumentWithFile;
+    return this.#complete(principal, rawParams, 'document', async (tx, chain, ids) => {
+      // read again (the file moved on): the document of the chain was authorised by the scope of the order, its site and its customer, so it is read by ITS OWN anchor
+      const { document } = chain.owned.found as DocumentWithFile;
+      const own = {
+        workOrderId: document.work_order_id ?? undefined,
+        siteId: document.site_id ?? undefined,
+        customerId: document.customer_id ?? undefined,
+      };
+      const found = (await findDocumentWithFile(mediaTables(tx), own, ids.owner.id)) as DocumentWithFile;
       return (await presentDocuments(tx, this.#kinds, this.#stages, principal.role, [found]))[0] as Document;
     });
   }

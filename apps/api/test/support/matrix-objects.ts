@@ -378,7 +378,16 @@ export async function mediaObjects(app: IdentityApp): Promise<Record<string, Obj
       own: () => `${WORK_ORDERS}/${own}/media-assets/${mine.mediaAssetId}/rescan`,
       foreign: () => `${WORK_ORDERS}/${own}/media-assets/${theirs.mediaAssetId}/rescan`,
     },
-    ...(await documentObjects(db, { own, other, deleted, creatorId: creator.id })),
+    ...(await documentObjects(db, {
+      own,
+      other,
+      deleted,
+      creatorId: creator.id,
+      siteId,
+      customerId,
+      otherSiteId: await insertSite(db, { notes: 'inna lokalizacja' }),
+      otherCustomerId: await insertCustomer(db, { email: 'anna@example.invalid' }),
+    })),
   };
 }
 
@@ -388,9 +397,24 @@ export async function mediaObjects(app: IdentityApp): Promise<Record<string, Obj
  */
 async function documentObjects(
   db: Kysely<Database>,
-  orders: { own: string; other: string; deleted: string; creatorId: string },
+  orders: {
+    own: string;
+    other: string;
+    deleted: string;
+    creatorId: string;
+    siteId: string;
+    customerId: string;
+    otherSiteId: string;
+    otherCustomerId: string;
+  },
 ): Promise<Record<string, ObjectPaths>> {
-  const { own, other, deleted, creatorId } = orders;
+  const { own, other, deleted, creatorId, siteId, customerId, otherSiteId, otherCustomerId } = orders;
+  // EVM-050: the documents of a site and of a customer - "foreign" is a document of ANOTHER site (customer) named in the path of the first, and for the lists a site that does not exist
+  const siteDocument = await insertDocumentRow(db, { siteId, createdBy: creatorId });
+  const foreignSiteDocument = await insertDocumentRow(db, { siteId: otherSiteId, createdBy: creatorId });
+  const customerDocument = await insertDocumentRow(db, { customerId, createdBy: creatorId });
+  const foreignCustomerDocument = await insertDocumentRow(db, { customerId: otherCustomerId, createdBy: creatorId });
+  const missing = '0190f1a0-0000-7000-8000-00000000dead';
   const mine = await insertDocumentRow(db, { workOrderId: own, createdBy: creatorId, session: { userId: creatorId } });
   const theirs = await insertDocumentRow(db, { workOrderId: other, createdBy: creatorId, session: { userId: creatorId } });
   const orderLevel: ObjectPaths = {
@@ -416,6 +440,19 @@ async function documentObjects(
     completeDocumentUploadSession: session('/complete'),
     abortDocumentUploadSession: session('/abort'),
     createDocumentDownloadUrl: document('/download-url'),
+    listSiteDocuments: { own: () => `/api/v1/sites/${siteId}/documents`, foreign: () => `/api/v1/sites/${missing}/documents` },
+    listCustomerDocuments: {
+      own: () => `/api/v1/customers/${customerId}/documents`,
+      foreign: () => `/api/v1/customers/${missing}/documents`,
+    },
+    createSiteDocumentDownloadUrl: {
+      own: () => `/api/v1/sites/${siteId}/documents/${siteDocument.documentId}/download-url`,
+      foreign: () => `/api/v1/sites/${siteId}/documents/${foreignSiteDocument.documentId}/download-url`,
+    },
+    createCustomerDocumentDownloadUrl: {
+      own: () => `/api/v1/customers/${customerId}/documents/${customerDocument.documentId}/download-url`,
+      foreign: () => `/api/v1/customers/${customerId}/documents/${foreignCustomerDocument.documentId}/download-url`,
+    },
   };
 }
 
