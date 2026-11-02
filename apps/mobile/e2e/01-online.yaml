@@ -11,7 +11,7 @@ appId: pl.eviacharge.manager
     timeout: 30000
 - assertVisible: 'Moje zlecenia'
 - assertVisible: 'Zlecenia pojawią się tu po zalogowaniu i synchronizacji.'
-- assertVisible: 'Połączono. Otwórz kolejkę'
+- assertVisible: '(Połączono|Zsynchronizowano o).*Otwórz kolejkę'
 - assertNotVisible: 'Brak zasięgu.*'
 - assertNotVisible: 'Brak połączenia z serwerem'
 - assertNotVisible: 'Zaktualizuj aplikację'

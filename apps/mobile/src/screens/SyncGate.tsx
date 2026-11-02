@@ -3,7 +3,9 @@ import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AccessibilityInfo, View } from 'react-native';
 import type { SyncSnapshot } from '../sync/types';
+import { useStartup } from '../startup';
 import { color } from '../ui/theme';
+import { UpdateRequiredScreen } from './UpdateRequiredScreen';
 import { FirstPullScreen } from './FirstPullScreen';
 
 /**
@@ -23,6 +25,7 @@ export function SyncGate({
   children: ReactNode;
 }) {
   const { t } = useTranslation();
+  const { state } = useStartup();
   const wasLoading = useRef(false);
   const done = snapshot.initialLoad === 'done';
   const loading = snapshot.active && snapshot.initialLoad !== 'done' && snapshot.initialLoad !== 'pending';
@@ -34,6 +37,10 @@ export function SyncGate({
     }
   }, [loading, done, t]);
   if (done) return <>{children}</>;
+  // a version the server no longer supports is told first: on a fresh install the first download could never start (nothing is lost)
+  if (state.kind === 'updateRequired') {
+    return <UpdateRequiredScreen currentVersion={state.currentVersion} requiredVersion={state.requiredVersion} />;
+  }
   if (!snapshot.active && snapshot.initialLoad === 'pending')
     return <View style={{ flex: 1, backgroundColor: color.bg.canvas }} testID="sync-starting" />;
   return <FirstPullScreen snapshot={snapshot} onRetry={onRetry} onHelp={onHelp} />;

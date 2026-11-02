@@ -19,7 +19,7 @@ import {
   createPatchSource,
   reactNativeAppState,
 } from './device-guard/native';
-import { overrideBootClock, overrideLock, overrideSessionClock } from './device-guard/overrides';
+import { overrideAuthenticator, overrideBootClock, overrideLock, overrideSessionClock } from './device-guard/overrides';
 import { createSensitiveClipboard } from './clipboard/clipboard';
 import { deviceOverrides } from './e2e-hooks';
 import { i18next } from './i18n';
@@ -80,7 +80,10 @@ export function createSessionPorts(config: RuntimeConfig | null = readRuntimeCon
   const guard = new DeviceGuard({
     deviceLock,
     boot: overrideBootClock(createBootClock(), deviceOverrides),
-    authenticator: createAuthenticator(() => ({ title: i18next.t('lock.prompt') })),
+    authenticator: overrideAuthenticator(
+      createAuthenticator(() => ({ title: i18next.t('lock.prompt') })),
+      deviceOverrides,
+    ),
     appState: reactNativeAppState,
     patch: createPatchSource(),
     contact: () => owner.contactStatus(),

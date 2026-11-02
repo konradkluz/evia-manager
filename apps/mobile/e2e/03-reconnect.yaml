@@ -5,7 +5,7 @@ appId: pl.eviacharge.manager
 - launchApp:
     stopApp: false
 - extendedWaitUntil:
-    visible: 'Połączono. Otwórz kolejkę'
+    visible: '(Połączono|Zsynchronizowano o).*Otwórz kolejkę'
     timeout: 45000
 - assertNotVisible: 'Brak zasięgu.*'
 - assertNotVisible: 'Brak połączenia z serwerem'

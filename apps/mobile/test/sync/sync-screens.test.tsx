@@ -111,6 +111,14 @@ describe('first download gate (EVM-107 AC1)', () => {
     }
   });
 
+  it('EVM-107 AC1: a version the server no longer supports is told before the first download (a fresh install is not stuck on M-12)', async () => {
+    const rig = stubPorts();
+    rig.sync.set({ initialLoad: 'loading', active: true });
+    await open(rig, () => Promise.resolve({ kind: 'updateRequired', currentVersion: '0.1.0', requiredVersion: '99.0.0' }));
+    expect(screen.getByTestId('update-required')).toBeOnTheScreen();
+    expect(screen.queryByTestId('first-pull-offline')).toBeNull();
+  });
+
   it('EVM-107 AC1: the queue link shows a number only - no names of entries - and goes back', async () => {
     const rig = stubPorts();
     rig.sync.set({

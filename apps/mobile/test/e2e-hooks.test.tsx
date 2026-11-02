@@ -231,6 +231,7 @@ describe('e2e hooks of the local store (EVM-093 AC1, AC3, AC5–AC7)', () => {
     expect(releaseOverrides).toBeNull();
     // the emulator of the scenarios has no screen lock: the e2e variant starts with the answer "locked"
     expect(deviceOverrides.screenSecure).toBe(true);
+    expect(deviceOverrides.autoUnlock).toBe(true);
     Object.assign(deviceOverrides, NO_OVERRIDES);
     await opened();
     await tap('e2e-lock-off');

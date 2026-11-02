@@ -5,7 +5,7 @@ appId: pl.eviacharge.manager
 - tapOn:
     id: 'retry-server'
 - extendedWaitUntil:
-    visible: 'Połączono. Otwórz kolejkę'
+    visible: '(Połączono|Zsynchronizowano o).*Otwórz kolejkę'
     timeout: 30000
 - assertNotVisible: 'Brak połączenia z serwerem'
 - assertVisible: 'Brak zleceń'

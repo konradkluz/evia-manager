@@ -10,6 +10,7 @@ import {
 import {
   NO_OVERRIDES,
   overrideBootClock,
+  overrideAuthenticator,
   overrideLock,
   overrideSessionClock,
   type DeviceOverrides,
@@ -127,6 +128,16 @@ describe('overrides of the e2e variant (EVM-101; security K7)', () => {
     expect(await lock.isDeviceSecure()).toBe(true);
     o.screenSecure = false;
     expect(await lock.isDeviceSecure()).toBe(false);
+  });
+
+  it('EVM-101 AC1: the system unlock is answered by the override only while it is set; untouched without overrides', async () => {
+    const real = { authenticate: () => Promise.resolve('cancelled' as const) };
+    expect(overrideAuthenticator(real, null)).toBe(real);
+    const o = fresh();
+    const auth = overrideAuthenticator(real, o);
+    expect(await auth.authenticate()).toBe('cancelled');
+    o.autoUnlock = true;
+    expect(await auth.authenticate()).toBe('success');
   });
 
   it('EVM-101 AC2: the contact clocks move together', () => {
