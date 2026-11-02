@@ -1,5 +1,5 @@
 # EVM-107 AC2, AC3, AC6: the network returns while the app was in the background; the foreground starts the synchronization, the queue
-# empties and the indicator shows the time of the last synchronization. The server counters (5 unique, 0 duplicates) are asserted by
+# empties ("0 elementów w kolejce", the five sent ones listed) and the indicator shows the time of the last synchronization. The server counters (5 unique, 0 duplicates) are asserted by
 # tools/mobile-e2e after this flow.
 appId: pl.eviacharge.manager
 ---
@@ -11,6 +11,6 @@ appId: pl.eviacharge.manager
 - assertNotVisible: 'Offline.*'
 - tapOn:
     id: 'nav-queue'
-- assertVisible: 'Nic nie czeka na wysłanie.'
+- assertVisible: '0 elementów w kolejce'
 - assertNotVisible: 'Wymaga uwagi.*'
 - takeScreenshot: kolejka-po-synchronizacji
