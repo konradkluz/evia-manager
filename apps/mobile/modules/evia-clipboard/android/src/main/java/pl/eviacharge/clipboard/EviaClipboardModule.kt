@@ -24,15 +24,24 @@ import java.util.UUID
  */
 class EviaClipboardModule : Module() {
   private val handler = Handler(Looper.getMainLooper())
+  // State is touched from the JS thread, the main-thread Handler and the clipboard listener: every access holds `lock`.
+  private val lock = Any()
   private var label: String? = null
   private var deadlineElapsed: Long = 0
   private var replacedByOther = false
-  private var expectingOwnChange = false
+  // Number of change events caused by this module (each own set or clear) that the listener has not seen yet. Events arrive
+  // asynchronously, so a flag would be consumed by the wrong event (a second copy within the window); a counter cannot be.
+  private var ownEventsPending = 0
   private var listening = false
   private val timeout = Runnable { removeOwnCopy() }
   private val listener = ClipboardManager.OnPrimaryClipChangedListener {
-    if (label == null) return@OnPrimaryClipChangedListener
-    if (expectingOwnChange) expectingOwnChange = false else replacedByOther = true
+    synchronized(lock) {
+      if (ownEventsPending > 0) {
+        ownEventsPending -= 1
+      } else if (label != null) {
+        replacedByOther = true
+      }
+    }
   }
 
   private fun manager(): ClipboardManager? {
@@ -48,15 +57,16 @@ class EviaClipboardModule : Module() {
   }
 
   /** Removes the copy of this module: unconditionally while nobody replaced it (fail-safe: privacy before convenience). */
-  private fun removeOwnCopy() {
+  private fun removeOwnCopy() = synchronized(lock) {
     handler.removeCallbacks(timeout)
-    val own = label ?: return
+    val own = label ?: return@synchronized
     val manager = manager()
     try {
       if (manager != null && !replacedByOther) {
         // with focus the label is readable: never clear a clip that is not ours
         val current = manager.primaryClipDescription?.label?.toString()
         if (current == null || current == own) {
+          ownEventsPending += 1
           if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             manager.clearPrimaryClip()
           } else {
@@ -69,7 +79,6 @@ class EviaClipboardModule : Module() {
     }
     label = null
     replacedByOther = false
-    expectingOwnChange = false
   }
 
   override fun definition() = ModuleDefinition {
@@ -79,7 +88,9 @@ class EviaClipboardModule : Module() {
     Function("copySensitive") { text: String, ttlMs: Int ->
       val manager = manager() ?: return@Function false
       try {
-        removeOwnCopy()
+        synchronized(lock) {
+        // no clearing before the new copy: setPrimaryClip overwrites it, and one own event instead of two keeps the count simple
+        handler.removeCallbacks(timeout)
         listen(manager)
         val own = "evia-" + UUID.randomUUID().toString()
         val clip = ClipData.newPlainText(own, text)
@@ -89,11 +100,12 @@ class EviaClipboardModule : Module() {
         clip.description.extras = extras
         label = own
         replacedByOther = false
-        expectingOwnChange = true
+        ownEventsPending += 1
         manager.setPrimaryClip(clip)
         val delay = ttlMs.toLong().coerceIn(1_000L, 600_000L)
         deadlineElapsed = SystemClock.elapsedRealtime() + delay
         handler.postDelayed(timeout, delay)
+        }
         true
       } catch (_: Throwable) {
         false
@@ -107,7 +119,8 @@ class EviaClipboardModule : Module() {
 
     /** Back in the foreground: if the time is up (the process was frozen), the copy goes now. */
     OnActivityEntersForeground {
-      if (label != null && SystemClock.elapsedRealtime() >= deadlineElapsed) removeOwnCopy()
+      val expired = synchronized(lock) { label != null && SystemClock.elapsedRealtime() >= deadlineElapsed }
+      if (expired) removeOwnCopy()
     }
   }
 }
