@@ -95,7 +95,12 @@ export async function readManagedDevices(db: IdentityDb, query: ManagedPageQuery
   }));
 }
 
-/** The devices of ONE account that are still in the register (the ownership is the WHERE), oldest first. */
+/** The `maxItems` of `AccountDeviceList` and the `maximum` of the counts in `UserDevicesSummary`. */
+const OWN_DEVICES_LIMIT = 10;
+const SUMMARY_COUNT_CAP = 100;
+const SUMMARY_PENDING_CAP = 1_000_000;
+
+/** The devices of ONE account that are still in the register (the ownership is the WHERE): those with a valid session first, then the latest contact; at most the {@link OWN_DEVICES_LIMIT} of the contract. */
 export async function readOwnDevices(db: IdentityDb, userId: string, now: Date): Promise<OwnDeviceRow[]> {
   const result = await sql<{
     id: string;
@@ -110,7 +115,8 @@ export async function readOwnDevices(db: IdentityDb, userId: string, now: Date):
     select d.id, d.model, d.os_version, d.app_version, d.state, ${validSession(now)} as has_valid_session, d.last_contact_at, d.created_at
     from identity.devices d
     where d.user_id = ${userId} and d.removed_at is null
-    order by d.created_at, d.id`.execute(db);
+    order by ${validSession(now)} desc, d.last_contact_at desc, d.id desc
+    limit ${OWN_DEVICES_LIMIT}`.execute(db);
   return result.rows.map((row) => ({
     id: row.id,
     model: row.model,
@@ -191,13 +197,17 @@ export interface DevicesSummaryRow {
   readonly pendingItemsReported: number;
 }
 
-/** The numbers for the dialogs of the Administrator: devices in the register, those that are `active`, and the sum of the reported unsent items. */
+/** The numbers for the dialogs of the Administrator: devices in the register, those that are `active`, and the sum of the reported unsent items - each capped at the maximum of the contract. */
 export async function summariseDevicesOfUser(db: IdentityDb, userId: string): Promise<DevicesSummaryRow> {
   const result = await sql<{ devices: string; active: string; pending: string }>`
     select count(*) as devices, count(*) filter (where state = 'active') as active, coalesce(sum(pending_items_reported), 0) as pending
     from identity.devices where user_id = ${userId} and removed_at is null`.execute(db);
   const row = result.rows[0];
-  return { devices: Number(row?.devices ?? 0), activeDevices: Number(row?.active ?? 0), pendingItemsReported: Number(row?.pending ?? 0) };
+  return {
+    devices: Math.min(Number(row?.devices ?? 0), SUMMARY_COUNT_CAP),
+    activeDevices: Math.min(Number(row?.active ?? 0), SUMMARY_COUNT_CAP),
+    pendingItemsReported: Math.min(Number(row?.pending ?? 0), SUMMARY_PENDING_CAP),
+  };
 }
 
 /**

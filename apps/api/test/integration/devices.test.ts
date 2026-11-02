@@ -267,6 +267,37 @@ describe('EVM-095 AC3 logout of a device', () => {
   });
 });
 
+/** Extra register rows for one account (reinstalls, replaced phones) without a session, written straight into the database. */
+async function addStaleDevices(userId: string, count: number): Promise<void> {
+  await sql`
+    insert into identity.devices (user_id, secret_hash, model, os_version, security_patch, platform, app_version, last_contact_at, created_at, pending_items_reported)
+    select ${userId}, decode(repeat('ab', 32), 'hex'), 'Old phone', '13', '2026-01-05', 'android', '1.2.0',
+      now() - make_interval(mins => g), now() - make_interval(mins => g), 10000
+    from generate_series(1, ${count}) g`.execute(current.database.admin);
+}
+
+describe('EVM-095 AC1 AC4 the register can outgrow the limits of the contract', () => {
+  it('EVM-095 AC1 an account with 11 devices still gets 200 with at most 10, the device with a session first', async () => {
+    const editor = await browserOf(current, { role: 'editor', key: 'none' });
+    const live = await deviceOf(editor);
+    await addStaleDevices(editor.user.id, 10);
+    const response = await editor.panel.get(OWN);
+    expect(response.status).toBe(200);
+    const items = (response.body as { items: Array<{ id: string; state: string }> }).items;
+    expect(items).toHaveLength(10);
+    expect(items[0]).toMatchObject({ id: live.deviceId, state: 'active' });
+  });
+
+  it('EVM-095 AC4 the summary of a user with 101 devices is 200 with the counts capped by the contract', async () => {
+    const admin = await browserOf(current, { role: 'administrator', key: 'fresh' });
+    const owner = await browserOf(current, { role: 'editor', key: 'none' });
+    await addStaleDevices(owner.user.id, 101);
+    const response = await admin.panel.get(`/api/v1/users/${owner.user.id}/devices/summary`);
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ devices: 100, activeDevices: 100, pendingItemsReported: 1000000 });
+  });
+});
+
 describe('EVM-095 AC4 lock and wipe', () => {
   it('EVM-095 AC4 the summary gives the devices, the active ones and the sum of the reported unsent items (audited); 404 for an unknown user', async () => {
     const admin = await browserOf(current, { role: 'administrator', key: 'fresh' });
