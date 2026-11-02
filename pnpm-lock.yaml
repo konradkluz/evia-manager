@@ -872,6 +872,9 @@ importers:
       '@evia/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@evia/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.3

@@ -155,9 +155,9 @@ describe('M-01 sign-in (EVM-100 AC1, AC8)', () => {
     expect(screen.getByText(pl.login.password)).toBeOnTheScreen();
   });
 
-  it('EVM-100 AC1: a session that could not be stored, or a device check of EVM-101, returns to M-01 with the generic error', async () => {
+  it('EVM-100 AC1: a session that could not be stored, or a device check that cannot go on, returns to M-01 with the generic error', async () => {
     const rig = signedOut();
-    rig.owner.completeResult = { kind: 'device_check', result: { kind: 'owner_mismatch', unsentItemCount: 3 } };
+    rig.owner.completeResult = { kind: 'device_check', result: { kind: 'update_required' } };
     await open(rig);
     await toCode();
     await fireEvent.changeText(screen.getByLabelText(pl.login.code), '123456');
@@ -508,7 +508,10 @@ describe('sign-out (EVM-100 AC7; M-09)', () => {
     expect(screen.getByText('Wersja 0.4.0')).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: pl.more.help }));
     await fireEvent.press(screen.getByRole('button', { name: pl.more.wipe }));
-    expect(rig.opened).toEqual(['help', 'wipe']);
+    await settle();
+    // EVM-101 AC4: the wipe asks first (dialog with the number of unsent items), it is not started by the button itself
+    expect(screen.getByTestId('wipe-dialog')).toBeOnTheScreen();
+    expect(rig.opened).toEqual(['help']);
   });
 
   it('EVM-100 AC7: with unsent items the warning shows their number, "Najpierw wyślij" and "Wyczyść dane firmowe"; confirming signs out online', async () => {
@@ -569,7 +572,7 @@ describe('sign-out (EVM-100 AC7; M-09)', () => {
     spy.mockRestore();
   });
 
-  it('EVM-100 AC7: "Najpierw wyślij" opens the queue (the sending is EVM-107); "Wyczyść dane firmowe" goes to EVM-101', async () => {
+  it('EVM-100 AC7: "Najpierw wyślij" opens the queue (the sending is EVM-107); "Wyczyść dane firmowe" opens the dialog of EVM-101', async () => {
     const rig = stubPorts();
     rig.owner.unsent = 1;
     await openMore(rig);
@@ -582,7 +585,8 @@ describe('sign-out (EVM-100 AC7; M-09)', () => {
     await fireEvent.press(screen.getByRole('button', { name: pl.more.signOut }));
     await settle();
     await fireEvent.press(screen.getByRole('button', { name: pl.logout.wipe }));
-    expect(rig.opened).toEqual(['wipe']);
+    await settle();
+    expect(screen.getByTestId('wipe-dialog')).toBeOnTheScreen();
   });
 
   it('EVM-100 AC7: Polish plural of the number of unsent items', () => {

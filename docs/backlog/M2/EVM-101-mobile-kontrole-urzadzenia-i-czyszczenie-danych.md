@@ -4,7 +4,7 @@ title: "Aplikacja: kontrole urządzenia, ukrycie danych po 7 dniach, wyczyszczen
 type: story
 milestone: M2
 epic: E9 Dostęp mobilny
-status: draft
+status: in-review
 priority: P1
 path: pelna             # dane na urządzeniu, uwierzytelnianie
 owner: mobile-developer
@@ -31,7 +31,7 @@ Jako **firma** chcemy, aby **dane klientów na telefonach były chronione nawet 
 - Wtedy dane zleceń są ukryte z komunikatem i akcją „Zaloguj się ponownie”, a aparat i Kolejka nadal działają (SR-MOB-05); od 5. dnia bez kontaktu na liście zleceń i w „Więcej” widać nieusuwalny baner „Telefon nie łączył się z serwerem od 5 dni. Za 2 dni ukryjemy dane zleceń…” (od 6. dnia „Jutro…”), znikający po kontakcie z serwerem.
 
 **AC3 — Blokada aplikacji po 5 minutach w tle**
-- Zakładając włączoną blokadę aplikacji
+- Zakładając blokadę aplikacji (zawsze włączona, bez ustawienia do wyłączenia — decyzja 2026-11-01)
 - Gdy wracam po > 5 min (czas w tle mierzony zegarem monotonicznym) lub aplikacja startuje zimno po zabiciu procesu
 - Wtedy treść jest zasłonięta do odblokowania systemowym PIN-em lub biometrią (`BIOMETRIC_STRONG` lub poświadczenie urządzenia; wyłącznie bramka UI, nie wiąże kluczy — P7).
 
@@ -64,8 +64,8 @@ Jako **firma** chcemy, aby **dane klientów na telefonach były chronione nawet 
 Usuwanie lokalnej bazy SQLCipher (port czyszczenia; podpina EVM-093/107); biometria wiążąca klucze; root detection; zdalne czyszczenie z panelu (EVM-095).
 
 ## Decyzje i ograniczenia
-- Wartości 7 dni, 5 min, 6/12 miesięcy: ADR-0005, polityka P7; domyślnie włączona blokada aplikacji — do potwierdzenia przez Konrada (czy technik może ją wyłączyć — `security-engineer`).
-- **Przed `ready`:** decyzja o `FLAG_SECURE` (README planu, decyzja 5) i o telefonach firmowych vs prywatnych (decyzja 4).
+- Wartości 7 dni, 5 min, 6/12 miesięcy: ADR-0005, polityka P7.
+- **Decyzje Konrada (2026-11-01):** `FLAG_SECURE` na całym oknie w wydaniu, kompilacje testowe bez flagi (decyzja 5 planu); telefony prywatne (BYOD) — kontrole z tej historyjki obowiązują w pełni, bez zależności od spisu floty (decyzja 4); blokada aplikacji zawsze włączona, technik nie może jej wyłączyć. Do wyrównania w docs: README planu (sformułowanie „firmowe”).
 - Reguła 7 dni jest kontrolą kliencką ograniczającą ekspozycję (TM-03), nie granicą zaufania.
 - UX / UI: ostrzeżenie dnia 5–6 i arkusz „Dodaj” w trybie ukrytym — [`16-m2-uzupelnienia-teren-i-urzadzenia.md`](../../ux/flows/16-m2-uzupelnienia-teren-i-urzadzenia.md) (M-05/M-09).
 
@@ -75,3 +75,7 @@ Usuwanie lokalnej bazy SQLCipher (port czyszczenia; podpina EVM-093/107); biomet
 ## Dziennik
 - 2026-10-27 — utworzono (product-owner)
 - 2026-10-27 — naniesiono konsultacje: security, UX (product-owner)
+- 2026-11-01 — refinement: rozstrzygnięto FLAG_SECURE, BYOD i blokadę aplikacji (Konrad); AC zaakceptowane przez Konrada, status `ready`
+- 2026-11-02 — plan gotowy (mobile-developer)
+- 2026-11-02 — implementacja: `DeviceGuard`/`AppLock`/`CompanyDataWipe`, slot potwierdzenia czyszczenia (kontrakt `confirmDeviceWipe`), `ContactClock.status` w `sync-core`, `androidx.biometric:biometric:1.1.0`; blokada aplikacji liczy czas w tle zegarem rozruchowym (`elapsedRealtime`) i ściennym — `systemClock` dla `ContactClock` bez zmian do EVM-109 (zegar procesu; po restarcie zegar ścienny z kontrolami anomalii); AC bez zmian (mobile-developer)
+- 2026-11-02 — poprawki rundy 1 (mobile-developer): czyszczenie nie emituje końca sesji (wynik `done` → „Wylogowano” bez zdania o niewysłanych, `incomplete` → dialog z ponowieniem); bez blokady ekranu nakładka blokady nie zasłania treści (komunikat „Włącz blokadę ekranu”, aparat i Kolejka dostępne); `ContactClock` na zegarze rozruchowym (`elapsedRealtime` + `Settings.Global.BOOT_COUNT`), brak modułu = dane ukryte (zastępuje wcześniejszą wzmiankę o EVM-109); odświeżenie sesji nie przywraca ukrytych danych — tylko pełne logowanie; ryzyko szczątkowe zmiany zegara ściennego przed restartem opisane w threat-model (do akceptacji Konrada); AC bez zmian

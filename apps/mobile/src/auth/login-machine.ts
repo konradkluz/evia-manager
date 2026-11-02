@@ -17,7 +17,9 @@ export type BlockedVariant =
   | 'mfa_enrollment_required'
   | 'device_limit_reached'
   | 'client_version_unsupported'
-  | 'device_wipe_required';
+  | 'device_wipe_required'
+  /** EVM-101 AC1: the phone has no screen lock; checked BEFORE the password leaves the phone. */
+  | 'screen_lock_required';
 
 export type LoginError = 'invalid_credentials' | 'invalid_code' | 'unavailable' | 'challenge_expired';
 
@@ -41,6 +43,11 @@ export interface LoginDeps {
   readonly onSession: (session: IssuedSession) => Promise<'done' | 'failed'>;
   readonly wipe: WipeSignal;
   readonly now: () => number;
+  /**
+   * EVM-101 AC1 (SR-MOB-06): whether the phone has a screen lock. Asked before step 1 and before step 2; `false` (or an error) refuses
+   * the sign-in without a request, so neither the password nor the code is sent and nothing is stored. Absent = not asked.
+   */
+  readonly screenLockOk?: () => Promise<boolean>;
 }
 
 const BLOCKING_403: readonly BlockedVariant[] = [
@@ -129,6 +136,7 @@ export class LoginMachine {
     if (this.#state.step !== 'credentials' || !this.canSubmit(online)) return;
     const { email, password } = this.#state;
     this.#set({ busy: true, error: null });
+    if (!(await this.#screenLockPresent())) return;
     const outcome = await this.#deps.signIn.login({ email: email.trim(), password });
     if (outcome.kind === 'ok') {
       this.#challenge = outcome.value;
@@ -147,6 +155,7 @@ export class LoginMachine {
     }
     const { code } = this.#state;
     this.#set({ busy: true, error: null });
+    if (!(await this.#screenLockPresent())) return;
     const outcome = await this.#deps.signIn.loginTotp(challenge, code);
     if (outcome.kind === 'ok') {
       this.#challenge = null;
@@ -157,6 +166,20 @@ export class LoginMachine {
       return;
     }
     this.#fail(outcome, 'code');
+  }
+
+  /** Refuses the sign-in (M-02 "Włącz blokadę ekranu") when the phone has no screen lock; the challenge and the typed secrets go. */
+  async #screenLockPresent(): Promise<boolean> {
+    const check = this.#deps.screenLockOk;
+    if (check === undefined) return true;
+    const ok = await check().then(
+      (value) => value,
+      () => false,
+    );
+    if (ok) return true;
+    this.#challenge = null;
+    this.#set({ ...INITIAL_LOGIN, email: this.#state.email, blocked: 'screen_lock_required' });
+    return false;
   }
 
   #fail(outcome: Exclude<AuthOutcome<unknown>, { kind: 'ok' }>, step: 'credentials' | 'code'): void {

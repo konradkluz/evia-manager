@@ -22,10 +22,10 @@ export class InMemoryQueueStore implements QueueStore {
   data: unknown[] = [];
   readonly settled: { mutationId: string; info: SettledInfo }[] = [];
   /** Throws on the n-th call of a method (1-based) to simulate a process killed mid-flush. */
-  failOn: { method: 'append' | 'update' | 'settle'; call: number } | undefined;
-  readonly #calls = { append: 0, update: 0, settle: 0 };
+  failOn: { method: 'append' | 'update' | 'settle' | 'rewrite'; call: number } | undefined;
+  readonly #calls = { append: 0, update: 0, settle: 0, rewrite: 0 };
 
-  #maybeCrash(method: 'append' | 'update' | 'settle'): void {
+  #maybeCrash(method: 'append' | 'update' | 'settle' | 'rewrite'): void {
     this.#calls[method] += 1;
     if (this.failOn?.method === method && this.failOn.call === this.#calls[method]) throw new Error('simulated crash with synthetic data');
   }
@@ -55,6 +55,14 @@ export class InMemoryQueueStore implements QueueStore {
     this.#maybeCrash('settle');
     this.data = this.data.filter((item) => (item as { mutationId?: string }).mutationId !== mutationId);
     this.settled.push({ mutationId, info });
+    return Promise.resolve();
+  }
+
+  rewrite(removeIds: readonly string[], append: readonly QueueRecord[]): Promise<void> {
+    this.#maybeCrash('rewrite');
+    const remove = new Set(removeIds);
+    this.data = this.data.filter((item) => !remove.has((item as { mutationId?: string }).mutationId ?? ''));
+    for (const record of append) this.data.push(JSON.parse(JSON.stringify(record)));
     return Promise.resolve();
   }
 

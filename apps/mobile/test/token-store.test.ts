@@ -60,6 +60,17 @@ describe('secure store for secrets (EVM-009 AC6; SR-MOB-01)', () => {
     ]);
   });
 
+  it('EVM-101 AC4: clear keeps the wipe confirmation slot (the pair owed to confirmDeviceWipe); only an explicit delete removes it', async () => {
+    await tokenStore.set('wipeConfirmation', '{"deviceId":"d","secret":"s"}');
+    await tokenStore.set('refreshToken', 'a');
+    jest.mocked(SecureStore.deleteItemAsync).mockClear();
+    await tokenStore.clear();
+    expect(await tokenStore.get('wipeConfirmation')).toBe('{"deviceId":"d","secret":"s"}');
+    expect(jest.mocked(SecureStore.deleteItemAsync).mock.calls.map((call) => call[0])).not.toContain('evia.wipe-confirmation');
+    await tokenStore.delete('wipeConfirmation');
+    expect(await tokenStore.get('wipeConfirmation')).toBeNull();
+  });
+
   it('EVM-100 AC7, AC1: the pending revocation and the session record are own slots of the same class as the refresh token, removed by the wipe', async () => {
     await tokenStore.set('revocationToken', 'synthetic-revocation');
     await tokenStore.set('sessionMeta', '{"v":1}');

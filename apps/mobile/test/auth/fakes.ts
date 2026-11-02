@@ -19,11 +19,31 @@ export interface Phone {
   /** Failure injection: `fail` throws before the effect, `crash` after it (and the process is "dead": every later call throws). */
   readonly faults: Map<string, 'fail' | 'crash'>;
   dead: boolean;
+  /** Replica facts of the contact rule (EVM-101): the last saved record, the client-config, whether data exist. */
+  contact: unknown;
+  config: unknown;
+  hasData: boolean;
+  /** Records of the queue as `queue.readAll` returns them. */
+  queueRecords: unknown[];
   openAs: OpenResult['kind'] | null;
 }
 
 export function newPhone(): Phone {
-  return { slots: new Map(), identity: null, owner: null, queue: 0, replica: false, log: [], faults: new Map(), dead: false, openAs: null };
+  return {
+    slots: new Map(),
+    identity: null,
+    owner: null,
+    queue: 0,
+    replica: false,
+    log: [],
+    faults: new Map(),
+    dead: false,
+    contact: undefined,
+    config: undefined,
+    hasData: false,
+    queueRecords: [],
+    openAs: null,
+  };
 }
 
 function effect(phone: Phone, name: string, work: () => void): Promise<void> {
@@ -101,8 +121,14 @@ export class FakeHost {
     const guard = (): Promise<void> => (locked ? Promise.reject(new Error('locked')) : Promise.resolve());
     return {
       userId,
-      queue: {} as UnlockedStore['queue'],
-      replica: {} as UnlockedStore['replica'],
+      queue: { readAll: () => Promise.resolve(phone.queueRecords) } as unknown as UnlockedStore['queue'],
+      replica: {
+        loadState: () => Promise.resolve({ contact: phone.contact, config: phone.config, hasData: phone.hasData }),
+        saveContact: (record: unknown) => {
+          phone.contact = JSON.parse(JSON.stringify(record));
+          return Promise.resolve();
+        },
+      } as unknown as UnlockedStore['replica'],
       identity: {
         read: async () => {
           await guard();
@@ -112,6 +138,11 @@ export class FakeHost {
           await guard();
           await effect(phone, 'identity.write', () => (phone.identity = identity));
         },
+      },
+      replicaExtras: {
+        readLastSuccess: () => Promise.resolve(null),
+        writeLastSuccess: () => Promise.resolve(),
+        listWorkOrders: () => Promise.resolve([]),
       },
       takeSettled: () => Promise.resolve([]),
       unsentItemCount: async () => {

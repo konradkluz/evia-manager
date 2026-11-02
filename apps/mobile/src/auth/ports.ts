@@ -56,6 +56,17 @@ export interface SessionEnded {
   readonly unsentItems: number;
 }
 
+/**
+ * One entry of the local queue as the "Kolejka" list shows it (EVM-101 AC8): `label` is the text of the entry (a note's body) and is
+ * `null` whenever the hidden-data mode asked for no labels — the text is then not even read from the store.
+ */
+export interface QueueEntryRow {
+  readonly id: string;
+  readonly type: string;
+  readonly state: string;
+  readonly label: string | null;
+}
+
 /** Wall clock and a clock that the user cannot set back within one process (sync-core `MonotonicClock`). */
 export interface SessionClock {
   now(): number;

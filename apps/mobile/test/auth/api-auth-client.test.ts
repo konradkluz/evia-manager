@@ -215,3 +215,44 @@ describe('Retry-After (EVM-100 AC2; security W8)', () => {
     expect(parseRetryAfter('0', T0)).toBe(0);
   });
 });
+
+describe('confirmation of the wipe (EVM-101 AC4; contract confirmDeviceWipe)', () => {
+  const proof = () => InstallationProof.of({ deviceId: DEVICE_1, secret: secret(7) });
+
+  it('EVM-101 AC4: the pair goes in the BODY to the public operation, without an Authorization header; 204 is confirmed', async () => {
+    const { instance, sent } = client([new Response(null, { status: 204 })]);
+    expect(await instance.confirmWipe(proof())).toEqual({ kind: 'confirmed' });
+    expect(sent[0]?.url).toBe('https://api.example.test/api/v1/devices/current/wipe-confirmation');
+    expect(sent[0]?.method).toBe('POST');
+    expect(sent[0]?.body).toEqual({ deviceId: DEVICE_1, installationSecret: secret(7) });
+    expect(sent[0]?.headers.get('Authorization')).toBeNull();
+    expect(sent[0]?.headers.get('X-Client-Version')).toBe('0.4.0');
+  });
+
+  it('EVM-101 AC4: 401 invalid_credentials is "rejected" (the slot goes without a retry); another 401 is tried again', async () => {
+    const a = client([json(401, problemBody(401, 'invalid_credentials'))]);
+    expect(await a.instance.confirmWipe(proof())).toEqual({ kind: 'rejected' });
+    const b = client([json(401, problemBody(401, 'session_revoked'))]);
+    expect(await b.instance.confirmWipe(proof())).toEqual({ kind: 'unavailable' });
+  });
+
+  it('EVM-101 AC4: 429 carries Retry-After; 5xx, 400, 426, a network error and a timeout are "unavailable" (no version check applies)', async () => {
+    const a = client([json(429, problemBody(429, 'rate_limited'), { 'Retry-After': '30' })]);
+    expect(await a.instance.confirmWipe(proof())).toEqual({ kind: 'rate_limited', retryAfterMs: 30_000 });
+    for (const answer of [
+      new Response(null, { status: 503 }),
+      json(400, problemBody(400, 'validation_failed')),
+      json(426, problemBody(426, 'client_version_unsupported')),
+      new Error('offline (synthetic)'),
+      'hang' as const,
+    ]) {
+      expect(await client([answer]).instance.confirmWipe(proof())).toEqual({ kind: 'unavailable' });
+    }
+  });
+
+  it('EVM-101 AC4: an insecure address sends nothing', async () => {
+    const { instance, sent } = client([], { baseUrl: 'http://api.example.test' });
+    expect(await instance.confirmWipe(proof())).toEqual({ kind: 'unavailable' });
+    expect(sent).toEqual([]);
+  });
+});

@@ -1,7 +1,7 @@
 /**
  * Secure store for secrets (EVM-009 AC6, EVM-093; SR-MOB-01, SR-MOB-03, SR-MOB-04; MASVS-STORAGE-1): the only module that touches
  * expo-secure-store (Android Keystore / iOS Keychain). Slots: the refresh token (the only slot of a live session), the key of the
- * local database, the installation identity of the device, the pending revocation of a session ended offline (EVM-100 AC7: a refresh
+ * local database, the installation identity of the device, the wipe confirmation to send (EVM-101), the pending revocation of a session ended offline (EVM-100 AC7: a refresh
  * token that only ever ends its session on the server) and the session record (EVM-100: user id, display name, role for the UI,
  * start — no e-mail, no token). Nothing here logs a value. No biometric prompt (`requireAuthentication` off) — the decision on biometrics is
  * an ADR; the iOS accessibility class is set although it has no effect on Android.
@@ -10,7 +10,7 @@
  */
 import * as SecureStore from 'expo-secure-store';
 
-export type SecretSlot = 'refreshToken' | 'databaseKey' | 'installationIdentity' | 'revocationToken' | 'sessionMeta';
+export type SecretSlot = 'refreshToken' | 'databaseKey' | 'installationIdentity' | 'revocationToken' | 'sessionMeta' | 'wipeConfirmation';
 
 const KEYS: Readonly<Record<SecretSlot, string>> = {
   refreshToken: 'evia.refresh-token',
@@ -18,6 +18,7 @@ const KEYS: Readonly<Record<SecretSlot, string>> = {
   installationIdentity: 'evia.installation-identity',
   revocationToken: 'evia.revocation-token',
   sessionMeta: 'evia.session-meta',
+  wipeConfirmation: 'evia.wipe-confirmation',
 };
 
 /** Keychain service (Android: suffix of the Keystore alias) of the database key. */
@@ -46,10 +47,12 @@ export const tokenStore = {
   },
 
   /**
-   * Removes every slot, one after another (never in parallel). ONLY for the wipe of company data (EVM-093 AC6): sign-out and
-   * `session_revoked` delete the refresh token alone, because the database key protects the unsent queue (AC7).
+   * Removes every slot but the wipe confirmation, one after another (never in parallel). ONLY for the wipe of company data
+   * (EVM-093 AC6): sign-out and `session_revoked` delete the refresh token alone, because the database key protects the unsent queue
+   * (AC7). The slot `wipeConfirmation` (EVM-101 AC4, architect 1) is EXPLICITLY kept: the contract of `confirmDeviceWipe` needs the
+   * pair `deviceId` + installation secret after the data are gone; it is removed after the server's answer only.
    */
   async clear(): Promise<void> {
-    for (const slot of Object.keys(KEYS) as SecretSlot[]) await this.delete(slot);
+    for (const slot of Object.keys(KEYS) as SecretSlot[]) if (slot !== 'wipeConfirmation') await this.delete(slot);
   },
 };

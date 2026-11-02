@@ -1,15 +1,20 @@
 // Session ports for component tests (EVM-100): a stand-in owner whose state is set by the test. The real owner is tested in
 // test/auth/session-owner.test.ts; here the screens and the session gate are exercised.
 import { Challenge, IssuedSession } from '../src/auth/opaque';
-import type { AuthOutcome, SessionEnded, SignInClient } from '../src/auth/ports';
+import type { AuthOutcome, QueueEntryRow, SessionEnded, SignInClient } from '../src/auth/ports';
 import type { SessionControl, SessionStep } from '../src/auth/session-owner';
 import type { SessionPorts } from '../src/screens/SessionRoot';
+import { rig as guardRig, type Rig } from './device-guard/fakes';
+import { FakeSync } from './sync/fake-sync';
 
 export interface StubOwner extends SessionControl {
   readonly calls: string[];
   restoreResult: SessionStep;
   completeResult: SessionStep;
   unsent: number;
+  queue: QueueEntryRow[];
+  /** What `queueEntries` was asked for (`true` = with labels). */
+  readonly labelRequests: boolean[];
   name: string | null;
   /** Sends an end of the session to the screens (as the owner does after a 401). */
   end(ended: SessionEnded): void;
@@ -22,6 +27,8 @@ export function stubOwner(signIn: SignInClient = okSignIn()): StubOwner {
     restoreResult: { kind: 'signed_in' },
     completeResult: { kind: 'signed_in' },
     unsent: 0,
+    queue: [],
+    labelRequests: [],
     name: 'Piotr Testowy',
     end(ended) {
       for (const listener of listeners) listener(ended);
@@ -65,6 +72,18 @@ export function stubOwner(signIn: SignInClient = okSignIn()): StubOwner {
     },
     signInClient: () => signIn,
     unsentItemCount: () => Promise.resolve(owner.unsent),
+    contactStatus: () => Promise.resolve(null),
+    queueEntries: (withLabels) => {
+      owner.labelRequests.push(withLabels);
+      return Promise.resolve(owner.queue.map((row) => ({ ...row, label: withLabels ? row.label : null })));
+    },
+    onBeforeSessionEnd: () => () => undefined,
+    syncStore: () => null,
+    endSessionForWipe: ({ online }) => {
+      // the real owner emits no `SessionEnded` here: the screen shows the result of the wipe itself
+      owner.calls.push(`endSessionForWipe:${online ? 'online' : 'offline'}`);
+      return Promise.resolve();
+    },
   };
   return owner;
 }
@@ -91,9 +110,14 @@ export function okSignIn(overrides: Partial<SignInClient> = {}): SignInClient {
 
 export interface PortsRig {
   readonly ports: SessionPorts;
+  readonly sync: FakeSync;
+  readonly copied: string[];
   readonly owner: StubOwner;
   readonly opened: string[];
   readonly wipes: { count: number };
+  /** The device-control rig behind `ports.guard` (fake native answers). */
+  readonly device: Rig;
+  readonly manualWipes: { count: number; result: 'done' | 'incomplete' };
   /** For `<App session={…} />`: always the same ports object. */
   readonly session: () => SessionPorts;
 }
@@ -101,7 +125,33 @@ export interface PortsRig {
 export function stubPorts(owner: StubOwner = stubOwner(), unsentBeforeSignIn: number | null = 0): PortsRig {
   const opened: string[] = [];
   const wipes = { count: 0 };
+  const manualWipes: { count: number; result: 'done' | 'incomplete' } = { count: 0, result: 'done' };
+  const device = guardRig();
+  const sync = new FakeSync();
+  // the rows of the owner's stub, as the facade of the synchronization would return them (the label only on request)
+  sync.source = (withLabels) => {
+    owner.labelRequests.push(withLabels);
+    return owner.queue.map((row) => ({
+      id: row.id,
+      type: (row.type === 'CreateNote' ? 'CreateNote' : 'CreateComment') as 'CreateNote',
+      state: row.state === 'attention' ? 'attention' : 'pending',
+      createdAt: 0,
+      targetId: null,
+      code: null,
+      attempts: 0,
+      reason: row.state === 'attention' ? 'unknown' : null,
+      actions: [],
+      dependents: 0,
+      label: withLabels ? row.label : null,
+    }));
+  };
+  const copied: string[] = [];
   const ports: SessionPorts = {
+    sync,
+    copyToClipboard: (text) => {
+      copied.push(text);
+      return true;
+    },
     owner,
     wipe: {
       wipeRequired: () => {
@@ -111,10 +161,19 @@ export function stubPorts(owner: StubOwner = stubOwner(), unsentBeforeSignIn: nu
     unsentBeforeSignIn: () => Promise.resolve(unsentBeforeSignIn),
     openForgotPassword: () => opened.push('forgot'),
     openHelp: () => opened.push('help'),
-    requestCompanyDataWipe: () => opened.push('wipe'),
+    guard: device.guard,
+    screenLockOk: () => Promise.resolve(device.facts.secure === true),
+    companyWipe: {
+      unsentItemCount: () => Promise.resolve(owner.unsent),
+      runManual: () => {
+        manualWipes.count += 1;
+        return Promise.resolve(manualWipes.result);
+      },
+    },
+    openAddTarget: (target) => opened.push(`add:${target}`),
     appVersion: '0.4.0',
   };
-  return { ports, owner, opened, wipes, session: () => ports };
+  return { ports, sync, copied, owner, opened, wipes, device, manualWipes, session: () => ports };
 }
 
 /** A signed-in phone for the tests of the shell (EVM-009). */

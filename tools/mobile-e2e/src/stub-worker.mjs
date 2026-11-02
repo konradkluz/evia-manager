@@ -11,15 +11,27 @@ import { startStubApi } from './stub-api.mjs';
 // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 const { port, channel } = /** @type {{ port: number, channel: import('node:worker_threads').MessagePort }} */ (workerData);
 const parent = /** @type {import('node:worker_threads').MessagePort} */ (parentPort);
+let epoch = 0;
 const stub = await startStubApi({
   port,
   onRequest: (request) => {
     channel.postMessage(request);
   },
+  // the counters of the sync part travel on the same channel; `epoch` tells the runner which reset they belong to
+  onSync: (report) => {
+    channel.postMessage({ sync: report, epoch });
+  },
 });
 parent.on(
   'message',
-  (/** @type {{ mode?: import('./stub-api.mjs').StubMode, auth?: import('./stub-api.mjs').AuthMode, close?: true }} */ message) => {
+  (
+    /** @type {{ mode?: import('./stub-api.mjs').StubMode, auth?: import('./stub-api.mjs').AuthMode, close?: true, syncReset?: number }} */ message,
+  ) => {
+    if (message.syncReset !== undefined) {
+      epoch = message.syncReset;
+      stub.syncReset();
+      channel.postMessage({ sync: stub.syncReport(), epoch });
+    }
     if (message.mode !== undefined) stub.setMode(message.mode, message.auth ?? 'ok');
     if (message.close === true) {
       void stub.close().then(() => {

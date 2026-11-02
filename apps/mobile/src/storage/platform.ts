@@ -103,20 +103,26 @@ const isIdentity = (value: unknown): value is InstallationIdentity =>
   typeof (value as { deviceId?: unknown }).deviceId === 'string' &&
   typeof (value as { secret?: unknown }).secret === 'string';
 
+async function readPair(slot: 'installationIdentity' | 'wipeConfirmation'): Promise<InstallationIdentity | null> {
+  const text = await tokenStore.get(slot);
+  if (text === null) return null;
+  try {
+    const value: unknown = JSON.parse(text);
+    return isIdentity(value) ? { deviceId: value.deviceId, secret: value.secret } : null;
+  } catch {
+    return null;
+  }
+}
+
+const pairText = (identity: InstallationIdentity): string => JSON.stringify({ deviceId: identity.deviceId, secret: identity.secret });
+
 export const deviceSecrets: DeviceSecrets = {
-  async readIdentity(): Promise<InstallationIdentity | null> {
-    const text = await tokenStore.get('installationIdentity');
-    if (text === null) return null;
-    try {
-      const value: unknown = JSON.parse(text);
-      return isIdentity(value) ? { deviceId: value.deviceId, secret: value.secret } : null;
-    } catch {
-      return null;
-    }
-  },
-  writeIdentity: (identity) =>
-    tokenStore.set('installationIdentity', JSON.stringify({ deviceId: identity.deviceId, secret: identity.secret })),
+  readIdentity: () => readPair('installationIdentity'),
+  writeIdentity: (identity) => tokenStore.set('installationIdentity', pairText(identity)),
   deleteIdentity: () => tokenStore.delete('installationIdentity'),
+  readWipeConfirmation: () => readPair('wipeConfirmation'),
+  writeWipeConfirmation: (identity) => tokenStore.set('wipeConfirmation', pairText(identity)),
+  deleteWipeConfirmation: () => tokenStore.delete('wipeConfirmation'),
   deleteRefreshToken: () => tokenStore.delete('refreshToken'),
   deleteAllSecrets: () => tokenStore.clear(),
   // The app has no preference store and no crash-report SDK yet (EVM-093): the steps exist so the order of the wipe is fixed.

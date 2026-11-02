@@ -10,10 +10,21 @@
  * - a sign-out stores the refresh token as a pending revocation first, ends the session locally, then asks the server; the pending
  *   token only ever goes `refresh → logout` (the rotated token is stored before the logout) and never becomes a session.
  */
-import type { RefreshResult, SessionOwner } from '@evia/sync-core';
+import { ContactClock, parseClientConfig } from '@evia/sync-core';
+import type { ContactStatus, RefreshResult, SessionOwner } from '@evia/sync-core';
 import type { OpenResult, UnlockedStore } from '../storage';
 import { revealSession, type IssuedSession, type SessionData } from './opaque';
-import type { AuthClient, AuthFailure, SessionClock, SessionEnded, SessionEndReason, SignInClient, TokenStore, WipeSignal } from './ports';
+import type {
+  AuthClient,
+  AuthFailure,
+  QueueEntryRow,
+  SessionClock,
+  SessionEnded,
+  SessionEndReason,
+  SignInClient,
+  TokenStore,
+  WipeSignal,
+} from './ports';
 import { checkpoint, parseSessionMeta, sessionEndVariant, type SessionMeta } from './session-meta';
 
 export type DeviceCheck = Exclude<OpenResult, { readonly kind: 'unlocked' }>;
@@ -32,6 +43,8 @@ export interface SessionOwnerDeps {
   readonly host: { openForUser(userId: string): Promise<OpenResult> };
   readonly wipe: WipeSignal;
   readonly clock: SessionClock;
+  /** Clock of the 7-day rule (boot clock, EVM-101 AC2); `clock` when absent. */
+  readonly contactClock?: SessionClock;
   /** For `authorizedFetch`; the default is the global fetch. */
   readonly fetch?: (request: Request) => Promise<Response>;
 }
@@ -55,6 +68,7 @@ export class MobileSessionOwner implements SessionOwner {
   /** A session of step 2 held in memory while the device check of EVM-101/EVM-107 runs (nothing of it is stored yet). */
   #pending: SessionData | null = null;
   readonly #listeners = new Set<(ended: SessionEnded) => void>();
+  readonly #beforeEnd = new Set<() => void>();
 
   constructor(deps: SessionOwnerDeps) {
     this.#deps = deps;
@@ -72,6 +86,32 @@ export class MobileSessionOwner implements SessionOwner {
     return () => {
       this.#listeners.delete(listener);
     };
+  }
+
+  /**
+   * Called synchronously BEFORE the replica is removed or the store is locked (sign-out, session_revoked, wipe): the synchronization
+   * service stops, so that no answer in flight writes after the removal (EVM-107 security S2). A listener must not call the owner.
+   */
+  onBeforeSessionEnd(listener: () => void): () => void {
+    this.#beforeEnd.add(listener);
+    return () => {
+      this.#beforeEnd.delete(listener);
+    };
+  }
+
+  #stopListeners(): void {
+    for (const listener of [...this.#beforeEnd]) {
+      try {
+        listener();
+      } catch {
+        // stopping a service must not break the end of a session
+      }
+    }
+  }
+
+  /** The capability of the store for the synchronization service; null without a session. Composition only (security S3). */
+  syncStore(): UnlockedStore | null {
+    return this.#userId === null ? null : this.#store;
   }
 
   #emit(ended: SessionEnded): void {
@@ -240,7 +280,77 @@ export class MobileSessionOwner implements SessionOwner {
     if (previous !== null && previous.deviceId === data.deviceId) await tokens.delete('revocationToken').catch(() => undefined);
     this.#adopt(store, meta);
     this.#access = { token: data.accessToken, until: clock.now() + data.accessTokenTtlMs };
+    await this.#recordContact(data.serverTime);
     return { kind: 'signed_in' };
+  }
+
+  /**
+   * A contact with the server (an authenticated 2xx with a valid `serverTime`): the checkpoint of the 7-day rule (EVM-101 AC2,
+   * sync-core `ContactClock`, EVM-092 AC7). A failing write never fails the session — the data then stay hidden (no record).
+   */
+  async #recordContact(serverTime: number, { onlyIfVisible = false }: { readonly onlyIfVisible?: boolean } = {}): Promise<void> {
+    const store = this.#store;
+    if (store === null) return;
+    // a refresh never brings back data that were already hidden (window elapsed, clock anomaly, no record): only a full sign-in does
+    if (onlyIfVisible && (await this.contactStatus().catch(() => null))?.status.visible !== true) return;
+    await new ContactClock(store.replica, this.#deps.clock, this.#deps.contactClock ?? this.#deps.clock)
+      .record(serverTime)
+      .catch(() => undefined);
+  }
+
+  /**
+   * The state of the 7-day rule for the device guard (EVM-101 AC2): ONE evaluation (and one checkpoint write) of sync-core
+   * `ContactClock.status`, the window from the last known client-config (7 days without one). `null` = no session.
+   */
+  async contactStatus(): Promise<{ readonly status: ContactStatus; readonly windowDays: unknown } | null> {
+    const store = this.#store;
+    if (store === null) return null;
+    const state = await store.replica.loadState();
+    const config = typeof state.config === 'object' && state.config !== null ? parseClientConfig(state.config) : null;
+    const clock = new ContactClock(store.replica, this.#deps.clock, this.#deps.contactClock ?? this.#deps.clock);
+    const windowDays: unknown = config?.offlineContactWindowDays;
+    return { status: await clock.status(state.contact, state.hasData, windowDays), windowDays };
+  }
+
+  /**
+   * Entries of the queue for the "Kolejka" list. Without `withLabels` (hidden-data mode, EVM-101 AC8) the contents of the entries are
+   * dropped at this source: only type and state leave. `[]` without a session.
+   */
+  async queueEntries(withLabels: boolean): Promise<QueueEntryRow[]> {
+    const store = this.#store;
+    if (store === null) return [];
+    const records = await store.queue.readAll();
+    return records.map((record, index): QueueEntryRow => {
+      const entry = typeof record === 'object' && record !== null ? (record as Record<string, unknown>) : {};
+      const payload =
+        typeof entry['payload'] === 'object' && entry['payload'] !== null ? (entry['payload'] as Record<string, unknown>) : {};
+      const body = payload['body'];
+      return {
+        id: typeof entry['mutationId'] === 'string' ? entry['mutationId'] : String(index),
+        type: typeof entry['type'] === 'string' ? entry['type'] : 'unknown',
+        state: typeof entry['state'] === 'string' ? entry['state'] : 'pending',
+        label: withLabels && typeof body === 'string' ? body.slice(0, 200) : null,
+      };
+    });
+  }
+
+  /**
+   * "Wyczyść dane firmowe" / "Usuń i zaloguj" (EVM-101 AC4, AC5): ends the session on the phone before the wipe — the server is asked to
+   * end it first when the network is there (the tokens are about to be removed), the store is locked, the tokens go. No pending
+   * revocation is kept (the wipe removes the secure store; the server ends an idle session after 14 days anyway). Emits no
+   * `SessionEnded`: the screen that asked for the wipe decides what comes next once the wipe has a result.
+   */
+  endSessionForWipe({ online }: { readonly online: boolean }): Promise<void> {
+    return this.#exclusive(async () => {
+      this.#stopListeners();
+      const access = this.#access !== null && this.#deps.clock.now() < this.#access.until - ACCESS_SKEW_MS ? this.#access.token : null;
+      const store = this.#store;
+      store?.lock();
+      await this.#clearSession();
+      if (online && access !== null) await this.#deps.client.logout(access).catch(() => undefined);
+      // no `SessionEnded` event: the caller shows the result of the wipe (done / unfinished) itself - an event here would put
+      // "Wylogowano" (and a sentence about unsent items that the wipe is about to remove) over the running wipe
+    });
   }
 
   #adopt(store: UnlockedStore, meta: SessionMeta): void {
@@ -304,6 +414,7 @@ export class MobileSessionOwner implements SessionOwner {
           this.#meta = next;
       }
       this.#access = { token: data.accessToken, until: clock.now() + data.accessTokenTtlMs };
+      await this.#recordContact(data.serverTime, { onlyIfVisible: true });
       return 'refreshed';
     }
     if (outcome.kind === 'problem' && outcome.status === 401) {
@@ -320,6 +431,7 @@ export class MobileSessionOwner implements SessionOwner {
 
   /** `session_revoked` / expiry (AC4): N is read first, then the replica and the refresh token go; the queue stays encrypted. */
   async #end(reason: Extract<SessionEndReason, 'session_revoked' | 'session_expired'>): Promise<void> {
+    this.#stopListeners();
     const store = this.#store;
     const unsentItems = store === null ? 0 : await store.unsentItemCount().catch(() => 0);
     if (store !== null) await store.endSession().catch(() => undefined);
@@ -329,6 +441,7 @@ export class MobileSessionOwner implements SessionOwner {
 
   /** `device_wipe_required` (AC4): tokens and record go, the data become unreachable, the wipe is signalled to EVM-101. */
   async #endWipe(): Promise<void> {
+    this.#stopListeners();
     this.#store?.lock();
     await this.#clearSession();
     this.#deps.wipe.wipeRequired();
@@ -351,6 +464,7 @@ export class MobileSessionOwner implements SessionOwner {
    */
   signOut({ online }: { readonly online: boolean }): Promise<SessionEnded> {
     return this.#exclusive(async () => {
+      this.#stopListeners();
       const { tokens, clock } = this.#deps;
       const refreshToken = await tokens.get('refreshToken').catch(() => null);
       if (refreshToken !== null) await this.#writePending([...(await this.#readPending()), refreshToken]).catch(() => undefined);
@@ -472,4 +586,9 @@ export type SessionControl = Pick<
   | 'refresh'
   | 'signInClient'
   | 'unsentItemCount'
+  | 'contactStatus'
+  | 'queueEntries'
+  | 'endSessionForWipe'
+  | 'onBeforeSessionEnd'
+  | 'syncStore'
 >;

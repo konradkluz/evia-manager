@@ -10,6 +10,8 @@ import { createAppFiles, createKeyVault, deviceSecrets, expoCrypto } from './pla
 export { LocalDataHost } from './local-data';
 export type { DataLossReason, OpenResult, StoreFacts, UnlockedStore } from './local-data';
 export type { InstallationIdentity, KeyHardware, StorageDiagnostic } from './ports';
+/** Opaque pair for the sign-in and the wipe confirmation: only `src/api/auth-client.ts` may unwrap it (dependency-cruiser). */
+export type { InstallationProof } from './installation-proof';
 export type { StorageErrorCode } from './errors';
 
 let host: LocalDataHost | undefined;
@@ -36,3 +38,13 @@ export const storageE2eSupport = {
   wipeFault: wipeFaultForE2e,
   copyEngine: () => createExpoSqliteEngine(E2E_COPY_NAME),
 };
+
+/** CSPRNG for ids generated on the phone (UUIDv7 of the queue): expo-crypto behind the storage module, never a non-cryptographic generator. */
+export function randomSource(): { getRandomValues: (bytes: Uint8Array) => Uint8Array } {
+  return {
+    getRandomValues: (bytes) => {
+      bytes.set(expoCrypto.getRandomBytes(bytes.length));
+      return bytes;
+    },
+  };
+}

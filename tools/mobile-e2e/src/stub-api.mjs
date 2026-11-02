@@ -8,6 +8,7 @@
  * (api-guidelines → "Minimalna wersja aplikacji"), no addresses and no bodies; the tokens it hands out are fixed test words (gitleaks).
  */
 import { createServer } from 'node:http';
+import { createSyncStub } from './sync-stub.mjs';
 
 /** @typedef {'ok' | 'update' | 'down' | 'hang'} StubMode */
 /**
@@ -26,6 +27,8 @@ export const E2E_ACCOUNT = Object.freeze({ email: 'technik@example.test', passwo
 const E2E_USER = { id: '90000000-0000-4000-8000-0000000000e2', displayName: 'Technik Testowy', role: 'editor' };
 const E2E_DEVICE_ID = '7a000000-0000-4000-8000-0000000000e2';
 const MAX_BODY = 8192;
+/** A batch of 50 mutations of the contract is up to 1 MB. */
+const MAX_SYNC_BODY = 1_048_576;
 
 /**
  * @param {StubMode} mode
@@ -112,20 +115,52 @@ const AUTH_PATHS = [
 ];
 
 /**
- * @param {{ port?: number, onRequest?: (request: RecordedRequest) => void }} [options] port 0 = a free port; onRequest sees every recorded request
- * @returns {Promise<{ port: number, setMode: (mode: StubMode, auth?: AuthMode) => void, requests: () => RecordedRequest[], close: () => Promise<void> }>}
+ * @param {{ port?: number, onRequest?: (request: RecordedRequest) => void, onSync?: (report: import('./sync-stub.mjs').SyncReport) => void }} [options] port 0 = a free port; onRequest sees every recorded request
+ * @returns {Promise<{ port: number, setMode: (mode: StubMode, auth?: AuthMode) => void, requests: () => RecordedRequest[], syncReport: () => import('./sync-stub.mjs').SyncReport, syncReset: () => void, close: () => Promise<void> }>}
  */
-export async function startStubApi({ port = 0, onRequest } = {}) {
+export async function startStubApi({ port = 0, onRequest, onSync } = {}) {
   /** @type {StubMode} */
   let mode = 'ok';
   /** @type {AuthMode} */
   let auth = 'ok';
   let issued = 0;
+  const sync = createSyncStub();
   /** @type {RecordedRequest[]} */
   const recorded = [];
   const server = createServer((request, response) => {
     const isHealth = request.method === 'GET' && request.url === '/api/health';
     const isAuth = request.method === 'POST' && AUTH_PATHS.includes(request.url ?? '');
+    const target = new URL(request.url ?? '/', 'http://stub.local');
+    const isSync = target.pathname.startsWith('/api/v1/sync/') || target.pathname === '/api/v1/meta/client-config';
+    if (isSync) {
+      /** @type {Buffer[]} */
+      const parts = [];
+      let bytes = 0;
+      request.on('data', (/** @type {Buffer} */ chunk) => {
+        bytes += chunk.length;
+        if (bytes <= MAX_SYNC_BODY) parts.push(chunk);
+      });
+      request.on('end', () => {
+        /** @type {unknown} */
+        let parsed;
+        try {
+          parsed = parts.length === 0 ? null : JSON.parse(Buffer.concat(parts).toString('utf8'));
+        } catch {
+          parsed = null;
+        }
+        const bearer = /^Bearer e2e-access-/.test(request.headers['authorization'] ?? '');
+        const answer =
+          mode === 'down' || mode === 'hang'
+            ? problem(503, 'service_unavailable')
+            : bytes > MAX_SYNC_BODY
+              ? problem(413, 'payload_too_large')
+              : (sync.handle(request.method ?? 'GET', target.pathname, target.searchParams, parsed, bearer) ?? problem(404, 'not_found'));
+        response.writeHead(answer.status, { 'Content-Type': answer.type, 'Cache-Control': 'no-store' });
+        response.end(JSON.stringify(answer.body));
+        onSync?.(sync.report());
+      });
+      return;
+    }
     if (!isHealth && !isAuth) {
       response.writeHead(404, { 'Content-Type': 'application/problem+json' }).end('{"code":"not_found"}');
       return;
@@ -180,6 +215,11 @@ export async function startStubApi({ port = 0, onRequest } = {}) {
       auth = nextAuth;
     },
     requests: () => [...recorded],
+    /** Counters of the synchronization part: unique mutations, duplicates, everything received (EVM-107 AC6). */
+    syncReport: () => sync.report(),
+    syncReset: () => {
+      sync.reset();
+    },
     close: () =>
       new Promise((resolve) => {
         server.close(() => {

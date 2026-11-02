@@ -7,7 +7,7 @@ import { AccessibilityInfo, BackHandler, ScrollView, Text, View } from 'react-na
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BlockedVariant } from '../auth/login-machine';
 import type { SessionEndReason } from '../auth/ports';
-import { Ban, BottomBar, Button, Download, EmptyState, KeyRound, ListChecks, LogOut, ShieldOff, Smartphone } from '../ui';
+import { Ban, BottomBar, Button, Download, EmptyState, KeyRound, ListChecks, Lock, LogOut, ShieldOff, Smartphone } from '../ui';
 import { color, space, text } from '../ui/theme';
 
 /** Every variant of M-02 that EVM-100 shows (AC3 before a session, AC4/AC7 at its end). */
@@ -43,6 +43,12 @@ const VARIANTS: Readonly<Record<DeviceStateVariant, VariantCopy>> = {
     body: 'deviceState.mfaEnrollmentRequired.body',
     unsent: 'deviceState.unsentAfterSignIn',
     primary: 'backToSignIn',
+  },
+  screen_lock_required: {
+    icon: Lock,
+    title: 'deviceState.screenLockRequired.title',
+    body: 'deviceState.screenLockRequired.body',
+    primary: 'retry',
   },
   device_limit_reached: {
     icon: Smartphone,
@@ -88,7 +94,7 @@ const PRIMARY_LABEL = {
   viewQueue: 'deviceState.viewQueue',
 } as const;
 
-function useTitleFocus() {
+export function useTitleFocus() {
   const ref = useRef<ComponentRef<typeof Text>>(null);
   useEffect(() => {
     if (ref.current !== null) AccessibilityInfo.sendAccessibilityEvent(ref.current, 'focus');
@@ -97,7 +103,7 @@ function useTitleFocus() {
 }
 
 /** The system "back" never leaves a blocking state (styleguide § 3.15.1). */
-function useBlockBack() {
+export function useBlockBack() {
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => true);
     return () => {

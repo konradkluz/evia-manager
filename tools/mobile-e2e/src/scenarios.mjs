@@ -11,6 +11,7 @@
  *   background?: boolean,
  *   before?: import('./device.mjs').DeviceAction[],
  *   after?: import('./device.mjs').DeviceAction[],
+ *   expectSync?: { unique: number, duplicates: number },
  * }} Step
  * `before` runs ahead of the flow (a failure skips it), `after` once the flow passed (EVM-093 device steps, src/device.mjs).
  * `auth` is the sign-in mode of the scenario server for the step (EVM-100; default `ok`).
@@ -146,6 +147,19 @@ export const SCENARIOS = [
       { flow: '26-logout-online.yaml', server: 'ok', airplane: false },
       { flow: '26-logout-offline.yaml', server: 'ok', airplane: true },
       { flow: '26-logout-reconnect.yaml', server: 'ok', airplane: false },
+    ],
+  },
+  // EVM-107 AC6: the offline recovery of the queue. The sync part of the scenario server (src/sync-stub.mjs, a stand-in for the API,
+  // ADR-0015) counts the mutations it received: after the return of the network exactly 5 unique, 0 duplicates, none lost. The
+  // guarantee "exactly once" of the real server is proven by its integration test of the idempotency of mutations (EVM-098).
+  {
+    name: 'sync-offline-recovery',
+    ac: 'EVM-107 AC6',
+    steps: [
+      { flow: '30-sync-sign-in.yaml', server: 'ok', airplane: false },
+      { flow: '30-sync-offline-add.yaml', server: 'ok', airplane: true, after: ['force-stop'] },
+      { flow: '30-sync-offline-restart.yaml', server: 'ok', airplane: true },
+      { flow: '30-sync-return.yaml', server: 'ok', airplane: false, background: true, expectSync: { unique: 5, duplicates: 0 } },
     ],
   },
   // Last: the held request keeps the app in its loading state (skeleton), and the first-flow retry of the runner is not affected.

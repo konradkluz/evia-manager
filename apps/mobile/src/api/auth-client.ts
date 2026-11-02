@@ -12,6 +12,7 @@ import { Challenge, IssuedSession, revealChallenge } from '../auth/opaque';
 import type { AuthClient, AuthFailure, AuthOutcome } from '../auth/ports';
 import { parseRetryAfter } from '../auth/retry-after';
 import { proofFields, type InstallationProof } from '../storage/installation-proof';
+import type { WipeConfirmClient } from '../wipe/company-wipe';
 import { clientHeaders, type ClientPlatform } from './health';
 
 export interface DeviceDescription {
@@ -43,7 +44,10 @@ const UNAVAILABLE: AuthFailure = { kind: 'unavailable' };
 
 type Answer = { readonly status: number; readonly body: unknown; readonly retryAfter: string | null } | null;
 
-export function createHttpAuthClient(options: HttpAuthClientOptions): AuthClient {
+/** `confirmDeviceWipe` of the contract EVM-090 (public operation of the channel `mobile`; no check of the app version). */
+const WIPE_CONFIRMATION_PATH = '/api/v1/devices/current/wipe-confirmation';
+
+export function createHttpAuthClient(options: HttpAuthClientOptions): AuthClient & WipeConfirmClient {
   const { baseUrl, allowLocalHttp, platform, appVersion, device, installationProof, timeoutMs = DEFAULT_AUTH_TIMEOUT_MS } = options;
   const now = options.now ?? Date.now;
   const fetchImpl = options.fetch ?? ((request: Request) => fetch(request));
@@ -64,7 +68,7 @@ export function createHttpAuthClient(options: HttpAuthClientOptions): AuthClient
     if (bearer !== undefined) headers['Authorization'] = `Bearer ${bearer}`;
     const exchange = async (): Promise<Answer> => {
       const response = await fetchImpl(
-        new Request(`${baseUrl}${PATH}${path}`, {
+        new Request(path.startsWith('/api/') ? `${baseUrl}${path}` : `${baseUrl}${PATH}${path}`, {
           method: 'POST',
           headers,
           ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -142,6 +146,19 @@ export function createHttpAuthClient(options: HttpAuthClientOptions): AuthClient
     },
     async refresh(refreshToken) {
       return session(await post('/token', { refreshToken }));
+    },
+    async confirmWipe(proof) {
+      const pair = proofFields(proof);
+      if (pair === null) return { kind: 'rejected' };
+      const answer = await post(WIPE_CONFIRMATION_PATH, pair);
+      if (answer === null) return { kind: 'unavailable' };
+      if (answer.status === 204) return { kind: 'confirmed' };
+      if (answer.status === 401) {
+        const problem = failure(answer);
+        return problem.kind === 'problem' && problem.code === 'invalid_credentials' ? { kind: 'rejected' } : { kind: 'unavailable' };
+      }
+      if (answer.status === 429) return { kind: 'rate_limited', retryAfterMs: parseRetryAfter(answer.retryAfter, now()) };
+      return { kind: 'unavailable' };
     },
     async logout(accessToken) {
       const answer = await post('/logout', undefined, accessToken);

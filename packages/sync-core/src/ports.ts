@@ -23,6 +23,11 @@ export interface QueueStore {
   update(mutationId: string, patch: RecordPatch): Promise<void>;
   /** Removes the mutation and hands the result to the consumer atomically (one transaction in the adapter). */
   settle(mutationId: string, info: SettledInfo): Promise<void>;
+  /**
+   * Removes the given entries and appends the new records (at the end, in the given order) in ONE transaction: a failure changes
+   * nothing. Used only by the "needs attention" operations (discard / recreate / retarget, EVM-107 AC4). Unknown ids are ignored.
+   */
+  rewrite(removeIds: readonly string[], append: readonly QueueRecord[]): Promise<void>;
 }
 
 export interface SyncRequest {

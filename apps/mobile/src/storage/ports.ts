@@ -45,6 +45,13 @@ export interface DeviceSecrets {
   readIdentity(): Promise<InstallationIdentity | null>;
   writeIdentity(identity: InstallationIdentity): Promise<void>;
   deleteIdentity(): Promise<void>;
+  /**
+   * Copy of the pair kept ONLY while a `device_wipe_required` confirmation is owed to the server (EVM-101 AC4): the contract
+   * `confirmDeviceWipe` carries `deviceId` + secret, but the wipe removes the identity. `deleteAllSecrets` leaves this slot alone.
+   */
+  readWipeConfirmation(): Promise<InstallationIdentity | null>;
+  writeWipeConfirmation(identity: InstallationIdentity): Promise<void>;
+  deleteWipeConfirmation(): Promise<void>;
   /** Sign-out and `session_revoked`: ONLY the refresh token (the queue and its key stay, AC7). */
   deleteRefreshToken(): Promise<void>;
   /** Every remaining secure-store entry (wipe only, AC6). */
@@ -58,4 +65,5 @@ export interface DeviceSecrets {
 export type StorageDiagnostic =
   | { readonly event: 'db-open-failed'; readonly code: string }
   | { readonly event: 'keystore-hardware'; readonly level: KeyHardware }
-  | { readonly event: 'wipe-step-failed'; readonly step: string };
+  | { readonly event: 'wipe-step-failed'; readonly step: string }
+  | { readonly event: 'wipe-confirmation'; readonly outcome: 'sent' | 'rejected' | 'retry' };

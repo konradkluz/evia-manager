@@ -1,8 +1,18 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import type { ReactElement } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { E2eHooks as Slot } from '../src/e2e-hooks';
-import { E2E_HOOKS_MARKER, E2E_USERS, E2eHooks, sentinel, statusLine, syntheticRecord, type E2eHooksDeps } from '../src/e2e-hooks/panel';
+import { E2eHooks as Slot, deviceOverrides as releaseOverrides } from '../src/e2e-hooks';
+import { NO_OVERRIDES } from '../src/device-guard/overrides';
+import {
+  E2E_HOOKS_MARKER,
+  E2E_USERS,
+  E2eHooks,
+  deviceOverrides,
+  sentinel,
+  statusLine,
+  syntheticRecord,
+  type E2eHooksDeps,
+} from '../src/e2e-hooks/panel';
 import { WIPE_MARKER_FILE, wipeFaultForE2e, type OpenResult } from '../src/storage/local-data';
 import { boot, newDevice, type Device } from './storage/fakes';
 import { NodeSqliteEngine, newDisk, removeDisk, type TestDisk } from './storage/node-sqlite-engine';
@@ -215,5 +225,68 @@ describe('e2e hooks of the local store (EVM-093 AC1, AC3, AC5–AC7)', () => {
     expect(JSON.stringify(record.payload)).toContain('EVM093-SENTINEL');
     expect(record.mutationId).not.toBe(syntheticRecord(E2E_USERS.a, 8).mutationId);
     expect(statusLine({ a: 1, b: 'x' })).toBe('a=1;b=x');
+  });
+
+  it('EVM-101 AC1, AC2, AC3 (security K7): the panel moves the screen lock, the contact time and the background time; the release slot has no overrides', async () => {
+    expect(releaseOverrides).toBeNull();
+    // the emulator of the scenarios has no screen lock: the e2e variant starts with the answer "locked"
+    expect(deviceOverrides.screenSecure).toBe(true);
+    expect(deviceOverrides.autoUnlock).toBe(true);
+    Object.assign(deviceOverrides, NO_OVERRIDES);
+    await opened();
+    await tap('e2e-lock-off');
+    expect(deviceOverrides.screenSecure).toBe(false);
+    await tap('e2e-lock-real');
+    expect(deviceOverrides.screenSecure).toBeNull();
+    await tap('e2e-contact-5');
+    expect(deviceOverrides.contactShiftMs).toBe(5 * 86_400_000);
+    await tap('e2e-contact-8');
+    expect(deviceOverrides.contactShiftMs).toBe(8 * 86_400_000);
+    await tap('e2e-clock-back');
+    expect(deviceOverrides.contactShiftMs).toBe(-86_400_000);
+    await tap('e2e-contact-reset');
+    expect(deviceOverrides.contactShiftMs).toBe(0);
+    await tap('e2e-background-6');
+    expect(deviceOverrides.backgroundShiftMs).toBe(360_000);
+    await expectStatus('device=background_6m');
+    Object.assign(deviceOverrides, NO_OVERRIDES);
+  });
+});
+
+describe('e2e hooks of the synchronization (EVM-107 AC6)', () => {
+  it('EVM-107 AC6: "add notes" puts N notes into the durable queue of the session and reports the count only after they were saved; the status line has codes and numbers only', async () => {
+    const calls: string[] = [];
+    let unsent = 0;
+    const snapshot = {
+      active: true,
+      online: false,
+      syncing: false,
+      initialLoad: 'done' as const,
+      firstPull: { step: 1 as const, received: 0, slow: false, failure: null, attempts: 0, retryAt: null },
+      lastSuccessAt: null,
+      counts: { pending: 0, retrying: 0, blocked: 0, attention: 0, unsent: 0 },
+      failure: null,
+      retryAt: null,
+      resyncing: false,
+      paused: null,
+    };
+    const sync = {
+      enqueue: (input: { type: string; payload: unknown }) => {
+        calls.push(input.type);
+        unsent += 1;
+        return Promise.resolve({ ok: true as const });
+      },
+      getSnapshot: () => ({ ...snapshot, counts: { ...snapshot.counts, unsent } }),
+      trigger: () => undefined,
+    };
+    const deps: E2eHooksDeps = { ...depsOf(), sync: () => sync };
+    await opened(deps);
+    await type('e2e-count', '5');
+    await tap('e2e-sync-add');
+    await expectStatus('sync_added=5;unsent=5');
+    expect(calls).toEqual(['CreateNote', 'CreateNote', 'CreateNote', 'CreateNote', 'CreateNote']);
+    await tap('e2e-sync-status');
+    await expectStatus('sync=active;initial=done;unsent=5;failure=none;last=none');
+    expect(status()).not.toMatch(/e2e note|body|token/);
   });
 });

@@ -2,6 +2,8 @@
 export { AlertDialog } from './AlertDialog';
 export type { AlertDialogProps } from './AlertDialog';
 export { AppBar } from './AppBar';
+export { AttentionCard } from './AttentionCard';
+export type { AttentionAction, AttentionCardProps } from './AttentionCard';
 export { BottomBar } from './BottomBar';
 export { BottomNav } from './BottomNav';
 export type { BottomNavItem } from './BottomNav';
@@ -11,9 +13,28 @@ export { EmptyState } from './EmptyState';
 export type { EmptyStateProps } from './EmptyState';
 export { InlineAlert } from './InlineAlert';
 export type { AlertTone, InlineAlertProps } from './InlineAlert';
+export { ProgressBar } from './ProgressBar';
+export type { ProgressBarProps, ProgressTone } from './ProgressBar';
 export { Skeleton } from './Skeleton';
 export { SyncIndicator } from './SyncIndicator';
 export { TextField } from './TextField';
 export type { SecureToggle, TextFieldProps } from './TextField';
 export type { SyncIndicatorProps, SyncState } from './SyncIndicator';
-export { Ban, CircleAlert, ClipboardList, Download, Ellipsis, KeyRound, ListChecks, LogOut, ShieldOff, Smartphone } from './icons';
+export {
+  Ban,
+  Camera,
+  CircleAlert,
+  CloudAlert,
+  CloudCheck,
+  ClipboardList,
+  Download,
+  Ellipsis,
+  KeyRound,
+  ListChecks,
+  Lock,
+  LogOut,
+  Plus,
+  RefreshCw,
+  ShieldOff,
+  Smartphone,
+} from './icons';

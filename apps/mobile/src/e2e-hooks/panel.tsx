@@ -10,14 +10,27 @@ import type { QueueRecord } from '@evia/sync-core';
 import { useCallback, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { NO_OVERRIDES, type DeviceOverrides } from '../device-guard/overrides';
 import { LocalDataLostScreen } from '../screens/LocalDataScreens';
+import { sessionPorts } from '../session';
 import { tokenStore } from '../secure-store';
+import type { SyncControl } from '../sync/types';
 import { localData, storageE2eSupport, type LocalDataHost, type OpenResult, type UnlockedStore } from '../storage';
 import { Button } from '../ui';
 import { borderWidth, color, size, space, text } from '../ui/theme';
 
 /** Unique marker of the hooks in a bundle (also the testID of the toggle): tools/mobile-apk/src/contents.mjs E2E_HOOKS_MARKER. */
 export const E2E_HOOKS_MARKER = 'evia-e2e-hooks-panel';
+
+/**
+ * Answers of the device controls that the scenarios move (EVM-101; security K7): the screen lock, the time without contact with the
+ * server and the time in the background. `src/session.ts` reads this object through the slot (`null` in every other bundle).
+ *
+ * The scenario emulator has no screen lock, and the app refuses to work without one (EVM-101): the e2e variant answers "locked" until a
+ * scenario asks for the real answer (`e2e-lock-real`) or for "no lock" (`e2e-lock-off`); the system unlock answers `success` (no credential on the emulator).
+ */
+export const E2E_DEFAULT_OVERRIDES: DeviceOverrides = { ...NO_OVERRIDES, screenSecure: true, autoUnlock: true };
+export const deviceOverrides: DeviceOverrides = { ...E2E_DEFAULT_OVERRIDES };
 
 /** Synthetic users of the scenarios (never real people). */
 export const E2E_USERS = { a: 'e2e-user-a', b: 'e2e-user-b' } as const;
@@ -35,6 +48,15 @@ const LABELS = {
   facts: 'facts',
   probe: 'probe copy',
   close: 'close',
+  lockOff: 'screen lock off',
+  lockReal: 'screen lock real',
+  contact5: 'no contact 5 days',
+  contact8: 'no contact 8 days',
+  contactBack: 'clock back',
+  contactReset: 'contact reset',
+  background6: 'background 6 min',
+  syncAdd: 'sync: add notes',
+  syncStatus: 'sync: status',
 } as const;
 
 export interface E2eHooksDeps {
@@ -43,6 +65,8 @@ export interface E2eHooksDeps {
   readonly wipeFault: { afterStep: string | null };
   readonly copyEngine: () => Parameters<LocalDataHost['probe']>[0];
   readonly now: () => number;
+  /** The synchronization of the signed-in session (EVM-107 AC6): the real one by default, read when a button is pressed. */
+  readonly sync?: () => Pick<SyncControl, 'enqueue' | 'getSnapshot' | 'trigger'>;
 }
 
 const realDeps = (): E2eHooksDeps => ({
@@ -51,6 +75,7 @@ const realDeps = (): E2eHooksDeps => ({
   wipeFault: storageE2eSupport.wipeFault,
   copyEngine: storageE2eSupport.copyEngine,
   now: Date.now,
+  sync: () => sessionPorts().sync,
 });
 
 /** One status line: `key=value` pairs in a fixed order; values are codes and numbers only. */
@@ -168,6 +193,56 @@ export function E2eHooks({ deps: injected }: { deps?: E2eHooksDeps } = {}) {
     });
   });
 
+  /** EVM-107 AC6: N synthetic notes into the durable queue of the signed-in session (in airplane mode they wait for the network). */
+  const syncAdd = guarded(async () => {
+    const sync = (get().sync ?? realDeps().sync)?.();
+    if (sync === undefined) {
+      setStatus({ error: 'no_sync' });
+      return;
+    }
+    const n = Math.min(Math.max(Number.parseInt(count, 10) || 1, 1), 100);
+    const base = get().now();
+    let added = 0;
+    for (let i = 0; i < n; i += 1) {
+      const result = await sync.enqueue({
+        type: 'CreateNote',
+        commandVersion: 1,
+        payload: {
+          id: `0194c2a0-0000-7000-8000-${hex12(base * 1000 + i)}`,
+          workOrderId: '30000000-0000-4000-8000-000000000001',
+          noteCategory: 'meeting',
+          body: `e2e note ${String(i + 1)}`,
+          capturedAt: new Date(base).toISOString(),
+        },
+      });
+      if (result.ok) added += 1;
+    }
+    // shown only after every `enqueue` resolved: the notes are in the durable queue (scenario 30 kills the app right after)
+    setStatus({ sync_added: added, unsent: sync.getSnapshot().counts.unsent });
+  });
+
+  const syncStatus = guarded(async () => {
+    const sync = (get().sync ?? realDeps().sync)?.();
+    if (sync === undefined) {
+      setStatus({ error: 'no_sync' });
+      return;
+    }
+    const snap = sync.getSnapshot();
+    setStatus({
+      sync: snap.active ? 'active' : 'idle',
+      initial: snap.initialLoad,
+      unsent: snap.counts.unsent,
+      failure: snap.failure ?? 'none',
+      last: snap.lastSuccessAt === null ? 'none' : 'yes',
+    });
+    await Promise.resolve();
+  });
+
+  const device = (name: string, change: (o: DeviceOverrides) => void) => () => {
+    change(deviceOverrides);
+    setStatus({ device: name });
+  };
+
   const probe = guarded(async () => {
     setStatus({ probe: await get().host.probe(get().copyEngine()) });
   });
@@ -221,6 +296,57 @@ export function E2eHooks({ deps: injected }: { deps?: E2eHooksDeps } = {}) {
         <Button label={LABELS.deleteKey} onPress={deleteKey} testID="e2e-delete-key" />
         <Button label={LABELS.facts} onPress={facts} testID="e2e-facts" />
         <Button label={LABELS.probe} onPress={probe} testID="e2e-probe" />
+        <Button label={LABELS.syncAdd} onPress={syncAdd} testID="e2e-sync-add" />
+        <Button label={LABELS.syncStatus} onPress={syncStatus} testID="e2e-sync-status" />
+        <Button
+          label={LABELS.lockOff}
+          onPress={device('lock_off', (o) => {
+            o.screenSecure = false;
+          })}
+          testID="e2e-lock-off"
+        />
+        <Button
+          label={LABELS.lockReal}
+          onPress={device('lock_real', (o) => {
+            o.screenSecure = null;
+          })}
+          testID="e2e-lock-real"
+        />
+        <Button
+          label={LABELS.contact5}
+          onPress={device('contact_5d', (o) => {
+            o.contactShiftMs = 5 * 86_400_000;
+          })}
+          testID="e2e-contact-5"
+        />
+        <Button
+          label={LABELS.contact8}
+          onPress={device('contact_8d', (o) => {
+            o.contactShiftMs = 8 * 86_400_000;
+          })}
+          testID="e2e-contact-8"
+        />
+        <Button
+          label={LABELS.contactBack}
+          onPress={device('clock_back', (o) => {
+            o.contactShiftMs = -86_400_000;
+          })}
+          testID="e2e-clock-back"
+        />
+        <Button
+          label={LABELS.contactReset}
+          onPress={device('contact_reset', (o) => {
+            o.contactShiftMs = 0;
+          })}
+          testID="e2e-contact-reset"
+        />
+        <Button
+          label={LABELS.background6}
+          onPress={device('background_6m', (o) => {
+            o.backgroundShiftMs = 6 * 60_000;
+          })}
+          testID="e2e-background-6"
+        />
         <Button
           label={LABELS.close}
           onPress={() => {

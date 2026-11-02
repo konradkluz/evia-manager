@@ -64,6 +64,20 @@ export class SqlQueueStore implements QueueStore {
     });
   }
 
+  /** Removes the entries and appends the new records in one transaction (the "needs attention" operations, EVM-107 AC4). */
+  async rewrite(removeIds: readonly string[], append: readonly QueueRecord[]): Promise<void> {
+    await this.#db.transaction(async (tx) => {
+      for (const id of removeIds) await tx.run('DELETE FROM queue_entries WHERE mutation_id = ?', [id]);
+      for (const record of append) {
+        await tx.run('INSERT INTO queue_entries (mutation_id, owner_user_id, record) VALUES (?, ?, ?)', [
+          record.mutationId,
+          record.ownerUserId,
+          JSON.stringify(record),
+        ]);
+      }
+    });
+  }
+
   /** Hands the settled results to their consumer and removes them in the same transaction (bounded retention). */
   async takeSettled(): Promise<{ mutationId: string; info: SettledInfo }[]> {
     return this.#db.transaction(async (tx) => {

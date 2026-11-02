@@ -13,7 +13,7 @@ export const OFFLINE_RECHECK_FIRST_MS = 10_000;
 export const OFFLINE_RECHECK_MAX_MS = 60_000;
 
 /** While the sign-in screen shows "Brak zasięgu", the health check runs again by itself, so the banner goes when the network returns. */
-function useOfflineRecheck(offline: boolean, retry: () => void) {
+export function useOfflineRecheck(offline: boolean, retry: () => void) {
   useEffect(() => {
     if (!offline) return undefined;
     let delay = OFFLINE_RECHECK_FIRST_MS;
