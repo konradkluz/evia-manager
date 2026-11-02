@@ -57,7 +57,7 @@ class EviaClipboardModule : Module() {
   }
 
   /** Removes the copy of this module: unconditionally while nobody replaced it (fail-safe: privacy before convenience). */
-  private fun removeOwnCopy() = synchronized(lock) {
+  private fun removeOwnCopy(): Unit = synchronized(lock) {
     handler.removeCallbacks(timeout)
     val own = label ?: return@synchronized
     val manager = manager()

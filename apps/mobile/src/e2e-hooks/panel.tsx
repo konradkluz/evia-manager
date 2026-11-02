@@ -25,8 +25,12 @@ export const E2E_HOOKS_MARKER = 'evia-e2e-hooks-panel';
 /**
  * Answers of the device controls that the scenarios move (EVM-101; security K7): the screen lock, the time without contact with the
  * server and the time in the background. `src/session.ts` reads this object through the slot (`null` in every other bundle).
+ *
+ * The scenario emulator has no screen lock, and the app refuses to work without one (EVM-101): the e2e variant answers "locked" until a
+ * scenario asks for the real answer (`e2e-lock-real`) or for "no lock" (`e2e-lock-off`).
  */
-export const deviceOverrides: DeviceOverrides = { ...NO_OVERRIDES };
+export const E2E_DEFAULT_OVERRIDES: DeviceOverrides = { ...NO_OVERRIDES, screenSecure: true };
+export const deviceOverrides: DeviceOverrides = { ...E2E_DEFAULT_OVERRIDES };
 
 /** Synthetic users of the scenarios (never real people). */
 export const E2E_USERS = { a: 'e2e-user-a', b: 'e2e-user-b' } as const;
