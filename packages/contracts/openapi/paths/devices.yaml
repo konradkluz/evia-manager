@@ -48,3 +48,259 @@ wipeConfirmation:
         $ref: ../components/responses.yaml#/MobileUnsupportedMediaType
       '429':
         $ref: ../components/responses.yaml#/MobileRateLimited
+# EVM-095 - lista urządzeń, zdalne wylogowanie i „Zablokuj i wyczyść” (W-15, W-17). Wszystkie operacje: kanał `web` (SR-SESS-08); token mobilny
+# dostaje 401/403. Odpowiedzi: `Cache-Control: no-store`, bez sekretów, kluczy, tokenów, adresów IP, numeru seryjnego i IMEI.
+DeviceIdParameter:
+  name: deviceId
+  in: path
+  required: true
+  description: Identyfikator urządzenia (UUID).
+  schema:
+    $ref: ../components/devices.yaml#/DeviceId
+accountDevices:
+  get:
+    operationId: listAccountDevices
+    tags: [devices]
+    summary: Moje urządzenia (W-15)
+    description: >-
+      Administrator i Edytor, kanał `web`; Tylko odczyt dostaje `403 forbidden`. Własne, niezdjęte z rejestru telefony konta: model, system, wersja aplikacji,
+      ostatni kontakt, stan (Aktywne, Wylogowane, Czeka na wyczyszczenie, Wyczyszczone). Stan „Wylogowane” jest pochodny (urządzenie aktywne bez ważnej sesji).
+    x-evia-authz:
+      roles: [administrator, editor]
+      channels: [web]
+    responses:
+      '200':
+        description: Urządzenia konta.
+        headers:
+          Cache-Control:
+            $ref: ../components/devices.yaml#/CacheControlNoStore
+        content:
+          application/json:
+            schema:
+              $ref: ../components/devices.yaml#/AccountDeviceList
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+accountDeviceLogout:
+  post:
+    operationId: logoutAccountDevice
+    tags: [devices]
+    summary: Wylogowanie własnego telefonu (W-15)
+    description: >-
+      Administrator i Edytor, kanał `web`, po step-upie (`403 step_up_required`); Tylko odczyt `403 forbidden`. Własność jest sprawdzana w `WHERE`: cudze,
+      nieistniejące i zdjęte z rejestru urządzenie to jedna odpowiedź `404 not_found` (identyczna treść). Kończy sesje urządzenia (następne żądanie telefonu:
+      `401 session_revoked`; miejsce w limicie 2 urządzeń się zwalnia); kolejka niewysłanych elementów na telefonie zostaje zaszyfrowana, a efekt następuje
+      przy najbliższym połączeniu telefonu. Stan urządzenia nie zmienia się (nie cofa `wipe_required`). Idempotentna. Audyt `device.logged_out`. Wymaga `X-CSRF-Token`.
+    x-evia-authz:
+      roles: [administrator, editor]
+      channels: [web]
+      stepUp: true
+      audit: true
+    parameters:
+      - $ref: '#/DeviceIdParameter'
+    responses:
+      '204':
+        description: Urządzenie wylogowane.
+        headers:
+          Cache-Control:
+            $ref: ../components/devices.yaml#/CacheControlNoStore
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/StepUpRequired
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+devices:
+  get:
+    operationId: listDevices
+    tags: [devices]
+    summary: Urządzenia użytkowników (W-17)
+    description: >-
+      Tylko Administrator, kanał `web`, po step-upie (`403 step_up_required`); Edytor i Tylko odczyt dostają `403 forbidden` (nigdy `step_up_required`) i ciało
+      bez danych. Urządzenia wszystkich użytkowników od ostatnio widzianych (`lastContactAt`, potem `id` malejąco), filtry `userId` i `state`, paginacja kursorem
+      nieprzezroczystym (`limit` 1-100, domyślnie 50; zaszyfrowany, uwierzytelniony, ważny 30 minut, związany z operacją, użytkownikiem i filtrami; zmieniony
+      to `400 invalid_cursor`). Właściciel to `userId` i `displayName`. Każdy udany odczyt jest audytowany (`device.list_read`, bez wartości filtrów).
+    x-evia-authz:
+      roles: [administrator]
+      channels: [web]
+      stepUp: true
+      audit: true
+    parameters:
+      - name: userId
+        in: query
+        required: false
+        description: Filtr właściciela.
+        schema:
+          type: string
+          format: uuid
+          maxLength: 36
+      - name: state
+        in: query
+        required: false
+        description: Filtr stanu.
+        schema:
+          $ref: ../components/devices.yaml#/DeviceState
+      - name: limit
+        in: query
+        required: false
+        description: Liczba pozycji na stronie.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 50
+      - name: cursor
+        in: query
+        required: false
+        description: Kursor ze strony poprzedniej (`nextCursor`) - wartość nieprzezroczysta, ważna 30 minut.
+        schema:
+          type: string
+          maxLength: 512
+          pattern: '^[A-Za-z0-9_-]+$'
+    responses:
+      '200':
+        description: Strona urządzeń.
+        headers:
+          Cache-Control:
+            $ref: ../components/devices.yaml#/CacheControlNoStore
+        content:
+          application/json:
+            schema:
+              $ref: ../components/devices.yaml#/ManagedDeviceList
+      '400':
+        $ref: ../components/responses.yaml#/InvalidListQuery
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/StepUpRequired
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+deviceLogout:
+  post:
+    operationId: logoutDevice
+    tags: [devices]
+    summary: Wylogowanie urządzenia użytkownika (W-17)
+    description: >-
+      Tylko Administrator, kanał `web`, po step-upie; pozostałe role `403 forbidden`. Kończy sesje urządzenia (następne żądanie telefonu: `401 session_revoked`),
+      stan urządzenia zostaje (nie cofa `wipe_required`). Nieznane urządzenie `404`, zły UUID `400`. Idempotentna. Audyt `device.logged_out` (powód `manual`).
+      Wymaga `X-CSRF-Token`.
+    x-evia-authz:
+      roles: [administrator]
+      channels: [web]
+      stepUp: true
+      audit: true
+    parameters:
+      - $ref: '#/DeviceIdParameter'
+    responses:
+      '204':
+        description: Urządzenie wylogowane.
+        headers:
+          Cache-Control:
+            $ref: ../components/devices.yaml#/CacheControlNoStore
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/StepUpRequired
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+deviceWipe:
+  post:
+    operationId: wipeDevice
+    tags: [devices]
+    summary: „Zablokuj i wyczyść” (W-17)
+    description: >-
+      Tylko Administrator, kanał `web`, po step-upie; pozostałe role `403 forbidden`. Treść `{ confirmModel }` - serwer porównuje ją z modelem urządzenia z bazy (po
+      przycięciu i normalizacji NFC, z rozróżnieniem wielkości liter); niezgodność to `400 device_model_mismatch` bez echa. Stan przechodzi `active` do `wipe_required`
+      (końcowy; wychodzi z niego wyłącznie `confirmDeviceWipe` do `wiped`), sesje urządzenia kończą się, a następne żądanie, odświeżenie i logowanie z sekretem
+      instalacji dają `401 device_wipe_required`. Urządzenie `wipe_required` nie liczy się do limitu 2 urządzeń. Idempotentna: dla `wipe_required` i `wiped`
+      `204` bez zmiany (i bez drugiego wpisu audytu). Transakcja blokuje wiersz urządzenia (wyścig z `confirmDeviceWipe`). Audyt `device.wipe_ordered` (powód `manual`).
+      Dotyczy danych firmowych w aplikacji, nie całego telefonu. Wymaga `X-CSRF-Token`.
+    x-evia-authz:
+      roles: [administrator]
+      channels: [web]
+      stepUp: true
+      audit: true
+    parameters:
+      - $ref: '#/DeviceIdParameter'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/devices.yaml#/WipeDeviceRequest
+          example:
+            confirmModel: Pixel 8
+    responses:
+      '204':
+        description: Wyczyszczenie zlecone (idempotentnie).
+        headers:
+          Cache-Control:
+            $ref: ../components/devices.yaml#/CacheControlNoStore
+      '400':
+        $ref: ../components/responses.yaml#/DeviceModelMismatch
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/StepUpRequired
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+userDevicesSummary:
+  get:
+    operationId: getUserDevicesSummary
+    tags: [devices]
+    summary: Podsumowanie urządzeń użytkownika (W-17, zmiana roli)
+    description: >-
+      Tylko Administrator, kanał `web`, po step-upie; pozostałe role `403 forbidden`. `{ devices, activeDevices, pendingItemsReported }` dla dialogów
+      „Zablokuj i wyczyść” i zmiany roli na Tylko odczyt (suma ostatnio zgłoszonych niewysłanych elementów). Nieznany użytkownik `404`. Odczyt jest audytowany
+      (`device.list_read`).
+    x-evia-authz:
+      roles: [administrator]
+      channels: [web]
+      stepUp: true
+      audit: true
+    parameters:
+      - name: userId
+        in: path
+        required: true
+        description: Identyfikator użytkownika (UUID).
+        schema:
+          type: string
+          format: uuid
+          maxLength: 36
+    responses:
+      '200':
+        description: Podsumowanie.
+        headers:
+          Cache-Control:
+            $ref: ../components/devices.yaml#/CacheControlNoStore
+        content:
+          application/json:
+            schema:
+              $ref: ../components/devices.yaml#/UserDevicesSummary
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/StepUpRequired
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited

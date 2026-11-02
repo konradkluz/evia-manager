@@ -4,7 +4,7 @@ title: "Urządzenia: lista, zdalne wylogowanie, „Zablokuj i wyczyść” (API 
 type: story
 milestone: M2
 epic: E9 Dostęp mobilny
-status: draft
+status: in-review
 priority: P1
 path: pelna             # uwierzytelnianie, uprawnienia
 owner: backend-developer
@@ -62,8 +62,14 @@ Zdalne wymuszenie aktualizacji; e-mail do użytkownika o „Zablokuj i wyczyść
 ## Decyzje i ograniczenia
 - Zgłaszanie liczby niewysłanych elementów przez telefon (`pendingItems`) wchodzi w M2 w wersji minimalnej (README planu, decyzja 9): pole w żądaniach synchronizacji (EVM-090), kolumna `Device` (EVM-094), wysyłanie z aplikacji (EVM-107), wyświetlenie tutaj. Alternatywa: odstępstwo od P2 z nowym RR.
 - UX / UI: ekrany, stany, dialogi i mikrocopy — [`16-m2-uzupelnienia-teren-i-urzadzenia.md`](../../ux/flows/16-m2-uzupelnienia-teren-i-urzadzenia.md) (W-15, W-17); wariant StatusBadge dla stanu urządzenia to propozycja P-14 do styleguide'u (do czasu wpisu: tekst + ikona); wzorzec „potwierdź nazwą” w AlertDialog.
+- Retencja (AC7, przegląd bezpieczeństwa 2026-11-02): 90 dni liczy się od późniejszego z ostatniego kontaktu i unieważnienia urządzenia (wylogowanie, „Zablokuj i wyczyść”, zdarzenie konta), żeby sygnał `device_wipe_required` nie znikał razem z rekordem; służy do tego kolumna `invalidated_at` (migracja 0064), a `last_contact_at` zostaje bez zmian.
 - Bezpieczeństwo i prywatność: nazwa urządzenia = model z systemu (bez numeru seryjnego, IMEI, IP, lokalizacji).
 
 ## Dziennik
 - 2026-10-27 — utworzono (product-owner)
 - 2026-10-27 — naniesiono konsultacje: security, UX (product-owner)
+- 2026-11-01 — refinement: AC zaakceptowane przez Konrada, status `ready` (tor B nocy 1/2.11)
+- 2026-11-02 — plan gotowy (backend-developer)
+- 2026-11-02 — API i retencja gotowe, testy zielone w kontenerze (backend-developer); panel W-15/W-17 w osobnym kroku
+- 2026-11-02 — panel W-15 (Urządzenia w Koncie), W-17 (Administracja → Urządzenia) i liczba telefonów przed zmianą roli na Tylko odczyt gotowe; testy komponentów, Playwright (Chromium, Firefox, Edge) i axe zielone (web-developer)
+- 2026-11-02 — in-review: pełna bramka zielona, przeglądy zakończone (orkiestrator); test worker-email (EVM-024 AC6) raz niestabilny na /tmp, niezwiązany ze zmianą

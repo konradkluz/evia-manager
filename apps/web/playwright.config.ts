@@ -17,6 +17,7 @@ const uxReviewDirLogin = fileURLToPath(new URL('../../docs/ux/reviews/EVM-067/',
 const uxReviewDirAudit = fileURLToPath(new URL('../../docs/ux/reviews/EVM-029/', import.meta.url));
 const uxReviewDirWorkOrders = fileURLToPath(new URL('../../docs/ux/reviews/EVM-017/', import.meta.url));
 const uxReviewDirCustomers = fileURLToPath(new URL('../../docs/ux/reviews/EVM-020/', import.meta.url));
+const uxReviewDirDevices = fileURLToPath(new URL('../../docs/ux/reviews/EVM-095/', import.meta.url));
 const uxReviewDirLocations = fileURLToPath(new URL('../../docs/ux/reviews/EVM-021/', import.meta.url));
 
 const uxReviewDirOrders = fileURLToPath(new URL('../../docs/ux/reviews/EVM-022/', import.meta.url));
@@ -81,6 +82,7 @@ export default defineConfig({
         uxReviewDirIdentity,
         uxReviewDirLogin,
         uxReviewDirAudit,
+        uxReviewDirDevices,
         uxReviewDirWorkOrders,
         uxReviewDirCustomers,
         uxReviewDirLocations,

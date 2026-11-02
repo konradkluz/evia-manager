@@ -6,7 +6,7 @@ import type { ObjectPaths } from '../authorization/role-matrix.ts';
 import { catalogObjects } from './catalog-objects.ts';
 import { insertCustomer } from './customer-fixtures.ts';
 import type { IdentityApp } from './identity-app.ts';
-import { createPasskey, createSession, createUser } from './identity-fixtures.ts';
+import { createMobileSession, createPasskey, createSession, createUser } from './identity-fixtures.ts';
 import { insertDocumentRow } from './document-fixtures.ts';
 import { insertMedia } from './media-fixtures.ts';
 import { insertMilestones } from './payment-fixtures.ts';
@@ -542,6 +542,31 @@ export async function accountObjects(app: IdentityApp): Promise<Record<string, O
   };
 }
 
+/**
+ * The IDOR fixture of the devices (EVM-095 AC6; SR-AUTHZ-05, CWE-639): the device of ANOTHER account that EXISTS (the own logout must still answer 404 for it) and
+ * identifiers nobody owns. The operations of the Administrator address a real device ("own") and an identifier of no device ("foreign"); the summary a live
+ * account and one that is deleted.
+ */
+export async function deviceObjects(app: IdentityApp): Promise<Record<string, ObjectPaths>> {
+  const db = app.database.admin;
+  const stranger = await createUser(db, app.clock, { role: 'editor', status: 'active' });
+  const strangerDevice = await createMobileSession(db, app.clock, stranger);
+  const holder = await createUser(db, app.clock, { role: 'editor', status: 'active' });
+  const holderDevice = await createMobileSession(db, app.clock, holder);
+  const deleted = await createUser(db, app.clock, { role: 'editor', status: 'invited' });
+  await sql`update identity.users set deleted_at = ${app.clock.now()} where id = ${deleted.id}`.execute(db);
+  const nobody = '00000000-0000-7000-8000-000000000002';
+  return {
+    logoutAccountDevice: {
+      own: () => `${ACCOUNT}/devices/${nobody}/logout`,
+      foreign: () => `${ACCOUNT}/devices/${strangerDevice.deviceId}/logout`,
+    },
+    logoutDevice: { own: () => `/api/v1/devices/${holderDevice.deviceId}/logout`, foreign: () => `/api/v1/devices/${nobody}/logout` },
+    wipeDevice: { own: () => `/api/v1/devices/${holderDevice.deviceId}/wipe`, foreign: () => `/api/v1/devices/${nobody}/wipe` },
+    getUserDevicesSummary: { own: () => `${USERS}/${holder.id}/devices/summary`, foreign: () => `${USERS}/${deleted.id}/devices/summary` },
+  };
+}
+
 /** Every operation of the contract that addresses an object, with the paths of an own and of a foreign object. */
 export async function matrixObjects(app: IdentityApp): Promise<Record<string, ObjectPaths>> {
   return {
@@ -556,5 +581,6 @@ export async function matrixObjects(app: IdentityApp): Promise<Record<string, Ob
     ...(await mediaObjects(app)),
     ...(await userObjects(app)),
     ...(await accountObjects(app)),
+    ...(await deviceObjects(app)),
   };
 }

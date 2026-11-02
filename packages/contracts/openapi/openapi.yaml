@@ -89,6 +89,18 @@ paths:
     $ref: paths/identity.yaml#/mobileLogout
   /api/v1/devices/current/wipe-confirmation:
     $ref: paths/devices.yaml#/wipeConfirmation
+  /api/v1/account/devices:
+    $ref: paths/devices.yaml#/accountDevices
+  /api/v1/account/devices/{deviceId}/logout:
+    $ref: paths/devices.yaml#/accountDeviceLogout
+  /api/v1/devices:
+    $ref: paths/devices.yaml#/devices
+  /api/v1/devices/{deviceId}/logout:
+    $ref: paths/devices.yaml#/deviceLogout
+  /api/v1/devices/{deviceId}/wipe:
+    $ref: paths/devices.yaml#/deviceWipe
+  /api/v1/users/{userId}/devices/summary:
+    $ref: paths/devices.yaml#/userDevicesSummary
   /api/v1/meta/client-config:
     $ref: paths/sync.yaml#/clientConfig
   /api/v1/sync/changes:
@@ -639,6 +651,22 @@ components:
       $ref: components/devices.yaml#/WipeConfirmationRequest
     ClientVersions:
       $ref: components/devices.yaml#/ClientVersions
+    DeviceState:
+      $ref: components/devices.yaml#/DeviceState
+    DevicePatchLevel:
+      $ref: components/devices.yaml#/DevicePatchLevel
+    AccountDevice:
+      $ref: components/devices.yaml#/AccountDevice
+    AccountDeviceList:
+      $ref: components/devices.yaml#/AccountDeviceList
+    ManagedDevice:
+      $ref: components/devices.yaml#/ManagedDevice
+    ManagedDeviceList:
+      $ref: components/devices.yaml#/ManagedDeviceList
+    WipeDeviceRequest:
+      $ref: components/devices.yaml#/WipeDeviceRequest
+    UserDevicesSummary:
+      $ref: components/devices.yaml#/UserDevicesSummary
     ClientConfig:
       $ref: components/devices.yaml#/ClientConfig
     SyncId:

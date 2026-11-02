@@ -4,6 +4,7 @@ import { CustomerPage } from './pages/customer-page.tsx';
 import { CustomersPage } from './pages/customers-page.tsx';
 import { AdministrationLayout } from './administration/administration-layout.tsx';
 import { AuditPage } from './pages/audit-page.tsx';
+import { DevicesPage } from './pages/devices-page.tsx';
 import { ActivationPage } from './pages/activation-page.tsx';
 import { LoginPage } from './pages/login-page.tsx';
 import { MfaSetupPage } from './pages/mfa-setup-page.tsx';
@@ -82,6 +83,7 @@ const administrationRoute = createRoute({ getParentRoute: () => rootRoute, path:
 const administrationIndexRoute = createRoute({ getParentRoute: () => administrationRoute, path: '/', component: ToUsers });
 const usersRoute = createRoute({ getParentRoute: () => administrationRoute, path: 'users', component: UsersPage });
 const auditRoute = createRoute({ getParentRoute: () => administrationRoute, path: 'audit', component: AuditPage });
+const devicesRoute = createRoute({ getParentRoute: () => administrationRoute, path: 'devices', component: DevicesPage });
 /** W-15 (EVM-028): the own account of every role; the data is the session's, so there is no identifier in the address. */
 const accountRoute = createRoute({ getParentRoute: () => rootRoute, path: ACCOUNT_PATH, component: AccountPage });
 const activateRoute = createRoute({ getParentRoute: () => rootRoute, path: ACTIVATE_PATH, component: ActivationPage });
@@ -109,7 +111,7 @@ const routeTree = rootRoute.addChildren([
   customersRoute,
   customerRoute,
   paymentsRoute,
-  administrationRoute.addChildren([administrationIndexRoute, usersRoute, auditRoute]),
+  administrationRoute.addChildren([administrationIndexRoute, usersRoute, auditRoute, devicesRoute]),
   accountRoute,
   activateRoute,
   mfaSetupRoute,
