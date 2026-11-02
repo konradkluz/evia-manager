@@ -165,12 +165,16 @@ describe('first download (EVM-107 AC1)', () => {
 describe('triggers and order (EVM-107 AC2)', () => {
   it('EVM-107 AC2: on a new installation the download comes first, then the queue is sent, then the increments are pulled (ADR-0021)', async () => {
     const server = new ScriptedServer();
-    server.changes.push(page(aggregate(1), { phase: 'snapshot', cursor: 1 }), page([], { cursor: 2 }));
+    server.changes.push(
+      page(aggregate(1), { phase: 'snapshot', cursor: 1, hasMore: true }),
+      page([], { cursor: 2 }),
+      page([], { cursor: 3 }),
+    );
     const service = phone.service(server);
     await service.enqueue(note(1));
     await service.start();
     await settle();
-    expect(server.order).toEqual(['pull', 'push', 'pull']);
+    expect(server.order).toEqual(['pull', 'pull', 'push', 'pull']);
     expect(server.applied.size).toBe(1);
     expect(service.getSnapshot().initialLoad).toBe('done');
   });

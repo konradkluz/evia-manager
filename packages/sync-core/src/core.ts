@@ -113,7 +113,9 @@ export function createSyncCore(deps: SyncCoreDeps): SyncCore {
     if (first && pull !== undefined) {
       pulled = await pull.pull(options);
       // A failed or paused download sends nothing: the queue stays as it is (the next cycle repeats the download first).
-      const ok = pulled.status === 'complete' || pulled.status === 'partial';
+      // `partial` (page limit of the cycle) while the first download is unfinished sends nothing either: ADR-0021, no mixing with the
+      // generation under construction; the caller repeats the cycle.
+      const ok = pulled.status === 'complete' || (pulled.status === 'partial' && (await pull.initialLoadDone()));
       flush = ok ? await engine.flush(options) : { ...emptyFlush, ...(gate.paused === undefined ? {} : { paused: gate.paused }) };
       if (ok && gate.paused === undefined) pulled = await pull.pull(options);
     } else {

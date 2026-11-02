@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { App } from '../../src/App';
 import { pl } from '../../src/i18n/pl';
+import { OFFLINE_RECHECK_FIRST_MS } from '../../src/screens/LoginScreen';
 import type { StartupChecker } from '../../src/startup';
 import { INITIAL_FIRST_PULL, type QueueItem } from '../../src/sync/types';
 import { stubOwner, stubPorts, type PortsRig } from '../session-helpers';
@@ -206,6 +207,54 @@ describe('the indicator (EVM-107 AC3, AC8)', () => {
     });
     expect(screen.getByText('Offline · 3')).toBeOnTheScreen();
     expect(label()).toHaveAccessibleName('Offline. Niewysłane elementy: 3. Otwórz kolejkę');
+  });
+
+  it('EVM-107 AC2: started offline, a tap on the indicator asks again and when the network is back the service is told to go online', async () => {
+    const rig = stubPorts();
+    let answer: Awaited<ReturnType<StartupChecker>> = { kind: 'offline' };
+    const checker: StartupChecker = () => Promise.resolve(answer);
+    await open(rig, checker);
+    expect(rig.sync.calls).toContain('online:false');
+    expect(rig.sync.calls).not.toContain('trigger');
+    answer = { kind: 'online' };
+    await fireEvent.press(label());
+    await settle();
+    expect(rig.sync.calls).toContain('online:true');
+    expect(rig.sync.calls).not.toContain('trigger');
+  });
+
+  it('EVM-107 AC2: started offline and kept in the foreground, the connection is asked again by itself and the service goes online', async () => {
+    jest.useFakeTimers();
+    try {
+      const rig = stubPorts();
+      let answer: Awaited<ReturnType<StartupChecker>> = { kind: 'offline' };
+      await open(rig, () => Promise.resolve(answer));
+      expect(rig.sync.calls).not.toContain('online:true');
+      answer = { kind: 'online' };
+      await act(async () => {
+        jest.advanceTimersByTime(OFFLINE_RECHECK_FIRST_MS);
+        await Promise.resolve();
+      });
+      await settle();
+      expect(rig.sync.calls).toContain('online:true');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('EVM-107 AC3: a cycle that failed while the app runs checks the connection, so the capsule can turn into "Offline"', async () => {
+    const rig = stubPorts();
+    let answer: Awaited<ReturnType<StartupChecker>> = { kind: 'online' };
+    const checker = jest.fn<ReturnType<StartupChecker>, []>(() => Promise.resolve(answer));
+    await open(rig, checker);
+    expect(checker).toHaveBeenCalledTimes(1);
+    answer = { kind: 'offline' };
+    await act(() => {
+      rig.sync.set({ failure: 'push' });
+    });
+    await settle();
+    expect(checker).toHaveBeenCalledTimes(2);
+    expect(screen.getByText(pl.shell.sync.offline)).toBeOnTheScreen();
   });
 
   it('EVM-107 AC8: the order of states - error, running, needs attention - and a tap starts a cycle and opens the queue', async () => {

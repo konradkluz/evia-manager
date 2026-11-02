@@ -252,9 +252,13 @@ describe('sync cycle order and pendingItems (EVM-107 AC2)', () => {
       log.push('push');
       return { kind: 'ok', body: { serverTime: '2026-10-29T08:00:00Z', results: [] } };
     });
-    h.transport.changesScript.push(page(aggregate(1), { phase: 'snapshot', cursor: 1, hasMore: false }), page([], { cursor: 2 }));
+    h.transport.changesScript.push(
+      page(aggregate(1), { phase: 'snapshot', cursor: 1, hasMore: true }),
+      page([], { cursor: 2 }),
+      page([], { cursor: 3 }),
+    );
     const result = await h.core.sync();
-    expect(log).toEqual(['pull', 'push', 'pull']);
+    expect(log).toEqual(['pull', 'pull', 'push', 'pull']);
     expect(result.pull?.status).toBe('complete');
   });
 
@@ -279,9 +283,54 @@ describe('sync cycle order and pendingItems (EVM-107 AC2)', () => {
     expect(result.flush.paused).toBe('session_revoked');
   });
 
+  it('EVM-107 AC2: a partial first download (page limit of the cycle) sends nothing until the download is done, then push precedes pull again', async () => {
+    const h = makePull({ pullFirstUntilLoaded: true, options: { maxPagesPerCycle: 1 } });
+    await h.core.queue.enqueue(noteInput());
+    const log: string[] = [];
+    const original = h.transport.getChanges.bind(h.transport);
+    h.transport.getChanges = (request) => {
+      log.push('pull');
+      return original(request);
+    };
+    const send = (): { kind: 'ok'; body: { serverTime: string; results: never[] } } => {
+      log.push('push');
+      return { kind: 'ok', body: { serverTime: '2026-10-29T08:00:00Z', results: [] } };
+    };
+    h.server.script.push(send, send);
+    h.transport.changesScript.push(
+      page(aggregate(1), { phase: 'snapshot', cursor: 1, hasMore: true }),
+      page([], { phase: 'snapshot', cursor: 2, hasMore: false }),
+      page([], { cursor: 3 }),
+      page([], { cursor: 4 }),
+      page([], { cursor: 5 }),
+    );
+    let guard = 0;
+    while (!(await h.pull.initialLoadDone()) && guard++ < 10) {
+      const before = h.server.requests.length;
+      const result = await h.core.sync();
+      if (!(await h.pull.initialLoadDone())) {
+        expect(h.server.requests.length).toBe(before);
+        expect(result.pull?.status).toBe('partial');
+        expect(result.flush.settled).toBe(0);
+      }
+    }
+    expect(await h.pull.initialLoadDone()).toBe(true);
+    // the cycle that finished the download sent the queue after it (pull, push), not before
+    expect(log.indexOf('push')).toBeGreaterThan(log.indexOf('pull'));
+    await h.core.queue.enqueue(noteInput(OTHER, { id: '0194c2a0-0000-7000-8000-0000000000e9' }));
+    log.length = 0;
+    h.server.script.push(send);
+    await h.core.sync();
+    expect(log.slice(0, 2)).toEqual(['push', 'pull']);
+  });
+
   it('EVM-107 AC2: after the first download the order is push, then pull; an explicit option overrides the automatic choice', async () => {
     const h = makePull({ pullFirstUntilLoaded: true });
-    h.transport.changesScript.push(page(aggregate(1), { phase: 'snapshot', cursor: 1, hasMore: false }), page([], { cursor: 2 }));
+    h.transport.changesScript.push(
+      page(aggregate(1), { phase: 'snapshot', cursor: 1, hasMore: true }),
+      page([], { cursor: 2 }),
+      page([], { cursor: 2 }),
+    );
     await h.core.sync();
     await h.core.queue.enqueue(noteInput());
     const log: string[] = [];

@@ -12,7 +12,7 @@ import { useSession, useSyncSnapshot } from './session-context';
  */
 export function SyncCapsule({ onPress }: { onPress: () => void }) {
   const { t } = useTranslation();
-  const { state } = useStartup();
+  const { state, retry } = useStartup();
   const { sync } = useSession();
   const snapshot = useSyncSnapshot();
   if (state.kind === 'checking') return null;
@@ -42,7 +42,9 @@ export function SyncCapsule({ onPress }: { onPress: () => void }) {
       label={look.label}
       accessibilityLabel={look.name}
       onPress={() => {
+        // offline: the tap asks again whether the network is back (the cycle then starts by itself on the state change)
         if (online) sync.trigger();
+        else retry();
         onPress();
       }}
       testID="sync-indicator"

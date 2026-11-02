@@ -10,7 +10,7 @@ import { useStartup } from '../startup';
 import type { QueueItem, SyncRuntime } from '../sync/types';
 import { DeviceStateScreen, QueuePreviewScreen, type DeviceStateVariant } from './DeviceStateScreen';
 import { LocalDataLostScreen } from './LocalDataScreens';
-import { LoginScreen } from './LoginScreen';
+import { LoginScreen, useOfflineRecheck } from './LoginScreen';
 import { LockGate } from './LockOverlay';
 import { SessionContext, type SessionActions } from './session-context';
 import type { AddTarget } from './AddSheet';
@@ -68,7 +68,7 @@ type View =
 export function SessionRoot({ ports, children }: { ports: SessionPorts; children: ReactNode }) {
   const { owner, wipe, guard } = ports;
   const now = ports.now ?? Date.now;
-  const { state: startup } = useStartup();
+  const { state: startup, retry: recheckConnection } = useStartup();
   const online = startup.kind === 'online';
   const [view, setView] = useState<View>({ kind: 'starting' });
   const [attempt, setAttempt] = useState(0);
@@ -92,6 +92,15 @@ export function SessionRoot({ ports, children }: { ports: SessionPorts; children
   useEffect(() => {
     sync.setOnline(online);
   }, [sync, online]);
+  // A failed cycle may mean that the connection was lost while the app runs: check again, so the capsule can say "Offline" and the
+  // slow recheck of the startup provider notices the return of the network.
+  // Started offline and kept in the foreground: the connection is asked again by itself (10 s, doubling to 60 s), so the queue is
+  // sent when the network returns (EVM-107 AC2 "wraca sieć").
+  useOfflineRecheck(view.kind === 'signedIn' && startup.kind === 'offline', recheckConnection);
+  const cycleFailed = syncSnapshot.failure !== null;
+  useEffect(() => {
+    if (cycleFailed && online) recheckConnection();
+  }, [cycleFailed, online, recheckConnection]);
   useEffect(
     () =>
       sync.onPause((reason) => {
