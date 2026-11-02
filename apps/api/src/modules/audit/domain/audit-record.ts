@@ -98,6 +98,8 @@ const entityCount = z.int().min(0).max(1_000_000).nullable();
 const FULL_DOWNLOAD_COMPLETED_ACTION = 'sync.full_download_completed';
 /** The one event that carries the number of entities of one snapshot of an order (EVM-097 AC7). */
 const SNAPSHOT_ACTION = 'sync.work_order_snapshot';
+/** The one event of the system that carries a count of deleted records: the retention of the register of devices (EVM-095 AC7). */
+const DEVICE_PURGE_ACTION = 'device.purged';
 /** The one event that carries the device, the order and the type of a command: an applied mutation of a phone (EVM-098 AC8). */
 const MUTATION_ACTION = 'sync.mutation_applied';
 /** The one event that carries the device and the kind of an exceeded limit of new customers or sites (EVM-099 AC7). */
@@ -166,9 +168,15 @@ export const auditRecordSchema = z
     },
     { message: 'the counts of the entities by type belong to the end of a full download only, all three together' },
   )
-  .refine((record) => (record.entityCount === null ? true : record.action === SNAPSHOT_ACTION && record.outcome === 'success'), {
-    message: 'the number of entities belongs to a served snapshot of an order only',
-  })
+  .refine(
+    (record) =>
+      record.entityCount === null
+        ? true
+        : (record.action === SNAPSHOT_ACTION || record.action === DEVICE_PURGE_ACTION) && record.outcome === 'success',
+    {
+      message: 'the number of entities belongs to a served snapshot of an order or to the purge of devices only',
+    },
+  )
   .refine(
     (record) => {
       const fields = [record.workOrderId, record.commandType];

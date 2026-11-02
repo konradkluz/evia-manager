@@ -52,6 +52,7 @@ beforeAll(async () => {
     '0061_document_anchors',
     '0062_media_deletion',
     '0063_media_exports',
+    '0064_device_invalidation',
   ]);
 });
 afterAll(async () => {

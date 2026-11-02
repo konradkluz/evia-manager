@@ -77,6 +77,7 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'getSyncWorkOrder',
       'getTimelineEntry',
       'getUploadPartUrl',
+      'getUserDevicesSummary',
       'getVersion',
       'getWorkOrder',
       'getWorkOrderCustomer',
@@ -84,12 +85,14 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'getWorkOrderSite',
       'getWorkOrderTemplate',
       'inviteUser',
+      'listAccountDevices',
       'listAccountSessions',
       'listAssignableUsers',
       'listAuditEvents',
       'listCustomerDocuments',
       'listCustomers',
       'listDeletedWorkOrderProcedures',
+      'listDevices',
       'listDocumentKinds',
       'listDocumentUploadParts',
       'listDocuments',
@@ -112,6 +115,8 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'loginRecoveryCode',
       'loginTotp',
       'logout',
+      'logoutAccountDevice',
+      'logoutDevice',
       'mobileLogin',
       'mobileLoginTotp',
       'mobileLogout',
@@ -157,6 +162,7 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'updateWorkOrder',
       'updateWorkOrderScopeItem',
       'verifyLoginPasskey',
+      'wipeDevice',
     ]);
   });
 
@@ -186,9 +192,13 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'endAccountSession',
       'endOtherAccountSessions',
       'endUserSessions',
+      'getUserDevicesSummary',
       'inviteUser',
       'listAccountSessions',
       'listAuditEvents',
+      'listDevices',
+      'logoutAccountDevice',
+      'logoutDevice',
       'purgeDocumentFile',
       'purgeMediaAssetFile',
       'reactivateUser',
@@ -196,13 +206,14 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'rescanMediaAsset',
       'resendUserInvitation',
       'resetUserSecondStep',
+      'wipeDevice',
     ]);
     for (const [id, operation] of stepUp) {
       expect(operation.authz.channels, id).toEqual(['web']);
       expect(operation.authz.roles, id).toEqual(
         ['endAccountSession', 'endOtherAccountSessions', 'listAccountSessions'].includes(id)
           ? ['administrator', 'editor', 'read_only']
-          : id === 'createMediaExport'
+          : id === 'createMediaExport' || id === 'logoutAccountDevice'
             ? ['administrator', 'editor']
             : ['administrator'],
       );

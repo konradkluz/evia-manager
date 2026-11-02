@@ -54,6 +54,12 @@ export const IDENTITY_EVENT_TYPES = [
   'device.wipe_confirmed',
   // EVM-094 AC8: a refresh of the tokens of a phone, granted or refused for a session the server knows (never the token or its hash).
   'session.refreshed',
+  // EVM-095: a device was logged out / ordered to wipe (by a person or by an event of the account), the Administrator read the list of devices, the retention deleted
+  // stale records. The object is the device; never a model, a secret or a token.
+  'device.logged_out',
+  'device.wipe_ordered',
+  'device.list_read',
+  'device.purged',
 ] as const;
 
 export type IdentityEventType = (typeof IDENTITY_EVENT_TYPES)[number];
@@ -112,6 +118,8 @@ export const REASON_CODES = [
   'mfa_enrollment_required',
   // EVM-094 AC8: a refresh refused because the session is over (ended, expired, account or device no longer allowed, token expired).
   'session_revoked',
+  // EVM-095: a device was logged out / ordered to wipe by hand (the other reasons reuse the codes of the events of the account).
+  'manual',
 ] as const;
 
 export type ReasonCode = (typeof REASON_CODES)[number];
@@ -135,6 +143,8 @@ export interface IdentityEvent extends DomainEvent {
   /** The role before and after a change (`user.role_changed` only; both together, EVM-027) — codes of the closed list of roles. */
   readonly fromCode?: string;
   readonly toCode?: string;
+  /** The number of records a retention deleted (`device.purged` only, EVM-095). */
+  readonly entityCount?: number;
   readonly objectType: 'user' | 'session' | 'passkey' | 'device';
   /** Absent when the event has no object to point at (a sign-in with an unknown e-mail address). */
   readonly objectId?: string;

@@ -21,6 +21,7 @@ const DEACTIVATE = `POST /api/v1/users/${JAN_ID}/deactivation`;
 const REACTIVATE = `POST /api/v1/users/${MAREK_ID}/reactivation`;
 const SESSIONS = `DELETE /api/v1/users/${JAN_ID}/sessions`;
 const RESET = `POST /api/v1/users/${JAN_ID}/second-step-reset`;
+const SUMMARY = `GET /api/v1/users/${JAN_ID}/devices/summary`;
 
 const PASSKEY_OPTIONS = {
   challenge: 'Y2hhbGxlbmdl',
@@ -99,6 +100,8 @@ function accessApi(list: Handler | Handler[], extra: Record<string, Handler> = {
     [LIST]: (request) => lists[Math.min(reads++, lists.length - 1)]?.(request) ?? problem(500, 'internal_error'),
     [OPTIONS]: () => json(200, PASSKEY_OPTIONS),
     [STEP_UP]: () => json(200, { csrfToken: 'csrf-rotated' }),
+    // EVM-095 AC5: before the role Tylko odczyt the phones of the account are counted (none by default)
+    [SUMMARY]: () => json(200, { devices: 0, activeDevices: 0, pendingItemsReported: 0 }),
     ...extra,
   });
 }
@@ -210,6 +213,63 @@ describe('W-16 Zmień rolę (EVM-027 AC1, AC5, AC7)', () => {
       expect(api.calls(LIST)).toHaveLength(2);
     });
     expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('EVM-095 AC5 before the role Tylko odczyt the Administrator sees the phones and the unsent items that the role wipes; only a second "Zmień rolę" sends it', async () => {
+    const api = accessApi(ok([ANNA, JAN]), {
+      [SUMMARY]: () => json(200, { devices: 2, activeDevices: 1, pendingItemsReported: 7 }),
+      [ROLE]: () => json(200, { ...JAN, role: 'read_only', version: 4 }),
+    });
+    const dialog = await open(api);
+    await userEvent.click(within(dialog).getByRole('radio', { name: /^Tylko odczyt/ }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Zmień rolę' }));
+    expect(await within(dialog).findByText(/liczba telefonów: 2\). Niewysłane elementy ostatnio zgłoszone przez telefony: 7/)).toBeTruthy();
+    expect(within(dialog).getByText(/wyczyści dane firmowe w aplikacji/)).toBeTruthy();
+    expect(api.calls(SUMMARY)).toHaveLength(1);
+    expect(api.calls(ROLE)).toHaveLength(0);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Zmień rolę' }));
+    await waitFor(() => {
+      expect(api.calls(ROLE)).toHaveLength(1);
+    });
+    expect(api.calls(SUMMARY)).toHaveLength(1);
+  });
+
+  it('EVM-095 AC5 an account without phones goes on at once; other roles do not read the phones', async () => {
+    const api = accessApi(ok([ANNA, JAN]), { [ROLE]: () => json(200, { ...JAN, role: 'read_only', version: 4 }) });
+    const dialog = await open(api);
+    await userEvent.click(within(dialog).getByRole('radio', { name: /^Tylko odczyt/ }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Zmień rolę' }));
+    await waitFor(() => {
+      expect(api.calls(ROLE)).toHaveLength(1);
+    });
+    expect(api.calls(SUMMARY)).toHaveLength(1);
+  });
+
+  it('EVM-095 AC5 the summary asks for a step-up; "Anuluj" there sends nothing; a failed summary is told and the next choice goes on', async () => {
+    let summary = 0;
+    const api = accessApi(ok([ANNA, JAN]), {
+      [SUMMARY]: () => {
+        summary += 1;
+        return summary === 1 ? stepUpRequired() : problem(500, 'internal_error');
+      },
+      [ROLE]: () => json(200, { ...JAN, role: 'read_only', version: 4 }),
+    });
+    const dialog = await open(api);
+    await userEvent.click(within(dialog).getByRole('radio', { name: /^Tylko odczyt/ }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Zmień rolę' }));
+    const confirm = await screen.findByRole('alertdialog', { name: 'Potwierdź tożsamość, aby sprawdzić urządzenia użytkownika' });
+    await userEvent.click(within(confirm).getByRole('button', { name: 'Anuluj' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('alertdialog')).toBeNull();
+    });
+    expect(api.calls(ROLE)).toHaveLength(0);
+    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Zmień rolę' }));
+    expect(await screen.findByText(/Nie udało się sprawdzić telefonów tego konta/)).toBeTruthy();
+    expect(api.calls(ROLE)).toHaveLength(0);
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Zmień rolę' }));
+    await waitFor(() => {
+      expect(api.calls(ROLE)).toHaveLength(1);
+    });
   });
 
   it('EVM-027 AC1 the same role is not sent: the message stands under the roles', async () => {

@@ -598,6 +598,7 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
         ? answerAccountRoute(api.account, {
             method: request.method(),
             pathname: url.pathname,
+            query: url.searchParams,
             body,
             role: api.role,
             email: EMAIL,

@@ -17,14 +17,17 @@ import type { Logger } from '../../../platform/logging/logger.ts';
 import type { EventBus } from '../../../platform/events/event-bus.ts';
 import { newTraceId } from '../../../platform/http/request-context.ts';
 import { CLOCK, DATABASE, EVENT_BUS, LOGGER } from '../../../platform/tokens.ts';
-import { ACCESS_TOKEN_RETENTION_MS, DEVICE_INACTIVE_MS, SESSION_RETENTION_MS } from '../domain/constants.ts';
+import { ACCESS_TOKEN_RETENTION_MS, DEVICE_INACTIVE_MS, DEVICE_RECORD_RETENTION_MS, SESSION_RETENTION_MS } from '../domain/constants.ts';
 import type { IdentityEvent } from '../events.ts';
+import { purgeStaleDevices } from '../infrastructure/device-admin-queries.ts';
 import { revokeSessionsOfInactiveDevices } from '../infrastructure/device-queries.ts';
 import { deleteAccessTokensExpiredBefore } from '../infrastructure/mobile-token-queries.ts';
 import { deleteSessionsEndedBefore } from '../infrastructure/account-queries.ts';
 import { identityTables } from '../infrastructure/tables.ts';
 
 export const PURGE_SESSIONS_JOB = 'identity.purge-sessions';
+/** Devices deleted per statement; the loop runs in ONE transaction until none is left. */
+const DEVICE_PURGE_BATCH = 200;
 export const PURGE_SESSIONS_FAILED = 'sessions_purge_failed';
 /** Every night at 03:50 (the business zone, after the verification of the projection at 03:30), when nobody works; a missed run is made up by the next one. */
 export const PURGE_SESSIONS_SCHEDULE: JobSchedule = { cron: '50 3 * * *', timezone: 'Europe/Warsaw' };
@@ -56,7 +59,7 @@ export class PurgeSessionsJob {
     try {
       const now = this.#clock.now();
       const cutoff = new Date(now.getTime() - SESSION_RETENTION_MS);
-      const sessions = await runInTransaction(this.#db, async (transaction) => {
+      const counts = await runInTransaction(this.#db, async (transaction) => {
         const db = identityTables(transaction);
         // A phone with no contact for 30 days loses its sessions (P2); the expired access tokens go a day after they ran out.
         const inactive = await revokeSessionsOfInactiveDevices(db, new Date(now.getTime() - DEVICE_INACTIVE_MS), now);
@@ -72,10 +75,23 @@ export class PurgeSessionsJob {
           await this.#events.publish(transaction, event, { origin: 'cli', traceId: newTraceId(), sessionId: id });
         }
         await deleteAccessTokensExpiredBefore(db, new Date(now.getTime() - ACCESS_TOKEN_RETENTION_MS));
-        return deleteSessionsEndedBefore(db, cutoff);
+        const sessions = await deleteSessionsEndedBefore(db, cutoff);
+        // The record of a device goes 90 days after the later of its last contact and its invalidation (P2, EVM-095 AC7); the audit trail and the business data stay.
+        const devices = await purgeStaleDevices(db, new Date(now.getTime() - DEVICE_RECORD_RETENTION_MS), DEVICE_PURGE_BATCH);
+        if (devices > 0) {
+          const purged: IdentityEvent = {
+            type: 'device.purged',
+            actor: { type: 'system' },
+            outcome: 'success',
+            objectType: 'device',
+            entityCount: devices,
+          };
+          await this.#events.publish(transaction, purged, { origin: 'cli', traceId: newTraceId() });
+        }
+        return { sessions, devices };
       });
-      this.#logger.info({ job: PURGE_SESSIONS_JOB, sessions }, 'sessions purge: done');
-      return { sessions };
+      this.#logger.info({ job: PURGE_SESSIONS_JOB, ...counts }, 'sessions purge: done');
+      return counts;
     } catch (error) {
       const code = (error as { code?: unknown } | null)?.code;
       this.#logger.error(

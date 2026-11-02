@@ -184,7 +184,13 @@ describe('EVM-090 AC1 the mobile family in the contract (SR-AUTHZ-12, SR-AUTHZ-0
   });
 
   it("EVM-090 AC1 the story's own endpoints are in the manifest, tokens never in the URL: `deviceId` is not in any path", () => {
-    for (const { path } of operations) expect(path.toLowerCase()).not.toMatch(/deviceid|\{token|\{secret/);
+    // The pair of the installation (`deviceId` + secret) never travels in a path of the mobile family. EVM-095 adds operations of the WEB channel (panel) that
+    // address a device by its identifier (not a secret); those are out of this rule.
+    for (const { path, operation: item } of operations) {
+      const channels = ((item['x-evia-authz'] as Json | undefined)?.['channels'] ?? []) as string[];
+      if (channels.includes('web') && !channels.includes('mobile')) continue;
+      expect(path.toLowerCase()).not.toMatch(/deviceid|\{token|\{secret/);
+    }
     expect(AUTHZ_MANIFEST['confirmDeviceWipe']?.path).toBe('/api/v1/devices/current/wipe-confirmation');
   });
 });

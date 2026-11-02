@@ -258,6 +258,11 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
       'purgeMediaAssetFile', // EVM-051: the erasure of the file of a medium
       'purgeDocumentFile', // EVM-051: the erasure of the files of a document
       'createMediaExport', // EVM-052: the ZIP export (the Administrator with a fresh key; the Editor's cells are in the tests of the endpoint)
+      // EVM-095: the devices - the Editor's cells of the own logout are in the tests of the endpoint
+      'logoutAccountDevice',
+      'logoutDevice',
+      'wipeDevice',
+      'getUserDevicesSummary',
     ];
     // EVM-097: the snapshot of an order is an operation of the mobile channel - its IDOR cells are the Administrator and the Editor with a Bearer token
     const mobileObjects = ['getSyncWorkOrder'];

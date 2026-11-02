@@ -174,7 +174,7 @@ test.describe('W-15 Konto w przeglądarce (EVM-028)', () => {
     await page.getByRole('button', { name: 'Zakończ pozostałe sesje' }).click();
     await expect(page.getByText('Zakończono 1 sesję.')).toBeVisible();
     await expect(page.getByText('Konto jest zalogowane tylko w tej przeglądarce.')).toBeVisible();
-    await expect(page.getByRole('table')).toHaveCount(0);
+    await expect(page.getByRole('table', { name: 'Lista moich sesji' })).toHaveCount(0);
   });
 
   test('EVM-028 AC8 "Konto" is in the account menu of every screen and the anchor #drugi-krok brings the focus to the card', async ({

@@ -238,11 +238,12 @@ describe('rotation of the refresh token (EVM-094 AC4; SR-SESS-09, ASVS V7.2.x)',
 describe('every way of ending a session ends the phone at once (EVM-094 AC4; SR-AUTH-11, SR-AUTH-13, SR-SESS-06, SR-SESS-09)', () => {
   it('EVM-094 AC4 a deactivation by an Administrator, the end of the sessions of a user and a change of the role end the next request and the next refresh', async () => {
     const admin = await browserOf(current, { role: 'administrator', key: 'fresh' });
-    for (const act of [
-      (userId: string) => deactivate(current, admin, userId),
-      (userId: string) => endSessions(admin, userId),
-      (userId: string) => changeRole(current, admin, userId, 'read_only'),
-    ]) {
+    // EVM-095 AC5: a deactivation and a change to Read-only order the wipe (the signal outranks a revoked session); the end of the sessions only revokes
+    for (const [act, expected] of [
+      [(userId: string) => deactivate(current, admin, userId), 'device_wipe_required'],
+      [(userId: string) => endSessions(admin, userId), 'session_revoked'],
+      [(userId: string) => changeRole(current, admin, userId, 'read_only'), 'device_wipe_required'],
+    ] as const) {
       const account = await totpAccount(current);
       const phone = await signedInPhone(current, account);
       expect((await config(phone)).status).toBe(200);
@@ -250,8 +251,8 @@ describe('every way of ending a session ends the phone at once (EVM-094 AC4; SR-
       expect(done.status, JSON.stringify(done.body)).toBeLessThan(300);
       const refused = await config(phone);
       expect(refused.status).toBe(401);
-      expect(problemOf(refused)).toBe('session_revoked');
-      expect(problemOf(await phone.refresh())).toBe('session_revoked');
+      expect(problemOf(refused)).toBe(expected);
+      expect(problemOf(await phone.refresh())).toBe(expected);
     }
   });
 

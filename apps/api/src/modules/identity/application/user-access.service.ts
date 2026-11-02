@@ -75,6 +75,7 @@ import {
   type UserRow,
 } from '../infrastructure/queries.ts';
 import { identityTables, type IdentityDb, type RevokeReason } from '../infrastructure/tables.ts';
+import { applyAccountEventToDevices, type AccountEventDeviceMode, type AccountEventReason } from './account-device-events.ts';
 import { LoginThrottle } from './login-throttle.ts';
 import { representUser } from './user-view.ts';
 
@@ -137,6 +138,7 @@ export class UserAccessService {
       const verdict = refusedOr(decideRoleChange(locked.facts, role));
       await setUserRole(db, target.id, role, actor.id, now);
       await this.#endTargetSessions(locked, 'role_changed');
+      await this.#applyToDevices(locked, role === 'read_only' ? 'wipe' : 'sign_out', 'role_changed');
       await this.#alertAdministrators(locked, verdict.alert);
       await this.#publish(locked, {
         type: 'user.role_changed',
@@ -160,6 +162,7 @@ export class UserAccessService {
       const verdict = refusedOr(decideDeactivation(locked.facts));
       await setUserStatus(db, target.id, 'deactivated', actor.id, now);
       await this.#endTargetSessions(locked, 'account_deactivated');
+      await this.#applyToDevices(locked, 'wipe', 'account_deactivated');
       // The browsers the account was known by are forgotten with their counters (EVM-026 AC5).
       await this.#throttle.forgetBrowsers(locked.tx, target.id);
       // A setup of an authenticator that was never confirmed, every open link (an invitation, a reset, the window of a second step) and every message
@@ -237,6 +240,7 @@ export class UserAccessService {
       await deleteTotpFactor(db, target.id);
       await supersedeRecoveryCodes(db, target.id, now);
       await this.#endTargetSessions(locked, 'second_step_reset');
+      await this.#applyToDevices(locked, 'sign_out', 'second_step_reset');
       await this.#throttle.forgetBrowsers(tx, target.id);
       // The links first (a reset link issued before ends too — K6), then the NEW window: a repeated reset replaces the window, it never adds one.
       await supersedeAllOpenLinksOfUser(db, target.id, now);
@@ -315,6 +319,18 @@ export class UserAccessService {
     }
     await revokeLoginAttemptsOfUser(db, target.id, now);
     await revokeChallengesOfUser(db, target.id, now);
+  }
+
+  /** The phones of the target follow the event of the account in the same transaction (EVM-095 AC5; table M-02). */
+  #applyToDevices({ tx, target, actor, now, request }: Locked, mode: AccountEventDeviceMode, reason: AccountEventReason): Promise<void> {
+    return applyAccountEventToDevices(tx, this.#events, {
+      userId: target.id,
+      mode,
+      reason,
+      actor: { type: 'user', userId: actor.id },
+      context: request,
+      now,
+    });
   }
 
   /** One alert per ACTIVE Administrator — counted AFTER the change, the actor included (SR-LOG-07); the text names no one. */

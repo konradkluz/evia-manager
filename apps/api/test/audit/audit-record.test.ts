@@ -164,6 +164,10 @@ describe('audit record (EVM-016 AC7; SR-LOG-03, SR-LOG-04)', () => {
       'device.recognized',
       'device.wipe_confirmed',
       'session.refreshed',
+      'device.logged_out', // EVM-095
+      'device.wipe_ordered',
+      'device.list_read',
+      'device.purged',
     ]);
     for (const code of REASON_CODES) expect(code).toMatch(/^[a-z_]+$/);
   });

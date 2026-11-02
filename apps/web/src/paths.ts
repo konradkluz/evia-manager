@@ -35,3 +35,5 @@ export const PUBLIC_PATHS: readonly string[] = [ACTIVATE_PATH, RESET_PASSWORD_PA
 /** W-15 (EVM-028): the own account — the profile, the password, the second step (anchor `#drugi-krok`) and the sessions; never an e-mail or a name in the address. */
 export const ACCOUNT_PATH = '/account';
 export const SECOND_STEP_ANCHOR = 'drugi-krok';
+/** W-17 (EVM-095): the devices of all users, a tab of the administration; no user, model or cursor in the address. */
+export const DEVICES_PATH = '/administration/devices';

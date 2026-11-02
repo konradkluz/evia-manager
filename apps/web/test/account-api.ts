@@ -19,6 +19,7 @@ export const REMOVE_TOTP = 'DELETE /api/v1/account/totp';
 export const CODES_ROUTE = 'POST /api/v1/account/recovery-codes';
 export const SESSIONS = 'GET /api/v1/account/sessions';
 export const END_OTHERS = 'DELETE /api/v1/account/sessions';
+export const DEVICES = 'GET /api/v1/account/devices';
 export const STEP_UP = 'POST /api/v1/auth/step-up';
 export const STEP_UP_OPTIONS = 'POST /api/v1/auth/step-up/options';
 
@@ -82,6 +83,8 @@ export function accountApi(account: Account, routes: Record<string, Handler> = {
   return activeSessionApi({
     [SESSION_ROUTE]: () => json(200, session),
     [ACCOUNT_ROUTE]: () => json(200, account),
+    // EVM-095: the card "Urządzenia" reads the own phones (none by default)
+    [DEVICES]: () => json(200, { items: [] }, { 'Cache-Control': 'no-store' }),
     ...routes,
   });
 }

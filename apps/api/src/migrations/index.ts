@@ -61,6 +61,7 @@ import * as mediaMetadata from './0060_media_metadata.ts';
 import * as documentAnchors from './0061_document_anchors.ts';
 import * as mediaDeletion from './0062_media_deletion.ts';
 import * as mediaExports from './0063_media_exports.ts';
+import * as deviceInvalidation from './0064_device_invalidation.ts';
 
 export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0001_foundation': foundation,
@@ -124,4 +125,5 @@ export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0061_document_anchors': documentAnchors,
   '0062_media_deletion': mediaDeletion,
   '0063_media_exports': mediaExports,
+  '0064_device_invalidation': deviceInvalidation,
 });

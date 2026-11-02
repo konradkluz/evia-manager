@@ -26,6 +26,9 @@ export const DATABASE_BOUND: readonly string[] = [
   'src/modules/identity/infrastructure/device-queries.ts',
   'src/modules/identity/infrastructure/mobile-token-queries.ts',
   'src/modules/identity/http/mobile.controller.ts',
+  // EVM-095: the list, the lock of a device (FOR UPDATE), the order of the wipe and the retention of the register (batches, deletes in the order of the foreign keys) - SQL against PostgreSQL
+  'src/modules/identity/infrastructure/device-admin-queries.ts',
+  'src/modules/identity/http/devices.controller.ts',
   'src/modules/identity/http/auth.controller.ts',
   'src/modules/identity/http/users.controller.ts',
   'src/modules/catalog/application/**/*.ts',

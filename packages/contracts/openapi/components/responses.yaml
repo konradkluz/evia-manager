@@ -337,6 +337,24 @@ StepUpFailed:
         status: 401
         code: passkey_failed
         traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+DeviceModelMismatch:
+  description: >-
+    Treść niezgodna ze schematem (`validation_failed`) albo wpisana nazwa modelu różni się od modelu urządzenia
+    (`device_model_mismatch`, `errors[0].pointer: /confirmModel`) — serwer porównuje sam (po przycięciu i normalizacji NFC, z
+    rozróżnieniem wielkości liter), bez echa wpisanej wartości.
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/device_model_mismatch
+        title: The typed model does not match the device
+        status: 400
+        code: device_model_mismatch
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+        errors:
+          - pointer: /confirmModel
+            code: mismatch
 InvalidListQuery:
   description: >-
     Parametry zapytania niezgodne ze schematem (`validation_failed`, `errors[]` — wskaźnik i kod, bez wartości), nieznany

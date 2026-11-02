@@ -32,7 +32,8 @@ describe('W-15 Profil (EVM-028 AC1)', () => {
     expect(screen.getByText('anna.testowa@example.com')).toBeTruthy();
     expect(screen.getByText('Zmianę adresu e-mail zgłoś administratorowi.')).toBeTruthy();
     expect(screen.getByText('Rolę zmienia administrator.')).toBeTruthy();
-    expect(screen.queryByRole('heading', { name: /Urządzenia/ })).toBeNull();
+    // EVM-095 AC1: the section of the phones is there for every role but Tylko odczyt
+    expect(screen.getByRole('heading', { level: 2, name: 'Urządzenia' })).toBeTruthy();
     expect(await axeViolations(document.body, { bestPractice: true })).toEqual([]);
   });
 

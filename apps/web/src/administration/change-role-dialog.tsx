@@ -1,4 +1,4 @@
-import { changeUserRole, type User, type UserRole } from '@evia/contracts';
+import { changeUserRole, getUserDevicesSummary, type User, type UserDevicesSummary, type UserRole } from '@evia/contracts';
 import { Banner, Button, Dialog, InlineAlert, RadioGroup, WifiOff } from '@evia/ui-web';
 import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -9,6 +9,7 @@ import { alertsAdministrators, hasPasskey, ifMatchOf } from './account-operation
 import { AccountFailureAlert } from './account-failure-alert.tsx';
 import { ROLES, roleDescription } from './labels.ts';
 import { useAccountCall } from './use-account-call.ts';
+import { StepUpCancelled, useGuardedCall } from './use-guarded-call.ts';
 
 export interface AccountDialogProps {
   readonly user: User;
@@ -35,7 +36,32 @@ export function ChangeRoleDialog({ user, onClose, onDone, onRefreshAccount, onRe
   const call = useAccountCall(t('stepUp.title.changeRole'));
   const [role, setRole] = useState<UserRole>(user.role);
   const [error, setError] = useState<string | undefined>(undefined);
+  /** EVM-095 AC5: the phones of the account, read before the role Tylko odczyt (it wipes them); null = not read yet. */
+  const [devices, setDevices] = useState<UserDevicesSummary | 'unknown' | null>(null);
+  const [checking, setChecking] = useState(false);
+  const summaryCall = useGuardedCall(t('stepUp.title.deviceSummary'));
   const id = useId();
+
+  const send = () => {
+    call.run(
+      () => unwrap(changeUserRole({ client, path: { userId: user.id }, headers: { 'If-Match': ifMatchOf(user) }, body: { role } })),
+      onDone,
+    );
+  };
+  /** Reads how many phones and unsent items the role would wipe: none → the change goes on; some → the Administrator sees them first. */
+  const checkDevices = async () => {
+    setChecking(true);
+    try {
+      const summary = await summaryCall.run(() => unwrap(getUserDevicesSummary({ client, path: { userId: user.id } })));
+      if (summary.devices === 0) send();
+      else setDevices(summary);
+    } catch (failure) {
+      // W-04 cancelled: nothing happens; any other failure is told, and the next "Zmień rolę" goes on (the server wipes anyway).
+      if (!(failure instanceof StepUpCancelled)) setDevices('unknown');
+    } finally {
+      setChecking(false);
+    }
+  };
 
   const submit = () => {
     if (role === user.role) {
@@ -47,15 +73,16 @@ export function ChangeRoleDialog({ user, onClose, onDone, onRefreshAccount, onRe
       return;
     }
     setError(undefined);
-    call.run(
-      () => unwrap(changeUserRole({ client, path: { userId: user.id }, headers: { 'If-Match': ifMatchOf(user) }, body: { role } })),
-      onDone,
-    );
+    if (role === 'read_only' && devices === null) {
+      void checkDevices();
+      return;
+    }
+    send();
   };
 
   return (
     <Dialog
-      open={!call.stepping}
+      open={!call.stepping && !summaryCall.stepping}
       title={t('users.account.role.title', { name: user.displayName })}
       closeLabel={t('users.account.role.close')}
       describedBy={`${id}-summary`}
@@ -65,7 +92,7 @@ export function ChangeRoleDialog({ user, onClose, onDone, onRefreshAccount, onRe
           <Button data-initial-focus variant="tertiary" onClick={onClose}>
             {t('users.account.cancel')}
           </Button>
-          <Button type="submit" form={`${id}-form`} loading={call.pending} disabled={!online}>
+          <Button type="submit" form={`${id}-form`} loading={call.pending || checking} disabled={!online}>
             {t('users.account.role.submit')}
           </Button>
         </>
@@ -90,6 +117,7 @@ export function ChangeRoleDialog({ user, onClose, onDone, onRefreshAccount, onRe
           onChange={(value) => {
             setRole(ROLES.find((known) => known === value) ?? role);
             setError(undefined);
+            setDevices(null);
           }}
           options={ROLES.map((known) => ({
             value: known,
@@ -100,6 +128,13 @@ export function ChangeRoleDialog({ user, onClose, onDone, onRefreshAccount, onRe
         <p id={`${id}-summary`} className="text-body text-text-secondary">
           {t('users.account.role.summary')}
         </p>
+        {devices === null ? null : (
+          <InlineAlert tone="error">
+            {devices === 'unknown'
+              ? t('users.account.role.devicesUnknown')
+              : `${t('users.account.role.devicesWarning', { devices: devices.devices, pending: devices.pendingItemsReported })} ${t('users.account.role.devicesWarningConfirm')}`}
+          </InlineAlert>
+        )}
         {alertsAdministrators('role', user, role) ? <InlineAlert tone="info">{t('users.dialog.administratorAlert')}</InlineAlert> : null}
       </form>
     </Dialog>
