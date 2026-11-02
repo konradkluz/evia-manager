@@ -4,7 +4,7 @@ title: "Urządzenia: lista, zdalne wylogowanie, „Zablokuj i wyczyść” (API 
 type: story
 milestone: M2
 epic: E9 Dostęp mobilny
-status: in-progress
+status: in-review
 priority: P1
 path: pelna             # uwierzytelnianie, uprawnienia
 owner: backend-developer
@@ -72,3 +72,4 @@ Zdalne wymuszenie aktualizacji; e-mail do użytkownika o „Zablokuj i wyczyść
 - 2026-11-02 — plan gotowy (backend-developer)
 - 2026-11-02 — API i retencja gotowe, testy zielone w kontenerze (backend-developer); panel W-15/W-17 w osobnym kroku
 - 2026-11-02 — panel W-15 (Urządzenia w Koncie), W-17 (Administracja → Urządzenia) i liczba telefonów przed zmianą roli na Tylko odczyt gotowe; testy komponentów, Playwright (Chromium, Firefox, Edge) i axe zielone (web-developer)
+- 2026-11-02 — in-review: pełna bramka zielona, przeglądy zakończone (orkiestrator); test worker-email (EVM-024 AC6) raz niestabilny na /tmp, niezwiązany ze zmianą
