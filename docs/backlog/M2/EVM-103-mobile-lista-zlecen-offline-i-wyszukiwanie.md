@@ -4,7 +4,7 @@ title: "Aplikacja: lista zleceń offline i wyszukiwanie"
 type: story
 milestone: M2
 epic: E10 Zlecenia offline
-status: draft
+status: ready
 priority: P1
 path: pelna             # dane osobowe na urządzeniu (lista, indeks wyszukiwania), synchronizacja offline, tryb ukrytych danych
 owner: mobile-developer
@@ -24,7 +24,7 @@ Jako **technik** chcę **widzieć listę zleceń i szukać po numerze, kliencie,
 **AC1 — Lista z bazy lokalnej**
 - Zakładając zsynchronizowane zlecenia i brak sieci
 - Gdy otwieram „Moje zlecenia” (M-05)
-- Wtedy widzę zlecenia wyłącznie z lokalnej bazy (numer, klient, adres, status, etap), bez żadnego żądania do serwera; zlecenia stoją w stałej kolejności (data utworzenia malejąco — projekcja nie ma daty zmiany, pyt. 2), a jeśli zlecenie przestało należeć do zakresu urządzenia (znacznik usunięcia po synchronizacji), znika z listy i wyników bez dodatkowej akcji. Użytkownik niezalogowany nie widzi listy (ekran logowania).
+- Wtedy widzę zlecenia wyłącznie z lokalnej bazy (numer, klient, adres, status, etap), bez żadnego żądania do serwera; zlecenia stoją w stałej kolejności (data utworzenia malejąco — projekcja nie ma daty zmiany; decyzja Konrada 2026-11-12), a jeśli zlecenie przestało należeć do zakresu urządzenia (znacznik usunięcia po synchronizacji), znika z listy i wyników bez dodatkowej akcji. Użytkownik niezalogowany nie widzi listy (ekran logowania).
 
 **AC2 — Wyszukiwanie lokalne**
 - Zakładając listę
@@ -47,9 +47,9 @@ Jako **technik** chcę **widzieć listę zleceń i szukać po numerze, kliencie,
 - Wtedy lista nie pokazuje nazw, adresów ani numerów miejsc, pole wyszukiwania i chipy nie są renderowane, model listy nie zawiera nazwy, adresu ani numeru miejsca, a model i zapytanie są zerowane w chwili wejścia w tryb (także po powrocie z tła) i przy wylogowaniu (zapytanie nie filtruje i nie ujawnia istnienia wyniku); w tle dozwolone są tylko odczyty bez danych osobowych (identyfikatory, statusy, licznik „Niewysłane”); ekran oferuje akcję z EVM-101, a po przywróceniu danych lista startuje bez poprzedniego zapytania.
 
 **AC6 — Zakres i brak danych poufnych**
-- Zakładając technika z zakresem zleceń nadanym przez uprawnienia (Administrator, Edytor; Tylko odczyt nie loguje się do aplikacji — do potwierdzenia, pyt. 3)
+- Zakładając technika z zakresem zleceń nadanym przez uprawnienia (Administrator, Edytor; Tylko odczyt nie loguje się do aplikacji, tylko do panelu — decyzja Konrada 2026-11-12)
 - Gdy przeglądam i przeszukuję listę
-- Wtedy widzę wyłącznie zlecenia z repliki urządzenia (zakres wyznacza serwer, EVM-097), a wyszukiwanie nie sięga poza nie; lista nie zawiera płatności ani innych danych spoza projekcji telefonu; klucz wyszukiwania istnieje wyłącznie w pamięci procesu (brak trwałego indeksu i kopii danych poza repliką SQLCipher), każde połączenie z bazą ma `temp_store=MEMORY`; pole wyszukiwania wyłącza spersonalizowaną naukę klawiatury (`IME_FLAG_NO_PERSONALIZED_LEARNING`, mały plugin natywny), autokorektę, sprawdzanie pisowni i autofill; zapytanie nie trafia do parametrów nawigacji, utrwalanego stanu, stanu odtwarzanego po śmierci procesu, breadcrumbów ani logów. Dowód na emulatorze: znacznik syntetyczny w nazwie klienta i w zapytaniu daje 0 trafień w plikach katalogu aplikacji (jak EVM-093 AC1) i w logcat; z opcją „Nie zachowuj aktywności” pole startuje puste.
+- Wtedy widzę wyłącznie zlecenia z repliki urządzenia (zakres wyznacza serwer, EVM-097), a wyszukiwanie nie sięga poza nie; lista nie zawiera płatności ani innych danych spoza projekcji telefonu; klucz wyszukiwania istnieje wyłącznie w pamięci procesu (brak trwałego indeksu i kopii danych poza repliką SQLCipher), każde połączenie z bazą ma `temp_store=MEMORY`; pole wyszukiwania wyłącza autokorektę, sprawdzanie pisowni i autofill standardowymi właściwościami pola tekstowego (bez kodu natywnego; flaga `IME_FLAG_NO_PERSONALIZED_LEARNING` poza zakresem — decyzja Konrada 2026-11-12); zapytanie nie trafia do parametrów nawigacji, utrwalanego stanu, stanu odtwarzanego po śmierci procesu, breadcrumbów ani logów. Dowód na emulatorze: znacznik syntetyczny w nazwie klienta i w zapytaniu daje 0 trafień w plikach katalogu aplikacji (jak EVM-093 AC1) i w logcat; z opcją „Nie zachowuj aktywności” pole startuje puste.
 
 **AC7 — Szybkość na zakresie docelowym**
 - Zakładając syntetyczne 300 zleceń w zakresie urządzenia na testowym urządzeniu referencyjnym
@@ -63,12 +63,12 @@ Jako **technik** chcę **widzieć listę zleceń i szukać po numerze, kliencie,
 - Wyszukiwanie po treści wpisów, komentarzach, kontaktach i dokumentach; wyszukiwanie online na serwerze.
 
 ## Decyzje i ograniczenia
-- UX / UI: wyszukiwanie offline, stany, tryb ukrytych danych, chipy — flow 16 (M-05). Chipy „Wszystkie / Niewysłane (n)” to odstępstwo od makiety M-05 wymagające zgody Konrada (README planu, decyzja 12) i wpisu w changelogu styleguide'u.
-- Ścieżka `pelna` (zmiana względem `lekka` z planu): lista i indeks to dane osobowe na urządzeniu i obszar synchronizacji offline (`workflow.md` → „Ścieżki realizacji”; ≤ 8 AC). Do zatwierdzenia przez Konrada razem z AC (pyt. 1).
+- UX / UI: wyszukiwanie offline, stany, tryb ukrytych danych, chipy — flow 16 (M-05). Chipy „Wszystkie / Niewysłane (n)” to odstępstwo od makiety M-05 — zgoda Konrada 2026-11-12 (README planu, decyzja 12), wpis „Odstępstwo M2” w changelogu styleguide'u (§ 8).
+- Ścieżka `pelna` (zmiana względem `lekka` z planu): lista i indeks to dane osobowe na urządzeniu i obszar synchronizacji offline (`workflow.md` → „Ścieżki realizacji”; ≤ 8 AC). Zatwierdzona 2026-11-12 (Tech Lead z delegacji Konrada „tanio, szybko, bezpiecznie”).
 - Decyzje Konrada z 2026-11-01: telefony prywatne (BYOD), `FLAG_SECURE` w wydaniu, blokada aplikacji zawsze włączona — wpływają na 103 tylko przez AC5/AC6 (ukrycie danych i zrzut w „Ostatnich” działają w pełni, bez zależności od spisu floty). Sformułowanie „firmowe” w README planu M2 jest nieaktualne, ale nie zmienia zakresu tej historyjki.
 - Architektura (konsultacja 2026-11-12, bez ADR): bez FTS5 i bez kolumny w SQL (`unicode61` nie zamienia Ł→L, `trigram` wymaga ≥ 3 znaków). Model listy (numer, klient, ulica, miasto, miejsce, etap) budowany jednym odczytem z repliki i kolejki (zlecenia „Oczekuje na numer” istnieją tylko w kolejce), dopasowanie `includes` na kluczu znormalizowanym w JS (małe litery `pl` → NFD → bez znaków łączących → jawnie `ł→l`), jedna czysta funkcja współdzielona po obu stronach (z testami „lodz”/„Łódź” i fragmentu numeru). Brak trwałego indeksu = brak migracji schematu; model odbudowywany przy wejściu na ekran i po powiadomieniu `SyncHost.subscribe` (jeśli nie pokrywa wszystkich zmian — licznik rewizji w tych samych transakcjach). Nie używać `listWorkOrders` (`LIMIT 500`); bez N+1. Cała lista w pamięci, `FlatList` z wirtualizacją (do ok. 1500 zleceń), bez nowej zależności; zamiana generacji atomowa (`promoteShadow`) daje „bez mrugania”. Notatka w `docs/architecture/offline-sync.md` w ramach historyjki.
-- UX / UI (dopisek): wiersz do czasu EVM-104 nieaktywny wizualnie i dla TalkBacka (bez „>”, efektu naciśnięcia, roli przycisku i toastu); live region `polite` po zakończeniu pisania („12 wyników” / „Brak wyników”); pole z etykietą „Szukaj zlecenia”, „Wyczyść wyszukiwanie” ≥ 48 dp; chipy jako przełączniki ze stanem („Niewysłane, 3 zlecenia, wybrane”), odstęp ≥ 8 dp; odznaka „Oczekuje na numer” z ikoną i tekstem, odczytywana od statusu. Wpis „Odstępstwo M2” w changelogu styleguide'u robi Tech Lead przed implementacją (warunek DoR). README planu (decyzja 12) wskazuje „EVM-103 (AC5)”, a chipy są w AC3 — do poprawy.
-- Bezpieczeństwo i prywatność: zapytanie i wyniki nie trafiają do logów, diagnostyki ani historii (AC6). Ryzyko rezydualne: flaga IME to prośba — klawiatury firm trzecich na BYOD mogą ją zignorować; dane w trybie ukrytym zostają w bazie (EVM-101, TM-03).
+- UX / UI (dopisek): wiersz do czasu EVM-104 nieaktywny wizualnie i dla TalkBacka (bez „>”, efektu naciśnięcia, roli przycisku i toastu); live region `polite` po zakończeniu pisania („12 wyników” / „Brak wyników”); pole z etykietą „Szukaj zlecenia”, „Wyczyść wyszukiwanie” ≥ 48 dp; chipy jako przełączniki ze stanem („Niewysłane, 3 zlecenia, wybrane”), odstęp ≥ 8 dp; odznaka „Oczekuje na numer” z ikoną i tekstem, odczytywana od statusu. Wpis „Odstępstwo M2” w changelogu styleguide'u — dodany 2026-11-12 (Tech Lead).
+- Bezpieczeństwo i prywatność: zapytanie i wyniki nie trafiają do logów, diagnostyki ani historii (AC6). Ryzyko rezydualne zaakceptowane przez Konrada 2026-11-12: bez flagi IME klawiatura na prywatnym telefonie (np. Gboard) może zapamiętać nazwy klientów i adresy wpisane w wyszukiwarkę i podpowiadać je w innych aplikacjach (słownik klawiatury leży poza katalogiem aplikacji); dane w trybie ukrytym zostają w bazie (EVM-101, TM-03).
 
 ## Notatki
 - Low: `PRAGMA secure_delete=ON`; wiersze listy bez `selectable`; jedna funkcja normalizacji po obu stronach.
@@ -79,3 +79,4 @@ Jako **technik** chcę **widzieć listę zleceń i szukać po numerze, kliencie,
 - 2026-10-27 — naniesiono konsultacje: security, UX (product-owner)
 - 2026-11-12 — refinement do DoR: 7 AC (dodano zakres/uprawnienia, szybkość, rozdzielono stany i tryb ukrytych danych), ścieżka `lekka` → `pelna`, reviewers + security-engineer, rozgraniczenie z EVM-101/107/104; status `draft` do akceptacji (product-owner)
 - 2026-11-12 — naniesiono konsultacje: architekt (wyszukiwanie w pamięci, bez FTS i migracji, sortowanie), security (AC2, AC5, AC6), UX (AC2, AC3, dostępność) (product-owner)
+- 2026-11-12 — akceptacja Konrada (DoR): kolejność wg daty utworzenia malejąco, chipy „Wszystkie / Niewysłane (n)” (odstępstwo M2 wpisane w styleguide'zie), bez pluginu IME (ryzyko rezydualne zaakceptowane), Tylko odczyt tylko w panelu; ścieżka `pelna` zatwierdzona z delegacji; status `ready` (Tech Lead)
