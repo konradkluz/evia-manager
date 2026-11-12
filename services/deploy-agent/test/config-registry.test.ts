@@ -44,6 +44,8 @@ describe('EVM-007 AC3: configuration of the VM', () => {
     ['a request budget of 5', { requestBudget: 5 }],
     ['a range limit of 0', { maxRangeCommits: 0 }],
     ['a network name with spaces', { runtimeNetwork: 'a b' }],
+    // EVM-084 (L5): the runtime network and the network of clamd must stay two networks (api would join the network of clamd)
+    ['the network of clamd as the runtime network', { runtimeNetwork: 'evia-scan' }],
     ['a repository with a slash', { repository: { owner: 'a/b', name: 'c' } }],
     ['a repository with an extra key', { repository: { owner: 'a', name: 'c', id: 1 } }],
   ];

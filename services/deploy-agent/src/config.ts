@@ -3,6 +3,7 @@
  * mounted read-only into the verifier, changed only in an IaC session of Konrad. Strict: an unknown or missing key, a
  * wrong type or a value outside its pattern stops the verifier (no default for any security-relevant value).
  */
+import { SCAN_NETWORK } from './compose-policy.ts';
 import { Rejection, SHA, ensure, integer, record, string } from './errors.ts';
 
 export interface Baseline {
@@ -94,6 +95,8 @@ export function parseConfig(text: string): AgentConfig {
   );
   const runtimeNetwork = string(top['runtimeNetwork'], 'config');
   ensure(/^[a-z][a-z0-9-]{1,40}$/.test(runtimeNetwork), 'config', 'runtimeNetwork');
+  // EVM-084 (L5): the canonical document adds evia-scan for the worker; the same name for the runtime network would merge the two networks (api in the network of clamd)
+  ensure(runtimeNetwork !== SCAN_NETWORK, 'config', 'runtimeNetwork is the network of clamd');
   const config: AgentConfig = {
     repository: { owner, name },
     ownerAccountId: integer(top['ownerAccountId'], 'config'),

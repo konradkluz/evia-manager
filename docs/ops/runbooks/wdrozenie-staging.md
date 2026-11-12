@@ -26,6 +26,15 @@ Manifest `secrets.manifest.json` z `main` wymaga **wszystkich** plików naraz: o
 3. `sudo evia-init-secrets --check` bez braków (sprawdza wszystkie pliki z zainstalowanego manifestu) → **dopiero teraz** instalacja manifestu → `systemctl restart evia-secrets.service`.
 Klucze z `secrets.manifest.json` nie zmieniają się przy eksporcie ZIP (EVM-052): bucket `evia-staging-exports` używa kluczy `media-app` i `media-worker`.
 
+## Kontrole na żywo posiedzenia A po zmianach kanału (EVM-084 K8/K9, przegląd security rundy 2)
+Wyniki (same linie ok/FAIL, bez wartości) do `docs/qa/EVM-084/`.
+- **(5) dm-crypt:** `lsblk -o NAME,TYPE,MOUNTPOINT` — `media-video` i `clamav-scan` na urządzeniach typu `crypt`; drop-in `docker.service` z `RequiresMountsFor=` (runbook `media-processor.md`, „Montaże dm-crypt”).
+- **(12) próba negatywna:** `sudo umount /var/lib/evia/media-video` → następne wdrożenie kończy się `REFUSED … is not a mount`; po ponownym montażu przechodzi.
+- **(13) sieć clamd:** `docker network inspect evia-scan` — `Internal=true`, członkowie wyłącznie `clamd` i worker aktywnego koloru; z workera `clamd:3310` odpowiada, z `api` nazwa `clamd` się nie rozwiązuje.
+- **(14) okno rollbacku (M5):** po pierwszym wdrożeniu nowym weryfikatorem — **drugie wdrożenie** i **próbny rollback** ([rollback](rollback-staging.md)); dopiero wtedy rollback kanałem do świeżych wpisów rejestru działa. Do tego czasu plan B ręczny z runbooka rollbacku.
+- **(16) obraz procesora (warunek RR-78):** `FFMPEG_VERSION` przypięty, Trivy 0 High/Critical bez uzasadnienia, SBOM — dowody w `docs/qa/EVM-084/`; bez nich nie podstawiamy digestu.
+- **(15) bucket eksportów:** wersjonowanie wyłączone, obie reguły cyklu życia (`exports-expire` i przerwanie multipart), ACL private; `bucket-verify.sh` z `MEDIA_EXPORT_BUCKET` zielony.
+
 ## Pierwsza sesja IaC (jednorazowo; kolejność obowiązkowa)
 **Warunki wstępne:** akceptacja kosztów (plan techniczny EVM-007), odpowiedzi Q1–Q3 i Q5, reguły `deny` dla `../.evia-iac/**` w `.claude/settings.json` (zgoda Konrada, Q3) **zanim** powstanie plik z tokenami.
 

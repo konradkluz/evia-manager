@@ -55,12 +55,21 @@ args=("$@")
 path="\${args[\${#args[@]}-1]}"
 grep -q "^$path"$'\\t' "$FAKE_MOUNTS" 2> /dev/null
 `;
-/** A stand-in for findmnt -n -o COLUMN --mountpoint PATH over the same table: path, FSTYPE, SOURCE, OPTIONS (tab separated). */
+/**
+ * A stand-in for findmnt -n -o COLUMN [--direction backward] --mountpoint PATH over the same table: path, FSTYPE, SOURCE, OPTIONS (tab separated). Mounts
+ * stacked on one path are listed oldest first; Docker uses the NEWEST, so only --direction backward may be trusted (EVM-084 L4): without it the stand-in answers
+ * with the oldest row, with it the newest first.
+ */
 const FAKE_FINDMNT = `#!/bin/bash
 args=("$@")
 path="\${args[\${#args[@]}-1]}"
 case "$3" in FSTYPE) column=2 ;; SOURCE) column=3 ;; OPTIONS) column=4 ;; *) exit 1 ;; esac
-awk -F $'\\t' -v p="$path" -v c="$column" '$1 == p { print $c }' "$FAKE_MOUNTS"
+rows="$(awk -F $'\\t' -v p="$path" -v c="$column" '$1 == p { print $c }' "$FAKE_MOUNTS")"
+case "$*" in *"--direction backward"*) printf '%s\\n' "$rows" | tac ;; *) printf '%s\\n' "$rows" ;; esac
+`;
+/** A stand-in for lsblk -no TYPE DEVICE: the type of the block device (FAKE_LSBLK_TYPE, default crypt = dm-crypt; an LVM volume is also in /dev/mapper). */
+const FAKE_LSBLK = `#!/bin/bash
+printf '%s\\n' "\${FAKE_LSBLK_TYPE:-crypt}"
 `;
 
 /** The canonical compose document as the verifier writes it (minimal, within the allow-list of deploy.sh). */
@@ -148,6 +157,7 @@ function setup() {
   writeFileSync(join(bin, 'curl'), FAKE_CURL, { mode: 0o755 });
   writeFileSync(join(bin, 'mountpoint'), FAKE_MOUNTPOINT, { mode: 0o755 });
   writeFileSync(join(bin, 'findmnt'), FAKE_FINDMNT, { mode: 0o755 });
+  writeFileSync(join(bin, 'lsblk'), FAKE_LSBLK, { mode: 0o755 });
   writeMounts(GOOD_MOUNTS);
   writeFileSync(
     join(root, 'etc/evia/deploy-agent/config.json'),
@@ -608,6 +618,36 @@ describe('EVM-084 (K8, K9): deploy.sh accepts what the verifier produces and no 
     // the same table passes when it is right (the cases above do not fail for another reason)
     writeMounts(GOOD_MOUNTS);
     assert.equal(deploy(value()).status, 0);
+  });
+
+  it('EVM-084 (L3, security-engineer): a device in /dev/mapper that is not dm-crypt (an LVM volume) does not pass as the encrypted volume of the films', () => {
+    for (const type of ['lvm', 'part', 'disk', 'loop'])
+      refusedBeforeAnything(goldenResult('l3-' + type), /must be on a dm-crypt device/, { FAKE_LSBLK_TYPE: type });
+    assert.equal(deploy(goldenResult('l3-ok'), { FAKE_LSBLK_TYPE: 'crypt' }).status, 0);
+  });
+
+  it('EVM-084 (L4, security-engineer): of mounts stacked on one path the NEWEST counts (the one Docker uses), not the oldest', () => {
+    const [work, video] = GOOD_MOUNTS;
+    // an old good mount under a newer plain disk: refused; the other way round: accepted
+    writeMounts([work ?? [], video ?? [], ['/var/lib/evia/media-video', 'ext4', '/dev/sdb1', 'rw,nosuid,nodev,noexec']]);
+    refusedBeforeAnything(goldenResult('l4-a'), /must be on a dm-crypt device/);
+    writeMounts([work ?? [], ['/var/lib/evia/media-video', 'ext4', '/dev/sdb1', 'rw,nosuid,nodev,noexec'], video ?? []]);
+    assert.equal(deploy(goldenResult('l4-b')).status, 0);
+  });
+
+  it('EVM-084 (L5, security-engineer): a runtime network named evia-scan (the two networks would become one) is refused before any call', () => {
+    writeFileSync(
+      join(root, 'etc/evia/deploy-agent/config.json'),
+      JSON.stringify({
+        imageRepositories: { api: API_REPO, web: WEB_REPO },
+        runtimeNetwork: 'evia-scan',
+        baseline: { commit: BASELINE, activityEventId: 100 },
+      }),
+    );
+    const run = deploy(result('l5'));
+    assert.notEqual(run.status, 0);
+    assert.match(run.stderr, /runtime network/);
+    assert.deepEqual(run.calls, []);
   });
 
   it('EVM-084 (K8): a release whose worker mounts nothing but its secrets needs no host mount (the check follows the document, not a fixed list)', () => {

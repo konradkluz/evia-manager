@@ -71,6 +71,8 @@ web_repo="$(jq -r '.imageRepositories.web' "$CONFIG")"
 network="$(jq -r '.runtimeNetwork' "$CONFIG")"
 baseline="$(jq -r '.baseline.commit' "$CONFIG")"
 [[ "$network" =~ ^[a-z][a-z0-9-]{1,40}$ ]] || fail "runtime network in the configuration"
+# EVM-084 (L5): the network of clamd is a second network of the worker; the same name for the runtime network would put api into it.
+[ "$network" != evia-scan ] || fail "runtime network in the configuration is the network of clamd"
 [[ "$baseline" =~ ^[0-9a-f]{40}$ ]] || fail "baseline in the configuration"
 check_image() {
   local image="$1" repository="$2"
@@ -168,7 +170,8 @@ host_mounts=()
 while IFS= read -r host_path; do host_mounts+=("$host_path"); done < <(
   jq -r '(.services.worker.volumes // [])[] | split(":")[0] | select(. == "/run/evia/media-work" or . == "/var/lib/evia/media-video")' "$release/compose.json"
 )
-mount_field() { findmnt -n -o "$1" --mountpoint "$ROOT$2" 2> /dev/null | head -n 1; }
+# --direction backward: of mounts stacked on one path the NEWEST comes first, and that is the one Docker uses (EVM-084 L4).
+mount_field() { findmnt -n -o "$1" --direction backward --mountpoint "$ROOT$2" 2> /dev/null | head -n 1; }
 for host_path in "${host_mounts[@]}"; do
   mountpoint -q -- "$ROOT$host_path" || fail "host path $host_path is not a mount (the IaC session creates it; compose would create a directory on the root disk)"
   mount_options=",$(mount_field OPTIONS "$host_path"),"
@@ -177,7 +180,12 @@ for host_path in "${host_mounts[@]}"; do
   done
   case "$host_path" in
     /run/evia/media-work) [ "$(mount_field FSTYPE "$host_path")" = tmpfs ] || fail "host mount $host_path must be a tmpfs (photos never reach the disk)" ;;
-    /var/lib/evia/media-video) [[ "$(mount_field SOURCE "$host_path")" == /dev/mapper/* ]] || fail "host mount $host_path must be on a dm-crypt device (RR-75)" ;;
+    /var/lib/evia/media-video)
+      # /dev/mapper also holds LVM and other device-mapper targets: only the block device type "crypt" proves dm-crypt (EVM-084 L3).
+      mount_source="$(mount_field SOURCE "$host_path")"
+      [[ "$mount_source" == /dev/mapper/* && "$(lsblk -no TYPE -- "$mount_source" 2> /dev/null | head -n 1)" == crypt ]] ||
+        fail "host mount $host_path must be on a dm-crypt device (type crypt, RR-75)"
+      ;;
   esac
 done
 # EVM-084 (K9): the network of clamd must stay internal (no way out for the worker that scans); the channel only references it, infra creates it.
