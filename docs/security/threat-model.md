@@ -1437,7 +1437,7 @@ Przyrost 2026-11-01 (EVM-052, eksport ZIP zdjęć zlecenia; `security-engineer`,
 - **Ryzyko po mitygacjach:** (b)–(d) **P1 × W1 = 1 Low** (brak osiągalności, zgodne z polityką). (a) **staging: P1 × W1 = 1 Low** (najgorzej: chwilowa niedostępność brzegu stagingu; dane syntetyczne, bez wpływu na poufność); **prod — nieakceptowane** (jak RR-37: przed E8 brak wpisów dla binarki Caddy).
 - **Wyjątek:** `.trivyignore.yaml` sekcja (B) — 7 wpisów (ID + ścieżka binarki lub PURL z dokładną wersją), `expired_at: 2026-12-10`, owner `security-engineer`. Usunięcie z pierwszym digestem upstream z poprawką (Renovate); bez przedłużenia bez ponownej analizy. **Warunek operacyjny:** nie uruchamiać `pg_dump`/`pg_basebackup` z kompresją gzip w kontenerach PostgreSQL do czasu poprawki.
 - **Rekomendacja:** (b)–(d) akceptuj (`security-engineer`); (a) **akceptuj dla stagingu** — alternatywa: czerwony `publish` do wydania Caddy z x/net ≥ 0.62.0 albo własna budowa Caddy (`xcaddy`) — odradzane.
-- **Decyzja Konrada:** (a) **oczekuje** (dla (b)–(d) nie jest wymagana — wyjątki zgodne z polityką).
+- **Decyzja Konrada:** (a) **zaakceptowane 2026-11-12 tylko dla stagingu** — do wydania Caddy z x/net ≥ 0.62.0, najpóźniej 2026-12-10, nigdy dla prod (dla (b)–(d) nie jest wymagana — wyjątki zgodne z polityką).
 
 ## 9. Aktualizacja modelu
 - **Kiedy:** przy `/milestone close` każdego kamienia milowego; przy nowej integracji, roli lub kanale (np. Monter, portal klienta, iOS); przy zmianie architektury (nowy ADR); po incydencie bezpieczeństwa; przy zmianie dostawcy.

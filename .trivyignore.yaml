@@ -156,11 +156,11 @@ vulnerabilities:
   # Caddy 2.11.9 (edge Caddy of infra-images.json and the runtime of evia-web): golang.org/x/net 0.60.0, fix 0.62.0.
   # The HTML parser IS linked (html.Parse, addText, fosterParent — by a dependency, not by a handler we configure);
   # not reachable through the configured handlers, but the absence of every other caller is not proven: STAGING ONLY,
-  # risk (DoS of the edge at worst) for Konrad to accept (RR-89); no entry for the Caddy binary may exist before prod.
+  # risk (DoS of the edge at worst) accepted by Konrad 2026-11-12 for staging only (RR-89); no entry for the Caddy binary may exist before prod.
   - id: CVE-2026-78661
     paths: ['usr/bin/caddy', 'usr/local/bin/caddy']
     purls: ['pkg:golang/golang.org/x/net@v0.60.0']
-    statement: 'High in golang.org/x/net/html 0.60.0 of Caddy 2.11.9 (CPU DoS by crafted HTML in the HTML parser); not reachable through the configured handlers — both Caddyfiles use only reverse_proxy, file_server, try_files, rewrite, header, log filters and ACME (no templates, markdown or body processing), so no HTML is parsed; the parser is linked by a dependency, other callers not excluded — staging only, never for prod (RR-89); no Caddy release with x/net >= 0.62.0 yet · owner: security-engineer · EVM-084'
+    statement: 'High in golang.org/x/net/html 0.60.0 of Caddy 2.11.9 (CPU DoS by crafted HTML in the HTML parser); not reachable through the configured handlers — both Caddyfiles use only reverse_proxy, file_server, try_files, rewrite, header, log filters and ACME (no templates, markdown or body processing), so no HTML is parsed; the parser is linked by a dependency, other callers not excluded — risk accepted by Konrad 2026-11-12 for staging only, never for prod (RR-89); no Caddy release with x/net >= 0.62.0 yet · owner: security-engineer · EVM-084'
     expired_at: 2026-12-10
   # Alloy v1.21.3 (Ubuntu 24.04): the same x/net CVE (verified 2026-11-12: only html/charset is linked — no Parse,
   # parser or Tokenizer symbols) and apt (the container runs as 10020, read-only, cap_drop ALL, no-new-privileges).
