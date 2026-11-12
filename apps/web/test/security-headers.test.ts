@@ -14,7 +14,7 @@ const COMMON = {
 };
 
 describe('panel security headers (EVM-008 AC4; policies.md § P11, SR-WEB-01, SR-WEB-08)', () => {
-  it('EVM-008 AC4 panel security headers include strict CSP: P11 without bucket and Sentry hosts, no unsafe sources', () => {
+  it('EVM-008 AC4 panel security headers include strict CSP: P11 without the bucket host, no unsafe sources', () => {
     const headers = panelSecurityHeaders({ variant: 'strict' });
     expect(headers).toEqual({ ...COMMON, 'Content-Security-Policy': P11_CSP });
     const csp = headers['Content-Security-Policy'] ?? '';

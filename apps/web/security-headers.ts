@@ -4,7 +4,7 @@
  * Caddy serves the same values (generated from or tested against this file).
  *
  * Variants:
- * - `strict` — preview and production: the CSP of P11 without the bucket and Sentry hosts (they do not exist yet), so
+ * - `strict` — preview and production: the CSP of P11 without the bucket host (it does not exist yet), so
  *   img-src/media-src/connect-src are 'self' (+ data:/blob: as in P11). No 'unsafe-inline' or 'unsafe-eval'.
  * - `dev` — `vite dev` only: the same headers WITHOUT Content-Security-Policy, because the React Refresh preamble is an
  *   inline script and HMR uses ws:. Never used for anything served to users (residual risk RR-c).
