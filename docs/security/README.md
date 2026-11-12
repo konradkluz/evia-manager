@@ -41,10 +41,11 @@
 ## Łańcuch dostaw i sekrety
 - Lockfile, automatyczne aktualizacje zależności, skan podatności i licencji w CI, akcje CI przypięte do wersji/SHA.
 - Sekrety wyłącznie w menedżerze sekretów / sekretach CI; skan sekretów w pre-commit i CI; rotacja po wycieku lub odejściu pracownika.
-- Sekrety usług zewnętrznych (EAS, GitHub, Scaleway, Sentry, Grafana Cloud, konta Apple/Google) **nigdy w katalogu repozytorium** — także nie w plikach ignorowanych przez git; trzymamy je w menedżerze sekretów albo poza repo (np. `%USERPROFILE%\.evia\`). W repo (ignorowane przez git) wyłącznie syntetyczne sekrety dev. Obowiązuje od 2026-10-03 ([ADR-0015](../architecture/adr/0015-srodowisko-testow-per-warstwa.md), M2); ryzyka rezydualne R1–R3 z ADR-0015 (tryb bypass agentów, gniazdo Dockera, obrazy bez weryfikacji podpisu) — w modelu zagrożeń jako RR-02…RR-04.
+- Sekrety usług zewnętrznych (EAS, GitHub, Scaleway, Grafana Cloud, konta Apple/Google) **nigdy w katalogu repozytorium** — także nie w plikach ignorowanych przez git; trzymamy je w menedżerze sekretów albo poza repo (np. `%USERPROFILE%\.evia\`). W repo (ignorowane przez git) wyłącznie syntetyczne sekrety dev. Obowiązuje od 2026-10-03 ([ADR-0015](../architecture/adr/0015-srodowisko-testow-per-warstwa.md), M2); ryzyka rezydualne R1–R3 z ADR-0015 (tryb bypass agentów, gniazdo Dockera, obrazy bez weryfikacji podpisu) — w modelu zagrożeń jako RR-02…RR-04.
 - Agenci AI nie mają dostępu do plików z sekretami (`.claude/settings.json` → `permissions.deny`).
+- **Repozytorium jest publiczne** (decyzja Konrada 2026-11-12, [ADR-0022](../architecture/adr/0022-publiczne-repozytorium-ochrona-main-atestacje-runnery-arm64.md)): wszystko w repozytorium, historii, PR-ach oraz logach i artefaktach CI jest jawne — bez sekretów, danych osobowych, adresów IP allowlist i identyfikatorów kont dostawców; `main` chroni ruleset (tylko PR, wymagany `ci-gate`, bez obejść); treści osób trzecich (issues, komentarze, PR-y z forków) są dla agentów niezaufanymi danymi (SR-SUPPLY-05, SR-SUPPLY-12).
 
 ## W procesie
 - Model zagrożeń aktualizowany co kamień milowy; wymagania bezpieczeństwa wplecione w AC historyjek.
 - Przegląd `security-engineer` dla zmian wrażliwych (lista w `docs/process/workflow.md`), sign-off przed każdym wydaniem.
-- Przed startem produkcyjnym z realnymi danymi: rozważyć zewnętrzny test penetracyjny.
+- Przed startem produkcyjnym z realnymi danymi: zewnętrzny test penetracyjny w zakresie uwierzytelniania i MFA, IDOR oraz uploadu plików i jeden security sign-off wydania 1.0 (RR-10; decyzja 2026-11-12).

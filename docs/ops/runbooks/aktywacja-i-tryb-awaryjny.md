@@ -54,7 +54,7 @@ Lokalnie (Windows, Docker Desktop) procedurę wywołuje `pnpm run dev` (albo `pn
 - API łączy się z bazą rolą `evia_app` (członek roli `evia_app`, bez własności obiektów) — inaczej ochrona dziennika audytu nie działa; migracje uruchamia osobna tożsamość (`evia_migrator`).
 - Zmienne: `PANEL_ORIGIN` (https, bez `localhost` na produkcji), `WEBAUTHN_RP_ID` (host panelu albo domena nadrzędna), `WEBAUTHN_RP_NAME`, opcjonalnie `TRUSTED_PROXIES` (adresy reverse proxy, domyślnie pusta lista — nagłówek `X-Forwarded-For` jest wtedy ignorowany); wzór: `.env.example`.
 - Alloy zbiera logi wyłącznie z kontenerów usług z listy dozwolonych (nie z kontenerów jednorazowych); smoke na stagingu: tokenu nie ma w Alloy.
-- Caddy: bez `log_credentials`, z filtrem nagłówka `X-CSRF-Token` w logach dostępu; Sentry: `sendDefaultPii=false`, bez treści żądań `/api/v1/auth/activation/*`, `beforeSend` i `beforeBreadcrumb` czyszczą fragment adresu oraz pola `token`, `password`, `csrf`.
+- Caddy: bez `log_credentials`, z filtrem nagłówka `X-CSRF-Token` w logach dostępu; logger aplikacji redaguje pola `token`, `password`, `csrf`, a drugą linię redakcji (ścieżka `/api/v1/auth/activation/*`, tokeny, adresy) zapewnia `pipeline.alloy` w Alloy.
 - Do wydania produkcyjnego: zadanie czyszczące (retencja sesji z pełnym IP 30 dni, wyzwań WebAuthn i linków jednorazowych) — dług z ID w historyjce EVM-016.
 
 ## Rozwiązywanie problemów

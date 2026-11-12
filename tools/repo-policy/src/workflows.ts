@@ -84,7 +84,7 @@ export const GATE_JQ =
 /**
  * A2, W6, EVM-083 AC3: `ci-gate` depends on every job of the full run (all but the fast ones), runs only in full runs,
  * evaluates the results itself with the exact list of dependencies and GATE_JQ (a skipped job is accepted only for a
- * documentation-only change). K6 is not a job of ci.yml — it has its own workflow (main-integrity.yml).
+ * documentation-only change).
  */
 export function ciGateProblems(document: unknown): string[] {
   const jobs = record(record(document)['jobs']);
@@ -108,7 +108,6 @@ export function ciGateProblems(document: unknown): string[] {
   if (JSON.stringify(keys) !== JSON.stringify(expected)) problems.push('ci-gate: skrypt musi sprawdzać dokładną listę jobów z needs');
   if (!script.includes(`jq -e '${GATE_JQ}'`))
     problems.push('ci-gate: skrypt musi zawierać GATE_JQ (success wszystkich jobów; pominięcie ciężkich tylko przy heavy=false)');
-  if ('main-integrity' in jobs) problems.push('ci.yml: main-integrity (K6) wyłącznie w osobnym workflowie main-integrity.yml');
   return problems;
 }
 

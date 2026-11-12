@@ -11,7 +11,7 @@ owner: mobile-developer
 contributors: []
 reviewers: [code-reviewer, security-engineer, solution-architect]
 model: sonnet
-depends_on: [EVM-093, EVM-044, EVM-084, EVM-113]
+depends_on: [EVM-009, EVM-093, EVM-044, EVM-084]
 ---
 
 # EVM-109: Aplikacja — wysyłanie plików w tle (moduł natywny Android)
@@ -48,13 +48,20 @@ Jako **technik** chcę, aby **zdjęcia i filmy zrobione bez zasięgu same się w
 - Gdy zadanie działa lub system pokazuje powiadomienie
 - Wtedy adresy mają ważność ≤ 15 min na jedną część i nie trafiają do logów ani raportów błędów; sesję wysyłania kontynuuje tylko jej twórca; powiadomienie ma ogólny tekst („Wysyłanie 3 plików”) i widoczność prywatną na ekranie blokady; usługa zadania nie jest eksportowana.
 
+**AC6 — Bramki jakości Kotlin (dawne EVM-113)**
+- Zakładając kod Kotlin modułu uploadu
+- Gdy uruchamiam bramkę lokalnie (natywnie) lub CI
+- Wtedy ktlint (format i lint) sprawdza Kotlin, testy JUnit 5 na JVM (bez emulatora; `UploadEngine` za abstrakcjami HTTP i plików; testy oznaczone `EVM-109 AC#`) przechodzą, a raport pokrycia (lcov) trafia do `coverage:diff` z progiem linii i gałęzi 95% dla czystej logiki (`UploadEngine`); klej Androida (`JobService`, moduł Expo) jest wykluczony z uzasadnieniem w `coverage-exclusions.json` i pokryty Maestro; ten sam zestaw wektorów protokołu (`packages/sync-core/conformance/upload/`) czytają testy Kotlin i TypeScript; obniżenie progu lub wyłączenie testu nie przechodzi bramki; `testing-strategy.md`, `coverage-thresholds.json` i nota w ADR-0014 („częściowo zmieniona przez ADR-0020”) są zaktualizowane.
+
 ## Poza zakresem
-iOS; ekran aparatu (EVM-108); filmy ponad ustalony rozmiar (EVM-110); powiązanie tokenu odświeżania z kluczem urządzenia (PoP — backlog po tej historyjce).
+Mutacyjne testowanie Kotlin; iOS; ekran aparatu (EVM-108); filmy ponad ustalony rozmiar (EVM-110); powiązanie tokenu odświeżania z kluczem urządzenia (PoP — backlog po tej historyjce).
 
 ## Decyzje i ograniczenia
-- **Start wymaga:** EVM-113 (bramki Kotlin: ktlint, JUnit, pokrycie) oraz decyzji o właścicielu odświeżania tokenów (rekomendacja: opcja (a) ADR-0020 — jeden właściciel natywny, adnotacja ADR-0020a, aktualizacja SR-SESS-09; README planu, decyzja 17). Tokeny w aplikacji są za portem z EVM-100, więc zmiana właściciela nie dotyka ekranów.
+- **Start wymaga:** decyzji o właścicielu odświeżania tokenów (rekomendacja: opcja (a) ADR-0020 — jeden właściciel natywny, adnotacja ADR-0020a, aktualizacja SR-SESS-09; README planu, decyzja 17). Tokeny w aplikacji są za portem z EVM-100, więc zmiana właściciela nie dotyka ekranów.
 - Telemetria `expo-camera`/ML Kit — EVM-108.
+- Bramki Kotlin (AC6) tworzy ta historyjka w TDD od pierwszego commitu; nowe narzędzia (ktlint, Kover) — z uzasadnieniem licencji i utrzymania, dokładne wersje (SR-SUPPLY-06). Pliki wspólne z torem B (`coverage-thresholds.json`, `tools/repo-policy`) — osobne sekcje. Rozmiar: 6 AC (limit pełnej 8).
 
 ## Dziennik
 - 2026-10-27 — utworzono (product-owner)
 - 2026-10-27 — naniesiono konsultacje: architekt, security (product-owner)
+- 2026-11-12 — dołączono bramki Kotlin z EVM-113 jako AC6; `depends_on`: usunięto EVM-113, dodano EVM-009 (decyzja Tech Leada z delegacji Konrada „tanio, szybko, bezpiecznie”)

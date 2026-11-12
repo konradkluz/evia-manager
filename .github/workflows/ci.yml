@@ -1,7 +1,5 @@
-# CI (EVM-006 AC4; ADR-0012, ADR-0016): the same commands as locally. On GitHub Free there is no ruleset — the
-# single check `ci-gate` must be green before Konrad clicks "Squash and merge" (docs/ops/github-i-ci.md, K1–K7),
-# and main-integrity.yml (K6) turns red when a commit reaches main any other way. K6 is a workflow of its own: the
-# concurrency group below would cancel its pending runs.
+# CI (EVM-006 AC4; ADR-0012, ADR-0016): the same commands as locally. The single check `ci-gate` must be green before Konrad
+# clicks "Squash and merge"; the ruleset on main (decision 2026-11-12, docs/ops/github-i-ci.md) makes that mandatory.
 # Rules (tested in tools/repo-policy): actions pinned to a full commit SHA with a version comment, explicit
 # permissions per job, checkout without persisted credentials, no secrets, timeouts on every job.
 # EVM-013 (bramka 11, SR-SUPPLY-11): the documentation lifecycle validator is the first step with a command of `quality`,

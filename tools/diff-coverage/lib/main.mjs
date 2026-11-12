@@ -24,7 +24,7 @@ const WORKSPACE_ROOTS = ['apps', 'packages', 'services', 'tools'];
  * diff.mnemonicPrefix of the developer's git config, which would otherwise hide every file from the parser.
  */
 const DIFF_OPTIONS = ['--no-color', '--no-ext-diff', '--no-textconv', '--find-renames', '--src-prefix=a/', '--dst-prefix=b/'];
-const USAGE = 'Użycie: node tools/diff-coverage/cli.mjs [clean]';
+const USAGE = 'Użycie: node tools/diff-coverage/cli.mjs [clean | --local]';
 
 class ToolError extends Error {}
 
@@ -42,7 +42,8 @@ class ToolError extends Error {}
  */
 export function main(argv, io) {
   try {
-    if (argv.length === 0) return check(io);
+    if (argv.length === 0) return check(io, false);
+    if (argv.length === 1 && argv[0] === '--local') return check(io, true);
     if (argv.length === 1 && argv[0] === 'clean') return clean(io);
     io.stderr.write(`${USAGE}\n`);
     return 2;
@@ -53,10 +54,15 @@ export function main(argv, io) {
   }
 }
 
-/** @param {Io} io */
-function check(io) {
+/**
+ * @param {Io} io
+ * @param {boolean} local the native local gate: files measured only by the container integration run are skipped when they
+ *   have no report (CI and `gate:full` run without the flag and count them as uncovered)
+ */
+function check(io, local) {
   const root = repositoryRoot(io.cwd);
   const exclude = readExclusions(root);
+  const containerOnly = local ? readContainerOnly(root) : [];
   const base = resolveBase(root);
   const range = [...DIFF_OPTIONS, base];
   const changed = parseUnifiedDiff(git(root, ['-c', 'core.quotePath=false', 'diff', '-U0', ...range]));
@@ -91,6 +97,7 @@ function check(io) {
     exclude,
     readLines: (path) => readLines(root, path),
     threshold: THRESHOLD,
+    containerOnly,
   });
   io.stdout.write(`${render(result, base)}\n`);
   return result.passed ? 0 : 1;
@@ -111,8 +118,19 @@ function clean(io) {
  */
 function render(result, base) {
   const header = `Pokrycie zmienionego kodu względem ${base.slice(0, 12)} (próg ${THRESHOLD}% linii i gałęzi)`;
+  const skipped =
+    result.skipped.length === 0
+      ? []
+      : [
+          `Pominięte lokalnie (${result.skipped.length}): kod zależny od bazy, mierzony tylko przez testy integracyjne (kontener; CI: backend-integration) — pełne pokrycie policzy \`pnpm run gate:full\` albo CI:`,
+          ...result.skipped.map((path) => `- ${oneLine(path)}`),
+        ];
   if (!result.measurable) {
-    return `${header}\nBrak mierzalnych zmian w kodzie źródłowym (apps/, packages/, services/, tools/) — bramka zielona.`;
+    const note =
+      skipped.length > 0
+        ? 'Brak zmian mierzalnych lokalnie.'
+        : 'Brak mierzalnych zmian w kodzie źródłowym (apps/, packages/, services/, tools/) — bramka zielona.';
+    return [header, note, ...skipped].join('\n');
   }
   const rows = result.files.map((file) => {
     const missing = file.reported ? file.uncovered.join(', ') : `brak raportu pokrycia — ${file.uncovered.join(', ')}`;
@@ -129,8 +147,33 @@ function render(result, base) {
     '|---|---|---|---|',
     ...rows,
     `Razem: linie ${ratio(result.lines)} · gałęzie ${ratio(result.branches)}`,
+    ...skipped,
     verdict,
   ].join('\n');
+}
+
+/** Source of the list of files that only the container integration run measures (apps/api/coverage.config.ts). */
+export const API_COVERAGE_CONFIG = 'apps/api/coverage.config.ts';
+
+/**
+ * Globs (repository paths) of the database-bound files of the API. Read as text, never executed; fail closed: a missing or
+ * empty list is an error, so a broken file can never turn the local gate into a silent skip of everything.
+ * @param {string} root
+ * @returns {string[]}
+ */
+export function readContainerOnly(root) {
+  const text = readRegularFile(join(root, API_COVERAGE_CONFIG));
+  const list = text === null ? null : /export const DATABASE_BOUND\b[^=]*=\s*\[([\s\S]*?)\n\];/.exec(text)?.[1];
+  const patterns = (list ?? '')
+    .split('\n')
+    .filter((line) => !line.trimStart().startsWith('//'))
+    .flatMap((line) => [...line.matchAll(/'([^']+)'/g)].map((match) => `apps/api/${match[1] ?? ''}`));
+  if (patterns.length === 0) {
+    throw new ToolError(
+      `nie odczytano listy DATABASE_BOUND z ${API_COVERAGE_CONFIG} — bez niej tryb --local nie wie, co mierzy tylko kontener`,
+    );
+  }
+  return patterns;
 }
 
 /** @param {import('./evaluate.mjs').Count} count */

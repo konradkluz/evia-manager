@@ -19,7 +19,7 @@ Przeglądarki Playwright instaluje się raz: `pnpm --filter @evia/web exec playw
 ## Struktura
 | Ścieżka | Zawartość |
 |---|---|
-| `security-headers.ts` | **jedyne źródło** nagłówków panelu (P11, SR-WEB-01, SR-WEB-08): wariant `strict` (preview i produkcja; CSP bez `unsafe-inline`/`unsafe-eval`, bez hostów bucketu i Sentry do EVM-076), wariant `dev` (bez CSP — preambuła React Refresh); `https: true` dodaje `upgrade-insecure-requests` i HSTS (EVM-076); wtyczka Vite dla `preview` i `dev` |
+| `security-headers.ts` | **jedyne źródło** nagłówków panelu (P11, SR-WEB-01, SR-WEB-08): wariant `strict` (preview i produkcja; CSP bez `unsafe-inline`/`unsafe-eval`, bez hosta bucketu), wariant `dev` (bez CSP — preambuła React Refresh); `https: true` dodaje `upgrade-insecure-requests` i HSTS (EVM-076); wtyczka Vite dla `preview` i `dev` |
 | `src/router.tsx` | strony publiczne `/activate` i `/login`; reszta za bramką sesji; `/` → `/work-orders`; nieznana ścieżka → `/work-orders` (bez sesji → `/login`); błąd strony → stan błędu w powłoce (bez szczegółów technicznych) |
 | `src/paths.ts` | ścieżki po angielsku (URL to identyfikator); teksty po polsku z i18n |
 | `src/shell/` | powłoka (`AppShell` z `@evia/ui-web` + nawigacja, baner offline), granica błędu, stan błędu |

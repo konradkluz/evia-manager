@@ -112,7 +112,7 @@ const CLIENTS: Clause = {
       'operatorom sieci dystrybucyjnej, administracjom budynków, wspólnotom i spółdzielniom — w zakresie potrzebnym w prowadzonej sprawie; to odrębni administratorzy,',
       'projektantom, rzeczoznawcom i podwykonawcom — w zakresie potrzebnym do wykonania zlecenia,',
       'dostawcom usług IT z Unii Europejskiej, którzy przechowują dane w naszym imieniu (serwery i baza danych, przechowywanie zdjęć i dokumentów, kopie zapasowe — Hetzner, Scaleway),',
-      `dostawcom narzędzi do monitorowania działania systemu (Sentry, Grafana Labs) — to spółki z USA, które przetwarzają dane w regionie UE; trafiają do nich wyłącznie identyfikatory techniczne, bez imion i nazwisk, adresów, numerów telefonów i treści zleceń; ${MONITORING_TRANSFER}.`,
+      `dostawcy narzędzi do monitorowania działania systemu (Grafana Labs) — to spółka z USA, która przetwarza dane w regionie UE; trafiają do nich wyłącznie identyfikatory techniczne, bez imion i nazwisk, adresów, numerów telefonów i treści zleceń; ${MONITORING_TRANSFER}.`,
     ),
     paragraph(`Role odbiorców i podstawy przekazania poza Europejski Obszar Gospodarczy: ${LEGAL}.`),
     heading('Jak długo przechowujemy dane'),
@@ -168,7 +168,7 @@ const PARTIES: Clause = {
     ),
     heading('Komu przekazujemy dane'),
     paragraph(
-      'Dane są dostępne pracownikom firmy w zakresie ich zadań oraz dostawcom usług IT, którzy przechowują dane w naszym imieniu (Hetzner, Scaleway — Unia Europejska). Do narzędzi monitorowania działania systemu (Sentry, Grafana Labs — spółki z USA, region UE) trafiają wyłącznie identyfikatory techniczne, bez Twojego imienia i nazwiska, telefonu i adresu e-mail.',
+      'Dane są dostępne pracownikom firmy w zakresie ich zadań oraz dostawcom usług IT, którzy przechowują dane w naszym imieniu (Hetzner, Scaleway — Unia Europejska). Do narzędzia monitorowania działania systemu (Grafana Labs — spółka z USA, region UE) trafiają wyłącznie identyfikatory techniczne, bez Twojego imienia i nazwiska, telefonu i adresu e-mail.',
     ),
     heading('Twoje prawa'),
     paragraph(
@@ -233,7 +233,7 @@ const EMPLOYEES: Clause = {
     ),
     heading('Komu przekazujemy dane'),
     paragraph(
-      `Dostawcom usług IT, którzy przetwarzają dane w naszym imieniu: hosting i kopie zapasowe (Hetzner, Scaleway — Unia Europejska), wiadomości e-mail z zaproszeniami i alertami (Scaleway), monitorowanie działania systemu (Sentry, Grafana Labs — spółki z USA, region UE; tylko identyfikatory techniczne i skrócony adres IP; ${MONITORING_TRANSFER}).`,
+      `Dostawcom usług IT, którzy przetwarzają dane w naszym imieniu: hosting i kopie zapasowe (Hetzner, Scaleway — Unia Europejska), wiadomości e-mail z zaproszeniami i alertami (Scaleway), monitorowanie działania systemu (Grafana Labs — spółka z USA, region UE; tylko identyfikatory techniczne i skrócony adres IP; ${MONITORING_TRANSFER}).`,
     ),
     heading('Twoje prawa'),
     paragraph(

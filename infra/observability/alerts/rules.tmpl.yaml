@@ -132,6 +132,22 @@ groups:
         annotations:
           summary: 'No metrics from staging for ${no_data_for}: Alloy, the VM or the telemetry channel is down (env staging)'
           runbook: docs/ops/runbooks/alerty.md#eviastagingnodata
+  - name: api-errors
+    rules:
+      # Instead of Sentry (decision 2026-11-12): Alloy counts the log lines "unhandled error" of the api service (ProblemFilter). Same
+      # born-series handling as the security alerts below: the counter starts at 1 and increase() of such a series is 0.
+      - alert: EviaApiUnhandledError
+        expr: |
+          max by (env) (
+            label_replace(sum by (env) (increase(loki_process_custom_unhandled_errors_total{env="staging"}[${unhandled_errors_window}])), "src", "grown", "", "")
+            or
+            label_replace(sum by (env) (loki_process_custom_unhandled_errors_total{env="staging"} unless loki_process_custom_unhandled_errors_total{env="staging"} offset ${unhandled_errors_window}), "src", "born", "", "")
+          ) >= ${unhandled_errors_min}
+        for: 0m
+        labels: { severity: warning, ac2: api-errors }
+        annotations:
+          summary: 'The API logged an unhandled error in the last ${unhandled_errors_window} (env {{ $labels.env }})'
+          runbook: docs/ops/runbooks/alerty.md#eviaapiunhandlederror
   - name: security
     rules:
       # The counter of Alloy (stage.metrics) is BORN at the first event with the value 1 (and again after a restart of Alloy or an idle

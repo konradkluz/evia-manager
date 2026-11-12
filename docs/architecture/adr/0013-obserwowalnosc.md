@@ -1,6 +1,7 @@
 # ADR-0013: Obserwowalność — logi strukturalne z redakcją, Grafana Cloud (UE) i Sentry (UE), alerty bezpieczeństwa
 
 - **Status:** Zaakceptowana (Konrad, 2026-10-02)
+- **Zmieniona przez:** [Aktualizację 2026-11-12](#aktualizacja-2026-11-12--rezygnacja-z-sentry) (zaakceptowana przez Konrada 2026-11-12) — zakres: rezygnacja z Sentry w API, panelu i aplikacji mobilnej; błędy API przez logi strukturalne → Grafana Loki z alertem; reguły alertów w repozytorium ładowane do Grafany ręcznie/CLI, bez OpenTofu. Pozostała treść obowiązuje.
 - **Data:** 2026-10-02
 - **Decydent:** Konrad (akceptacja) · **Autor:** solution-architect (recenzja: devops-engineer, security-engineer)
 - **Powiązane:** EVM-001, EVM-005 (retencja, RODO), EVM-007 (monitoring i alerty); ADR-0001, ADR-0005, ADR-0009, ADR-0010, ADR-0011
@@ -69,6 +70,27 @@ SDK Sentry działa z samodzielnie hostowanym **GlitchTip** (zgodny protokół) �
 ## Weryfikacja
 - EVM-007: alerty testowe (sztuczny błąd 5xx, zatrzymany backup, plik EICAR, symulowane brute force) docierają do Konrada; próbka logów bez danych osobowych (checklista security).
 - Kwartalnie: zużycie limitów planów Free; liczba alertów fałszywych.
+
+## Aktualizacja 2026-11-12 — rezygnacja z Sentry
+**Status zmian:** zaakceptowana przez Konrada 2026-11-12 (EVM-085, uproszczenia). Kontekst — Konrad: „chcę cały system zrobić jak najtaniej i jak najszybciej, bez zbędnych rzeczy”; bezpieczeństwo danych, kopie z odtworzeniem i RODO zostają. SDK Sentry nie zostało dotąd zintegrowane w kodzie (stan 2026-11-12), więc zmiana nie wymaga usuwania kodu aplikacji.
+
+**Co się zmienia względem sekcji „Decyzja”:**
+- **Błędy API** — bez Sentry. Nieobsłużony wyjątek loguje filtr błędów HTTP (`apps/api/src/platform/http/problem.filter.ts` — wpis `unhandled error` ze stosem i `traceId`) przez pino z redakcją; Alloy wysyła go do **Grafana Cloud Loki** (jak pozostałe logi); **reguła alertu „nieobsłużone błędy API”** (e-mail do Konrada) na podstawie tych wpisów. Worker — analogicznie przez logi.
+- **Panel web i aplikacja mobilna** — **bez zewnętrznego raportowania błędów w MVP**. Ewentualnie później: własny endpoint przyjmujący zredagowane zdarzenia błędów klienta do tych samych logów (osobna historyjka przez `/refine`).
+- **Reguły alertów** zostają w repozytorium (`infra/observability/alerts/`, testy `promtool` w CI); do Grafany ładowane **ręcznie albo CLI** w sesji Konrada. **Bez modułów OpenTofu dla Grafany i Sentry oraz bez providerów `grafana/grafana` i `jianyuan/sentry`.**
+- Sekcje „Błędy” (Sentry) i retencja „błędy Sentry 30 dni” nie obowiązują; logi, metryki, dostępność, pozostałe alerty i retencja bez zmian.
+
+**Konsekwencje:**
+- **Pozytywne:** jeden podmiot z USA mniej (podprocesor Sentry znika — aktualizacja rejestru i `docs/security/rodo.md` po stronie `security-engineer`); jedna konsola, jeden kanał alertów, mniej sekretów (DSN) i mniej konfiguracji; 0 zł bez ryzyka limitu 5 tys. błędów.
+- **Negatywne / koszty:** brak grupowania błędów, deduplikacji i powiadomień o nowym typie błędu — zastępuje je zapytanie LogQL i reguła alertu progowego; błędy panelu i aplikacji z terenu (awarie JS/natywne, ANR) **niewidoczne**, dopóki użytkownik ich nie zgłosi — przy dystrybucji APK poza Google Play (ADR-0019) nie ma też Android vitals; stosy w logach są po stronie serwera (bez map źródeł klienta).
+- **Ryzyka i mitygacje:**
+  - *Dane osobowe w komunikacie lub szczegółach błędu w logu* (np. treść błędu bazy z wartością pola) → serializer `err` w pino ogranicza pola (typ, komunikat, kod, stos), redakcja i jej testy jak dla innych logów (SR-LOG); przegląd próbki logów `unhandled error` w przeglądzie security.
+  - *Ciche awarie klienta* → test terenowy na telefonach (checklista `testing-strategy.md`), zgłoszenia od użytkowników pilotażu; powrót do raportowania klienta wg planu wyjścia, gdy pilotaż pokaże taką potrzebę.
+  - *Rozjazd reguł w repozytorium i w Grafanie* (ładowanie ręczne) → reguły generowane z repozytorium (`render-rules.mjs`), procedura ładowania w runbooku `docs/ops/`, alert „brak danych” jako kontrola działania alertów (ADR-0018, SR-LOG-07).
+
+**Plan wyjścia:** raportowanie błędów klienta — własny endpoint do logów (ok. 1–2 dni) albo SDK zgodne z protokołem Sentry z **GlitchTip** samodzielnie hostowanym lub Sentry (region UE) — ok. 1–2 dni na aplikację plus ponowny wpis podprocesora; zarządzanie Grafaną przez IaC — dodanie providera `grafana/grafana` w sesji IaC (ok. 0,5 dnia).
+
+**Wpływ na inne ADR:** odstępstwo od ADR-0011 opisane w ADR-0018 („wspólny stos Grafana i organizacja Sentry”) obowiązuje **bez zmian dla stosu Grafana**; część dotycząca Sentry wygasa. Adnotacje odsyłające: ADR-0007 (logi i crash reporty), ADR-0011 (podprocesorzy, konta), ADR-0015 (sekrety usług zewnętrznych), ADR-0018 (sekrety aplikacji, odstępstwo, etap 007c), `../README.md`.
 
 ## Źródła (zweryfikowane 2026-10-02)
 - Grafana Cloud — cennik i plan Free (10 tys. serii, 50 GB logów, 14 dni): https://grafana.com/pricing/

@@ -25,7 +25,7 @@ Wynik (`/out/result.json`): `deploy` | `rollback` | `none` | `reject` z powodami
 ## Zależności (SR-SUPPLY-06)
 - `yaml` 2.9.1 (ISC, bez zależności, ta sama wersja co w `tools/repo-policy`) — jedyna zależność czasu działania: ścisły parser V4 (`uniqueKeys`, bez `merge`, kontrola kotwic, aliasów i tagów na drzewie dokumentu).
 - ZIP: `node:zlib` (`inflateRawSync` z `maxOutputLength`, `crc32`) — bez `fflate`; HTTP: natywny `fetch`; brak SDK GitHuba.
-- Granice modułów (`.dependency-cruiser.cjs`): kod nie importuje `apps/`, `packages/` ani `tools/` i nic nie importuje weryfikatora (osobna implementacja niż `tools/main-integrity`, K6).
+- Granice modułów (`.dependency-cruiser.cjs`): kod nie importuje `apps/`, `packages/` ani `tools/` i nic nie importuje weryfikatora.
 
 ## Polecenia
 - Testy z progiem pokrycia warstwy `shared` (90%): `pnpm --filter @evia/deploy-agent run test:coverage` (atrapa API GitHub na `node:http`, dane syntetyczne; testy oznaczone `EVM-007 AC#`); lint i typy: `pnpm --filter @evia/deploy-agent run lint`, `… run typecheck`.

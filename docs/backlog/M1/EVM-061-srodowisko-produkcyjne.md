@@ -48,10 +48,10 @@ Jako **właściciel produktu** chcę **środowiska produkcyjnego w UE, wdrażane
 
 **AC6 — Monitoring i alerty (SR-LOG-07)**
 - Gdy wykonuję test alertów na prod
-- Wtedy działają alerty dostępności, błędów i bezpieczeństwa z ADR-0013 (nieudane logowania, blokady, zmiany ról i MFA Administratora, masowe pobrania i odczyt, kwarantanna, eksport, wdrożenie, backup) z e-mailem do Konrada; alerty, wspólny stos Grafana/Sentry z tokenami per środowisko (`env="prod"`) i alert „brak danych” dla prod wg modułów EVM-085.
+- Wtedy działają alerty dostępności, błędów i bezpieczeństwa z ADR-0013 (nieudane logowania, blokady, zmiany ról i MFA Administratora, masowe pobrania i odczyt, kwarantanna, eksport, wdrożenie, backup) z e-mailem do Konrada; alerty, wspólny stos Grafana z tokenami per środowisko (`env="prod"`) i alert „brak danych” dla prod wg modułów EVM-085.
 
 **AC7 — Konta i klucze (SR-INFRA-09, SR-CRYPTO-04)**
-- Wtedy wszystkie konta administracyjne dostawców (Hetzner, Scaleway, GitHub, Grafana, Sentry, rejestrator) mają MFA, a runbook zawiera inwentarz kryptograficzny i politykę kluczy (właściciel, miejsce, algorytm, rotacja, zniszczenie).
+- Wtedy wszystkie konta administracyjne dostawców (Hetzner, Scaleway, GitHub, Grafana, rejestrator) mają MFA, a runbook zawiera inwentarz kryptograficzny i politykę kluczy (właściciel, miejsce, algorytm, rotacja, zniszczenie).
 
 **AC8 — Administratorzy prod (RR-16)**
 - Zakładając wdrożone prod
@@ -60,7 +60,7 @@ Jako **właściciel produktu** chcę **środowiska produkcyjnego w UE, wdrażane
 
 ## Poza zakresem
 - Test odtworzenia i rejestr usunięć po odtworzeniu — EVM-062. Wysoka dostępność (druga VM) — poza MVP (RR-16).
-- Warunki kolejnych wdrożeń prod w trakcie pilota realnego (do sign-off 1.0) — EVM-065 AC7 (README M1 → „Punkt pilota”); kanał z AC2 pozostaje ten sam.
+- Warunki kolejnych wdrożeń prod w trakcie pilota realnego — bramka EVM-065 AC7 usunięta 2026-11-12 (połączona z EVM-070); kanał z AC2 pozostaje ten sam.
 - Dystrybucja aplikacji mobilnej — M2 (E14).
 
 ## UX / UI
@@ -103,3 +103,4 @@ _—_
 - 2026-10-03 — poprawki z przeglądu EVM-010 (security-engineer): odesłanie do bramki wdrożeń w trakcie pilota (EVM-065 AC7)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-13 — podział EVM-007 wg ADR-0018: te same skrypty to kanał i VM (007a), backupy (EVM-084 = 007b) i obserwowalność (EVM-085 = 007c); `depends_on` + EVM-084, EVM-085. Zmiana AC (AC2, AC5, AC6 wg ADR-0018) zaakceptowana przez Konrada 2026-10-13; liczba AC bez zmian (product-owner)
+- 2026-11-12 — zmiana AC (decyzja Konrada 2026-11-12, bez Sentry): AC4 (alerty) i AC5 (MFA kont) bez Sentry; bramka wdrożeń w trakcie pilota (EVM-065 AC7) usunięta po połączeniu EVM-065 z EVM-070 (Tech Lead z delegacji Konrada)

@@ -61,7 +61,7 @@ Szyfrowana baza (EVM-093), UI, wiring z API (EVM-107). Wartości wymagające pom
 
 ## Decyzje i ograniczenia
 - Otwarte punkty `offline-sync.md` (2–4, 6, 11, 12) rozstrzygnięte w konsultacji architekta i zapisane w ADR-0021 (Proponowana → musi być Zaakceptowana przed `ready`); N = 30 dni i resync kontrolny co 7 dni są parametrami konfiguracji.
-- Testy `EVM-092 AC#`, próg pokrycia pakietu bez zmian (warstwa 95% z EVM-113 / EVM-091). Kontrolę zgodności z kontraktem (typy + fixtures w obu kierunkach, `@evia/contracts` tylko jako devDependency testów) wykonuje EVM-107 po scaleniu EVM-090.
+- Testy `EVM-092 AC#`, próg pokrycia pakietu bez zmian (warstwa 95% z EVM-091). Kontrolę zgodności z kontraktem (typy + fixtures w obu kierunkach, `@evia/contracts` tylko jako devDependency testów) wykonuje EVM-107 po scaleniu EVM-090.
 - Bezpieczeństwo i prywatność: reguła 7 dni to kontrola kliencka (ogranicza ekspozycję przy kradzieży, nie jest granicą zaufania — TM-03).
 
 ## Dziennik
@@ -70,3 +70,4 @@ Szyfrowana baza (EVM-093), UI, wiring z API (EVM-107). Wartości wymagające pom
 - 2026-10-27 — status ready: zaakceptowane przez Konrada ("Tak" na liście decyzji M2); ADR-0021 zaakceptowany (Tech Lead)
 - 2026-10-29 — plan gotowy; start implementacji (mobile-developer)
 - 2026-10-29 — implementacja pull w `packages/sync-core` (PullEngine, SessionGate wspólny z push, ContactClock, replika w generacjach z cieniem, znaczniki usunięcia, migawka zlecenia, parser ścisły, telemetria słownikowa), README pakietu i offline-sync.md (pkt 4, 5, 11, 12); testy `EVM-092 AC1–AC7` (mobile-developer)
+- 2026-11-12 — usunięto odsyłacz do EVM-113 (połączona z EVM-109; Tech Lead z delegacji Konrada „tanio, szybko, bezpiecznie”)

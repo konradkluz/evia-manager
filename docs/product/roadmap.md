@@ -48,6 +48,7 @@ flowchart LR
 | EVM-007 | Staging w UE: IaC, VM, kanał wdrożeń pull z weryfikacją (007a, ADR-0018) | devops-engineer | 006, 083 |
 | EVM-084 | Backupy, wersjonowanie mediów, rejestr usunięć, test odtworzenia na staging (007b) | devops-engineer | 007 |
 | EVM-085 | Obserwowalność, alerty, monitoring dostępności, koszty stagingu (007c) | devops-engineer | 007, 084 |
+| EVM-124 | Publikacja obrazów infrastruktury w CI: budowa natywna arm64, skan, SBOM, atestacja (ready) | devops-engineer | 084 |
 | EVM-008 | Chodzący szkielet: API + panel web (lokalnie i w CI) | backend-developer + web-developer | 003, 006 |
 | EVM-009 | Chodzący szkielet: aplikacja mobilna | mobile-developer | 003, 006, 008 |
 | EVM-010 | Backlog M1 gotowy do realizacji | product-owner | 002, 004, 005 |
@@ -83,13 +84,22 @@ flowchart LR
 2. konta i bezpieczeństwo dostępu (E1);
 3. prowadzenie zlecenia (E3, E4, E5, E2) → **pilot próbny**;
 4. dokumenty i media (E6);
-5. gotowość do realnych danych (E8: produkcja, test odtworzenia, RODO z DPIA, instrukcja w panelu, pentest i sign-off) → **pilot realny**;
-6. płatności (E7) i sign-off → **wydanie 1.0**;
+5. gotowość do realnych danych (E8: produkcja, test odtworzenia, RODO z DPIA, instrukcja w panelu);
+6. płatności (E7) i jeden security sign-off z zawężonym pentestem (EVM-070; EVM-065 połączona z EVM-070 2026-11-12) → **pilot realny i wydanie 1.0**;
 7. pozycje P2 i P3 (jeśli nie opóźniają 1.0).
+
+> **Uproszczenia 2026-11-12:** jeden sign-off 1.0 (EVM-070) zamiast dwóch; w poniższym opisie pilota realnego bramka pentestu/sign-off pilota i bramka wdrożeń w trakcie pilota (dawne EVM-065) nie obowiązują — realne dane po sign-off EVM-070, czyli po E7 (do potwierdzenia przez Konrada).
 
 **Pilot wewnętrzny** (rekomendacja — decyzja 4 w planie): **pilot próbny** po E1–E5 na staging, wyłącznie na danych syntetycznych (zakaz wpisywania realnych zleceń); **pilot realny** na produkcji po E6 i części E8 z zewnętrznym pentestem i security sign-off (RR-10) — wybrane zlecenia, równolegle z dotychczasowymi narzędziami; płatności (E7) dochodzą w trakcie pilota, a zlecenia założone przed nimi dostają transze ręcznie; każde wdrożenie prod w trakcie pilota przechodzi bramkę bezpieczeństwa i wymaga zatwierdzenia wersji przez Konrada; telefon to panel w przeglądarce (zdjęcia z galerii, zasady pracy na prywatnym telefonie w instrukcji — decyzje 18 i 19 w planie).
 
-**Uwagi do E8** (decyzje w planie): plan GitHub (Pro albo Free z kontrolami kompensującymi — decyzja przed planem EVM-007, wpływa na wdrożenia staging i prod oraz test odtworzenia); pentest zewnętrzny przed pilotem realnym — zakup za osobną zgodą; uproszczona DPIA i ocena transferów do USA przed pilotem realnym; import danych z CSV / Excel — rekomendacja: nie w M1 (świadome przesunięcie).
+**Uwagi do E8** (decyzje w planie): plan GitHub (Pro albo Free z kontrolami kompensującymi — decyzja przed planem EVM-007, wpływa na wdrożenia staging i prod oraz test odtworzenia); pentest zewnętrzny (zawężony: uwierzytelnianie/MFA, IDOR, upload; 2–3 dni, w EVM-070) przed realnymi danymi — zakup za osobną zgodą; uproszczona DPIA i ocena transferów do USA przed pilotem realnym; import danych z CSV / Excel — rekomendacja: nie w M1 (świadome przesunięcie).
+**Uproszczenia 2026-11-12** (Konrad i Tech Lead z delegacji „tanio, szybko, bezpiecznie”) — dotyczą M0/M1:
+- **Bez Sentry:** błędy API to logi `unhandled error` w Grafanie z alertem e-mail (EVM-085); Sentry usunięty z listy podmiotów przetwarzających (EVM-064) i z kont dostawców (EVM-061).
+- **Ochrona `main` rulesetem GitHuba** zamiast kontroli K6 `main-integrity` (ADR-0022); EVM-088 wycofana, EVM-123 usunięta (numer niewykorzystywany ponownie).
+- **Jeden sign-off 1.0:** EVM-065 połączona z EVM-070; pentest zawężony do uwierzytelniania/MFA, IDOR i uploadu (2–3 dni), bez osobnego sign-offu pilota, bramki wdrożeń pośrednich i retestu płatności.
+- **RODO w wersji prostej (EVM-064):** ćwiczenie naruszeń = jedno spotkanie z checklistą; DPIA uproszczona albo uzasadnienie zbędności.
+- **EVM-124 w M0 (ready):** obrazy infrastruktury budowane w CI na natywnym arm64 z skanem, SBOM i atestacją; pomijanie budowy i polityka w `repo-policy` odłożone. Bez zmian: test odtworzenia backupu (EVM-084), Synthetic Monitoring i TEM (EVM-085, EVM-089).
+
 **Kryteria wyjścia:** historyjki P1 `done`; UAT — Konrad (i min. 1 osoba z biura) prowadzi w systemie po jednym realnym zleceniu ze scenariuszy A–D (`domain.md`) bez obejść; security sign-off (brak otwartych Critical/High/Medium, MFA, czysty DAST baseline); backup odtworzony testowo; progi pokrycia spełnione; E2E dla kluczowych ścieżek.
 
 ## M2 — MVP „Teren”: aplikacja mobilna (wydanie 1.1)

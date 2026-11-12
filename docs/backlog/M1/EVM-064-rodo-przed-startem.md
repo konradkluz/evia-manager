@@ -26,15 +26,15 @@ Jako **właściciel produktu (administrator danych)** chcę **zamknąć formalno
 **AC1 — Umowy powierzenia, dostawcy i transfery (SR-PRIV-06, art. 44–46 RODO)**
 - Zakładając listę podmiotów przetwarzających z `rodo.md`
 - Gdy zamykam checklistę
-- Wtedy dla każdego dostawcy (m.in. Hetzner, Scaleway, Grafana Labs, Sentry, GitHub) jest zawarta umowa powierzenia albo udokumentowane zaakceptowane warunki, ustawione regiony UE i retencje — z datą weryfikacji
-- Oraz dla dostawców z możliwym dostępem z USA (Sentry, Grafana Labs, GitHub) podstawa transferu jest sprawdzona — certyfikacja w Data Privacy Framework albo standardowe klauzule umowne z oceną skutków transferu — z datą weryfikacji, a wynik jest w `rodo.md` (punkt `[PRAWNIK/IOD]` 10 rozstrzygnięty albo świadomie oznaczony w „Decyzje”).
+- Wtedy dla każdego dostawcy (m.in. Hetzner, Scaleway, Grafana Labs, GitHub; bez Sentry — rezygnacja 2026-11-12) jest zawarta umowa powierzenia albo udokumentowane zaakceptowane warunki, ustawione regiony UE i retencje — z datą weryfikacji
+- Oraz dla dostawców z możliwym dostępem z USA (Grafana Labs, GitHub) podstawa transferu jest sprawdzona — certyfikacja w Data Privacy Framework albo standardowe klauzule umowne z oceną skutków transferu — z datą weryfikacji, a wynik jest w `rodo.md` (punkt `[PRAWNIK/IOD]` 10 rozstrzygnięty albo świadomie oznaczony w „Decyzje”).
 
 **AC2 — Rejestr czynności**
 - Wtedy rejestr czynności przetwarzania jest aktualny (dane administratora z decyzji 9) i przechowywany poza repozytorium; w `rodo.md` jest odnośnik do jego miejsca (bez danych).
 
-**AC3 — Ćwiczenie naruszeń (SR-PRIV-07)**
-- Gdy przeprowadzamy ćwiczenie tabletop (scenariusz: utrata laptopa biura z otwartą sesją)
-- Wtedy procedura 72 h jest przećwiczona, wnioski zapisane w historyjce, a kontakty dostawców i formularz UODO są dostępne poza systemem.
+**AC3 — Ćwiczenie naruszeń (SR-PRIV-07) — wersja prosta**
+- Gdy odbywa się jedno spotkanie z checklistą (scenariusz: utrata laptopa biura z otwartą sesją)
+- Wtedy procedura 72 h jest przejrzana krok po kroku wg checklisty, wnioski zapisane w historyjce, a kontakty dostawców i formularz UODO są dostępne poza systemem.
 
 **AC4 — Prawa osób (SR-PRIV-02, SR-DATA-09)**
 - Wtedy runbook opisuje kanał przyjęcia żądania, weryfikację tożsamości, terminy i operacje systemu (eksport danych osoby — procedura Administratora; sprostowanie; ograniczenie przez soft delete; anonimizacja — EVM-041; redakcja — EVM-040, EVM-051), rejestr żądań jest poza repozytorium, a procedura jest przećwiczona na staging.
@@ -46,7 +46,7 @@ Jako **właściciel produktu (administrator danych)** chcę **zamknąć formalno
 - Wtedy okresy retencji z P4 są konfiguracją zgodną z `rodo.md`, retencja danych technicznych działa od pierwszego wydania (sesje — EVM-028, kwarantanna — EVM-049, eksporty — EVM-052), a dla danych biznesowych do M4 jest opisana procedura ręczna.
 
 **AC7 — Telemetria (SR-PRIV-09)**
-- Wtedy checklista wydania zawiera przegląd próbek zdarzeń Sentry i logów (brak danych osobowych), wykonany przed pilotem realnym.
+- Wtedy checklista wydania zawiera przegląd próbek logów (brak danych osobowych), wykonany przed pilotem realnym.
 
 **AC8 — Ocena skutków (DPIA, art. 35 RODO)**
 - Zakładając wstępną ocenę w `rodo.md` (dwa kryteria WP248 spełnione częściowo — rekomendacja: uproszczona DPIA przed startem produkcyjnym)
@@ -94,3 +94,4 @@ _—_
 - 2026-10-03 — poprawki z przeglądu EVM-010 (security-engineer): AC1 — podstawa transferów do USA (DPF albo SCC); AC8 — uproszczona DPIA albo udokumentowana decyzja o jej zbędności
 - 2026-10-03 — poprawki z przeglądu EVM-010, runda 2 (security-engineer): AC8 — w zakresie DPIA kopie zdjęć w galerii i ryzyko automatycznej kopii w prywatnej chmurze (decyzja 18)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-11-12 — zmiana AC (Tech Lead z delegacji Konrada „tanio, szybko, bezpiecznie”; decyzja Konrada o rezygnacji z Sentry): AC1 i AC7 bez Sentry; AC3 — jedno spotkanie z checklistą zamiast ćwiczenia tabletop; DPIA (AC8) bez zmian — uproszczona albo uzasadnienie zbędności

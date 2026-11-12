@@ -11,7 +11,7 @@ owner: qa-engineer
 contributors: [mobile-developer]
 reviewers: [security-engineer, code-reviewer]
 model: sonnet
-depends_on: [EVM-105, EVM-106, EVM-110, EVM-102]
+depends_on: [EVM-105, EVM-106, EVM-110]
 ---
 
 # EVM-112: Test terenowy w garażu i przegląd MASVS
@@ -28,10 +28,10 @@ Jako **Konrad** chcę **potwierdzić w prawdziwych warunkach, że aplikacja nie 
 - Gdy technik wykonuje 30 zdjęć, 3 filmy i 2 wpisy, wymuszamy zamknięcie aplikacji w trakcie wysyłki, a po wyjściu na zasięg czekamy
 - Wtedy wszystko jest w właściwym zleceniu, 0 duplikatów i 0 strat; wynik zapisany w raporcie.
 
-**AC2 — MASVS**
-- Zakładając MASVS v2.1 na poziomie L2 dla STORAGE, CRYPTO, AUTH, NETWORK, PLATFORM, CODE i PRIVACY (RESILIENCE poza zakresem — jawne ryzyka resztkowe: brak wykrywania roota i obfuskacji poza R8), z testami wg MASTG (m.in. plik bazy nieczytelny, brak danych osobowych w logach/Sentry/schowku, `cleartextTrafficPermitted=false` i brak zaufania do CA użytkownika, rotacja i reuse tokenów, reguła 7 dni z przestawieniem zegara, `FLAG_SECURE`, eksportowane komponenty, analiza ruchu — brak SDK analitycznych)
-- Gdy security-engineer ją przechodzi
-- Wtedy brak otwartych Critical/High/Medium albo każde ma zaakceptowane ryzyko resztkowe; punkty MASVS są sprawdzane już w historyjkach `pelna`, a ta konsoliduje wyniki.
+**AC2 — Checklista MASVS L1 w security sign-off wydania 1.1**
+- Zakładając checklistę MASVS v2.1 na poziomie L1 dla STORAGE, CRYPTO, AUTH, NETWORK, PLATFORM, CODE i PRIVACY (RESILIENCE poza zakresem — jawne ryzyka resztkowe: brak wykrywania roota i obfuskacji poza R8), wypełnianą na podstawie dowodów z przeglądów historyjek `pelna` (m.in. plik bazy nieczytelny, brak danych osobowych w logach i schowku, `cleartextTrafficPermitted=false`, rotacja i reuse tokenów, reguła 7 dni, `FLAG_SECURE`, eksportowane komponenty, brak SDK analitycznych i telemetrii — EVM-102 AC5)
+- Gdy security-engineer wykonuje security sign-off wydania 1.1
+- Wtedy checklista jest częścią sign-offu (bez osobnego testu MASTG i pentestu), a brak otwartych Critical/High/Medium albo każde ma zaakceptowane ryzyko resztkowe.
 
 **AC3 — Dystrybucja**
 - Zakładając APK z CI
@@ -45,7 +45,9 @@ Jako **Konrad** chcę **potwierdzić w prawdziwych warunkach, że aplikacja nie 
 
 ## Decyzje i ograniczenia
 - Telefony firmowe vs prywatne (BYOD) wpływają na politykę poprawek (P7) — README planu, decyzja 4; MASVS v2.1 zastępuje „L1+” z v1.
+- **Uproszczenie 2026-11-12:** test w garażu (AC1) zostaje jako kryterium wyjścia M2; MASVS to checklista L1 w security sign-offie wydania 1.1 (raz na wydanie, na podstawie dowodów z przeglądów i DAST), bez osobnego testu/pentestu. Zależność od EVM-102 usunięta (aplikacja bez telemetrii; EVM-102 to tylko ekran prywatności).
 
 ## Dziennik
 - 2026-10-27 — utworzono (product-owner)
 - 2026-10-27 — naniesiono konsultację security (product-owner)
+- 2026-11-12 — AC2: MASVS L2 → checklista L1 w security sign-offie wydania 1.1; usunięto zależność od EVM-102; test w garażu bez zmian (decyzja Konrada 2026-11-12 / Tech Lead z delegacji Konrada „tanio, szybko, bezpiecznie”)

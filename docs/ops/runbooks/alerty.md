@@ -31,7 +31,7 @@ Test dostarczenia e-maila wykonywany w sesji IaC: na VM staging zapisz do katalo
 
 ## EviaTokenExpiresSoon
 - **Znaczenie:** PAT albo klucz (nazwa w e-mailu) wygasa za 30 dni lub mniej. Daty pochodzą z `expiries.json` (zapisywanego w sesji IaC; nazwy i daty, bez wartości) oraz z nagłówka wygaśnięcia PAT.
-- **Pierwsza reakcja:** rotacja wg [rotacja-sekretow-kanalu](rotacja-sekretow-kanalu.md), tokenu zapisu Grafana lub DSN Sentry wg sekcji niżej; uaktualnij datę w `expiries.json`.
+- **Pierwsza reakcja:** rotacja wg [rotacja-sekretow-kanalu](rotacja-sekretow-kanalu.md), tokenu zapisu Grafana wg sekcji niżej; uaktualnij datę w `expiries.json`.
 - **Eskalacja:** brak możliwości rotacji przed terminem → rozszerz okno w kalendarzu, nie wydłużaj tokenu ponad 12 miesięcy.
 - **Test:** wpisz datę za 29 dni dla fikcyjnej nazwy tokenu.
 
@@ -90,7 +90,7 @@ Test dostarczenia e-maila wykonywany w sesji IaC: na VM staging zapisz do katalo
 - **Test:** wpisz `evia_host_mount_present{mount="clamav_scan"} 0` na 6 minut.
 
 ## EviaGrafanaUsageHigh
-- **Znaczenie:** zużycie limitów darmowej Grafany (serie lub objętość logów) przekroczyło 80%. Limit Sentry: powiadomienie o limicie ustawione w Sentry (osobny e-mail) oraz spike protection.
+- **Znaczenie:** zużycie limitów darmowej Grafany (serie lub objętość logów) przekroczyło 80%.
 - **Pierwsza reakcja:** zobacz, która usługa wysyła najwięcej (`sum by (service)` w Grafanie), zwiększ filtrowanie w `pipeline.alloy` lub obniż limit szybkości.
 - **Eskalacja:** po przekroczeniu limitu dane są odrzucane: oceń płatny plan lub samodzielny hosting (plan wyjścia ADR-0018) — decyzja Konrada.
 - **Test:** wartość `grafanacloud_instance_active_series` większa niż próg (w testach `promtool`).
@@ -100,6 +100,12 @@ Test dostarczenia e-maila wykonywany w sesji IaC: na VM staging zapisz do katalo
 - **Pierwsza reakcja:** czy VM działa (monitoring dostępności z AC3 też alarmuje?), `docker compose --project-name evia-telemetry --env-file /etc/evia/runtime/telemetry.env -f /etc/evia/runtime/compose.telemetry.yaml ps alloy`, logi Alloy (`journalctl CONTAINER_NAME=...`), ważność tokenu zapisu Grafana.
 - **Eskalacja:** token wygasł → rotacja niżej. Stos Grafany niedostępny → ocena na stronie statusu; staging działa bez monitoringu, ale blokuj wydania wrażliwe.
 - **Test:** zatrzymaj kontener `alloy` na 20 minut.
+
+## EviaApiUnhandledError
+- **Znaczenie:** API zapisało w logu `unhandled error` (nieobsłużony wyjątek, odpowiedź 500; `ProblemFilter`) w ostatnich 5 minutach. Zastępuje śledzenie błędów w Sentry (decyzja 2026-11-12): Alloy liczy tylko wystąpienia komunikatu (licznik bez etykiet z treści), treść błędu zostaje w logu Loki.
+- **Pierwsza reakcja:** w Grafanie (Explore, Loki) zapytanie `{service="api", level="error"} |= "unhandled error"`; z `traceId` znajdź żądanie i ścieżkę w logach `api`; sprawdź, czy błąd dotyczy ostatniego wdrożenia ([rollback](rollback-staging.md) przy regresji). Do logu nie wklejaj danych klientów do zgłoszeń.
+- **Eskalacja:** powtarzający się błąd po wdrożeniu → rollback i zgłoszenie błędu jako historyjka; błąd w ścieżce uwierzytelniania lub danych → tryb awaryjny wg [aktywacja-i-tryb-awaryjny](aktywacja-i-tryb-awaryjny.md).
+- **Test:** `promtool` (`alerts/tests/`); na VM: wywołaj błąd 500 na stagingu w sesji IaC (np. celowo uszkodzone żądanie do endpointu testowego) i potwierdź e-mail oraz powrót do normy po 5 minutach.
 
 ## EviaSecurityAlert
 - **Znaczenie:** aplikacja zgłosiła zdarzenie `alert: "security"` o kodzie z e-maila (`account_locked`, `login_failure_spike`, `second_step_failure_spike`, `emergency_reset`, `projection_authz_drift` i inne z listy). Progi skoków są w aplikacji (EVM-026), warstwa alertów tylko liczy zdarzenia.
@@ -142,17 +148,9 @@ Token tworzy wyłącznie Konrad w konsoli Grafana Cloud (access policy z zakresa
 4. Unieważnij stary token; zaktualizuj datę w `expiries.json`.
 5. **Po incydencie na staging** (podejrzenie przejęcia VM): unieważnij token natychmiast, najpierw utwórz nowy (kroki 1 do 3), potem sprawdź w Grafanie, czy nie pojawiły się serie z etykietą `env="prod"` lub obce etykiety (wspólny stos, RR-24); dopiero po analizie przywróć zbieranie.
 
-## Rotacja DSN Sentry (AC8)
-DSN projektów `api` i `web` jest osobny per środowisko; DSN api to sekret na VM (plik `sentry-dsn-api`), DSN web jest publiczny z natury i trafia do panelu w czasie działania (plik konfiguracji serwowany przez evia-web), nie do obrazu.
-1. W Sentry (projekt, Client Keys) utwórz nowy klucz, zapisz DSN w Bitwarden.
-2. Zapisz nowy DSN w `/etc/evia/secrets/sentry-dsn-api` i w pliku konfiguracji web, `systemctl restart evia-secrets`, ponowne uruchomienie `api`, `worker` (wdrożenie lub `docker compose up -d`).
-3. Sprawdź syntetyczny błąd na stagingu (zdarzenie ma `environment=staging`, brak parametrów URL i fragmentu).
-4. Usuń stary klucz w Sentry.
-5. **Po incydencie na staging:** usuń stary klucz najpierw (zdarzenia ze starego DSN przestają być przyjmowane), potem wykonaj kroki 1 do 3. Sprawdź, że w Sentry „Allowed Domains” i limit na klucz web są ustawione (RR-65).
-
 ## Aktywacja w sesji IaC (kolejność)
 Kod obserwowalności jest nieaktywny do tej sesji. Kolejność ma znaczenie: manifest sekretów z nowym plikiem odmówi wdrożenia, dopóki plik nie istnieje.
-1. **Tokeny (Konrad, konsola):** Grafana Cloud, access policy tylko z zakresami `logs:write` i `metrics:write`, osobna dla stagingu, z datą wygaśnięcia; Sentry (od wdrożenia SDK): projekty `api` i `web` w organizacji UE, osobne DSN. Poświadczenia administracyjne dla `tofu` (Grafana, Sentry) są sesyjne i wygasają w ciągu 24 h; nie trafiają do stanu ani do repozytorium. Tokenów zapisu nie tworzy `tofu` (nie ma ich w stanie).
+1. **Tokeny (Konrad, konsola):** Grafana Cloud, access policy tylko z zakresami `logs:write` i `metrics:write`, osobna dla stagingu, z datą wygaśnięcia; błędy aplikacji nie idą do osobnego serwisu (decyzja 2026-11-12, bez Sentry): wykrywa je alert `EviaApiUnhandledError` z logów. Poświadczenia administracyjne dla `tofu` (Grafana) są sesyjne i wygasają w ciągu 24 h; nie trafiają do stanu ani do repozytorium. Tokenów zapisu nie tworzy `tofu` (nie ma ich w stanie).
 2. **Pliki na VM:** `grafana-write-token` w `/etc/evia/secrets` (0600 root; `evia-init-secrets --check` ma go zobaczyć), `/etc/evia/runtime/telemetry.env` (GID `systemd-journal` z `getent group systemd-journal`, adresy Loki i Prometheus oraz identyfikatory instancji), katalog `/var/lib/evia/alloy` (właściciel 10020), konfiguracja Alloy z `infra/observability/alloy` do `/etc/evia/alloy`, `evia-metrics` do `/usr/local/sbin`, jednostki `evia-metrics.service/.timer`, `expiries.json` (nazwy i daty, bez wartości) do `/etc/evia/deploy-agent`.
 3. **Dziennik na istniejącej VM (RR-66):** moduł VM ma `ignore_changes = [user_data]`, więc zmiana `daemon.json` i `journald.conf` w szablonie **nie działa** na już utworzonej maszynie. Ręcznie: w `/etc/docker/daemon.json` ustaw `"log-driver": "journald"` i `"log-opts": {"labels": "com.docker.compose.service,com.docker.compose.project"}` (usuń `max-size` i `max-file`, nie dotyczą journald); `/etc/systemd/journald.conf.d/evia.conf` z `Storage=persistent`, `Compress=yes`, `SystemMaxUse=1G`, `MaxRetentionSec=7day`; `systemctl restart systemd-journald docker`; kontenery trzeba utworzyć ponownie (`docker compose up -d --force-recreate`), bo sterownik logów jest ustalany przy tworzeniu. Dowód: `docker inspect` (LogConfig) i `journalctl -u docker`, zapisane w `docs/qa/EVM-085/`.
 3a. **Stała podsieć `evia-runtime` (AC6):** `compose.infra.yaml` ustala podsieć `172.30.10.0/24` i adres Caddy `172.30.10.2`; `ip_range: 172.30.10.128/25` (adresy dynamiczne tylko z górnej połowy, żaden kontener nie zajmie `.2`). Dowód: `docker network inspect evia-runtime` pokazuje `IPRange` i Caddy pod `.2`. `TRUSTED_PROXIES` API i workera zawężamy do tego jednego adresu (`172.30.10.2`) dopiero po odtworzeniu sieci, w commicie sesji IaC: do tego czasu `compose.staging.yaml` zachowuje przejściowy zakres `172.16.0.0/12` (wcześniejsze zawężenie przy innym adresie Caddy zepsułoby adresy klientów: wspólny limit i adres Caddy w audycie). Na istniejącej VM sieć ma inną podsieć: wymaga ponownego utworzenia (krótka przerwa: zatrzymaj kontenery, `docker network rm evia-runtime`, `up -d` infrastruktury, potem wdrożenie kanału). Dowód: `docker network inspect evia-runtime` i test dymny (EVM-076 AC3).
@@ -162,4 +160,4 @@ Kod obserwowalności jest nieaktywny do tej sesji. Kolejność ma znaczenie: man
 6. **Alerty:** `tofu apply` modułów alertów (po zatwierdzeniu planu przez Konrada), potem test dostarczenia każdego alertu (sekcja „Ogólna procedura testu”).
 
 ## Ręczne kontrole w sesji IaC (zakres dowodów)
-Członkowie Grafany i Sentry: tylko konto Konrada z MFA, brak kont serwisowych z odczytem. Sentry: region `de`, Data Scrubber i „Prevent Storing of IP Addresses” włączone, retencja 30 dni, spike protection. Grafana: stos w UE, retencja 14 dni. Przegląd próbek zdarzeń i logów (brak danych osobowych i tokenów) przed zamknięciem EVM-085.
+Członkowie Grafany: tylko konto Konrada z MFA, brak kont serwisowych z odczytem. Grafana: stos w UE, retencja 14 dni. Przegląd próbek zdarzeń i logów (brak danych osobowych i tokenów) przed zamknięciem EVM-085.

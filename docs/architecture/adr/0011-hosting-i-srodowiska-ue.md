@@ -3,6 +3,7 @@
 - **Status:** Zaakceptowana (Konrad, 2026-10-02)
 - **Częściowo zastąpiona przez:** [ADR-0015](0015-srodowisko-testow-per-warstwa.md) (2026-10-03) — zakres: tabela „Środowiska”, wiersz `dev`: testy backendu uruchamiamy lokalnie wyłącznie na Linuksie w kontenerze `backend-tests` w dev Compose; porty usług dev publikowane tylko na `127.0.0.1`. Pozostała treść obowiązuje.
 - **Częściowo zmieniona przez:** [ADR-0018](0018-wdrozenia-pull-z-weryfikacja-na-vm-github-free.md) (2026-10-13) — zakres: IaC (`plan`/`apply`) i konfiguracja bucketów wyłącznie z sesji IaC Konrada (staging także `devops-engineer` na tokenach sesyjnych), nie z CI; w GitHubie brak sekretów — sekrety na VM (`0600`) i w menedżerze haseł; test odtworzenia z timera na VM środowiska w osobnych projektach `evia-restore*`, nie z CI; wyjątek od „nic nie jest współdzielone”: wspólny stos Grafana Cloud i organizacja Sentry z tokenami zapisu i DSN per środowisko (RR-24). Pozostała treść obowiązuje.
+- **Adnotacje 2026-11-12:** Sentry wycofany ([ADR-0013](0013-obserwowalnosc.md#aktualizacja-2026-11-12--rezygnacja-z-sentry)) — tabela podprocesorów, konta z MFA i wyjątek obserwowalności dotyczą odtąd tylko Grafana Labs; repozytorium publiczne ([ADR-0022](0022-publiczne-repozytorium-ochrona-main-atestacje-runnery-arm64.md)) — wiersz GitHub w tabeli podprocesorów bez zmian (kod i dane syntetyczne, bez danych osobowych).
 - **Data:** 2026-10-02
 - **Decydent:** Konrad (akceptacja) · **Autor:** solution-architect (recenzja: devops-engineer, security-engineer)
 - **Powiązane:** EVM-001, EVM-005 (`rodo.md` — podprocesorzy), EVM-006, EVM-007; ADR-0001, ADR-0003, ADR-0005, ADR-0009, ADR-0010, ADR-0012, ADR-0013
@@ -55,6 +56,8 @@ Osobne konta/projekty, klucze API, sekrety i domeny/subdomeny per środowisko; n
 
 > **Adnotacja 2026-10-13 ([ADR-0018](0018-wdrozenia-pull-z-weryfikacja-na-vm-github-free.md)):** wyjątek — wspólne są wyłącznie narzędzia obserwowalności (jeden stos Grafana Cloud Free, jedna organizacja Sentry Developer) z tokenami zapisu i DSN per środowisko; infrastruktura, klucze, buckety, domeny i dane pozostają rozdzielone. Staging wdrażany automatycznie z `main` kanałem pull z weryfikacją na VM, prod po zatwierdzeniu Konrada zapisanym w buckecie Scaleway.
 
+> **Adnotacja 2026-11-12 ([ADR-0013](0013-obserwowalnosc.md#aktualizacja-2026-11-12--rezygnacja-z-sentry)):** Sentry wycofany — wyjątek obejmuje już tylko wspólny stos Grafana Cloud Free (tokeny zapisu per środowisko), bez zmian.
+
 **Sieć i ekspozycja:** Hetzner Cloud Firewall — ruch przychodzący tylko 80/443 do reverse proxy (Caddy) oraz SSH wyłącznie z listy dozwolonych adresów administracyjnych (kluczem, bez logowania roota). **PostgreSQL, kolejka (pg-boss), worker, ClamAV i media-processor nie mają publikowanych portów** — działają w wewnętrznej sieci Dockera; ClamAV i media-processor bez sieci w ogóle (ADR-0009).
 
 **TLS:** Caddy z automatycznymi certyfikatami (Let's Encrypt), **TLS 1.2+ (preferowane 1.3)**, **HSTS** (`max-age=31536000; includeSubDomains`), przekierowanie HTTP → HTTPS. Połączenia do Scaleway, Sentry, Grafana — wyłącznie TLS.
@@ -90,7 +93,7 @@ Test odtworzenia bazy: automatycznie co miesiąc i przed każdym wydaniem na tym
 |---|---|---|---|---|---|
 | Hetzner Online GmbH | Niemcy | VM, baza, backup VM, Storage Box | tak (wszystkie dane systemu) | DE, FI | DPA (AVV) w panelu klienta |
 | Scaleway SAS (grupa Iliad) | Francja | storage mediów, backupy bazy, e-mail transakcyjny | tak (media, dokumenty, backupy, adresy e-mail) | PL (`pl-waw`) | DPA w warunkach usługi |
-| Functional Software Inc. (Sentry) | USA | raporty błędów | ograniczone (pseudonimowe ID, po scrubbingu) | UE (Frankfurt) | DPA + SCC/DPF |
+| Functional Software Inc. (Sentry) — _wycofany 2026-11-12 ([ADR-0013](0013-obserwowalnosc.md#aktualizacja-2026-11-12--rezygnacja-z-sentry))_ | USA | raporty błędów | ograniczone (pseudonimowe ID, po scrubbingu) | UE (Frankfurt) | DPA + SCC/DPF |
 | Grafana Labs | USA | logi i metryki | ograniczone (logi z redakcją) | UE | DPA + SCC/DPF |
 | GitHub Inc. (Microsoft) | USA | kod, CI | nie (kod, dane syntetyczne) | USA/UE | DPA (umowa klienta) |
 | 650 Industries Inc. (Expo) | USA | buildy mobilne, podpisywanie | nie (kod, klucze podpisu) | USA | DPA na żądanie |

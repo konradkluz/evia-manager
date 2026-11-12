@@ -41,3 +41,7 @@ grafana_logs_bytes_limit: 50000000000
 security_window: 15m
 security_min_events: 1
 account_locked_burst_min: 5
+
+# Unhandled errors of the API (decision 2026-11-12, instead of Sentry; the counter of Alloy from the message "unhandled error")
+unhandled_errors_window: 5m
+unhandled_errors_min: 1

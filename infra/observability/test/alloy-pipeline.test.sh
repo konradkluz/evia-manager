@@ -101,6 +101,12 @@ push 3100 '{"compose_service":"api"}' '{"level":"error","alert":"security","aler
 push 3100 '{"compose_service":"worker"}' '{"level":"error","alert":"security","alertCode":"user@example.test"}'
 push 3100 '{"compose_service":"web"}' '{"level":"error","alert":"security","alertCode":"account_locked"}'
 push 3100 '{"compose_service":"api"}' '{"level":"info","alert":"other-kind","alertCode":"account_locked"}'
+# Unhandled errors of the API (decision 2026-11-12, replaces Sentry): the exact message of ProblemFilter, only from the api service.
+for _ in 1 2 3; do push 3100 '{"compose_service":"api"}' '{"level":"error","msg":"unhandled error","err":{"type":"Error","message":"boom"}}'; done
+push 3100 '{"compose_service":"api"}' '{"level":"error","msg":"another failure, not an unhandled error"}'
+push 3100 '{"compose_service":"api"}' '{"level":"info","msg":"request completed"}'
+push 3100 '{"compose_service":"worker"}' '{"level":"error","msg":"unhandled error"}'
+push 3100 '{"compose_service":"web"}' '{"level":"error","msg":"unhandled error"}'
 sleep 2
 metrics="$(http GET 12345 /metrics)"
 series() { printf '%s\n' "$metrics" | grep '^loki_process_custom_security_alerts_total' ; }
@@ -111,6 +117,11 @@ series | grep 'alertCode="other"' | grep -q ' 1$' || fail "an unknown code is no
 series | grep -q 'example.test' && fail "a free value became a metric label"
 series | grep -q 'service="web"' && fail "an alert from the web service was counted"
 series | grep -q 'user@' && fail "user data in a metric"
+unhandled() { printf '%s\n' "$metrics" | grep '^loki_process_custom_unhandled_errors_total' ; }
+[ "$(unhandled | wc -l)" -eq 1 ] || fail "unhandled errors: expected one series, got: $(unhandled | tr '\n' ';')"
+unhandled | grep -q 'service="api"' || fail "unhandled errors are not labelled with the api service"
+unhandled | grep -q ' 3$' || fail "unhandled errors of the api are not counted exactly three times: $(unhandled | tr '\n' ';')"
+unhandled | grep -q 'boom' && fail "an error text became a metric label"
 
 # --- 4. The rate limit drops the excess of a flooding service.
 # One request with 400 lines: the limiter sees them at once, so the result does not depend on the speed of the client.
