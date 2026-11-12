@@ -2,6 +2,8 @@
 
 > Dokument żywy (EVM-005). Właściciel: `security-engineer`; decyzje: Konrad. Wersja **v1, 2026-10-03** — rekomendacje **przyjęte przez Konrada 2026-10-03** na demo EVM-005. P1–P6 wynikają z AC3 historyjki EVM-005, P7–P12 — ze spraw, które ADR-y i model domeny (EVM-002) jawnie przekazały do EVM-005. Żadna rekomendacja nie zmienia decyzji ADR-0001…0015 — potwierdza ich wartości albo doprecyzowuje to, co ADR zostawił do EVM-005. Wymagania `SR-…`: [`requirements.md`](requirements.md); zagrożenia `TM`/`AB`/`RR`: [`threat-model.md`](threat-model.md); retencja i podstawy prawne: [`rodo.md`](rodo.md).
 
+> **Uzupełnienie 2026-11-12 (bez Sentry — decyzja Konrada, EVM-085; `security-engineer`):** P4 — wiersz „Błędy (Sentry)” nie dotyczy (nieobsłużone błędy API są w logach operacyjnych, 14 dni); P9 — wiersz Sentry nie dotyczy; P11 — `connect-src` panelu bez originu ingestu Sentry. Decyzje P1–P12 bez zmian.
+
 > **Uzupełnienie 2026-10-21 (EVM-007 / 007a, faza offline):** stan wdrożenia P5, P8, P9, P10 i P11 w kanale staging — sekcja [„Stan wdrożenia polityk w EVM-007”](#stan-wdrożenia-polityk-w-evm-007-007a-faza-offline) na końcu dokumentu; decyzje P1–P12 bez zmian.
 
 ## Jak decydować
@@ -182,7 +184,7 @@ Dezaktywacja konta działa jak „Zablokuj i wyczyść” dla wszystkich urządz
 | Rejestr usunięć (identyfikatory purge, anonimizacji i redakcji; poza bazą) | 40 dni | zapisu | usunięcie (lifecycle) |
 | Logi operacyjne (Grafana Cloud) | 14 dni | zapisu | usunięcie u dostawcy |
 | Metryki | 14 dni | zapisu | usunięcie u dostawcy |
-| Błędy (Sentry) | 30 dni | zdarzenia | usunięcie u dostawcy |
+| Błędy (Sentry) — **nie dotyczy od 2026-11-12** (bez Sentry; nieobsłużone błędy API — w logach operacyjnych) | — | — | — |
 | Logi lokalne na VM (w tym dostępowe z pełnym IP) | 7 dni | zapisu | rotacja |
 | Media w kwarantannie | 30 dni | kwarantanny | usunięcie |
 | Niedokończone uploady | 7 dni | rozpoczęcia | usunięcie (lifecycle) |
@@ -346,7 +348,7 @@ Dezaktywacja konta działa jak „Zablokuj i wyczyść” dla wszystkich urządz
 | `AuditEvent.ipAddress` | **prefiks**: IPv4 /24 (np. `203.0.113.0/24`), IPv6 /48; pełny IP przez `sessionId`, dopóki istnieje sesja | 2 lata |
 | logi lokalne na VM (Caddy, aplikacja) | pełny IP | 7 dni |
 | logi i metryki w Grafana Cloud | prefiks /24 i /48 (redakcja w Alloy) | 14 dni |
-| Sentry | bez IP (`sendDefaultPii: false`, wyłączony zapis IP po stronie serwera) | — |
+| Sentry — **nie dotyczy od 2026-11-12** (bez zdalnego raportowania błędów) | — | — |
 
 **Dlaczego:** pełny IP jest potrzebny w pierwszych dniach reakcji na incydent (logi lokalne, sesje); w długim okresie (audyt 2 lata) wystarczy prefiks; przed wysyłką do podmiotów z USA (regiony UE) — minimalizacja.
 
@@ -395,7 +397,7 @@ Dezaktywacja konta działa jak „Zablokuj i wyczyść” dla wszystkich urządz
 ## P11 — Wartości CSP i HSTS
 **Rekomendacja — panel (Caddy, EVM-008)**
 ```text
-Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https://<domena-bucketu>; media-src 'self' blob: https://<domena-bucketu>; connect-src 'self' https://<domena-bucketu> https://<ingest-sentry-ue>; font-src 'self'; manifest-src 'self'; worker-src 'self' blob:; frame-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'; upgrade-insecure-requests
+Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https://<domena-bucketu>; media-src 'self' blob: https://<domena-bucketu>; connect-src 'self' https://<domena-bucketu>; font-src 'self'; manifest-src 'self'; worker-src 'self' blob:; frame-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'; upgrade-insecure-requests
 Strict-Transport-Security: max-age=31536000; includeSubDomains
 X-Content-Type-Options: nosniff
 Referrer-Policy: no-referrer
@@ -405,7 +407,7 @@ Cross-Origin-Resource-Policy: same-origin
 X-Frame-Options: DENY
 ```
 - **API:** `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'` oraz nagłówki z [`api-guidelines.md` → „Nagłówki”](../architecture/api-guidelines.md#nagłówki) (`Cache-Control: no-store` i inne).
-- `<domena-bucketu>` i `<ingest-sentry-ue>` — konkretne hosty ustala EVM-007/EVM-008 (bez symboli wieloznacznych szerszych niż jedna subdomena dostawcy).
+- `<domena-bucketu>` — konkretny host ustala EVM-007/EVM-008 (bez symboli wieloznacznych szerszych niż jedna subdomena dostawcy). Origin ingestu Sentry usunięty 2026-11-12 (bez Sentry, EVM-085).
 - `style-src 'self'`: jeśli biblioteka komponentów wstrzykuje elementy `<style>` w czasie działania, EVM-008 dodaje hash lub nonce; `'unsafe-inline'` wyłącznie dla stylów i tylko jako zapisany wyjątek.
 - Później (opcje): Trusted Types (najpierw w trybie raportowania), raportowanie naruszeń CSP.
 - **HSTS preload** — nie na start: obejmuje wszystkie subdomeny i trudno go wycofać; decyzja po wyborze domeny (EVM-007).
