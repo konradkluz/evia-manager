@@ -129,8 +129,10 @@ Kolumna „Ekrany”: identyfikatory z [`docs/ux/flows/README.md`](../../ux/flow
 | [EVM-063](EVM-063-prywatnosc-i-pomoc.md) | Prywatność i pomoc w panelu — klauzule informacyjne | story | P1 | web-developer | EVM-067, EVM-071 | W-19, W-01 |
 | [EVM-064](EVM-064-rodo-przed-startem.md) | RODO przed startem — umowy powierzenia, rejestr czynności, ćwiczenie naruszeń i runbooki | enabler | P1 | security-engineer | EVM-061 | SR-PRIV-06, SR-PRIV-07; transfery do USA, DPIA |
 | [EVM-066](EVM-066-instrukcja-dla-biura.md) | Krótka instrukcja dla biura | story | P1 | product-owner | EVM-025, EVM-026, EVM-027, EVM-028, EVM-033, EVM-034, EVM-035, EVM-036, EVM-041, EVM-046, EVM-048, EVM-049, EVM-050, EVM-051, EVM-063, EVM-072 | instrukcja w panelu (odnośnik z W-19); zasady pracy na telefonie; zmiana polityki dokumentów |
-| [EVM-065](EVM-065-pentest-i-sign-off-pilota.md) | Pentest i security sign-off pilota | enabler | P1 | security-engineer | EVM-062, EVM-063, EVM-064, EVM-066 | RR-10 (zakup za zgodą); bramka wdrożeń w trakcie pilota B |
-| [EVM-070](EVM-070-security-sign-off-1-0.md) | Security sign-off wydania 1.0 | enabler | P1 | security-engineer | EVM-055, EVM-056, EVM-057, EVM-058, EVM-065 | po E7 |
+| [EVM-065](EVM-065-pentest-i-sign-off-pilota.md) | Pentest i security sign-off pilota — **połączona z EVM-070 (2026-11-12)** | enabler | P1 | security-engineer | — (zależności przeniesione do EVM-070) | nie realizowana osobno |
+| [EVM-070](EVM-070-security-sign-off-1-0.md) | Security sign-off wydania 1.0 z zawężonym pentestem (uwierzytelnianie/MFA, IDOR, upload) | enabler | P1 | security-engineer | EVM-055, EVM-056, EVM-057, EVM-058, EVM-062, EVM-063, EVM-064, EVM-066 | RR-10 (zakup za zgodą); po E7 |
+
+> **Uproszczenia 2026-11-12:** bez Sentry (EVM-061, EVM-064, EVM-076, EVM-085); EVM-065 połączona z EVM-070 (jeden sign-off, pentest 2–3 dni; bez bramki wdrożeń w trakcie pilota i bez osobnego retestu płatności); EVM-064 AC3 — jedno spotkanie z checklistą. Opisy „Punkt pilota”, decyzji i ryzyk poniżej odnoszące się do EVM-065 (AC4, AC5, AC7) czytaj jako EVM-070 AC8 / bez bramki AC7; realne dane po sign-off EVM-070 (do potwierdzenia przez Konrada). Pozostałe wzmianki o Sentry w historyjkach M1 (EVM-008, 016, 024, 025, 071) — historyczne, do sprzątnięcia przy ich realizacji.
 
 **Liczby:** 60 historyjek — P0: 7, P1: 47, P2: 5, P3: 1.
 
@@ -790,9 +792,9 @@ Obowiązują każdą historyjkę M1 — nie powtarzamy ich w AC. Źródła: kons
 | Domena, DNS, adres nadawcy (SPF / DKIM / DMARC, CAA, DNSSEC) | EVM-007 (TLS staging), EVM-016 (RP ID kluczy dostępu), EVM-024 (e-mail) | do ustalenia | 2 |
 | Plan GitHub (Environments, ruleset `main`) | EVM-006, EVM-007, EVM-061, EVM-062 | Free | 5 |
 | Hetzner — staging i prod | EVM-007, EVM-061; RAM od EVM-044 | konto i puste projekty `evia-staging`, `evia-prod` | 14 |
-| Grafana Cloud, Sentry (UE) | EVM-007, EVM-061 (alerty) | wg planu EVM-007 | — |
+| Grafana Cloud (UE; bez Sentry od 2026-11-12) | EVM-007, EVM-061 (alerty) | wg planu EVM-007 | — |
 | Pwned Passwords (bezpłatne, k-anonimowość) | EVM-016, EVM-024, EVM-025, EVM-028 | publiczne API | — |
-| Wykonawca pentestu (zakup) | EVM-065 (opcjonalnie EVM-070) | brak | 6 |
+| Wykonawca pentestu (zakup; zawężony, 2–3 dni) | EVM-070 | brak | 6 |
 | Klucz sprzętowy konta awaryjnego (zakup, opcjonalnie) | EVM-061 AC8 | brak | 7 |
 | Dane rejestrowe firmy, prawnik / IOD | EVM-063, EVM-064 | do uzupełnienia | 9 |
 | Expo, Google Play | nie w M1 (M2 — E14; EVM-009 / EVM-011 wg ich planów) | brak | — |

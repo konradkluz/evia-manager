@@ -33,7 +33,7 @@ Jako **właściciel produktu** chcę **widzieć szkielet z EVM-008 działający 
 **AC3 — Test dymny aktywacji i konfiguracji (z EVM-016, zaakceptowane przez Konrada 2026-10-06)**
 - Zakładając, że na staging działa polecenie aktywacji z EVM-016
 - Gdy wykonujemy aktywację na staging
-- Wtedy test dymny potwierdza: brak tokenu w logach Caddy i Alloy oraz w Sentry, alert bezpieczeństwa dociera do kanału alertów, API używa roli `evia_app`, a `TRUSTED_PROXIES` zgadza się z proxy.
+- Wtedy test dymny potwierdza: brak tokenu w logach Caddy i Alloy, alert bezpieczeństwa dociera do kanału alertów, API używa roli `evia_app`, a `TRUSTED_PROXIES` zgadza się z proxy.
 - Oraz test dymny potwierdza dostarczenie alertu logowania z EVM-026: syntetyczne konto zostaje zablokowane (zdarzenie `alertCode` blokady) i alert dociera do kanału alertów, bez danych osobowych w treści (dane tylko syntetyczne).
 
 ## Poza zakresem
@@ -51,3 +51,4 @@ Jako **właściciel produktu** chcę **widzieć szkielet z EVM-008 działający 
 - 2026-10-06 — dopisano AC z EVM-016 (asercje wymagające infrastruktury), zaakceptowane przez Konrada
 - 2026-10-13 — podział EVM-007 wg ADR-0018: AC1–AC2 zależą od EVM-007 (007a); AC3 wymaga też EVM-085 (007c: Alloy, Sentry, kanał alertów) — decyzja Konrada 2026-10-13: `depends_on` + EVM-085 (product-owner)
 - 2026-10-20 — dopisano do AC3 test dostarczenia alertu logowania z EVM-026 — na polecenie Konrada przy refine EVM-026 (orkiestrator)
+- 2026-11-12 — zmiana AC3 (decyzja Konrada 2026-11-12, bez Sentry): z testu dymnego usunięto asercję o Sentry

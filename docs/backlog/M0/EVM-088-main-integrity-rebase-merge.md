@@ -16,6 +16,8 @@ depends_on: [EVM-087]
 
 # EVM-088: Kontrola main-integrity (K6) akceptuje commity z „Rebase and merge”
 
+> **Wycofana 2026-11-12 — zastąpiona rulesetem GitHuba (ADR-0022).** Kontrola K6 `main-integrity` przestaje obowiązywać; ochronę `main` zapewnia ruleset. Historyjka nie jest realizowana (status `draft` zostaje — szablon nie ma statusu „wycofana”).
+
 ## Cel
 Jako **właściciel produktu (Konrad)** chcę, aby kontrola `main-integrity` (K6, `tools/main-integrity/`, ADR-0016) uznawała commity z „Rebase and merge” pod ścisłymi warunkami, aby PR z kilkoma historyjkami (EVM-087) zachowywał osobny commit z ID per historyjka, bez osłabiania gwarancji, że `main` zawiera wyłącznie to, co scalił Konrad.
 
@@ -68,3 +70,4 @@ Dziś K6 wymaga, by każdy commit na `main` był `merge_commit_sha` scalonego PR
 
 ## Dziennik
 - 2026-10-15 — utworzono (product-owner, po przeglądzie security EVM-087)
+- 2026-11-12 — wycofana: K6 `main-integrity` zastąpiona rulesetem GitHuba (ADR-0022) (decyzja Konrada 2026-11-12)

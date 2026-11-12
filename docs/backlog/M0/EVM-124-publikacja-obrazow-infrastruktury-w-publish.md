@@ -1,10 +1,10 @@
 ---
 id: EVM-124
-title: Publikacja obrazów infrastruktury (pgbackrest, media-processor) w CI — budowa, skan, SBOM, digest
+title: Publikacja obrazów infrastruktury (pgbackrest, media-processor) w CI — budowa natywna arm64, skan, SBOM, atestacja
 type: enabler
 milestone: M0
 epic: E00 Fundamenty
-status: draft
+status: ready
 priority: P1
 path: pelna
 owner: devops-engineer
@@ -17,55 +17,58 @@ depends_on: [EVM-084]
 # EVM-124: Publikacja obrazów infrastruktury w CI
 
 ## Cel
-Jako **właściciel produktu** chcę, **aby obrazy infrastruktury budowane dziś ręcznie w sesji IaC (`postgres-pgbackrest`, `evia-media-processor`) przechodziły tę samą ścieżkę co obrazy wydania** (budowa z repozytorium bez cache, skan Trivy, SBOM, przypięcie digestu), aby **sesja IaC tylko pobierała i weryfikowała gotowy obraz, a wyjątek jednorazowy z 2026-11-12 (RR-78, warunkowo) wygasł**. Dziś te obrazy powstają natywnie na VM, poza skanem w CI (`media-processor.md`, „Dług i otwarte kroki”); `compose.media.yaml` ma digest zerowy, a `postgres-pgbackrest` nie ma wpisu w `infra-images.json`.
+Jako **właściciel produktu** chcę, **aby obrazy infrastruktury budowane dziś ręcznie w sesji IaC (`postgres-pgbackrest`, `evia-media-processor`) powstawały w CI na natywnym runnerze arm64 i przechodziły skan, SBOM oraz atestację pochodzenia**, aby **sesja IaC tylko pobierała i weryfikowała gotowy obraz, a wyjątek jednorazowy z 2026-11-12 (RR-78, warunkowo) wygasł**. Dziś te obrazy powstają natywnie na VM, poza skanem w CI (`media-processor.md`, „Dług i otwarte kroki”); `compose.media.yaml` ma digest zerowy, a `postgres-pgbackrest` nie ma wpisu w `infra/runtime/infra-images.json`.
 
 ## Kryteria akceptacji
 
-**AC1 — Publikacja z repozytorium**
-- Zakładając push na `main` ze zmianą wejść budowy obrazu infrastruktury (Dockerfile, jego kontekst, przypięte wersje, w tym `FFMPEG_VERSION`) po zielonym `ci-gate`
+**AC1 — Budowa w CI na natywnym arm64**
+- Zakładając push na `main` po zielonym `ci-gate`
 - Gdy przebiega publikacja obrazów infrastruktury
-- Wtedy obraz jest zbudowany bez cache, z bazami po digeście, dla `linux/arm64`, opublikowany w GHCR i opisany rekordem (obraz, digest, commit, skrót wejść budowy); rekord jest osobny od `release-manifest` wydania.
+- Wtedy obraz jest zbudowany bez cache i bez QEMU na natywnym runnerze `ubuntu-24.04-arm`, z bazami po digeście, dla `linux/arm64`, opublikowany w GHCR jako pakiet prywatny (licencja GPL ffmpeg) i opisany rekordem (obraz, digest, commit) zapisanym jako artefakt przebiegu; rekord jest osobny od `release-manifest` wydania.
 
-**AC2 — Skan i SBOM przed publikacją (warunek RR-78)**
+**AC2 — Skan przed publikacją (warunek RR-78)**
 - Zakładając zbudowany obraz
-- Gdy Trivy znajdzie podatność High/Critical z dostępną poprawką, której nie pokrywa wyjątek z rejestru (`.trivyignore.yaml`, EVM-118), albo brakuje przypiętej wersji `FFMPEG_VERSION`
-- Wtedy przebieg jest czerwony i nic nie trafia do GHCR; dla obrazu bez takich podatności SBOM CycloneDX i wynik skanu są zapisane jako artefakt (retencja jak `sbom` wydania).
+- Gdy Trivy znajdzie podatność High/Critical z dostępną poprawką, której nie pokrywa ważny, niewygasły wpis rejestru wyjątków (`.trivyignore.yaml`, EVM-118), albo brakuje dokładnej wersji pakietu instalowanego przez `apt` (`FFMPEG_VERSION`, `pgbackrest=`), albo skaner lub jego baza zgłosi błąd
+- Wtedy przebieg jest czerwony i nic nie trafia do GHCR; skanowany jest dokładnie ten digest, który jest publikowany.
 
-**AC3 — Odrzucenie złej platformy**
+**AC3 — SBOM i atestacja pochodzenia**
+- Zakładając obraz bez blokujących podatności
+- Gdy obraz jest publikowany
+- Wtedy SBOM CycloneDX i wynik skanu są zapisane jako artefakt (retencja jak `sbom` wydania), a pod digestem istnieje atestacja pochodzenia (`actions/attest-build-provenance`; repozytorium publiczne — ADR-0022) wskazująca workflow `ci.yml` i gałąź `main`.
+
+**AC4 — Odrzucenie złej platformy**
 - Zakładając obraz zbudowany lub pobrany dla innej platformy niż `linux/arm64`
 - Gdy sprawdzana jest platforma (przed skanem)
 - Wtedy publikacja jest odrzucona z komunikatem o platformie.
 
-**AC4 — Brak budowy przy zmianie niezwiązanej (minuty Actions)**
-- Zakładając push na `main` zmieniający wyłącznie pliki spoza wejść budowy obrazów infrastruktury (np. dokumentacja, kod `web`) albo ze skrótem wejść już opublikowanym
-- Gdy ocenia się potrzebę publikacji
-- Wtedy żaden obraz infrastruktury nie jest budowany ani publikowany, nie powstaje nowy digest, a podsumowanie przebiegu wskazuje powód pominięcia; przy niepewności co do zmienionych plików (brak bazy porównania) publikacja działa (fail-closed).
+**AC5 — Sesja IaC weryfikuje, nie buduje**
+- Zakładając obraz opublikowany z rekordem (AC1) i atestacją (AC3)
+- Gdy sesja IaC podstawia digest w zainstalowanym compose (zamiast zerowego digestu)
+- Wtedy najpierw weryfikuje: przebieg `ci.yml` w zdarzeniu `push` na `main` (API GitHuba), `gh attestation verify … --signer-workflow …/ci.yml --source-ref refs/heads/main`, `docker pull` po digeście i platformę `linux/arm64`; digest bez rekordu, bez ważnej atestacji albo ręcznie zbudowany nie jest przyjmowany.
 
-**AC5 — Polityka kompletności i aktualności w repozytorium**
-- Zakładając katalog obrazu w `infra/images/`
-- Gdy działa `tools/repo-policy` (bramka)
-- Wtedy każdy obraz jest jawnie sklasyfikowany (wydania / infrastruktury / świadomie poza publikacją z uzasadnieniem), a obraz bez klasyfikacji (dziś `postgres-pgbackrest`) albo obraz infrastruktury bez ścieżki budowy, skanu i SBOM w `ci.yml` daje czerwony wynik; test negatywny dla każdego przypadku.
-
-**AC6 — Sesja IaC pobiera, nie buduje**
-- Zakładając obraz opublikowany z rekordem (AC1)
-- Gdy sesja IaC podstawia digest w zainstalowanym compose (zamiast zerowego digestu) wg zaktualizowanych runbooków (`media-processor.md`, `restore.md`)
-- Wtedy procedura wymaga zgodności digestu z rekordem i commitu z `main`, a digest bez rekordu, z niezgodnym skrótem wejść albo ręcznie zbudowany nie jest przyjmowany; runbooki nie zawierają już kroku „zbuduj na VM”, a dowody (skan, SBOM) wskazują przebieg CI.
+**AC6 — Runbooki bez budowy na VM**
+- Zakładając zaktualizowane runbooki (`media-processor.md`, `restore.md`)
+- Gdy czytam procedurę instalacji obrazów infrastruktury
+- Wtedy nie zawiera kroku „zbuduj na VM”, wskazuje weryfikację z AC5, a dowody (skan, SBOM, atestacja) odsyłają do przebiegu CI; `postgres-pgbackrest` ma wpis w `infra/runtime/infra-images.json`.
 
 ## Poza zakresem
-- Obraz weryfikatora `evia-verifier` (`infra/images/deploy-agent`): zostaje budowany lokalnie w sesji IaC z czystego `main` (ADR-0018, m5); weryfikatora nie aktualizuje i nie dostarcza kanał, który on weryfikuje. Ewentualny skan Trivy tego obrazu w CI (bez publikacji i bez zmiany procedury instalacji) — osobna decyzja Konrada, nie ta historyjka.
+- Pomijanie budowy przy niezmienionych wejściach (skrót wejść, wykrywanie zmienionych plików) — odłożone 2026-11-12 (oszczędność minut Actions); ewentualna kolejna historyjka po pomiarze minut.
+- Polityka kompletności i aktualności w `tools/repo-policy` (klasyfikacja każdego obrazu w `infra/images/`, czerwony wynik dla obrazu bez ścieżki budowy/skanu/SBOM) — odłożona 2026-11-12; ewentualna kolejna historyjka.
+- Obraz weryfikatora `evia-verifier` (`infra/images/deploy-agent`): zostaje budowany lokalnie w sesji IaC z czystego `main` (ADR-0018, m5); weryfikatora nie aktualizuje i nie dostarcza kanał, który on weryfikuje. Ewentualny skan Trivy tego obrazu w CI — osobna decyzja Konrada.
 - Rozszerzenie `release-manifest` i zmiana weryfikatora V0–V4 (EVM-122); wdrażanie obrazów infrastruktury kanałem pull — nadal wyłącznie sesja IaC.
-- Odświeżanie obrazów bazowych (EVM-117), higiena wyjątków skanerów (EVM-118), obraz `web`/Caddy (EVM-120), obrazy z `infra-images.json` (skanowane już dziś w `publish`).
-- Zastąpienie runtime `media-processor` distroless (backlog M4, RR-78); podpisy obrazów i atestacje — do ustalenia po konsultacji (pytanie S1), nie zakładamy ich w AC.
+- Odświeżanie obrazów bazowych (EVM-117), higiena wyjątków skanerów (EVM-118), obraz `web`/Caddy (EVM-120), obrazy z `infra/runtime/infra-images.json` skanowane już dziś w `publish`.
+- Zastąpienie runtime `media-processor` distroless (backlog M4, RR-78); osobny podpis obrazów (cosign) — atestacja pochodzenia z AC3 wystarcza.
 
 ## Decyzje i ograniczenia
-- 2026-11-12 (Konrad): ręczna budowa w sesji IaC to wyjątek jednorazowy (RR-78: przypięty `FFMPEG_VERSION`, Trivy 0 High/Critical, SBOM przed użyciem); publikacja w `publish` jako osobna historyjka (ta).
-- Propozycja do akceptacji: rekord obrazów infrastruktury jest osobny od `release-manifest`, bo manifest czyta weryfikator V3 (zmiana schematu = aktualizacja weryfikatora w sesji IaC, EVM-122), a obrazy infrastruktury instaluje wyłącznie sesja IaC.
-- Zmiana `.github/**` = plik wrażliwy K3 (przegląd `security-engineer`). Zachowane zasady hermetycznego `publish` (SR-SUPPLY-04, SR-INFRA-14): bez cache, bazy po digeście, `packages: write` tylko w tym jobie, zero sekretów w repozytorium.
-- Ryzyko techniczne: runtime `media-processor` i `postgres-pgbackrest` wykonują `RUN` (apt) na arm64, a polityka `publish` zakazuje QEMU (runner x86; runnery arm bezpłatne tylko w repo publicznych) — wariant budowy do rozstrzygnięcia przez architekta (pytanie A1).
-- Minuty Actions (GitHub Free, 2000 min/mies., cel ≤ 1600): publikacja tylko przy zmianie wejść (AC4). Szacunek: 10–25 min na przebieg (budowa arm64 + 2 skany + SBOM), 2–4 przebiegi miesięcznie (zmiany Dockerfile, bump baz) ≈ 40–100 min/mies. (2–5% puli); do zmierzenia w pierwszych 3 przebiegach i zapisania w `github-i-ci.md`; powyżej 25 min/przebieg lub 100 min/mies. wraca do Konrada.
+- 2026-11-12 (Konrad): ręczna budowa w sesji IaC to wyjątek jednorazowy (RR-78: przypięty `FFMPEG_VERSION`, Trivy 0 High/Critical, SBOM przed użyciem); publikacja w CI jako osobna historyjka (ta).
+- 2026-11-12 (Tech Lead z delegacji Konrada „tanio, szybko, bezpiecznie”): zakres zawężony; budowa na natywnym `ubuntu-24.04-arm` (repo publiczne — ADR-0022, bez QEMU), atestacja pochodzenia zamiast podpisu; rekord obrazu jako artefakt przebiegu, osobny od `release-manifest`.
+- Zmiana `.github/**` = plik wrażliwy K3 (przegląd `security-engineer`). Zachowane zasady hermetycznego `publish` (SR-SUPPLY-04, SR-INFRA-14): bez cache, bazy po digeście, `packages: write` i uprawnienia atestacji tylko w tym jobie, zero sekretów w repozytorium.
+- Minuty Actions: runnery arm są bezpłatne w repozytorium publicznym; szacunek 10–25 min na przebieg, do zmierzenia w pierwszych 3 przebiegach i zapisania w `github-i-ci.md`.
 
 ## Notatki
 - Obraz z ręcznej budowy (staging) zostaje zastąpiony obrazem z CI przy najbliższej sesji IaC; pierwszy digest `media-processor` z CI zamyka warunek RR-78 (zaktualizować wpis).
 
 ## Dziennik
 - 2026-11-12 — utworzono (product-owner) po decyzji Konrada o wyjątku jednorazowym RR-78
+- 2026-11-12 — zakres zawężony (Tech Lead z delegacji Konrada „tanio, szybko, bezpiecznie”): natywny arm64 bez QEMU, skan z rejestrem EVM-118, SBOM, atestacja pochodzenia, rekord jako artefakt, pakiety prywatne; AC4 (pomijanie budowy) i AC5 (repo-policy) odłożone do „Poza zakresem”; 6 AC
+- 2026-11-12 — draft → ready: akceptacja Konrada z delegacji 2026-11-12 (path pelna, owner devops-engineer, reviewers security-engineer + code-reviewer, model sonnet)
