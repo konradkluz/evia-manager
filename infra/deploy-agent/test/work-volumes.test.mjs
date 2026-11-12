@@ -7,7 +7,7 @@
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -21,7 +21,11 @@ echo "sfdisk $*" >> "$FAKE_LOG"
 if [ "$1" = "-d" ]; then
   case "$(cat "$STATE/pt" 2> /dev/null || echo none)" in
     none) exit 1 ;;
-    two) printf 'label: gpt\\n/dev/x1 : start=2048, size=1\\n/dev/x2 : start=9999, size=1\\n' ;;
+    two) printf 'label: gpt\\nsector-size: 512\\n/dev/x1 : start=2048, size=31457280, type=X, name="evia-media-video"\\n/dev/x2 : start=31459328, size=9999, type=X, name="evia-clamav-scan"\\n' ;;
+    foreign-names) printf 'label: gpt\\nsector-size: 512\\n/dev/x1 : start=2048, size=31457280, type=X, name="data"\\n/dev/x2 : start=31459328, size=9999, name="backup"\\n' ;;
+    swapped) printf 'label: gpt\\nsector-size: 512\\n/dev/x1 : start=2048, size=31457280, name="evia-clamav-scan"\\n/dev/x2 : start=31459328, size=9999, name="evia-media-video"\\n' ;;
+    wrong-size) printf 'label: gpt\\nsector-size: 512\\n/dev/x1 : start=2048, size=2048, name="evia-media-video"\\n/dev/x2 : start=31459328, size=9999, name="evia-clamav-scan"\\n' ;;
+    no-names) printf 'label: gpt\\nsector-size: 512\\n/dev/x1 : start=2048, size=31457280\\n/dev/x2 : start=31459328, size=9999\\n' ;;
     *) printf 'label: gpt\\n/dev/x1 : a\\n/dev/x2 : b\\n/dev/x3 : c\\n' ;;
   esac
   exit 0
@@ -54,10 +58,18 @@ echo "chown $*" >> "$FAKE_LOG"
 `,
   mount: `#!/bin/bash
 echo "mount $*" >> "$FAKE_LOG"
-echo "\${@: -1}" >> "$STATE/mounts"
+echo "\${@: -1} \${@: -2:1}" >> "$STATE/mounts"
 `,
   mountpoint: `#!/bin/bash
-grep -qx "\${@: -1}" "$STATE/mounts" 2> /dev/null
+grep -q "^\${@: -1} " "$STATE/mounts" 2> /dev/null
+`,
+  findmnt: `#!/bin/bash
+echo "findmnt $*" >> "$FAKE_LOG"
+awk -v t="\${@: -1}" '$1 == t { s = $2 } END { print s }' "$STATE/mounts"
+`,
+  lsblk: `#!/bin/bash
+echo "lsblk $*" >> "$FAKE_LOG"
+printf '%s\\n' "\${FAKE_LSBLK_TYPE:-crypt}"
 `,
 };
 
@@ -88,6 +100,7 @@ const run = (/** @type {Record<string, string>} */ env = {}) =>
       EVIA_ROOT: root,
       EVIA_WORK_DEVICE: DEVICE,
       EVIA_WORK_WAIT: '0',
+      EVIA_CLAMAV_OWNER: '100:101',
       FAKE_LOG: log,
       STATE: state,
       ...env,
@@ -108,8 +121,6 @@ describe('EVM-084 evia-work-volumes.sh: encrypted work volumes with an ephemeral
     assert.equal(result.status, 0, result.stderr);
     const partition = readFileSync(join(state, 'sfdisk.stdin'), 'utf8');
     assert.match(partition, /^label: gpt$/mu);
-    assert.match(partition, /^,15360MiB$/mu);
-    assert.match(partition, /^,$/mu);
     for (const [name, part, mount] of [
       ['evia-media-video', 'part1', 'var/lib/evia/media-video'],
       ['evia-clamav-scan', 'part2', 'var/lib/evia/clamav-scan'],
@@ -133,7 +144,13 @@ describe('EVM-084 evia-work-volumes.sh: encrypted work volumes with an ephemeral
     // immutable mount points: nothing can be written there while no volume is mounted (a quiet fall back to the root disk)
     assert.ok(at('chattr +i') >= 0 && at('chattr +i') < at('mount -o'));
     assert.ok(calls().some((line) => line.startsWith('chown 10005:10002 ') && line.includes('media-video')));
-    assert.ok(calls().some((line) => line.includes('clamav-scan') && line.startsWith('chown ')));
+    // L8: the scratch space of clamd belongs to the user of clamd (given by the unit) and nobody else can enter it; set at every start
+    assert.ok(calls().some((line) => line.startsWith('chown 100:101 ') && line.includes('clamav-scan')));
+    assert.equal(statSync(join(root, 'var/lib/evia/clamav-scan')).mode & 0o7777, 0o700);
+    assert.equal(statSync(join(root, 'var/lib/evia/media-video')).mode & 0o7777, 0o2770);
+    // L6: the partitions are named when they are created
+    assert.match(partition, /^size=15360MiB, name=evia-media-video$/mu);
+    assert.match(partition, /^name=evia-clamav-scan$/mu);
   });
 
   it('EVM-084: the key lives in RAM only — no key file is written anywhere, no LUKS header, no persistent entry in crypttab or fstab', () => {
@@ -184,6 +201,59 @@ describe('EVM-084 evia-work-volumes.sh: encrypted work volumes with an ephemeral
     writeFileSync(log, '');
     result = run();
     assert.equal(result.status, 1);
+    assert.doesNotMatch(calls().join('\n'), /cryptsetup|mkfs|mount -o/u);
+  });
+
+  it('EVM-084 (L6, security-engineer): a volume with exactly two partitions that are not ours (other names, swapped, wrong size, no names) is refused before any mapping', () => {
+    for (const layout of ['foreign-names', 'swapped', 'wrong-size', 'no-names']) {
+      writeFileSync(join(state, 'pt'), layout);
+      writeFileSync(log, '');
+      const result = run();
+      assert.equal(result.status, 1, layout);
+      assert.match(result.stderr, /refusing/u, layout);
+      assert.doesNotMatch(calls().join('\n'), /cryptsetup|mkfs|mount -o/u, layout);
+    }
+  });
+
+  it('EVM-084 (L7, security-engineer): a path that is already mounted is kept only when it is the mapping of that name and a dm-crypt device', () => {
+    assert.equal(run().status, 0);
+    // another source under the path of the films (a stacked or foreign mount)
+    writeFileSync(
+      join(state, 'mounts'),
+      `${join(root, 'var/lib/evia/media-video')} /dev/sdb1\n${join(root, 'var/lib/evia/clamav-scan')} ${join(root, 'dev/mapper/evia-clamav-scan')}\n`,
+    );
+    writeFileSync(log, '');
+    let result = run();
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /not the encrypted mapping/u);
+    // the right name but not dm-crypt (an LVM volume of that name)
+    writeFileSync(
+      join(state, 'mounts'),
+      `${join(root, 'var/lib/evia/media-video')} ${join(root, 'dev/mapper/evia-media-video')}\n${join(root, 'var/lib/evia/clamav-scan')} ${join(root, 'dev/mapper/evia-clamav-scan')}\n`,
+    );
+    result = run({ FAKE_LSBLK_TYPE: 'lvm' });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /not the encrypted mapping/u);
+    // the scan volume alone is checked too (nothing else guards it)
+    writeFileSync(
+      join(state, 'mounts'),
+      `${join(root, 'var/lib/evia/media-video')} ${join(root, 'dev/mapper/evia-media-video')}\n${join(root, 'var/lib/evia/clamav-scan')} tmpfs\n`,
+    );
+    assert.equal(run().status, 1);
+    // all right: kept
+    writeFileSync(
+      join(state, 'mounts'),
+      `${join(root, 'var/lib/evia/media-video')} ${join(root, 'dev/mapper/evia-media-video')}\n${join(root, 'var/lib/evia/clamav-scan')} ${join(root, 'dev/mapper/evia-clamav-scan')}\n`,
+    );
+    assert.equal(run().status, 0);
+  });
+
+  it('EVM-084 (L8, security-engineer): the owner of the scratch space of clamd is a required parameter with a validated shape — no default, never world-writable', () => {
+    for (const owner of ['', 'root:root', '0:0', '100', '100:101; id', '1777', '-1:5']) {
+      const result = run({ EVIA_CLAMAV_OWNER: owner });
+      assert.equal(result.status, 1, owner);
+    }
+    assert.doesNotMatch(readFileSync(SCRIPT, 'utf8'), /1777/u);
     assert.doesNotMatch(calls().join('\n'), /cryptsetup|mkfs|mount -o/u);
   });
 

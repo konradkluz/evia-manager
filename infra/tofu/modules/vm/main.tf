@@ -65,6 +65,15 @@ variable "work_volume_size" {
   }
 }
 
+variable "clamav_uid_gid" {
+  description = "uid:gid of the user of clamd in the pinned clamav/clamav-debian image (EVM-084 L8): the owner of the scratch space /var/lib/evia/clamav-scan (mode 0700). Read in the IaC session; no default."
+  type        = string
+  validation {
+    condition     = can(regex("^[1-9][0-9]{0,5}:[1-9][0-9]{0,5}$", var.clamav_uid_gid))
+    error_message = "uid:gid of the user of clamd, e.g. 100:101 (numbers only, not root)."
+  }
+}
+
 variable "network_id" {
   description = "Private network of the environment."
   type        = string
@@ -152,6 +161,7 @@ resource "hcloud_server" "this" {
     admin_ssh_public_key    = var.admin_ssh_public_key
     data_volume_id          = hcloud_volume.data.id
     work_volume_id          = hcloud_volume.work.id
+    clamav_uid_gid          = var.clamav_uid_gid
     work_volumes_script_b64 = filebase64("${path.module}/templates/evia-work-volumes.sh")
     docker_version          = var.docker_version
     compose_plugin_version  = var.compose_plugin_version

@@ -28,11 +28,13 @@ Klucze z `secrets.manifest.json` nie zmieniają się przy eksporcie ZIP (EVM-052
 
 ## Kontrole na żywo posiedzenia A po zmianach kanału (EVM-084 K8/K9, przegląd security rundy 2)
 Wyniki (same linie ok/FAIL, bez wartości) do `docs/qa/EVM-084/`.
-- **(5) dm-crypt:** `lsblk -o NAME,TYPE,MOUNTPOINT` — `media-video` i `clamav-scan` na urządzeniach typu `crypt` (klucz efemeryczny, osobny wolumen Hetzner 20 GB); `evia-work-volumes.service` aktywna przed Dockerem; lista kontroli (a)–(f) i test restartu w runbooku `media-processor.md`, „Montaże dm-crypt”.
+- **(5) wolumen roboczy (dm-crypt, klucz efemeryczny):** **przed włączeniem jednostki** — ID wolumenu wyłącznie z `tofu output work_volume_id` (nigdy z pamięci ani z konsoli „na oko”); `readlink -f /dev/disk/by-id/scsi-0HC_Volume_<id>` to inne urządzenie niż to, które zwraca `cryptsetup status pgdata`; `lsblk` pokazuje 20G; `blkid -p` tego urządzenia jest puste; uid:gid użytkownika `clamd` odczytany z przypiętego obrazu i podany jako `clamav_uid_gid`. **Po starcie:** `lsblk -o NAME,TYPE,MOUNTPOINT` — dwa urządzenia typu `crypt`; `dmsetup table` (**bez** `--showkeys`) pokazuje `aes-xts-plain64`; `swapon --show` puste; `journalctl -u evia-work-volumes` bez materiału klucza; `stat -c %a /var/lib/evia/clamav-scan` = 700 i właściciel = uid:gid `clamd`. Lista (a)–(f) w `media-processor.md`, „Montaże dm-crypt”.
 - **(12) próba negatywna:** `sudo umount /var/lib/evia/media-video` → następne wdrożenie kończy się `REFUSED … is not a mount`; po ponownym montażu przechodzi.
 - **(13) sieć clamd:** `docker network inspect evia-scan` — `Internal=true`, członkowie wyłącznie `clamd` i worker aktywnego koloru; z workera `clamd:3310` odpowiada, z `api` nazwa `clamd` się nie rozwiązuje.
 - **(14) okno rollbacku (M5):** po pierwszym wdrożeniu nowym weryfikatorem — **drugie wdrożenie** i **próbny rollback** ([rollback](rollback-staging.md)); dopiero wtedy rollback kanałem do świeżych wpisów rejestru działa. Do tego czasu plan B ręczny z runbooka rollbacku.
-- **(16) obraz procesora (warunek RR-78):** `FFMPEG_VERSION` przypięty, Trivy 0 High/Critical bez uzasadnienia, SBOM — dowody w `docs/qa/EVM-084/`; bez nich nie podstawiamy digestu.
+- **(16) restart VM:** po `sudo reboot` oba wolumeny robocze są puste i sformatowane na nowo, `pgdata` i baza nietknięte, Docker czekał na `evia-work-volumes.service` (`systemctl list-dependencies docker.service`), kontenery wstały same.
+- **(17) ustawienia pojemności:** `docker inspect --format '{{.HostConfig.OomScoreAdj}}'` — −500 (caddy, postgres), 300 (`clamd`), 500 (procesor); w kontenerze `clamd` `ConcurrentDatabaseReload no`; alerty `EviaHostMountMissing` i `EviaHostDiskFull` widoczne w Grafanie (posiedzenie C).
+- **(18) obraz procesora (warunek RR-78):** `FFMPEG_VERSION` przypięty, Trivy 0 High/Critical bez uzasadnienia, SBOM — dowody w `docs/qa/EVM-084/`; bez nich nie podstawiamy digestu.
 - **(15) bucket eksportów:** wersjonowanie wyłączone, obie reguły cyklu życia (`exports-expire` i przerwanie multipart), ACL private; `bucket-verify.sh` z `MEDIA_EXPORT_BUCKET` zielony.
 
 ## Pierwsza sesja IaC (jednorazowo; kolejność obowiązkowa)

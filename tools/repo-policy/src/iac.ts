@@ -23,6 +23,8 @@ export const USER_DATA_VARIABLES = Object.freeze([
   // EVM-084 (decision of Konrad 2026-11-12): the encrypted work volume - the id of the Hetzner Volume and the script (base64) that sets it up on the VM
   'work_volume_id',
   'work_volumes_script_b64',
+  // EVM-084 (L8): uid:gid of the user of clamd in the pinned image (read in the IaC session; no default) - the owner of the scratch space, mode 0700
+  'clamav_uid_gid',
 ]);
 /**
  * Hetzner Arm64 (Ampere, CAX) server types: the only ones the VM may use, because every release and infrastructure
@@ -30,7 +32,7 @@ export const USER_DATA_VARIABLES = Object.freeze([
  */
 export const ARM64_SERVER_TYPES = Object.freeze(['cax11', 'cax21', 'cax31', 'cax41']);
 /** Variables that must be given in the IaC session — no default that looks like a production value (architect 23). */
-export const NO_DEFAULT_VARIABLES = Object.freeze(['server_type', 'location', 'admin_ssh_public_key']);
+export const NO_DEFAULT_VARIABLES = Object.freeze(['server_type', 'location', 'admin_ssh_public_key', 'clamav_uid_gid']);
 
 const FORBIDDEN: ReadonlyArray<readonly [RegExp, string]> = [
   [/provisioner\s+"(local-exec|remote-exec|file)"/, 'provisioner local-exec/remote-exec/file (kod poza planem)'],
@@ -190,6 +192,8 @@ export function userDataProblems(template: string): string[] {
     problems.push('user-data: uruchomienie evia-work-volumes.service');
   if (!template.includes('encoding: b64') || !template.includes('${work_volumes_script_b64}'))
     problems.push('user-data: skrypt wolumenów roboczych przekazany jako base64 (jedno źródło: infra/deploy-agent/evia-work-volumes.sh)');
+  if (!template.includes('EVIA_CLAMAV_OWNER=${clamav_uid_gid}'))
+    problems.push('user-data: właściciel katalogu skanu (EVIA_CLAMAV_OWNER) z zmiennej clamav_uid_gid');
   if (/luks-(media|clamav|work)/.test(template))
     problems.push('user-data: klucz wolumenów roboczych jest efemeryczny — żadnego pliku klucza');
   for (const line of ['PermitRootLogin no', 'PasswordAuthentication no', 'AllowUsers ${admin_user}'])
@@ -233,6 +237,20 @@ export function workVolumesScriptProblems(script: string): string[] {
   );
   need(/fail "work volume has \$partitions partitions instead of 2: refusing"/.test(code), 'inny układ partycji jest odrzucany');
   need(code.includes('=~ ^/dev/disk/by-id/scsi-0HC_Volume_[0-9]{1,12}$'), 'nazwa urządzenia sprawdzona wzorcem');
+  // L6: named partitions, required before anything is opened or formatted
+  need(code.includes('name=evia-media-video') && code.includes('name=evia-clamav-scan'), 'partycje GPT z nazwami przy tworzeniu');
+  need(
+    code.includes('name="evia-media-video"') && code.includes('name="evia-clamav-scan"'),
+    'nazwy i rozmiar partycji wymagane przed otwarciem',
+  );
+  // L7: what is already mounted must be our mapping of type crypt
+  need(/mounted_type" != crypt/.test(code) && /lsblk -no TYPE/.test(code), 'zamontowana ścieżka musi być naszym mapowaniem typu crypt');
+  // L8: the scratch space of clamd belongs to the user of clamd (required parameter, no default), never world-writable
+  need(
+    code.includes('readonly CLAMAV_OWNER="${EVIA_CLAMAV_OWNER:?EVIA_CLAMAV_OWNER}"'),
+    'EVIA_CLAMAV_OWNER wymagany, bez wartości domyślnej',
+  );
+  need(code.includes('"$CLAMAV_OWNER" 0700') && !/1777|0777/.test(code), 'katalog skanu: właściciel clamd, tryb 0700');
   return problems;
 }
 

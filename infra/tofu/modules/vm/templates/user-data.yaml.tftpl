@@ -192,6 +192,7 @@ write_files:
       Type=oneshot
       RemainAfterExit=yes
       Environment=EVIA_WORK_DEVICE=/dev/disk/by-id/scsi-0HC_Volume_${work_volume_id}
+      Environment=EVIA_CLAMAV_OWNER=${clamav_uid_gid}
       ExecStart=/usr/local/sbin/evia-work-volumes
       [Install]
       RequiredBy=docker.service

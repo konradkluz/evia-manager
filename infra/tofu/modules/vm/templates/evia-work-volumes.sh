@@ -17,6 +17,8 @@ readonly WAIT="${EVIA_WORK_WAIT:-5}"
 # 15 GiB of films (>= 10 GiB asked by the runbook); the rest (>= 3.6 GB of a 20 GB volume) is the scratch space of clamd (>= 2.5 GB).
 readonly VIDEO_MIB="${EVIA_WORK_VIDEO_MIB:-15360}"
 readonly DEVICE_NAME="${EVIA_WORK_DEVICE:?EVIA_WORK_DEVICE}"
+# The user of clamd in the image (uid:gid), from the unit: the scratch space belongs to it alone (mode 0700). No default: read it from the pinned image in the IaC session.
+readonly CLAMAV_OWNER="${EVIA_CLAMAV_OWNER:?EVIA_CLAMAV_OWNER}"
 
 log() { printf '%s work-volumes: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" >&2; }
 fail() {
@@ -26,6 +28,7 @@ fail() {
 
 [[ "$DEVICE_NAME" =~ ^/dev/disk/by-id/scsi-0HC_Volume_[0-9]{1,12}$ ]] || fail "device name"
 [[ "$VIDEO_MIB" =~ ^[0-9]{4,6}$ ]] || fail "size of the films partition"
+[[ "$CLAMAV_OWNER" =~ ^[1-9][0-9]{0,5}:[1-9][0-9]{0,5}$ ]] || fail "owner of the scratch space of clamd (uid:gid of the user of clamd)"
 readonly DEVICE="$ROOT$DEVICE_NAME"
 
 tries=0
@@ -39,11 +42,21 @@ done
 if ! sfdisk -d -- "$DEVICE" > /dev/null 2>&1; then
   if blkid -p -- "$DEVICE" > /dev/null 2>&1; then fail "work volume has a file system or a signature without a partition table: refusing"; fi
   log "blank volume: creating the partition table"
-  printf 'label: gpt\n,%sMiB\n,\n' "$VIDEO_MIB" | sfdisk --quiet --no-reread -- "$DEVICE"
+  # named partitions: only a volume with THESE names is ever opened and formatted (a foreign volume with two partitions is somebody's data)
+  printf 'label: gpt\nsize=%sMiB, name=evia-media-video\nname=evia-clamav-scan\n' "$VIDEO_MIB" | sfdisk --quiet --no-reread -- "$DEVICE"
   udevadm settle || true
 fi
-partitions="$(sfdisk -d -- "$DEVICE" | grep -c '^/dev/' || true)"
+layout="$(sfdisk -d -- "$DEVICE" | sed 's/= */=/g')"
+partitions="$(grep -c '^/dev/' <<< "$layout" || true)"
 [ "$partitions" = 2 ] || fail "work volume has $partitions partitions instead of 2: refusing"
+# the expected layout: first the films (named, of the planned size), second the scratch space of clamd (named)
+sector_size="$(sed -n 's/^sector-size: *\([0-9][0-9]*\)$/\1/p' <<< "$layout" | head -n 1)"
+sector_size="${sector_size:-512}"
+expected_sectors=$((VIDEO_MIB * 1048576 / sector_size))
+first="$(grep '^/dev/' <<< "$layout" | sed -n 1p)"
+second="$(grep '^/dev/' <<< "$layout" | sed -n 2p)"
+[[ "$first" == *'name="evia-media-video"'* && "$first" == *"size=$expected_sectors,"* && "$second" == *'name="evia-clamav-scan"'* ]] ||
+  fail "work volume partitions are not ours (names evia-media-video and evia-clamav-scan, the films partition of the planned size): refusing"
 for part in 1 2; do
   tries=0
   while [ ! -e "$DEVICE-part$part" ]; do
@@ -57,6 +70,12 @@ done
 set_up() {
   local name="$1" partition="$2" target="$ROOT$3" owner="$4" mode="$5"
   if mountpoint -q -- "$target"; then
+    # kept only when it is OUR mapping and a dm-crypt device (also for the scratch space of clamd, which nothing else checks)
+    mounted_source="$(findmnt -n -o SOURCE --direction backward --mountpoint "$target" 2> /dev/null | head -n 1)"
+    mounted_type="$(lsblk -no TYPE -- "$mounted_source" 2> /dev/null | head -n 1)"
+    if [ "$mounted_source" != "$ROOT/dev/mapper/$name" ] || [ "$mounted_type" != crypt ]; then
+      fail "$3 is mounted but is not the encrypted mapping $name (type crypt): refusing"
+    fi
     log "$3 is mounted: kept"
     return 0
   fi
@@ -74,7 +93,6 @@ set_up() {
   log "$3: encrypted with a key of the memory, mounted nodev,nosuid,noexec"
 }
 
-# The films: the worker (10002) and the media processor (10005, group 10002) only. The scratch space of clamd is a mount that only the clamd container sees; the user
-# of the image is not fixed here, so the directory is world-writable with the sticky bit (the host has no other user than root and the administrator).
+# The films: the worker (10002) and the media processor (10005, group 10002) only. The scratch space of clamd: the user of clamd alone, mode 0700 (set at every start).
 set_up evia-media-video "$DEVICE-part1" /var/lib/evia/media-video 10005:10002 2770
-set_up evia-clamav-scan "$DEVICE-part2" /var/lib/evia/clamav-scan root:root 1777
+set_up evia-clamav-scan "$DEVICE-part2" /var/lib/evia/clamav-scan "$CLAMAV_OWNER" 0700

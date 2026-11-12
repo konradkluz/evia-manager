@@ -21,6 +21,11 @@ variable "server_type" {
   }
 }
 
+variable "clamav_uid_gid" {
+  description = "uid:gid of the user of clamd in the pinned clamav/clamav-debian image (EVM-084 L8; read in the IaC session, see docs/ops/runbooks/media-processor.md)."
+  type        = string
+}
+
 variable "location" {
   description = "Hetzner location of the staging VM (EU)."
   type        = string

@@ -87,6 +87,7 @@ module "vm" {
   admin_ssh_public_key   = var.admin_ssh_public_key
   data_volume_size       = 10
   work_volume_size       = 20
+  clamav_uid_gid         = var.clamav_uid_gid
   network_id             = module.network.network_id
   firewall_id            = module.firewall.firewall_id
   docker_version         = "5:29.9.2-1~debian.13~trixie"

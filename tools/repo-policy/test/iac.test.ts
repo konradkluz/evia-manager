@@ -30,6 +30,7 @@ import {
   variableDefaultProblems,
   workVolumesScriptProblems,
   USER_DATA_VARIABLES,
+  NO_DEFAULT_VARIABLES,
 } from '../src/iac.ts';
 
 const TOFU = 'infra/tofu';
@@ -628,6 +629,35 @@ describe('EVM-084: the encrypted work volume of the VM (decision of Konrada 2026
       mutate(script, 'cryptsetup open', 'cryptsetup luksFormat'),
       `${script}\necho nofail >> /etc/fstab`,
       `${script}\nhead -c 64 /dev/urandom > /etc/evia/secrets/luks-media-video.key`,
+    ])
+      expect(workVolumesScriptProblems(broken)).not.toEqual([]);
+  });
+
+  it('EVM-084 (L8): the uid:gid of the user of clamd is a required, validated variable of the VM module and of the root (no default), and reaches the unit', () => {
+    expect(vm).toMatch(/variable "clamav_uid_gid"[^}]*type\s*=\s*string/);
+    expect(vm).toContain('can(regex("^[1-9][0-9]{0,5}:[1-9][0-9]{0,5}$", var.clamav_uid_gid))');
+    expect(vm).toMatch(/clamav_uid_gid\s*=\s*var\.clamav_uid_gid/);
+    expect(variableDefaultProblems('modules/vm', vm)).toEqual([]);
+    expect(NO_DEFAULT_VARIABLES).toContain('clamav_uid_gid');
+    expect(variableDefaultProblems('r', 'variable "clamav_uid_gid" {\n type = string\n default = "100:101"\n}')).not.toEqual([]);
+    expect(rootText('staging')).toMatch(/variable "clamav_uid_gid"/);
+    expect(rootText('staging')).toMatch(/clamav_uid_gid\s*=\s*var\.clamav_uid_gid/);
+    expect(userData).toContain('EVIA_CLAMAV_OWNER=${clamav_uid_gid}');
+    expect(userDataProblems(mutate(userData, 'EVIA_CLAMAV_OWNER=${clamav_uid_gid}', 'EVIA_CLAMAV_OWNER=100:101'))).not.toEqual([]);
+    expect(USER_DATA_VARIABLES).toContain('clamav_uid_gid');
+  });
+
+  it('EVM-084 (L6, L7, L8): the script names the partitions and requires the names, checks what is already mounted, and never makes the scan volume world-writable', () => {
+    for (const broken of [
+      mutate(script, 'name=evia-media-video', 'name=x'),
+      mutate(script, 'name="evia-clamav-scan"', 'name="other"'),
+      mutate(script, '[ "$mounted_type" != crypt ]', 'false'),
+      mutate(script, '"$CLAMAV_OWNER" 0700', 'root:root 1777'),
+      mutate(
+        script,
+        'readonly CLAMAV_OWNER="${EVIA_CLAMAV_OWNER:?EVIA_CLAMAV_OWNER}"',
+        'readonly CLAMAV_OWNER="${EVIA_CLAMAV_OWNER:-1000:1000}"',
+      ),
     ])
       expect(workVolumesScriptProblems(broken)).not.toEqual([]);
   });
