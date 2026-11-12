@@ -291,6 +291,8 @@ services:
     volumes:
       - ./infra/deploy-agent:/src/infra/deploy-agent:ro
       - ./infra/docker/iac:/src/infra/docker/iac:ro
+      # EVM-084: the script of the encrypted work volumes (the source of the user-data of the VM module) is tested here with stand-ins
+      - ./infra/tofu/modules/vm/templates:/src/infra/tofu/modules/vm/templates:ro
       # EVM-085: the consistency tests of the alert layer (infra/observability/test) and the runbook they check
       - ./infra/observability:/src/infra/observability:ro
       - ./docs/ops/runbooks/alerty.md:/src/docs/ops/runbooks/alerty.md:ro

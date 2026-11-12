@@ -28,6 +28,8 @@ import {
   tofuForbiddenProblems,
   userDataProblems,
   variableDefaultProblems,
+  workVolumesScriptProblems,
+  USER_DATA_VARIABLES,
 } from '../src/iac.ts';
 
 const TOFU = 'infra/tofu';
@@ -569,6 +571,71 @@ describe('Object Storage of staging (EVM-084 AC2; ADR-0009, ADR-0011; SR-INFRA-0
     expect(hclListMap('a = 1', 'media_allow')).toBeNull();
     expect(hclListMap('media_allow = {\n  k = ["a", "b"]\n}', 'media_allow')).toEqual({ k: ['a', 'b'] });
     expect(bucketProblems('')).not.toEqual([]);
+  });
+});
+
+describe('EVM-084: the encrypted work volume of the VM (decision of Konrada 2026-11-12; RR-75, RR-76)', () => {
+  const vm = read(`${TOFU}/modules/vm/main.tf`);
+  const script = read('infra/tofu/modules/vm/templates/evia-work-volumes.sh');
+  const mutate = (text: string, from: string | RegExp, to: string): string => {
+    const changed = text.replace(from, to);
+    expect(changed, `mutation ${String(from)} changes the text`).not.toBe(text);
+    return changed;
+  };
+
+  it('EVM-084: a separate Hetzner Volume with a validated size (20-100 GB), labels, delete protection, attached without automount and without a format', () => {
+    expect(vm).toMatch(/variable "work_volume_size"[^}]*type\s*=\s*number/);
+    expect(vm).toMatch(/validation\s*\{\s*condition\s*=\s*var\.work_volume_size >= 20 && var\.work_volume_size <= 100/);
+    expect(vm).not.toMatch(/variable "work_volume_size"[^}]*default/);
+    const volume = hclBlock(vm, /resource "hcloud_volume" "work"\s*\{/) ?? '';
+    expect(volume).toMatch(/size\s*=\s*var\.work_volume_size/);
+    expect(volume).toMatch(/delete_protection\s*=\s*true/);
+    expect(volume).toMatch(/labels\s*=\s*\{[^}]*purpose\s*=\s*"media-work"/);
+    // a file system created by Hetzner would be readable without the key of the VM: the volume is formatted on the VM, encrypted
+    expect(volume).not.toMatch(/\bformat\s*=/);
+    const attachment = hclBlock(vm, /resource "hcloud_volume_attachment" "work"\s*\{/) ?? '';
+    expect(attachment).toMatch(/automount\s*=\s*false/);
+    expect(attachment).toMatch(/volume_id\s*=\s*hcloud_volume\.work\.id/);
+    expect(vm).toMatch(/work_volume_id\s*=\s*hcloud_volume\.work\.id/);
+    expect(vm).toMatch(/work_volumes_script_b64\s*=\s*filebase64\("\$\{path\.module\}\/templates\/evia-work-volumes\.sh"\)/);
+    expect(rootText('staging')).toMatch(/work_volume_size\s*=\s*20/);
+  });
+
+  it('EVM-084: user-data installs the script and a unit that runs before Docker and is required by it; the device comes from the volume id, nothing secret is passed', () => {
+    expect(userDataProblems(userData)).toEqual([]);
+    expect(userData).toMatch(/evia-work-volumes\.service[\s\S]*?Before=docker\.service[\s\S]*?RequiredBy=docker\.service/);
+    expect(userData).toContain('EVIA_WORK_DEVICE=/dev/disk/by-id/scsi-0HC_Volume_${work_volume_id}');
+    expect(userData).toContain('encoding: b64');
+    expect(userData).toMatch(/systemctl enable --now evia-work-volumes\.service/);
+    for (const broken of [
+      mutate(userData, /(evia-work-volumes\.service[\s\S]*?)RequiredBy=docker\.service/, '$1WantedBy=multi-user.target'),
+      mutate(userData, /systemctl enable --now evia-work-volumes\.service\n/, ''),
+      mutate(userData, 'EVIA_WORK_DEVICE=/dev/disk/by-id/scsi-0HC_Volume_${work_volume_id}', 'EVIA_WORK_DEVICE=/dev/sdb'),
+      `${userData}\n/etc/evia/secrets/luks-media-video.key`,
+    ])
+      expect(userDataProblems(broken)).not.toEqual([]);
+  });
+
+  it('EVM-084: the script — plain dm-crypt with a key from /dev/urandom only, no key on a disk, noexec,nosuid,nodev, immutable mount points, a signature is never formatted', () => {
+    expect(workVolumesScriptProblems(script)).toEqual([]);
+    for (const broken of [
+      mutate(script, '--key-file /dev/urandom', '--key-file /etc/evia/secrets/luks-media.key'),
+      mutate(script, '--type plain', '--type luks2'),
+      mutate(script, 'nodev,nosuid,noexec', 'nodev,nosuid'),
+      mutate(script, '  chattr +i "$target"\n', ''),
+      mutate(script, 'fail "work volume has a file system or a signature without a partition table: refusing"', 'true'),
+      mutate(script, 'mkfs.ext4 -q -F -L', 'mkfs.ext4 -q -L'),
+      mutate(script, 'cryptsetup open', 'cryptsetup luksFormat'),
+      `${script}\necho nofail >> /etc/fstab`,
+      `${script}\nhead -c 64 /dev/urandom > /etc/evia/secrets/luks-media-video.key`,
+    ])
+      expect(workVolumesScriptProblems(broken)).not.toEqual([]);
+  });
+
+  it('EVM-084: the volume id is the only new template variable and the VM module outputs it (not a secret) for the runbook of an existing VM', () => {
+    expect(USER_DATA_VARIABLES).toContain('work_volume_id');
+    expect(USER_DATA_VARIABLES).toContain('work_volumes_script_b64');
+    expect(vm).toMatch(/output "work_volume_id"/);
   });
 });
 

@@ -20,6 +20,9 @@ export const USER_DATA_VARIABLES = Object.freeze([
   'compose_plugin_version',
   'buildx_version',
   'containerd_version',
+  // EVM-084 (decision of Konrad 2026-11-12): the encrypted work volume - the id of the Hetzner Volume and the script (base64) that sets it up on the VM
+  'work_volume_id',
+  'work_volumes_script_b64',
 ]);
 /**
  * Hetzner Arm64 (Ampere, CAX) server types: the only ones the VM may use, because every release and infrastructure
@@ -168,12 +171,68 @@ export function userDataProblems(template: string): string[] {
       problems.push(`user-data: brak blokady metadanych z ${bridge}`);
   if (!template.includes('table inet evia') || !/type filter hook forward priority -10;/.test(template))
     problems.push('user-data: blokada metadanych we własnej tabeli inet evia (hook forward, priorytet przed filtrem Dockera)');
-  if (!template.includes('Before=docker.service') || !template.includes('RequiredBy=docker.service'))
+  if (
+    !/evia-metadata-block\.service(?:(?!- path:)[\s\S])*?Before=docker\.service(?:(?!- path:)[\s\S])*?RequiredBy=docker\.service/.test(
+      template,
+    )
+  )
     problems.push('user-data: blokada metadanych ładowana przed docker.service');
+  // EVM-084 (RR-75, RR-76): the work volumes of the films and of the scan are encrypted with an EPHEMERAL key and set up BEFORE Docker, which requires them.
+  if (
+    !/evia-work-volumes\.service(?:(?!- path:)[\s\S])*?Before=docker\.service(?:(?!- path:)[\s\S])*?RequiredBy=docker\.service/.test(
+      template,
+    )
+  )
+    problems.push('user-data: jednostka evia-work-volumes.service przed docker.service i wymagana przez niego');
+  if (!template.includes('EVIA_WORK_DEVICE=/dev/disk/by-id/scsi-0HC_Volume_${work_volume_id}'))
+    problems.push('user-data: urządzenie wolumenu roboczego z identyfikatora wolumenu (EVIA_WORK_DEVICE)');
+  if (!/systemctl enable --now evia-work-volumes\.service/.test(template))
+    problems.push('user-data: uruchomienie evia-work-volumes.service');
+  if (!template.includes('encoding: b64') || !template.includes('${work_volumes_script_b64}'))
+    problems.push('user-data: skrypt wolumenów roboczych przekazany jako base64 (jedno źródło: infra/deploy-agent/evia-work-volumes.sh)');
+  if (/luks-(media|clamav|work)/.test(template))
+    problems.push('user-data: klucz wolumenów roboczych jest efemeryczny — żadnego pliku klucza');
   for (const line of ['PermitRootLogin no', 'PasswordAuthentication no', 'AllowUsers ${admin_user}'])
     if (!template.includes(line)) problems.push(`user-data: sshd bez „${line}”`);
   if (!/ssh_pwauth:\s*false/.test(template) || !/lock_passwd:\s*true/.test(template))
     problems.push('user-data: logowanie wyłącznie kluczem');
+  return problems;
+}
+
+/**
+ * The script of the encrypted work volumes (EVM-084; RR-75, RR-76; decision of Konrad 2026-11-12): plain dm-crypt with a key read from /dev/urandom at every start and held
+ * by the kernel only - no key file, no LUKS header, no crypttab or fstab entry; nodev,nosuid,noexec; immutable mount points; a volume with a signature is never formatted.
+ */
+export function workVolumesScriptProblems(script: string): string[] {
+  const code = script.replace(/^\s*#.*$/gm, '');
+  const problems: string[] = [];
+  const need = (ok: boolean, message: string): void => {
+    if (!ok) problems.push(`evia-work-volumes.sh: ${message}`);
+  };
+  need(
+    /cryptsetup open --type plain --cipher aes-xts-plain64 --key-size 512 /.test(code),
+    'cryptsetup open w trybie plain, aes-xts-plain64, klucz 512 bit',
+  );
+  const keyFiles = [...code.matchAll(/--key-file (\S+)/g)].map((match) => match[1]);
+  need(keyFiles.length > 0 && keyFiles.every((file) => file === '/dev/urandom'), 'klucz wyłącznie z /dev/urandom (efemeryczny)');
+  need(
+    !/luksFormat|luksOpen|--type luks|crypttab|fstab|nofail|\/etc\/evia\/secrets/.test(code),
+    'bez LUKS, crypttab, fstab, nofail i plików klucza',
+  );
+  need(!/urandom\s*>|\bof=|\$keyfile|keyfile=/.test(code), 'klucz nigdy nie trafia do pliku');
+  need(/mount -o nodev,nosuid,noexec /.test(code), 'montaż z nodev,nosuid,noexec');
+  need(
+    code.includes('chattr +i') && code.indexOf('chattr +i') < code.indexOf('mount -o'),
+    'punkt montowania niezapisywalny (chattr +i) przed montażem',
+  );
+  need(/mkfs\.ext4 -q -F -L /.test(code), 'system plików zakładany od nowa przy każdym starcie');
+  need(/sfdisk -d/.test(code) && /blkid -p/.test(code), 'rozpoznanie tablicy partycji i sygnatury');
+  need(
+    /fail "[^"]*without a partition table: refusing"/.test(code),
+    'wolumen z sygnaturą bez tablicy partycji jest odrzucany, nie formatowany',
+  );
+  need(/fail "work volume has \$partitions partitions instead of 2: refusing"/.test(code), 'inny układ partycji jest odrzucany');
+  need(code.includes('=~ ^/dev/disk/by-id/scsi-0HC_Volume_[0-9]{1,12}$'), 'nazwa urządzenia sprawdzona wzorcem');
   return problems;
 }
 

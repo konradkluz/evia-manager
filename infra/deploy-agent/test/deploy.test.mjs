@@ -803,6 +803,7 @@ describe('EVM-007 AC4 (security-engineer B): ShellCheck on the shell scripts of 
     '/src/infra/deploy-agent/cycle.sh',
     '/src/infra/deploy-agent/secrets.sh',
     '/src/infra/deploy-agent/init-secrets.sh',
+    '/src/infra/tofu/modules/vm/templates/evia-work-volumes.sh',
     '/src/infra/deploy-agent/restore/lib.sh',
     '/src/infra/deploy-agent/restore/run.sh',
     '/src/infra/deploy-agent/restore/sweep.sh',

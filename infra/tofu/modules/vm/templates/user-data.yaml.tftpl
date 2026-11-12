@@ -173,10 +173,34 @@ write_files:
       grep -q ' /srv/evia/pgdata ' /etc/fstab || echo "/dev/mapper/pgdata /srv/evia/pgdata ext4 defaults,nofail,nodev,nosuid,noexec 0 2" >> /etc/fstab
       mountpoint -q /srv/evia/pgdata || mount /srv/evia/pgdata
 
+  # EVM-084 (decision of Konrad 2026-11-12; RR-75, RR-76): the work volumes of the films (/var/lib/evia/media-video) and of the scan (/var/lib/evia/clamav-scan) on one
+  # Hetzner Volume, plain dm-crypt with an EPHEMERAL key from /dev/urandom (only in the kernel; the content is gone after a restart and the volumes are formatted anew).
+  # The unit is RequiredBy=docker.service: when a volume cannot be set up Docker does not start - never a quiet fall back to the unencrypted root disk.
+  - path: /usr/local/sbin/evia-work-volumes
+    permissions: '0700'
+    encoding: b64
+    content: ${work_volumes_script_b64}
+
+  - path: /etc/systemd/system/evia-work-volumes.service
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=Encrypted work volumes (ephemeral key) for the films and the scan
+      After=local-fs.target
+      Before=docker.service
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      Environment=EVIA_WORK_DEVICE=/dev/disk/by-id/scsi-0HC_Volume_${work_volume_id}
+      ExecStart=/usr/local/sbin/evia-work-volumes
+      [Install]
+      RequiredBy=docker.service
+
 runcmd:
   - systemd-tmpfiles --create /etc/tmpfiles.d/evia.conf
   - systemctl daemon-reload
   - systemctl enable --now nftables.service evia-metadata-block.service
+  - systemctl enable --now evia-work-volumes.service
   - /usr/local/sbin/evia-install-docker.sh
   - /usr/local/sbin/evia-setup-data-volume.sh
   - systemctl restart ssh
