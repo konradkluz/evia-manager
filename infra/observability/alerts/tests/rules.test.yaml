@@ -464,3 +464,48 @@ tests:
       - eval_time: 4m
         alertname: EviaSecurityAccountLockedBurst
         exp_alerts: []
+  # Unhandled errors of the API (counter of Alloy, born at 1 as with the security alerts).
+  - name: EVM-085 AC2 the first unhandled error of the API (a series born with the value 1) alerts
+    interval: 1m
+    input_series:
+      - series: 'loki_process_custom_unhandled_errors_total{env="staging", service="api", level="error"}'
+        values: '_ _ _ 1 1 1 1'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: EviaApiUnhandledError
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: EviaApiUnhandledError
+        exp_alerts:
+          - exp_labels: { severity: warning, ac2: api-errors, env: staging }
+            exp_annotations:
+              summary: 'The API logged an unhandled error in the last 5m (env staging)'
+              runbook: docs/ops/runbooks/alerty.md#eviaapiunhandlederror
+  - name: EVM-085 AC2 a growing series alerts and the alert resolves after the window when the errors stop
+    interval: 1m
+    input_series:
+      - series: 'loki_process_custom_unhandled_errors_total{env="staging", service="api", level="error"}'
+        values: '_x10 4 5 6 6x30'
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: EviaApiUnhandledError
+        exp_alerts: []
+      - eval_time: 13m
+        alertname: EviaApiUnhandledError
+        exp_alerts:
+          - exp_labels: { severity: warning, ac2: api-errors, env: staging }
+            exp_annotations:
+              summary: 'The API logged an unhandled error in the last 5m (env staging)'
+              runbook: docs/ops/runbooks/alerty.md#eviaapiunhandlederror
+      - eval_time: 30m
+        alertname: EviaApiUnhandledError
+        exp_alerts: []
+  - name: EVM-085 AC2 an old series that does not grow is quiet
+    interval: 1m
+    input_series:
+      - series: 'loki_process_custom_unhandled_errors_total{env="staging", service="api", level="error"}'
+        values: '7x40'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: EviaApiUnhandledError
+        exp_alerts: []

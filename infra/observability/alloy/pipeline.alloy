@@ -57,6 +57,7 @@ declare "evia_pipeline" {
 				level     = "level",
 				alert     = "alert",
 				alert_raw = "alertCode",
+				msg       = "msg",
 			}
 		}
 
@@ -100,6 +101,29 @@ declare "evia_pipeline" {
 						match_all         = true
 						max_idle_duration = "720h"
 					}
+				}
+			}
+		}
+
+		// Unhandled errors of the API (decision 2026-11-12, instead of Sentry): ProblemFilter logs the EXACT message "unhandled error"
+		// (apps/api/src/platform/http/problem.filter.ts). Only the api service, only that message; the counter has no label from the
+		// line (service and level are closed), so no error text can become a series. Counted before the rate limit.
+		stage.match {
+			selector = "{service=\"api\"} |= \"unhandled error\""
+
+			stage.template {
+				source   = "unhandled"
+				template = "{{ if eq .msg \"unhandled error\" }}yes{{ end }}"
+			}
+
+			stage.metrics {
+				metric.counter {
+					name              = "unhandled_errors_total"
+					description       = "Unhandled errors of the API (message of ProblemFilter)."
+					source            = "unhandled"
+					value             = "yes"
+					action            = "inc"
+					max_idle_duration = "720h"
 				}
 			}
 		}

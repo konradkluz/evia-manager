@@ -11,7 +11,7 @@
 | [`runbooks/projekcja-listy-zlecen.md`](runbooks/projekcja-listy-zlecen.md) | `rebuild` i `verify` projekcji listy zleceń (po wdrożeniu, po odtworzeniu bazy, przy alercie rozjazdu) | EVM-034 |
 | [`runbooks/wdrozenie-staging.md`](runbooks/wdrozenie-staging.md) | kanał wdrożeń staging (pull z weryfikacją V0–V4), budżet API, pierwsza sesja IaC krok po kroku | EVM-007 |
 | [`runbooks/restore.md`](runbooks/restore.md) | kopie bazy (pgBackRest) i mediów, rejestr usunięć, test odtworzenia na tymczasowej VM, sprzątacz, scenariusz „backup usunięty z przejętej VM”, metryki dla alertów | EVM-084 |
-| [`runbooks/alerty.md`](runbooks/alerty.md) | alerty stagingu e-mail (13 reguł: kanał wdrożeń, kopie, test odtworzenia, limity, brak danych, bezpieczeństwo), monitoring dostępności, rotacja tokenu zapisu Grafana i DSN Sentry | EVM-085 |
+| [`runbooks/alerty.md`](runbooks/alerty.md) | alerty stagingu e-mail (kanał wdrożeń, kopie, test odtworzenia, host, limity, brak danych, nieobsłużone błędy API, bezpieczeństwo), monitoring dostępności, rotacja tokenu zapisu Grafana | EVM-085 |
 | [`koszty-staging.md`](koszty-staging.md) | miesięczny koszt stagingu, limity planów bezpłatnych, alerty budżetowe (50% i 80%) | EVM-085 |
 | [`runbooks/rollback-staging.md`](runbooks/rollback-staging.md) | rollback stagingu poleceniem administratora (tylko commit z rejestru), dostęp awaryjny bez portu 22 | EVM-007 |
 | [`runbooks/rotacja-sekretow-kanalu.md`](runbooks/rotacja-sekretow-kanalu.md) | PAT-y kanału (≤ 12 mies.), sekrety aplikacji na VM, tokeny IaC | EVM-007 |

@@ -258,12 +258,12 @@ describe('EVM-085 AC2 metrics.sh', () => {
     fixture({
       tokens: [
         { name: 'grafana-write-token', expires: '2027-10-20' },
-        { name: 'sentry-dsn-api', expires: '2027-01-05' },
+        { name: 'github-pat-deploy', expires: '2027-01-05' },
       ],
     });
     assert.equal(run().status, 0);
     assert.match(content(), /^evia_token_expiry_timestamp_seconds\{token="grafana-write-token"\} 1823990400$/mu);
-    assert.match(content(), /^evia_token_expiry_timestamp_seconds\{token="sentry-dsn-api"\} 1799107200$/mu);
+    assert.match(content(), /^evia_token_expiry_timestamp_seconds\{token="github-pat-deploy"\} 1799107200$/mu);
   });
 });
 

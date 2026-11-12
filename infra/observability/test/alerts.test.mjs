@@ -28,6 +28,7 @@ const AC2_ITEMS = [
   'no-data',
   'usage-limits',
   'host-capacity',
+  'api-errors',
 ];
 
 describe('EVM-085 AC2 rules', () => {
@@ -91,10 +92,10 @@ describe('EVM-085 AC8 runbook', () => {
     }
   });
 
-  it('EVM-085 AC8 the rotation of the Grafana write token and the Sentry DSN is described, also after an incident', () => {
+  it('EVM-085 AC8 the rotation of the Grafana write token is described, also after an incident', () => {
     assert.match(runbook, /^## Rotacja tokenu zapisu Grafana/mu);
-    assert.match(runbook, /^## Rotacja DSN Sentry/mu);
-    assert.equal((runbook.match(/Po incydencie na staging/giu) ?? []).length >= 2, true);
+    assert.doesNotMatch(runbook, /^## Rotacja DSN/mu);
+    assert.equal((runbook.match(/Po incydencie na staging/giu) ?? []).length >= 1, true);
   });
 });
 
