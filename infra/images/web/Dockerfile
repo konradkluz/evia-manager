@@ -27,7 +27,7 @@ RUN pnpm install --frozen-lockfile --ignore-scripts --filter "@evia/web..." \
  && pnpm --filter "@evia/web^..." run build \
  && pnpm --filter @evia/web run build
 
-FROM caddy:2.11.7-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f AS caddy-src
+FROM caddy:2.11.9-alpine@sha256:0bbb055bda6793c999bde78b1b5ce3e89f829fb031af2cf50056ea1246559fee AS caddy-src
 
 # The official image sets the file capability cap_net_bind_service=+ep on /usr/bin/caddy. The VM runs this container with
 # cap_drop: ALL + no-new-privileges, so exec of a binary with file capabilities outside the bounding set fails with EPERM

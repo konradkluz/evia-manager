@@ -2,9 +2,9 @@
   "description": "EVM-007 AC1, AC3 (ADR-0018 V4; plan P4, architect 3): the fixed list of infrastructure images of the VM, by tag + digest. Installed only in an IaC session (compose.infra.yaml); scanned with the release images in the publish job (bramka 6). Every digest is the multi-arch index (not a single-platform manifest) and the index contains the platform below (the Arm64 VM, Hetzner CAX; checked against the registry 2026-10-21): clamav/clamav (Alpine) is amd64-only, so ClamAV comes from clamav/clamav-debian (amd64, arm64, ppc64le).",
   "platform": "linux/arm64",
   "images": {
-    "caddy": "caddy:2.11.7-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f",
-    "postgres": "postgres:18.6-trixie@sha256:1267c7e692de235fda2a50dbcdbcbca4672ea6a0298576a6bd9d07cafc319b32",
-    "clamav": "clamav/clamav-debian:1.5.4@sha256:cce3e1a43ae2bb40e11335c52c0e1e98273b12fa3d587e617f63a6907cc4b70b",
-    "alloy": "grafana/alloy:v1.21.2@sha256:89a5a320168387336b9ac3c850609c3ba7757eadd4ae5f1d819deb35e9854b18"
+    "caddy": "caddy:2.11.9-alpine@sha256:0bbb055bda6793c999bde78b1b5ce3e89f829fb031af2cf50056ea1246559fee",
+    "postgres": "postgres:18.6-trixie@sha256:e3d24f6906d0760bf4da0dae872415391ededefad23fd471c47dc53b0ddf3c42",
+    "clamav": "clamav/clamav-debian:1.5.4@sha256:76a9c3b63764b78178dc68fa7efcceca0cde2c8c9d4f925a8e697cb4511f8fdc",
+    "alloy": "grafana/alloy:v1.21.3@sha256:8ab871206bd2d8f89277f53abffee5f452a293980788d52f85fa183a87a505a4"
   }
 }

@@ -13,7 +13,7 @@ services:
   # the interpolations (not secrets: GID, URLs, instance identifiers) come from /etc/evia/runtime/telemetry.env, written in the IaC session.
   # The metadata service 169.254.169.254 is blocked on the host (evia-metadata-block). Config: infra/observability/alloy -> /etc/evia/alloy.
   alloy:
-    image: grafana/alloy:v1.21.2@sha256:89a5a320168387336b9ac3c850609c3ba7757eadd4ae5f1d819deb35e9854b18
+    image: grafana/alloy:v1.21.3@sha256:8ab871206bd2d8f89277f53abffee5f452a293980788d52f85fa183a87a505a4
     restart: unless-stopped
     user: '10020:10020'
     group_add: ['${EVIA_JOURNAL_GID:?numeric GID of systemd-journal, set in /etc/evia/runtime/telemetry.env}']
