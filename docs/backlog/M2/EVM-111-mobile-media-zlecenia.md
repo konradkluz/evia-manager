@@ -1,51 +1,52 @@
 ---
 id: EVM-111
-title: "Aplikacja: media zlecenia i status każdego pliku"
+title: "Aplikacja: status każdego pliku w kolejce telefonu"
 type: story
 milestone: M2
 epic: E11 Zdjęcia i filmy
 status: draft
 priority: P2
-path: pelna             # pobieranie miniatur przez podpisane adresy, pamięć podręczna zdjęć poza bazą szyfrowaną
+path: lekka             # tylko ekran nad lokalną kolejką; bez pobierania miniatur i podpisanych adresów (zawężone 2026-11-12)
 owner: mobile-developer
 contributors: []
-reviewers: [code-reviewer, security-engineer, ux-designer]
+reviewers: [code-reviewer]
 model: sonnet
-depends_on: [EVM-108, EVM-045, EVM-068]
+depends_on: [EVM-108]
 ---
 
-# EVM-111: Aplikacja — media zlecenia i status każdego pliku
+# EVM-111: Aplikacja — status każdego pliku w kolejce telefonu
 
-> **Szkic ramowy** — AC do doprecyzowania po EVM-045/068.
+> **Szkic ramowy** — AC do doprecyzowania po EVM-108/109. Zakres zawężony 2026-11-12: galeria i przegląd mediów zlecenia (zdjęcia i filmy z biura, miniatury z serwera) **tylko w panelu web**.
 
 ## Cel
-Jako **technik** chcę **przejrzeć zdjęcia i filmy zlecenia (moje i z biura) wraz ze stanem każdego pliku**, aby **upewnić się, że dotarły i nic nie brakuje**. Makieta M-08.
+Jako **technik** chcę **widzieć stan każdego pliku, który zrobiłem telefonem (czeka, wysyła się, wysłany, wymaga uwagi)**, aby **upewnić się, że dotarły i nic nie brakuje**. Ekran M-08 w wersji uproszczonej: lista plików lokalnych z ich statusem, bez podglądu mediów z serwera.
 
 ## Kryteria akceptacji (ramowe)
 
-**AC1 — Galeria zlecenia**
-- Zakładając zlecenie z mediami
-- Gdy otwieram „Media zlecenia”
-- Wtedy widzę miniatury (pobierane na żądanie, gdy `fileState = ready`) i oznaczenia stanu pliku, także dla moich plików oczekujących.
+**AC1 — Lista plików zlecenia z ich stanem**
+- Zakładając zlecenie, do którego zrobiłem zdjęcia lub filmy na tym telefonie
+- Gdy otwieram „Pliki zlecenia”
+- Wtedy widzę każdy plik z kolejki telefonu (nazwa/kategoria, typ, czas wykonania, rozmiar) i jego stan: oczekuje, wysyła się (postęp), wysłany (`clean`), błąd, wymaga uwagi; wskaźnik zbiorczy „wysłano n z m”.
 
 **AC2 — Offline**
 - Zakładając brak sieci
-- Gdy otwieram galerię
-- Wtedy widzę własne pliki lokalne i metadane; pozostałe miniatury pokazują czytelny brak podglądu offline.
+- Gdy otwieram listę
+- Wtedy widzę wszystkie pliki lokalne i ich stany bez komunikatu o błędzie; miniatura to lokalny podgląd zrobionego pliku (z pamięci aplikacji, nie z serwera).
 
 **AC3 — Kwarantanna i błąd**
 - Zakładając plik `quarantined` lub `failed`
 - Gdy go oglądam
 - Wtedy widzę przyczynę prostym językiem i akcję („Ponów” albo kontakt z biurem); techniczna przyczyna kwarantanny nie trafia na telefon.
 
-**AC4 — Pamięć podręczna miniatur**
-- Zakładając miniatury prywatnych posesji pobierane przez podpisane adresy
-- Gdy aplikacja je przechowuje
-- Wtedy nie ma trwałej pamięci podręcznej poza kontrolą aplikacji (pamięć w pamięci operacyjnej albo własny katalog wyłączony z kopii zapasowej i czyszczony przy wylogowaniu, `session_revoked` i czyszczeniu urządzenia), a podpisane adresy nie trafiają do logów.
+**AC4 — Stan pusty**
+- Zakładając zlecenie bez plików z tego telefonu
+- Gdy otwieram listę
+- Wtedy widzę stan pusty z informacją, że zdjęcia i filmy zlecenia są dostępne w panelu biura.
 
 ## Poza zakresem
-Pobieranie oryginałów offline, usuwanie mediów z telefonu.
+Galeria i przegląd mediów zlecenia na telefonie (zdjęcia z biura, miniatury z serwera, podpisane adresy, pamięć podręczna miniatur) — tylko panel web; pobieranie oryginałów offline; usuwanie mediów z telefonu. Dzięki temu EVM-111 nie zależy od EVM-045 i EVM-068.
 
 ## Dziennik
 - 2026-10-27 — utworzono (product-owner)
 - 2026-10-27 — ścieżka zmieniona na `pelna` po konsultacji security (product-owner)
+- 2026-11-12 — zawężono do statusu plików w kolejce telefonu; galeria mediów tylko w panelu web; ścieżka `pelna` → `lekka` (brak pobierania miniatur i podpisanych adresów), zależności 045/068 usunięte, 4 AC (decyzja Konrada 2026-11-12 / Tech Lead z delegacji Konrada „tanio, szybko, bezpiecznie”)

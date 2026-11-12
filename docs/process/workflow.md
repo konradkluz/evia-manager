@@ -59,18 +59,21 @@ R — wykonuje, A — zatwierdza, C — konsultowany, I — informowany.
 
 | | LEKKA (domyślna dla nowych historyjek) | PEŁNA |
 |---|---|---|
-| Kiedy | wszystko, co nie należy do obszarów ryzyka | uwierzytelnianie, uprawnienia, dane osobowe, płatności, synchronizacja offline, migracje danych, infrastruktura produkcyjna |
+| Kiedy | wszystko, co nie należy do obszarów ryzyka; w tym narzędzia i CI (bez uwierzytelniania, danych osobowych, mediów i płatności) | uwierzytelnianie, uprawnienia, dane osobowe, media, płatności, synchronizacja offline, migracje danych, infrastruktura produkcyjna |
 | Wykonawca | `owner` w TDD (ewentualni `contributors` po kolei); plan tylko w głowie lub w `.scratch/` | `owner` i `contributors`; plan zapisany w `.scratch/` |
 | Konsultacje | brak | architekt / UX / security wg potrzeby i ryzyka |
-| QA | orkiestrator: macierz AC → testy, bramka lokalna, `npm run docs:check` | `qa-engineer` w każdej rundzie |
-| Przegląd | jeden recenzent dobrany do ryzyka: `code-reviewer`; zmiana UI → `ux-designer`; nowy endpoint, plik/medium, zależność lub dane na urządzeniu → `security-engineer` (wtedy rozważ `pelna`) | recenzenci z `reviewers` |
+| QA | orkiestrator: macierz AC → testy, bramka lokalna, `npm run docs:check` | `qa-engineer` w każdej rundzie; raport w `docs/qa/` tylko gdy historyjka dotyka danych osobowych lub uprawnień (w pozostałych `pelna` — tabela AC → test sprawdzona przez orkiestratora w demo) |
+| Przegląd | jeden recenzent dobrany do ryzyka: `code-reviewer`; zmiana UI → `ux-designer`; nowy endpoint, plik/medium, zależność lub dane na urządzeniu → `security-engineer` (wtedy rozważ `pelna`); narzędzia i CI → jeden recenzent (`code-reviewer`), **wyjątek:** zmiany `.github/**`, kanału wdrożeń (`infra/deploy-agent/**`, `services/deploy-agent/**`) i łańcucha dostaw (zależności, lockfile, skany) — jedynym recenzentem jest `security-engineer` | recenzenci z `reviewers` |
 | Poprawki | najwyżej 1 runda blocker/major, bez ponownego przeglądu; poprawki sprawdza orkiestrator | do 3 rund; ponownie przeglądają tylko recenzenci, którzy zgłosili blocker/major |
 | Minor / nit | „Notatki” historyjki; nie wywołują poprawek ani przeglądu | jak w lekkiej |
 | Rozmiar | ≤ 6 AC | ≤ 8 AC, ≤ 3 moduły |
 
+- **Historyjki o narzędziach i CI** (walidatory, skrypty, bramki, konfiguracja CI — bez uwierzytelniania, danych osobowych, mediów i płatności) idą ścieżką `lekka` z jednym recenzentem; wyjątek bezpieczeństwa opisany w wierszu „Przegląd” (uproszczenie z 2026-11-12).
+- **Security sign-off raz na wydanie** (1.0, 1.1): `security-engineer` opiera go na dowodach z przeglądów historyjek i DAST; pilot nie ma osobnego sign-offu. Checklista MASVS L1 dla aplikacji mobilnej jest częścią sign-offu wydania 1.1 (EVM-112).
+- **Bramka lokalna jest natywna:** `pnpm run gate` lokalnie obejmuje część natywną (hooki, walidator dokumentacji, format, lint, typy, testy z progami natywnie, granice modułów, `coverage:diff` natywny). Część kontenerową (backend w Linuksie, integracja z PostgreSQL) wykonuje CI — `ci-gate` jest wymagany rulesetem na `main` (ADR-0015, ADR-0022). Pełna bramka z kontenerami jest uruchamiana na żądanie (np. diagnoza rozbieżności lokalnie/CI); polecenia i warianty: `CLAUDE.md` i README repozytorium.
 - **Eskalacja ścieżki:** gdy w trakcie lekkiej wychodzi obszar ryzyka (np. dotyka danych osobowych) albo nowy endpoint, pliki/media, nowa zależność lub dane na urządzeniu, wykonawca zatrzymuje się, a orkiestrator pyta Konrada o zmianę na `pelna` (rekomendacja i konsekwencja kosztowa w pytaniu).
 - **Konsultacje proporcjonalne do ryzyka:** konsultant dostaje wąskie pytanie o ryzyko, które faktycznie występuje w historyjce, i zwraca najwyżej kilka punktów. Konsultacja nie dodaje AC; ustalenia Low w narzędziach wewnętrznych (CI, walidatory, skrypty) trafiają do „Notatek”, a AC rozszerza tylko ustalenie Medium lub wyższe albo zmiana zakresu zatwierdzona przez Konrada. Historyjka, która po konsultacjach przekracza limit AC, jest dzielona.
-- **Co zostaje poza plikiem historyjki:** plany, zapisy konsultacji i raporty agentów (raport QA zostaje w `docs/qa/<EVM-ID>/` tylko w ścieżce pełnej); „Dziennik” ma jedną linię na zdarzenie.
+- **Co zostaje poza plikiem historyjki:** plany, zapisy konsultacji i raporty agentów (raport QA zostaje w `docs/qa/<EVM-ID>/` tylko w ścieżce pełnej z danymi osobowymi lub uprawnieniami); „Dziennik” ma jedną linię na zdarzenie.
 
 ## Kolejki historyjek (EVM-087)
 Kolejka to kilka historyjek realizowanych w jednej sesji. Kolejka z 11 historyjek na łańcuchu gałęzi (PR #69–#79) trwała ponad dobę: każdy squash wymuszał przerabianie następnej gałęzi, a 11 przebiegów CI to ok. 27 min. Dlatego:
@@ -79,6 +82,7 @@ Kolejka to kilka historyjek realizowanych w jednej sesji. Kolejka z 11 historyje
    - Nazwa: do 3 ID — `feature/EVM-042-043-opis`; dłuższa kolejka — `feature/queue-YYYY-MM-DD-opis`.
    - Rozmiar: maks. ok. 5 historyjek lub 1 dzień pracy na PR; większą kolejkę dzielimy na kolejne gałęzie od `main` po scaleniu poprzedniej.
    - Scalenie PR z kilkoma historyjkami: **squash merge**; tytuł PR kończy ID pierwszej historyjki (K6 dopuszcza jedno ID), ID pozostałych — w opisie PR. Rebase merge odpada do czasu rozszerzenia kontroli `main-integrity` (K6 wymaga, by każdy commit był `merge_commit_sha` PR-a, a rebase merge ustawia je tylko na ostatni commit — `docs/ops/github-i-ci.md`); merge commit odpada, bo K6 dopuszcza tylko jednego rodzica.
+   - **Jedno demo na PR-kolejkę:** orkiestrator przygotowuje jeden scenariusz demo dla całego PR (wszystkie historyjki gałęzi), Konrad akceptuje jednym ruchem; wpis „Dziennika” i status są nadal per historyjka (uproszczenie z 2026-11-12).
    - Pokrycie zmienionego kodu liczy się dla całej gałęzi (≥ 90% łącznie, nie per historyjka): `docs/process/testing-strategy.md`.
 2. **Niezależne = równolegle.** Historyjki niezależne od siebie (bezpośrednio i pośrednio) i niezapisujące tych samych plików dostają **każda własną gałąź od `main`, własny PR i pełne CI** i mogą iść równolegle. Równoległą gałąź prowadzi się w **osobnym klonie** (`git clone --no-local <ścieżka-lub-adres> <katalog>`, `origin` ustawiony na GitHub), nie w `git worktree`: w worktree plik `.git` wskazuje ścieżkę Windows, której nie rozumieją hooki i bramki w kontenerach. Nakładające się zakresy plików = zależne (punkt 1).
 3. **Ścieżka przy starcie kolejki wg ryzyka.** Gdy pole `path` nie istnieje albo wskazuje `pelna` tylko z powodu liczby recenzentów, orkiestrator wylicza propozycję z tabeli w „Ścieżki realizacji” (obszar ryzyka → `pelna` z uzasadnieniem; reszta → `lekka`), zadaje Konradowi **jedno pytanie dla całej kolejki** (ścieżka i recenzent per historyjka, rekomendacja pierwsza) i zapisuje wynik we frontmatter.
@@ -176,4 +180,4 @@ Koszt historyjki (a przy kolejce — całej kolejki, jednym wpisem w „Dziennik
 - **Porównujemy:** koszt łączny i na AC, liczbę wywołań, rozmiar kontekstu, rundy. Trzy kolejne historyjki ponad celem to powód do przeglądu procesu (retrospektywa `/milestone close` albo wcześniej decyzją Konrada).
 
 ## Rytm kamienia milowego
-`/milestone plan M#` → seria `/refine` i `/deliver` → pilot / UAT → `/milestone close M#` (sign-off, wydanie za zgodą, retrospektywa → poprawki w agentach i procesie).
+`/milestone plan M#` → seria `/refine` i `/deliver` → pilot / UAT → `/milestone close M#` (sign-off — security sign-off raz na wydanie, nie na pilota; wydanie za zgodą, retrospektywa → poprawki w agentach i procesie).

@@ -17,7 +17,8 @@ Technik dokumentuje zlecenie zdjęciami, filmami i wpisami także bez zasięgu; 
 - **Równoległość przez porty:** `sync-core` jest czystym TS z portami (magazyn, transport, zegar, generator ID) i **nie importuje kontraktu OpenAPI** — jego typy ładunków wynikają z [`offline-sync.md`](../../architecture/offline-sync.md); adapter do wygenerowanego klienta powstaje w EVM-107. Ekrany logowania (EVM-100) powstają względem portu `AuthClient` z atrapą. Ryzyko rozjazdu z kontraktem EVM-090 ogranicza EVM-107 (integracja + testy kontraktowe).
 - **Append-only:** w MVP telefon tylko tworzy (wpisy, komentarze, media, szybkie zlecenie) — bez konfliktów (offline-sync.md, zasada 4).
 - **Ścieżka `pelna`** dla uwierzytelniania, urządzeń, synchronizacji, danych na urządzeniu; `lekka` tylko dla czystych ekranów nad gotową warstwą danych. Model `sonnet`.
-- **Rozmiar:** ≤ 8 AC (pełna), ≤ 6 (lekka). Nowe ID od EVM-090 (najwyższe dotąd: EVM-089); EVM-113 dodany po konsultacji architekta.
+- **Rozmiar:** ≤ 8 AC (pełna), ≤ 6 (lekka). Nowe ID od EVM-090 (najwyższe dotąd: EVM-089); EVM-113 dodany po konsultacji architekta, 2026-11-12 połączony z EVM-109 (AC6).
+- **Uproszczenia 2026-11-12** („tanio, szybko, bezpiecznie”; bezpieczeństwo danych i RODO bez zmian): bez Sentry i raportowania błędów do dostawcy (EVM-102 to tylko ekran M-11); bramki Kotlin w EVM-109; EVM-111 tylko status plików z kolejki telefonu (galeria mediów tylko w panelu web); MASVS L1 jako checklista w security sign-offie wydania 1.1; EVM-106 zostaje w 1.1.
 - **ADR-0021:** EVM-096 i EVM-097 (a pośrednio 090, 092) zależą od ADR-0021; status „Proponowana” musi zmienić się na „Zaakceptowana” przed `ready`.
 
 ## Historyjki
@@ -31,26 +32,26 @@ Technik dokumentuje zlecenie zdjęciami, filmami i wpisami także bez zasięgu; 
 | [EVM-098](EVM-098-api-sync-wysylanie-wpisow-i-komentarzy.md) | API: wysyłanie mutacji — wpisy i komentarze | E12 | story | P1 | pelna | EVM-090, EVM-094, EVM-096 | 1 |
 | [EVM-100](EVM-100-mobile-logowanie-i-stany-urzadzenia.md) | Aplikacja: logowanie (hasło + kod) i stany urządzenia | E9 | story | P0 | pelna | EVM-009 | 1 |
 | [EVM-101](EVM-101-mobile-kontrole-urzadzenia-i-czyszczenie-danych.md) | Aplikacja: kontrole urządzenia, ukrycie danych po 7 dniach, wyczyszczenie danych | E9/E14 | story | P1 | pelna | EVM-100 | 1 |
-| [EVM-102](EVM-102-mobile-raportowanie-bledow-i-prywatnosc.md) | Aplikacja: raportowanie błędów bez danych osobowych i ekran prywatności | E14 | story | P2 | pelna | EVM-009, EVM-063 | 1 |
+| [EVM-102](EVM-102-mobile-raportowanie-bledow-i-prywatnosc.md) | Aplikacja: ekran prywatności i pomocy (bez raportowania błędów do dostawcy) | E14 | story | P2 | pelna | EVM-009, EVM-063 | 1 |
 | [EVM-095](EVM-095-urzadzenia-lista-i-zdalne-wylogowanie.md) | Urządzenia: lista, zdalne wylogowanie, „Zablokuj i wyczyść” (API + panel) | E9 | story | P1 | pelna | EVM-094, EVM-029 | 2 |
 | [EVM-097](EVM-097-api-sync-pozostale-encje-i-zakres.md) | API: pobieranie pozostałych encji, wejście i wyjście z zakresu | E10 | story | P1 | pelna | EVM-096 | 2 |
 | [EVM-099](EVM-099-api-sync-szybkie-zlecenie.md) | API: wysyłanie szybkiego zlecenia (`CreateQuickWorkOrder`) | E13 | story | P1 | pelna | EVM-098 | 2 |
 | [EVM-093](EVM-093-mobile-szyfrowana-baza-lokalna.md) | Aplikacja: szyfrowana baza lokalna i adapter magazynu | E10 | enabler | P0 | pelna | EVM-091 | 2 |
 | [EVM-107](EVM-107-mobile-integracja-synchronizacji.md) | Aplikacja: integracja synchronizacji — pierwsze pobranie, wskaźnik, Kolejka, „Wymaga uwagi” | E10/E12 | story | P0 | pelna | EVM-092, EVM-093, EVM-094, EVM-096, EVM-098, EVM-100 | 2 |
-| [EVM-103](EVM-103-mobile-lista-zlecen-offline-i-wyszukiwanie.md) | Aplikacja: lista zleceń offline i wyszukiwanie | E10 | story | P1 | lekka | EVM-107 | 3 |
+| [EVM-103](EVM-103-mobile-lista-zlecen-offline-i-wyszukiwanie.md) | Aplikacja: lista zleceń offline i wyszukiwanie | E10 | story | P1 | pelna | EVM-107 | 3 |
 | [EVM-104](EVM-104-mobile-szczegoly-zlecenia-offline.md) | Aplikacja: szczegóły zlecenia offline | E10 | story | P1 | lekka | EVM-103, EVM-097 | 3 |
 | [EVM-105](EVM-105-mobile-wpisy-i-komentarze-offline.md) | Aplikacja: wpisy i komentarze offline | E12 | story | P1 | pelna | EVM-104, EVM-107 | 3 |
 | [EVM-106](EVM-106-mobile-szybkie-zlecenie.md) | Aplikacja: szybkie zlecenie z telefonu | E13 | story | P1 | pelna | EVM-099, EVM-103, EVM-107 | 3 |
-| [EVM-109](EVM-109-mobile-upload-w-tle-android.md) | Aplikacja: wysyłanie plików w tle (moduł natywny Android) | E11 | story | P1 | pelna | EVM-093, EVM-044, EVM-084 | 4 |
+| [EVM-109](EVM-109-mobile-upload-w-tle-android.md) | Aplikacja: wysyłanie plików w tle (moduł natywny Android) | E11 | story | P1 | pelna | EVM-009, EVM-093, EVM-044, EVM-084 | 4 |
 | [EVM-108](EVM-108-mobile-zdjecia-aparat-i-kolejka.md) | Aplikacja: zdjęcia — aparat, kategoria, opis, kolejka plików | E11 | story | P1 | pelna | EVM-107, EVM-109 | 4 |
 | [EVM-110](EVM-110-mobile-filmy-i-wifi.md) | Aplikacja: filmy i „filmy tylko przez Wi-Fi” | E11 | story | P1 | pelna | EVM-108, EVM-046 | 4 |
-| [EVM-111](EVM-111-mobile-media-zlecenia.md) | Aplikacja: media zlecenia i status każdego pliku | E11 | story | P2 | **pelna** (było lekka) | EVM-108, EVM-045, EVM-068 | 4 |
-| [EVM-112](EVM-112-test-terenowy-i-masvs.md) | Test terenowy w garażu i przegląd MASVS | E11/E14 | story | P1 | pelna | EVM-105, EVM-106, EVM-110, EVM-102 | 5 |
-| [EVM-113](EVM-113-bramki-kotlin.md) | Bramki Kotlin: ktlint, JUnit, pokrycie dla modułu uploadu | E14 | enabler | P1 | pelna | EVM-009 | 4 (przed EVM-109) |
+| [EVM-111](EVM-111-mobile-media-zlecenia.md) | Aplikacja: status każdego pliku w kolejce telefonu | E11 | story | P2 | lekka (zawężona 2026-11-12) | EVM-108 | 4 |
+| [EVM-112](EVM-112-test-terenowy-i-masvs.md) | Test terenowy w garażu i checklista MASVS L1 | E11/E14 | story | P1 | pelna | EVM-105, EVM-106, EVM-110 | 5 |
+| ~~[EVM-113](EVM-113-bramki-kotlin.md)~~ | Bramki Kotlin — **połączona z EVM-109 (AC6), 2026-11-12** | E14 | enabler | — | — | — | — |
 
-Zmiany po konsultacjach: EVM-109 `depends_on` + EVM-113 (oraz decyzja o właścicielu odświeżania tokenów); EVM-111 → `pelna` (miniatury poza bazą szyfrowaną); EVM-103 i EVM-104 zostają `lekka`. EVM-100 zależy od EVM-009 (`in-review`) — **start toru C wymaga akceptacji EVM-009**. EVM-096 i EVM-097 wymagają ADR-0021 Zaakceptowanej.
+Zmiany po konsultacjach (2026-10-27): EVM-109 decyzja o właścicielu odświeżania tokenów; EVM-104 zostaje `lekka`; EVM-103 po refinemencie z 2026-11-12: `pelna`, 7 AC. Zmiany z 2026-11-12: EVM-109 przejmuje bramki Kotlin (AC6), `depends_on` bez EVM-113; EVM-111 zawężona i `lekka` (bez EVM-045/068); EVM-112 bez zależności od EVM-102. EVM-100 zależy od EVM-009 (`in-review`) — **start toru C wymaga akceptacji EVM-009**. EVM-096 i EVM-097 wymagają ADR-0021 Zaakceptowanej.
 
-Fazy 4–5 to **szkice bez szczegółowych AC** (3–5 AC ramowych) — doprecyzowanie po EVM-044/084 i po wynikach faz 1–3. Liczby AC po konsultacjach: 090: 7, 091: 7, 092: 7, 093: 7, 094: 8, 095: 7, 096: 8, 097: 5, 098: 7, 099: 6, 100: 6, 101: 8, 102: 6, 103: 5, 104: 4, 105: 5, 106: 4, 107: 8, 108: 4, 109: 5, 110: 3, 111: 4, 112: 4, 113: 5 (limit pełnej: 8; lekkiej: 6).
+Fazy 4–5 to **szkice bez szczegółowych AC** (3–5 AC ramowych) — doprecyzowanie po EVM-044/084 i po wynikach faz 1–3. Liczby AC po konsultacjach: 090: 7, 091: 7, 092: 7, 093: 7, 094: 8, 095: 7, 096: 8, 097: 5, 098: 7, 099: 6, 100: 6, 101: 8, 102: 5, 103: 7, 104: 4, 105: 5, 106: 4, 107: 8, 108: 4, 109: 6, 110: 3, 111: 4, 112: 4, 113: połączona z 109 (limit pełnej: 8; lekkiej: 6).
 
 ## Graf zależności
 ```mermaid
@@ -81,11 +82,10 @@ flowchart LR
     E084[084 backupy staging] --> E109
   end
   E093 --> E109
-  E113[113 bramki Kotlin] --> E109
   E107 & E109 --> E108[108 zdjęcia]
   E108 --> E110[110 filmy] --> E112[112 test terenowy]
   E108 --> E111[111 media zlecenia]
-  E105 & E106 & E102 --> E112
+  E105 & E106 --> E112
 ```
 **Ścieżka krytyczna:** 090 → 094 → 096 → 098 (tor A) i 091 → 093 (tor B) → **107** → 103/104/105/106 → 108 → 110 → 112. Węzeł zbiegu to EVM-107: dopiero tam spotykają się trzy tory.
 
@@ -93,7 +93,7 @@ flowchart LR
 Fazy 1–3 (EVM-090…107) — wpisy, komentarze, lista, szczegóły, szybkie zlecenie, logowanie, urządzenia, błędy i prywatność. Nie potrzebują mediów, storage ani staging; testy na lokalnym API w kontenerze (backend) i emulatorze (Maestro).
 
 ## Co zależy od E6 / EVM-084
-EVM-109 (upload w tle: endpointy sesji uploadu z EVM-044, storage i bucket na staging z EVM-084/007; dodatkowo EVM-113 i decyzja o właścicielu odświeżania tokenów), a przez nie 108, 110, 111, 112. Dodatkowo: EVM-110 (filmy: EVM-046), EVM-111 (galeria/miniatury: EVM-045, EVM-068). Aparat bez wysyłki nie daje wartości, więc EVM-108 czeka na 109.
+EVM-109 (upload w tle: endpointy sesji uploadu z EVM-044, storage i bucket na staging z EVM-084/007; dodatkowo decyzja o właścicielu odświeżania tokenów; bramki Kotlin jako AC6), a przez nie 108, 110, 111, 112. Dodatkowo: EVM-110 (filmy: EVM-046). EVM-111 nie zależy już od EVM-045/068 (galeria mediów tylko w panelu web). Aparat bez wysyłki nie daje wartości, więc EVM-108 czeka na 109.
 
 ## Propozycja torów na noc (maks. 3 kodowe, osobne klony i gałęzie od `main`)
 **Warunki wstępne:** ADR-0021 Zaakceptowana (EVM-096/097; tor A może zacząć od EVM-090 i 094 przed akceptacją, ale 096 czeka); EVM-009 zaakceptowany (tor C); decyzje 4, 5, 8, 17 z tabeli poniżej dla EVM-094, 100, 101 (tor C bez EVM-101 do czasu decyzji 5).
@@ -104,7 +104,7 @@ EVM-109 (upload w tle: endpointy sesji uploadu z EVM-044, storage i bucket na st
 | **B — silnik synchronizacji** | `feature/EVM-091-092-sync-core` | EVM-091 → EVM-092 | wyłącznie nowy `packages/sync-core` (+ wpisy workspace) |
 | **C — aplikacja bez synchronizacji** | `feature/queue-2026-10-27-m2-mobile-auth` | EVM-100 → EVM-101 → EVM-102 | wyłącznie `apps/mobile` (+ testy Maestro w `apps/mobile/e2e`) |
 
-**Rozłączność:** tory A, B, C zapisują do rozłącznych katalogów (`apps/api`+`packages/contracts` / `packages/sync-core` / `apps/mobile`). Zależności między nimi są tylko „wiring” w EVM-107 (po scaleniu wszystkich trzech). Wspólne punkty konfliktu, które Tech Lead rozwiązuje przy scalaniu (nie blokują startu): `pnpm-lock.yaml` (tor B bez zależności runtime — rekomendowane; tor C dodaje m.in. moduł sprawdzania blokady ekranu i bibliotekę raportowania błędów; tor A raczej bez nowych), `CHANGELOG.md`, `docs/security/threat-model.md` i `requirements.md` (znane z EVM-009/026 — edytować różne wiersze i numerować RR dopiero przy scalaniu), `docs/ops/*`. **Kontrakt OpenAPI współdzielony:** zmienia go wyłącznie tor A (EVM-090 jako pierwsza historyjka toru; pozostałe historyjki toru dopisują tylko swoje pliki `paths/*.yaml`); tory B i C nie dotykają `packages/contracts`.
+**Rozłączność:** tory A, B, C zapisują do rozłącznych katalogów (`apps/api`+`packages/contracts` / `packages/sync-core` / `apps/mobile`). Zależności między nimi są tylko „wiring” w EVM-107 (po scaleniu wszystkich trzech). Wspólne punkty konfliktu, które Tech Lead rozwiązuje przy scalaniu (nie blokują startu): `pnpm-lock.yaml` (tor B bez zależności runtime — rekomendowane; tor C dodaje m.in. moduł sprawdzania blokady ekranu (bez biblioteki raportowania błędów); tor A raczej bez nowych), `CHANGELOG.md`, `docs/security/threat-model.md` i `requirements.md` (znane z EVM-009/026 — edytować różne wiersze i numerować RR dopiero przy scalaniu), `docs/ops/*`. **Kontrakt OpenAPI współdzielony:** zmienia go wyłącznie tor A (EVM-090 jako pierwsza historyjka toru; pozostałe historyjki toru dopisują tylko swoje pliki `paths/*.yaml`); tory B i C nie dotykają `packages/contracts`.
 **Kolejność startu — dwie opcje (rekomendacja: opcja 1):**
 1. **EVM-090 najpierw, samodzielnie.** Tory B i C ruszają równolegle z resztą toru A dopiero, gdy kontrakt 090 jest na `main` (typy, przykłady odpowiedzi i atrapa są źródłem fixture'ów `sync-core` oraz atrapy `AuthClient`). Koszt: opóźnienie startu B i C o czas jednego krótkiego PR-a; zysk: zero rozjazdu kontraktu w trzech torach.
 2. **Wszystkie trzy tory od razu, B i C na atrapach.** Maksymalna równoległość, ale ryzyko rozjazdu typów i kopert (poprawki w EVM-107/AC7 zamiast w 090); lockfile i `.dependency-cruiser.cjs` tak samo kolidują.
@@ -120,19 +120,19 @@ EVM-109 (upload w tle: endpointy sesji uploadu z EVM-044, storage i bucket na st
 ## Plan faz po nocy 1
 - **Faza 2 (po scaleniu A, B, C):** kolejka A2 = EVM-095, 097, 099 (API + panel); kolejka M = EVM-093 → EVM-107 (aplikacja + `sync-core`, jedna gałąź, bo 107 zależy od 093; 093 może ruszyć równolegle z A2, 107 czeka na scalenie A).
 - **Faza 3:** EVM-103 → 104 → 105 → 106 (jedna gałąź, `apps/mobile`).
-- **Faza 4:** po EVM-044/084/007 i EVM-113 — 109 → 108 → 110 → 111; konsultacje i spike przeglądu telemetrii `expo-camera` (EVM-011 → „Przed M2”).
+- **Faza 4:** po EVM-044/084/007 — 109 (z bramkami Kotlin) → 108 → 110 → 111; konsultacje i spike przeglądu telemetrii `expo-camera` (EVM-011 → „Przed M2”).
 - **Faza 5:** EVM-112 — test terenowy (Konrad, fizyczny telefon).
 
 ## Kryteria wyjścia M2 (z roadmapy)
-Test terenowy w garażu podziemnym bez zasięgu: min. 30 zdjęć, 3 filmy, 2 wpisy; po wyjściu na zasięg wszystko w właściwym zleceniu, bez duplikatów i strat, także po wymuszonym zamknięciu aplikacji w trakcie uploadu (EVM-112); weryfikacja MASVS i security sign-off; aplikacja zainstalowana na telefonach z Androidem — firmowych lub prywatnych (BYOD, decyzja Konrada 2026-11-01; APK podpisany lokalnie, ADR-0019). Pokrycie scenariuszy „nic nie ginie” 1–6 z `offline-sync.md`: kliencka część w EVM-092, serwerowa w EVM-096/097/098, E2E w EVM-107/112.
+Test terenowy w garażu podziemnym bez zasięgu: min. 30 zdjęć, 3 filmy, 2 wpisy; po wyjściu na zasięg wszystko w właściwym zleceniu, bez duplikatów i strat, także po wymuszonym zamknięciu aplikacji w trakcie uploadu (EVM-112); checklista MASVS L1 w security sign-offie wydania 1.1; aplikacja zainstalowana na telefonach z Androidem — firmowych lub prywatnych (BYOD, decyzja Konrada 2026-11-01; APK podpisany lokalnie, ADR-0019). Pokrycie scenariuszy „nic nie ginie” 1–6 z `offline-sync.md`: kliencka część w EVM-092, serwerowa w EVM-096/097/098, E2E w EVM-107/112.
 
 ## Poza zakresem M2
-iOS; push i biometria jako wiązanie kluczy; edycja istniejących danych z telefonu (`UpdateStageStatus` — po MVP); rola Monter i „Moje zlecenia” wg przypisania (M4); Google Play / EAS (ADR-0019); wyszukiwanie pełnotekstowe; zdalne zarządzanie telefonem (MDM).
+iOS; raportowanie błędów do zewnętrznego dostawcy (Sentry) — ewentualnie później własny endpoint do logów; galeria mediów zlecenia na telefonie (tylko panel web); push i biometria jako wiązanie kluczy; edycja istniejących danych z telefonu (`UpdateStageStatus` — po MVP); rola Monter i „Moje zlecenia” wg przypisania (M4); Google Play / EAS (ADR-0019); wyszukiwanie pełnotekstowe; zdalne zarządzanie telefonem (MDM).
 
 ## Konsultacje przed `ready` (wykonane 2026-10-27, wyniki naniesione w historyjkach)
 Zakres konsultacji:
 - **UX:** M-11 (prywatność i pomoc), W-17 (urządzenia w panelu), ekran pierwszego pobrania danych, lista „Wymaga uwagi” (M-07), wyszukiwanie w M-05 offline, stany błędów synchronizacji — szczegóły w raporcie.
-- **Security:** kolejka po `session_revoked` / `device_wipe_required`, tokeny i sekret instalacji, SQLCipher/Keystore, tryb 7 dni i manipulacja zegarem, kontrola blokady ekranu, raportowanie błędów (PII), auth natywnego workera (ADR-0020), MASVS.
+- **Security:** kolejka po `session_revoked` / `device_wipe_required`, tokeny i sekret instalacji, SQLCipher/Keystore, tryb 7 dni i manipulacja zegarem, kontrola blokady ekranu, brak telemetrii w paczce (PII), auth natywnego workera (ADR-0020), MASVS.
 - **Architekt:** luki ADR-0008 / `offline-sync.md` („Otwarte — EVM-011” pkt 2–6, 8–12), ścieżki endpointów i kontrakt mobilnego logowania, dziennik zmian (trigger vs port), nowy moduł `sync`, uwierzytelnianie workera.
 
 ## Rekomendowane domyślne decyzje (czekają na Konrada)
@@ -142,16 +142,16 @@ Wszystkie pytania z konsultacji w jednym miejscu; jeśli Konrad nie zdecyduje in
 |---|---|---|---|---|
 | 1 | Akceptacja ADR-0021 (pkt 4, 11, 12 `offline-sync.md`: wyjście z zakresu, kontrolny resync „w cieniu”, wejście do zakresu jednym mechanizmem sterowanym klientem) oraz wyzwalacza `sync.record_change` zamiast portu w `platform` | Zaakceptować | architekt | Blokuje `ready` EVM-096, 097; wpływa na 090 (AC3), 092 (AC1, AC4, AC5) |
 | 2 | EVM-090 scalona osobno przed torami B i C | Tak; kolejność 090 → B → A → C (alternatywa: wszystkie tory od razu na atrapach, ryzyko rozjazdu) | architekt | Tory nocne, EVM-107 AC7 |
-| 3 | EVM-113 „Bramki Kotlin” jako osobny enabler przed EVM-109 | Tak (devops-engineer + mobile-developer) | architekt | EVM-109 `depends_on` EVM-113; wejdzie do fazy 1, jeśli czas monotoniczny/podpis urządzenia mają być w Kotlin |
-| 4 | Telefony firmowe czy prywatne (BYOD)? README mówi „firmowe”, P7/RR-08/`rodo.md` zakładają prywatne | Ustalić; przy wyłącznie firmowych — spis floty i tryb „blokuj” dla starych poprawek (P7) przed testem terenowym | security | EVM-101, 112; polityki P7, `rodo.md` |
+| 3 | ~~EVM-113 „Bramki Kotlin” jako osobny enabler~~ — **zmienione 2026-11-12:** bramki Kotlin jako AC6 w EVM-109 | Tak (Tech Lead z delegacji Konrada) | architekt | EVM-109 (AC6); jeśli czas monotoniczny/podpis urządzenia mają być w Kotlin przed EVM-109, wrócić do osobnego enablera |
+| 4 | Telefony firmowe czy prywatne (BYOD)? **Rozstrzygnięte 1.11: prywatne (BYOD)** (README mówił „firmowe”; P7/RR-08/`rodo.md` zakładają prywatne) | Ustalić; przy wyłącznie firmowych — spis floty i tryb „blokuj” dla starych poprawek (P7) przed testem terenowym | security | EVM-101, 112; polityki P7, `rodo.md` |
 | 5 | `FLAG_SECURE` na całym oknie w wydaniu (technicy tracą zrzuty ekranu) czy tylko ekrany z danymi + wyłączony zrzut w „Ostatnich” | Całe okno w wydaniu; kompilacje testowe bez flagi | security | EVM-100, 101 (AC7) |
 | 6 | Filmy domyślnie bez dźwięku (dźwięk = nagrywanie rozmów klientów) | Tak | security | EVM-110 AC1; `rodo.md` |
-| 7 | Mapy źródeł Sentry (token vs brak sekretów w CI dla APK) | Konrad wysyła mapy lokalnie przy podpisie albo pilotaż bez map | security | EVM-102 |
+| 7 | ~~Mapy źródeł Sentry~~ — **nieaktualna (2026-11-12):** bez Sentry i raportowania błędów do dostawcy | Zamknięta decyzją Konrada | security | EVM-102 (tylko ekran M-11) |
 | 8 | Refresh token bez powiązania z urządzeniem: nowe RR na M2 (z kompensacjami) + historyjka powiązania kluczem urządzenia w backlogu po EVM-109 | Tak (alternatywa: powiązanie od razu, wymaga Kotlin przed EVM-094) | security | EVM-090 (opcjonalne `devicePublicKey`), 094 (AC4); `threat-model.md` przy scaleniu |
 | 9 | `pendingItemsReported` minimalnie w M2 (zgodnie z P2/SR-MOB-04) — zastępuje pytanie 9 z pierwszej wersji planu | Tak (alternatywa: odstępstwo od P2 z RR) | security | EVM-090, 094, 095 (AC4–AC5), 107 (AC2) |
 | 10 | Skąd technik bierze nową wersję APK: link w panelu; do czasu decyzji M-02 mówi „poproś administratora” | Tak | UX | EVM-100 (AC3), 112 (AC3) |
 | 11 | Numer telefonu biura w M-11 (numer funkcyjny z konfiguracji) | Tak | UX | EVM-102 (AC4) |
-| 12 | Chipy M-05 w M2: „Wszystkie” i „Niewysłane (n)” zamiast „Wszystkie/Moje/Czekamy na…” (odstępstwo od makiety, wpis w changelogu styleguide'u) | Tak | UX | EVM-103 (AC5) |
+| 12 | Chipy M-05 w M2: „Wszystkie” i „Niewysłane (n)” zamiast „Wszystkie/Moje/Czekamy na…” (odstępstwo od makiety, wpis w changelogu styleguide'u) | Tak | UX | EVM-103 (AC3) |
 | 13 | „Utwórz ponownie” przenosi zależne elementy do nowego zlecenia | Tak (automatycznie) | UX | EVM-106 (AC4), 091 (ponowne wskazanie celu) |
 | 14 | N = 30 dni zamkniętych zleceń w zakresie (konfigurowalne; pomiar w EVM-107, nieblokujący) — pkt 3 | Tak | architekt | EVM-096 (AC2), 097 (AC4), 107 |
 | 15 | Wyszukiwanie duplikatów klientów lokalnie (E.164 + nazwa bez polskich znaków), bez deduplikacji na serwerze (pkt 9) | Tak; scalanie poza v1 | architekt | EVM-099, 106 (AC2) |
@@ -166,7 +166,7 @@ Odpowiedzi wpisujemy tu po decyzji Konrada (stan: otwarte; pytanie 9 zastąpione
 | 2 | Rola Tylko odczyt nie korzysta z aplikacji (`403 channel_not_allowed`)? | Tak (zgodnie z makietami) |
 | 3 | W v1 „Moje zlecenia” = wszystkie zlecenia w zakresie (bez przypisania do technika)? | Tak (RR-13, rola Monter w M4) |
 | 4 | Zamknięte zlecenia zostają na telefonie 30 dni? | Tak, parametr konfigurowalny; pomiar w EVM-107 |
-| 5 | Raportowanie błędów (Sentry UE) włączone domyślnie na telefonach firmowych, bez danych osobowych? | Tak |
+| 5 | ~~Raportowanie błędów (Sentry UE) włączone domyślnie~~ — **zamknięte 2026-11-12:** bez raportowania błędów do dostawcy | Decyzja Konrada: nie |
 | 6 | Blokada aplikacji po 5 min w tle (systemowy PIN/biometria) włączona domyślnie? | Tak, bramka UI wg P7 |
 | 7 | Wyszukiwanie offline ignoruje polskie znaki? | Tak |
 | 8 | Limit 2 aktywnych telefonów na użytkownika (SR-SESS-04) wystarcza? | Tak na pilotaż; podnieść konfiguracją |
@@ -176,3 +176,4 @@ Odpowiedzi wpisujemy tu po decyzji Konrada (stan: otwarte; pytanie 9 zastąpione
 ## Dziennik
 - 2026-10-27 — szkic planu M2 i historyjek EVM-090…112 w `draft` (product-owner)
 - 2026-10-27 — naniesiono konsultacje (architekt, security, UX); dodano EVM-113; tabela decyzji i tory na noc zaktualizowane (product-owner)
+- 2026-11-12 — uproszczenia (decyzja Konrada 2026-11-12 / Tech Lead z delegacji Konrada „tanio, szybko, bezpiecznie”): bez Sentry (EVM-102 tylko M-11); EVM-113 → EVM-109 AC6; EVM-111 zawężona; EVM-112 MASVS L1 w sign-offie; EVM-106 zostaje w 1.1; poprawki po refinemencie EVM-103 (`pelna`, 7 AC, decyzja 12 → AC3, BYOD) (product-owner)

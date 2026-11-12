@@ -62,7 +62,7 @@ Pobieranie zmian i resync (EVM-092); szyfrowana baza (EVM-093); kolejka plików 
 ## Decyzje i ograniczenia
 - Próg pokrycia pakietu 95% (ADR-0007; wartość z `testing-strategy.md` do potwierdzenia); testy oznaczone `EVM-091 AC#`; scenariusze „nic nie ginie” 1–3 (część kliencka) zasila EVM-092.
 - Nowa zależność runtime — tylko z uzasadnieniem; rekomendacja: brak (własny UUIDv7).
-- Nowy workspace wymaga zmian w `tools/repo-policy` (lista workspace'ów, preset pokrycia), warstwy 95% w `coverage-thresholds.json` oraz `tools/ci-changes` (`packages/sync-core/` jako zmiana nieistotna dla E2E web i integracji API) — dodaje je ta historyjka (tor B), bo potrzebuje ich w pierwszym PR; EVM-113 dopisuje tylko część Kotlin.
+- Nowy workspace wymaga zmian w `tools/repo-policy` (lista workspace'ów, preset pokrycia), warstwy 95% w `coverage-thresholds.json` oraz `tools/ci-changes` (`packages/sync-core/` jako zmiana nieistotna dla E2E web i integracji API) — dodaje je ta historyjka (tor B), bo potrzebuje ich w pierwszym PR; EVM-109 (AC6, dawne EVM-113) dopisuje tylko część Kotlin.
 - Los kolejki po `session_revoked`: wstrzymanie + usunięcie repliki (P2, SR-MOB-04, EVM-011) — potwierdzone przez security.
 - Architektura: `sync-core` ma własne typy kopert (`MutationEnvelope`, `MutationResult`, kody) i nie importuje `@evia/contracts` w kodzie runtime; zero `node:*` w `src` (działa w Hermes); losowość i zegar tylko przez porty (UUIDv7 z wstrzykniętym `getRandomValues`). Tokeny za portem `SessionOwner`/`TokenStore` (właściciel odświeżania może zmienić się w EVM-109 bez zmian ekranów).
 - Bezpieczeństwo i prywatność: wpisy kolejki są walidowane po odczycie z magazynu (SR-MOB-10); wiek i właściciel elementu dostępne dla UI.
@@ -77,3 +77,4 @@ Pobieranie zmian i resync (EVM-092); szyfrowana baza (EVM-093); kolejka plików 
 - 2026-10-29 — plan gotowy (mobile-developer)
 - 2026-10-29 — implementacja `packages/sync-core` (kolejka, silnik, porty, UUIDv7), granice pakietu w ESLint i `deps:check`, warstwa `sync` 95%, klasyfikacja `tools/ci-changes`; testy `EVM-091 AC1–AC7`, zgodność z kontraktem sync, testy własności (mobile-developer)
 - 2026-10-29 — status done: scalona w #115, zaakceptowana przez Konrada (Tech Lead)
+- 2026-11-12 — odsyłacz do EVM-113 zastąpiony EVM-109 AC6 (EVM-113 połączona z EVM-109; Tech Lead z delegacji Konrada „tanio, szybko, bezpiecznie”)

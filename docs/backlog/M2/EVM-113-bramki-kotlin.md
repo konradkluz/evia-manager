@@ -16,6 +16,8 @@ depends_on: [EVM-009]
 
 # EVM-113: Bramki Kotlin — ktlint, JUnit, pokrycie dla modułu uploadu
 
+> **Połączona z EVM-109 (2026-11-12)** — bramki Kotlin (ktlint, JUnit na JVM, próg pokrycia modułu uploadu) są kryteriami akceptacji EVM-109 (AC6); nie realizujemy jej osobno. Status bez zmian; treść poniżej to materiał źródłowy dla AC6 w EVM-109.
+
 ## Cel
 Jako **zespół** chcemy, aby **kod Kotlin (moduł uploadu w tle, ADR-0020) miał te same bramki jakości co TypeScript**, aby **EVM-109 powstawał w TDD z wymuszonym progiem pokrycia 95%**. Dziś ADR-0014 i `testing-strategy.md` nie mówią, jak testować i mierzyć Kotlin, a `coverage-thresholds.json` nie ma warstwy 95% (wymieniona w `testing-strategy.md`: „Mobile — synchronizacja i kolejka uploadu ≥ 95%”). Wymagane przed **każdą** historyjką z kodem Kotlin (EVM-011 → „Przed M2”).
 
@@ -57,3 +59,4 @@ Implementacja modułu uploadu (EVM-109); mutacyjne testowanie Kotlin; iOS.
 
 ## Dziennik
 - 2026-10-27 — utworzono (product-owner) po konsultacji architekta
+- 2026-11-12 — połączona z EVM-109 jako AC6; `depends_on` w EVM-109 bez EVM-113 (Tech Lead z delegacji Konrada „tanio, szybko, bezpiecznie”)
