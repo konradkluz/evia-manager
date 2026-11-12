@@ -27,6 +27,13 @@ export const WORKER_MEDIA_WORK = '/run/evia/media-work:/run/media-work';
 /** EVM-046: and the disk volume of the work area of films, shared with the image processor only (noexec,nosuid,nodev, mounted in an IaC session). */
 export const WORKER_MEDIA_VIDEO = '/var/lib/evia/media-video:/var/lib/media-video';
 
+/**
+ * EVM-084 (K9): the internal network of clamd (compose.infra.yaml: `internal: true`, no egress). Only the worker joins it - the scan and the monitor of
+ * the signatures are jobs of the worker; the API does not scan, and clamd never joins evia-runtime. The channel only references the network (external):
+ * it neither creates nor configures it, and deploy.sh refuses to start when the network is not internal.
+ */
+export const SCAN_NETWORK = 'evia-scan';
+
 const ENV_NAME = /^[A-Z][A-Z0-9_]{0,63}$/;
 /** Variables that would weaken the runtime (TLS, module loading, proxies) — never settable by the channel. */
 const ENV_FORBIDDEN =
@@ -197,8 +204,17 @@ export function validateCompose(text: string, input: ComposeInput): CanonicalCom
   const canonical: Record<string, unknown> = {};
   for (const name of Object.keys(CHANNEL_SERVICES).sort()) {
     const image = CHANNEL_SERVICES[name] === 'evia-web' ? input.images.web : input.images.api;
-    canonical[name] = { ...service(name, services[name], image), networks: [input.network] };
+    canonical[name] = {
+      ...service(name, services[name], image),
+      networks: name === 'worker' ? [input.network, SCAN_NETWORK] : [input.network],
+    };
   }
-  const json = JSON.stringify({ services: canonical, networks: { [input.network]: { external: true, name: input.network } } });
+  const json = JSON.stringify({
+    services: canonical,
+    networks: {
+      [input.network]: { external: true, name: input.network },
+      [SCAN_NETWORK]: { external: true, name: SCAN_NETWORK },
+    },
+  });
   return { json, sha256: sha256(json) };
 }

@@ -20,6 +20,7 @@ const sha = (/** @type {string} */ label) => createHash('sha1').update(label).di
 const API_REPO = 'ghcr.io/evia-test/evia-api';
 const WEB_REPO = 'ghcr.io/evia-test/evia-web';
 const NETWORK = 'evia-runtime';
+const SCAN = 'evia-scan';
 const BASELINE = sha('baseline');
 
 const FAKE_DOCKER = `#!/bin/bash
@@ -33,6 +34,7 @@ case "$*" in
   "image inspect --format {{.Os}}/{{.Architecture}} -- "*) echo "\${FAKE_API_PLATFORM:-linux/arm64}" ;;
   "version --format {{.Server.Os}}/{{.Server.Arch}}") echo "\${FAKE_HOST_PLATFORM:-linux/arm64}" ;;
   "image ls "*) cat "$FAKE_IMAGES" 2> /dev/null || true ;;
+  "network inspect "*) echo "\${FAKE_SCAN_INTERNAL:-true}" ;;
 esac
 exit 0
 `;
@@ -47,8 +49,31 @@ esac
 exit 0
 `;
 
+/** A stand-in for mountpoint(1): a path is a mount when it is listed (first column) in the table of FAKE_MOUNTS. */
+const FAKE_MOUNTPOINT = `#!/bin/bash
+args=("$@")
+path="\${args[\${#args[@]}-1]}"
+grep -q "^$path"$'\\t' "$FAKE_MOUNTS" 2> /dev/null
+`;
+/** A stand-in for findmnt -n -o COLUMN --mountpoint PATH over the same table: path, FSTYPE, SOURCE, OPTIONS (tab separated). */
+const FAKE_FINDMNT = `#!/bin/bash
+args=("$@")
+path="\${args[\${#args[@]}-1]}"
+case "$3" in FSTYPE) column=2 ;; SOURCE) column=3 ;; OPTIONS) column=4 ;; *) exit 1 ;; esac
+awk -F $'\\t' -v p="$path" -v c="$column" '$1 == p { print $c }' "$FAKE_MOUNTS"
+`;
+
 /** The canonical compose document as the verifier writes it (minimal, within the allow-list of deploy.sh). */
-function compose(/** @type {string} */ api, /** @type {string} */ web, /** @type {Record<string, unknown>} */ extra = {}) {
+function compose(
+  /** @type {string} */ api,
+  /** @type {string} */ web,
+  /** @type {Record<string, unknown>} */ extra = {},
+  /** @type {Record<string, unknown>} */ workerExtra = {},
+  /** @type {Record<string, unknown>} */ networks = {
+    [NETWORK]: { external: true, name: NETWORK },
+    [SCAN]: { external: true, name: SCAN },
+  },
+) {
   const service = (/** @type {string} */ name, /** @type {string} */ image, /** @type {string} */ user) => ({
     image,
     pull_policy: 'never',
@@ -56,7 +81,8 @@ function compose(/** @type {string} */ api, /** @type {string} */ web, /** @type
     read_only: true,
     cap_drop: ['ALL'],
     security_opt: ['no-new-privileges:true'],
-    networks: [NETWORK],
+    // EVM-084 (K9): only the worker also joins the internal network of clamd
+    networks: name === 'worker' ? [NETWORK, SCAN] : [NETWORK],
     ...(name === 'web' ? {} : { volumes: [`/run/evia/secrets/${name}:/run/secrets:ro`] }),
   });
   return JSON.stringify({
@@ -64,9 +90,9 @@ function compose(/** @type {string} */ api, /** @type {string} */ web, /** @type
       api: { ...service('api', api, '10001:10001'), ...extra },
       migrate: service('migrate', api, '10003:10003'),
       web: service('web', web, '10004:10004'),
-      worker: service('worker', api, '10002:10002'),
+      worker: { ...service('worker', api, '10002:10002'), ...workerExtra },
     },
-    networks: { [NETWORK]: { external: true, name: NETWORK } },
+    networks,
   });
 }
 
@@ -75,12 +101,14 @@ function result(
   /** @type {string} */ label,
   /** @type {Record<string, unknown>} */ overrides = {},
   /** @type {Record<string, unknown>} */ composeExtra = {},
+  /** @type {Record<string, unknown>} */ workerExtra = {},
+  /** @type {Record<string, unknown> | undefined} */ networks = undefined,
 ) {
   const commit = sha(label);
   const api = `${API_REPO}@sha256:${sha256(`api-${label}`)}`;
   const web = `${WEB_REPO}@sha256:${sha256(`web-${label}`)}`;
   const manifest = JSON.stringify({ schemaVersion: 1, commit, images: { api, web }, compose: 'infra/runtime/compose.staging.yaml' });
-  const document = compose(api, web, composeExtra);
+  const document = compose(api, web, composeExtra, workerExtra, networks);
   return {
     schemaVersion: 1,
     checkedAt: '2026-10-21T10:00:00.000Z',
@@ -98,6 +126,14 @@ function result(
   };
 }
 
+/** The host mounts of the IaC session the worker needs (EVM-084 K8): [path, FSTYPE, SOURCE, OPTIONS]. */
+const GOOD_MOUNTS = [
+  ['/run/evia/media-work', 'tmpfs', 'tmpfs', 'rw,nosuid,nodev,noexec,relatime,size=524288k,mode=2770'],
+  ['/var/lib/evia/media-video', 'ext4', '/dev/mapper/evia-media-video', 'rw,nosuid,nodev,noexec,relatime'],
+];
+const writeMounts = (/** @type {string[][]} */ rows) =>
+  writeFileSync(join(root, 'mounts.tsv'), rows.map(([path, ...rest]) => [join(root, path ?? ''), ...rest].join('\t')).join('\n'));
+
 /** @type {string} */ let root;
 /** @type {string} */ let log;
 
@@ -110,6 +146,9 @@ function setup() {
   chmodSync(join(root, 'etc/evia/secrets'), 0o700);
   writeFileSync(join(bin, 'docker'), FAKE_DOCKER, { mode: 0o755 });
   writeFileSync(join(bin, 'curl'), FAKE_CURL, { mode: 0o755 });
+  writeFileSync(join(bin, 'mountpoint'), FAKE_MOUNTPOINT, { mode: 0o755 });
+  writeFileSync(join(bin, 'findmnt'), FAKE_FINDMNT, { mode: 0o755 });
+  writeMounts(GOOD_MOUNTS);
   writeFileSync(
     join(root, 'etc/evia/deploy-agent/config.json'),
     JSON.stringify({
@@ -168,6 +207,7 @@ function deploy(/** @type {Record<string, unknown>} */ value, /** @type {Record<
       EVIA_HEALTH_WAIT: '0',
       FAKE_LOG: log,
       FAKE_IMAGES: join(root, 'images.txt'),
+      FAKE_MOUNTS: join(root, 'mounts.tsv'),
       FAKE_VERSION: version,
       ...env,
     },
@@ -418,6 +458,162 @@ describe('EVM-007 AC4 (security-engineer B): deploy.sh treats the result of the 
     assert.ok(index(run.calls, ' up -d --no-build --pull never --no-deps api worker web') >= 0);
     assert.match(run.stderr, /migrations skipped/);
     assert.equal(active(), 'blue');
+  });
+});
+
+/**
+ * EVM-084 (K8, K9; security-engineer review RR-23, H1/M1/M4): since EVM-068 and EVM-046 the verifier lets the worker mount the work area of the photos and of the
+ * films, and since K9 it joins the internal network of clamd. deploy.sh checks the canonical document AGAIN with its own allow-list, so it has to know the same
+ * shapes - otherwise it refuses every release (fail closed, but the channel stops). The golden file is the canonical form of the COMMITTED compose.staging.yaml
+ * (services/deploy-agent/test/compose-policy.test.ts keeps it equal to the verifier output); here it goes through the REAL filter of deploy.sh. Before anything
+ * starts, deploy.sh also requires the host paths to be real mounts with the right options (a missing mount would make compose create the directory on the
+ * unencrypted root disk), and the network of clamd to be internal.
+ */
+const GOLDEN = JSON.parse(readFileSync(new URL('./fixtures/compose.staging.canonical.json', import.meta.url), 'utf8'));
+const SECRETS_WORKER = '/run/evia/secrets/worker:/run/secrets:ro';
+const MEDIA_WORK = '/run/evia/media-work:/run/media-work';
+const MEDIA_VIDEO = '/var/lib/evia/media-video:/var/lib/media-video';
+
+/** A result whose compose document is the golden file (the images of the golden file are the ones the filter compares). */
+function goldenResult(/** @type {string} */ label) {
+  const base = result(label);
+  const images = { api: GOLDEN.services.api.image, web: GOLDEN.services.web.image };
+  const manifest = JSON.stringify({ schemaVersion: 1, commit: base.commit, images, compose: 'infra/runtime/compose.staging.yaml' });
+  const document = JSON.stringify(GOLDEN);
+  return { ...base, manifest, manifestSha256: sha256(manifest), images, compose: document, composeSha256: sha256(document) };
+}
+
+describe('EVM-084 (K8, K9): deploy.sh accepts what the verifier produces and no more', () => {
+  beforeEach(setup);
+  const worker = (/** @type {string[]} */ volumes) => ({ volumes });
+  const refusedBeforeAnything = (
+    /** @type {Record<string, unknown>} */ value,
+    /** @type {RegExp} */ reason,
+    /** @type {Record<string, string>} */ env = {},
+  ) => {
+    const run = deploy(value, env);
+    assert.notEqual(run.status, 0, 'accepted');
+    assert.match(run.stderr, reason);
+    assert.ok(!run.calls.some((line) => / up -d | run --rm --no-deps migrate/.test(line)), 'nothing was migrated or started');
+    assert.equal(existsSync(join(root, 'var/lib/evia/registry/registry.json')) ? registry().length : 0, 0);
+  };
+
+  it('EVM-084 (K8): the canonical form of the committed compose.staging.yaml (golden file) is deployed: the worker with its two mounts, the network of clamd, the check before the start', () => {
+    assert.deepEqual(GOLDEN.services.worker.volumes, [SECRETS_WORKER, MEDIA_WORK, MEDIA_VIDEO]);
+    assert.deepEqual(GOLDEN.services.worker.networks, [NETWORK, SCAN]);
+    const run = deploy(goldenResult('g1'));
+    assert.equal(run.status, 0, run.stderr);
+    const checked = index(run.calls, 'network inspect');
+    assert.ok(checked >= 0 && checked < index(run.calls, 'run --rm --no-deps migrate'), 'the network is checked before the migration');
+    assert.ok(index(run.calls, 'run --rm --no-deps migrate') < index(run.calls, ' up -d '));
+  });
+
+  it('EVM-084 (K8): the worker may have exactly the three shapes of volumes of the verifier; any other volume, order or service is refused', () => {
+    for (const [position, volumes] of [
+      [SECRETS_WORKER],
+      [SECRETS_WORKER, MEDIA_WORK],
+      [SECRETS_WORKER, MEDIA_WORK, MEDIA_VIDEO],
+    ].entries()) {
+      const run = deploy(result('w1-' + position, {}, {}, worker(volumes)));
+      assert.equal(run.status, 0, run.stderr);
+    }
+    for (const volumes of [
+      [SECRETS_WORKER, MEDIA_VIDEO],
+      [SECRETS_WORKER, MEDIA_VIDEO, MEDIA_WORK],
+      [MEDIA_WORK, SECRETS_WORKER],
+      [SECRETS_WORKER, MEDIA_WORK, MEDIA_VIDEO, '/etc:/etc:ro'],
+      [SECRETS_WORKER, '/var/lib/evia/clamav-scan:/scan-tmp'],
+      [SECRETS_WORKER, '/run/evia/media-work:/run/media-work:ro'],
+      [SECRETS_WORKER, '/var/run/docker.sock:/var/run/docker.sock'],
+    ]) {
+      const value = result('w2', {}, {}, worker(volumes));
+      const run = deploy(value);
+      assert.notEqual(run.status, 0, volumes.join(' '));
+      assert.match(run.stderr, /outside the allow-list/);
+      assert.deepEqual(run.calls, []);
+    }
+    // the work areas belong to the worker alone
+    for (const volumes of [[`/run/evia/secrets/api:/run/secrets:ro`, MEDIA_WORK]]) {
+      const run = deploy(result('w3', {}, { volumes }));
+      assert.notEqual(run.status, 0);
+      assert.match(run.stderr, /outside the allow-list/);
+    }
+  });
+
+  it('EVM-084 (K9): only the worker is in the network of clamd; the document names exactly the two external networks, and nothing configures them', () => {
+    const external = { external: true, name: NETWORK };
+    const scan = { external: true, name: SCAN };
+    const cases = /** @type {[Record<string, unknown>, RegExp][]} */ ([
+      [result('n1', {}, { networks: [NETWORK, SCAN] }), /outside the allow-list/], // the API in evia-scan
+      [result('n2', {}, {}, { networks: [NETWORK] }), /outside the allow-list/], // the worker without it (the verifier always adds it)
+      [result('n3', {}, {}, { networks: [SCAN, NETWORK] }), /outside the allow-list/], // another order
+      [result('n4', {}, {}, { networks: [NETWORK, SCAN, 'host'] }), /outside the allow-list/],
+      [result('n5', {}, {}, {}, { [NETWORK]: external }), /outside the allow-list/], // the network of clamd not declared
+      [result('n6', {}, {}, {}, { [NETWORK]: external, [SCAN]: { ...scan, internal: false } }), /outside the allow-list/],
+      [result('n7', {}, {}, {}, { [NETWORK]: external, [SCAN]: { external: true, name: 'bridge' } }), /outside the allow-list/],
+      [result('n8', {}, {}, {}, { [NETWORK]: external, [SCAN]: { driver: 'bridge' } }), /outside the allow-list/],
+    ]);
+    for (const [value, reason] of cases) {
+      const run = deploy(value);
+      assert.notEqual(run.status, 0);
+      assert.match(run.stderr, reason);
+      assert.deepEqual(run.calls, []);
+    }
+  });
+
+  it('EVM-084 (K9): a network of clamd that is not internal (it would give the worker a way out) refuses the deployment before the migration', () => {
+    refusedBeforeAnything(result('i1'), /not internal/, { FAKE_SCAN_INTERNAL: 'false' });
+    refusedBeforeAnything(result('i2'), /not internal/, { FAKE_SCAN_INTERNAL: 'maybe' });
+  });
+
+  it('EVM-084 (K8, security-engineer M1): a host path of the worker that is not a mount, or a mount with the wrong options or type, refuses the deployment before the migration', () => {
+    const value = () => goldenResult('m1');
+    const [work, video] = GOOD_MOUNTS;
+    const cases = /** @type {[string, string[][], RegExp][]} */ ([
+      ['no mount of the work area', [video ?? []], /media-work is not a mount/],
+      ['no mount of the films (they would land on the root disk)', [work ?? []], /media-video is not a mount/],
+      ['work area without noexec', [['/run/evia/media-work', 'tmpfs', 'tmpfs', 'rw,nosuid,nodev'], video ?? []], /media-work lacks noexec/],
+      ['work area without nosuid', [['/run/evia/media-work', 'tmpfs', 'tmpfs', 'rw,nodev,noexec'], video ?? []], /media-work lacks nosuid/],
+      [
+        'films without nodev',
+        [work ?? [], ['/var/lib/evia/media-video', 'ext4', '/dev/mapper/evia-media-video', 'rw,nosuid,noexec']],
+        /media-video lacks nodev/,
+      ],
+      [
+        'an option only as a part of another word',
+        [['/run/evia/media-work', 'tmpfs', 'tmpfs', 'rw,nosuid,nodev,noexecx'], video ?? []],
+        /media-work lacks noexec/,
+      ],
+      [
+        'work area on a disk, not a tmpfs',
+        [['/run/evia/media-work', 'ext4', '/dev/sda1', 'rw,nosuid,nodev,noexec'], video ?? []],
+        /media-work must be a tmpfs/,
+      ],
+      [
+        'films on a plain disk (RR-75: only with dm-crypt)',
+        [work ?? [], ['/var/lib/evia/media-video', 'ext4', '/dev/sdb1', 'rw,nosuid,nodev,noexec']],
+        /media-video must be on a dm-crypt device/,
+      ],
+      [
+        'films on a tmpfs',
+        [work ?? [], ['/var/lib/evia/media-video', 'tmpfs', 'tmpfs', 'rw,nosuid,nodev,noexec']],
+        /media-video must be on a dm-crypt device/,
+      ],
+    ]);
+    for (const [name, rows, reason] of cases) {
+      writeMounts(rows);
+      refusedBeforeAnything(value(), reason);
+      assert.ok(name.length > 0);
+    }
+    // the same table passes when it is right (the cases above do not fail for another reason)
+    writeMounts(GOOD_MOUNTS);
+    assert.equal(deploy(value()).status, 0);
+  });
+
+  it('EVM-084 (K8): a release whose worker mounts nothing but its secrets needs no host mount (the check follows the document, not a fixed list)', () => {
+    writeMounts([]);
+    const run = deploy(result('m2'));
+    assert.equal(run.status, 0, run.stderr);
   });
 });
 

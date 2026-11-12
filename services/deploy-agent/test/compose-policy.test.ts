@@ -2,6 +2,7 @@
  * V4 — the allow-list of the compose file of the channel (EVM-007 AC3; ADR-0018 V4; architect 9, 10; security-engineer
  * A2). Every case of the ADR and every known bypass has its own negative test; the committed file is the positive case.
  */
+import { readFileSync, writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { parse, stringify } from 'yaml';
 import { CHANNEL_SERVICES, MAX_COMPOSE_BYTES, parseStrictYaml, validateCompose } from '../src/compose-policy.ts';
@@ -37,13 +38,17 @@ describe('EVM-007 AC3: the committed compose file of the channel passes V4', () 
     const document = JSON.parse(canonical.json) as { services: Record<string, Record<string, unknown>>; networks: unknown };
     expect(Object.keys(document)).toEqual(['services', 'networks']);
     expect(Object.keys(document.services)).toEqual(Object.keys(CHANNEL_SERVICES).sort());
-    expect(document.networks).toEqual({ 'evia-runtime': { external: true, name: 'evia-runtime' } });
+    // EVM-084 (K9): only the worker also joins the internal network of clamd (the scanner is a job of the worker); clamd never joins evia-runtime
+    expect(document.networks).toEqual({
+      'evia-runtime': { external: true, name: 'evia-runtime' },
+      'evia-scan': { external: true, name: 'evia-scan' },
+    });
     for (const [name, service] of Object.entries(document.services)) {
       expect(service['image']).toBe(name === 'web' ? IMAGES.web : IMAGES.api);
       expect(service['pull_policy']).toBe('never');
       expect(service['read_only']).toBe(true);
       expect(service['cap_drop']).toEqual(['ALL']);
-      expect(service['networks']).toEqual(['evia-runtime']);
+      expect(service['networks']).toEqual(name === 'worker' ? ['evia-runtime', 'evia-scan'] : ['evia-runtime']);
     }
     expect(canonical.sha256).toMatch(/^[0-9a-f]{64}$/);
     // deterministic: the same input gives the same bytes and hash
@@ -101,6 +106,33 @@ describe('EVM-068 AC5: the worker alone may mount the work area it shares with t
     it(`EVM-068 AC5: ${name} is ${expected === 'accepted' ? 'accepted' : 'rejected'}`, () => {
       expect(code(() => validateCompose(mutated(change), INPUT))).toBe(expected);
     });
+});
+
+/**
+ * EVM-084 (K8): the second line of defence. deploy.sh checks the canonical document of the verifier against its OWN allow-list (jq), written separately in
+ * shell. This test is the first half of the proof that the two agree: the canonical form of the COMMITTED compose file (without `environment`, which deploy.sh
+ * does not read, so a key id filled in in the IaC session changes nothing) must equal the golden file that infra/deploy-agent/test/deploy.test.mjs feeds
+ * through the real filter of deploy.sh. A change of a volume, a network or a user of compose.staging.yaml therefore turns this test red until the golden
+ * file is regenerated (EVIA_UPDATE_GOLDEN=1, then pnpm run format) AND deploy.sh accepts it (the second half runs in the deploy-sh-tests container).
+ */
+describe('EVM-084 (K8): the committed compose file passes the allow-list of deploy.sh as well', () => {
+  const GOLDEN = new URL('../../../infra/deploy-agent/test/fixtures/compose.staging.canonical.json', import.meta.url);
+  const structure = (): unknown => {
+    const document = JSON.parse(validateCompose(COMPOSE, INPUT).json) as { services: Record<string, Record<string, unknown>> };
+    for (const service of Object.values(document.services)) delete service['environment'];
+    return document;
+  };
+
+  it('EVM-084 (K8): the canonical form of compose.staging.yaml equals the golden file of the deploy.sh test', () => {
+    // the file is formatted by prettier (pnpm run format), so the comparison is of the data, not of the bytes
+    if (process.env['EVIA_UPDATE_GOLDEN'] === '1')
+      writeFileSync(
+        GOLDEN,
+        `${JSON.stringify(structure(), null, 2)}
+`,
+      );
+    expect(JSON.parse(readFileSync(GOLDEN, 'utf8'))).toEqual(structure());
+  });
 });
 
 describe('EVM-007 AC3: V4 rejects the cases of ADR-0018', () => {

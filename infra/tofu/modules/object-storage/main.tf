@@ -1,7 +1,8 @@
-# Object Storage of staging (EVM-084 AC1, AC2; ADR-0009, ADR-0011; SR-INFRA-02/03/07, SR-PRIV-04): three private,
-# versioned, encrypted buckets in pl-waw — media, the deletion register (the application key may only add entries) and
-# the pgBackRest repository with object lock. Object lock is set at creation (Scaleway cannot add it later); dropping it
-# from the media bucket needs an ADR. IAM of Scaleway works per project, so every bucket carries a policy with the
+# Object Storage of staging (EVM-084 AC1, AC2; ADR-0009, ADR-0011; SR-INFRA-02/03/07, SR-PRIV-04): four private,
+# encrypted buckets in pl-waw — media, the deletion register (the application key may only add entries), the pgBackRest
+# repository with object lock (these three versioned) and the ZIP exports of EVM-052 (no lock, no versions, one day of
+# life: a copy of originals with GPS that must really disappear). Object lock is set at creation (Scaleway cannot add it
+# later); dropping it from the media bucket needs an ADR. IAM of Scaleway works per project, so every bucket carries a policy with the
 # explicit principals, a Deny of the privileged actions for every application key and a Deny for the applications that
 # have no business in the bucket. The IaC application is in every policy (otherwise the session locks itself out).
 # API keys are NOT created here: a secret in the state would be a leak path (TM-64); keys are created by hand in the IaC
@@ -48,6 +49,7 @@ locals {
   media_bucket     = "evia-staging-media"
   register_bucket  = "evia-staging-deletion-register"
   db_backup_bucket = "evia-staging-db-backup"
+  exports_bucket   = "evia-staging-exports"
 
   # Permission sets limit the product; the project-wide reach is narrowed by the bucket policies below.
   apps = {
@@ -87,6 +89,13 @@ locals {
   register_allow = {
     register_writer = ["s3:PutObject"]
     restore_reader  = ["s3:GetObject", "s3:GetObjectVersion", "s3:ListBucket", "s3:ListBucketVersions"]
+  }
+  # EVM-052: the code uses the credentials of the process for both media buckets, so the existing keys are split by the bucket policies (no new key):
+  # the API only signs a link (GetObject; ListBucket makes an expired object a 404), the worker builds (multipart = PutObject), checks and removes.
+  # No If-None-Match condition here: UploadPart of a multipart upload carries no such header (the code sends it on CompleteMultipartUpload only).
+  exports_allow = {
+    media_app    = ["s3:GetObject", "s3:ListBucket"]
+    media_worker = ["s3:PutObject", "s3:GetObject", "s3:DeleteObject", "s3:AbortMultipartUpload", "s3:ListMultipartUploadParts", "s3:ListBucket"]
   }
   db_backup_allow = {
     backup_writer  = ["s3:PutObject", "s3:GetObject", "s3:GetObjectVersion", "s3:DeleteObject", "s3:AbortMultipartUpload", "s3:ListMultipartUploadParts", "s3:ListBucket", "s3:ListBucketVersions"]
@@ -225,6 +234,52 @@ resource "scaleway_object_bucket_server_side_encryption_configuration" "register
 
 resource "scaleway_object_bucket_acl" "register" {
   bucket = scaleway_object_bucket.register.name
+  region = var.region
+  acl    = "private"
+}
+
+# --- ZIP exports (EVM-052) -----------------------------------------------------------------------------------------
+# NOT the media bucket: its 30 days of lock would keep originals with GPS after an "erasure". No lock and no versioning, so the lifecycle
+# really removes the object; the retention job of the application deletes it at 24 h, the one-day rule is the second line (Scaleway evaluates
+# a lifecycle rule once a day, so an object may stay up to about 48 h without the job). No CORS: the browser follows a signed link (an anchor).
+
+resource "scaleway_object_bucket" "exports" {
+  name          = local.exports_bucket
+  region        = var.region
+  project_id    = var.project_id
+  force_destroy = false
+
+  lifecycle_rule {
+    id                                     = "abort-incomplete-multipart"
+    enabled                                = true
+    abort_incomplete_multipart_upload_days = 1
+  }
+
+  lifecycle_rule {
+    id      = "exports-expire"
+    enabled = true
+    expiration {
+      days = 1
+    }
+  }
+
+  tags = {
+    purpose = "media-exports"
+  }
+}
+
+resource "scaleway_object_bucket_server_side_encryption_configuration" "exports" {
+  bucket = scaleway_object_bucket.exports.name
+  region = var.region
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "scaleway_object_bucket_acl" "exports" {
+  bucket = scaleway_object_bucket.exports.name
   region = var.region
   acl    = "private"
 }
@@ -489,16 +544,63 @@ resource "scaleway_object_bucket_policy" "db_backup" {
   })
 }
 
+resource "scaleway_object_bucket_policy" "exports" {
+  bucket = scaleway_object_bucket.exports.name
+  region = var.region
+  policy = jsonencode({
+    Version = "2023-04-17"
+    Id      = "evia-staging-exports"
+    Statement = concat(
+      [{
+        Sid       = "AllowIac"
+        Effect    = "Allow"
+        Principal = { SCW = local.iac_principal }
+        Action    = ["s3:*"]
+        Resource  = [scaleway_object_bucket.exports.name, "${scaleway_object_bucket.exports.name}/*"]
+      }],
+      [for app, actions in local.exports_allow : {
+        Sid       = "Allow-${app}"
+        Effect    = "Allow"
+        Principal = { SCW = local.app_principals[app] }
+        Action    = actions
+        Resource  = [scaleway_object_bucket.exports.name, "${scaleway_object_bucket.exports.name}/*"]
+      }],
+      [for app, actions in local.exports_allow : {
+        Sid       = "DenyOutsideList-${app}"
+        Effect    = "Deny"
+        Principal = { SCW = local.app_principals[app] }
+        NotAction = actions
+        Resource  = [scaleway_object_bucket.exports.name, "${scaleway_object_bucket.exports.name}/*"]
+      }],
+      [{
+        Sid       = "DenyPrivilegedForApplications"
+        Effect    = "Deny"
+        Principal = { SCW = values(local.app_principals) }
+        Action    = local.privileged_actions
+        Resource  = [scaleway_object_bucket.exports.name, "${scaleway_object_bucket.exports.name}/*"]
+      }],
+      [{
+        Sid       = "DenyOtherApplications"
+        Effect    = "Deny"
+        Principal = { SCW = [for app in setsubtract(keys(local.apps), keys(local.exports_allow)) : local.app_principals[app]] }
+        Action    = ["s3:*"]
+        Resource  = [scaleway_object_bucket.exports.name, "${scaleway_object_bucket.exports.name}/*"]
+      }],
+    )
+  })
+}
+
 output "application_ids" {
   description = "Scaleway IAM applications (not secrets): API keys are created by hand in the IaC session."
   value       = { for name, app in scaleway_iam_application.app : name => app.id }
 }
 
 output "buckets" {
-  description = "Bucket names for the runtime configuration (MEDIA_BUCKET, DELETION_REGISTER_BUCKET, the pgBackRest repository)."
+  description = "Bucket names for the runtime configuration (MEDIA_BUCKET, DELETION_REGISTER_BUCKET, MEDIA_EXPORT_BUCKET, the pgBackRest repository)."
   value = {
     media     = scaleway_object_bucket.media.name
     register  = scaleway_object_bucket.register.name
     db_backup = scaleway_object_bucket.db_backup.name
+    exports   = scaleway_object_bucket.exports.name
   }
 }

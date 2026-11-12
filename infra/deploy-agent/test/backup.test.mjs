@@ -166,6 +166,7 @@ const BUCKET_LOGICAL = {
   'evia-staging-media': 'media',
   'evia-staging-deletion-register': 'register',
   'evia-staging-db-backup': 'db_backup',
+  'evia-staging-exports': 'exports',
 };
 const AREA_BY_PREFIX = [
   ['pgbackrest/', 'repo'],
@@ -245,6 +246,7 @@ describe('EVM-084 AC2: bucket-verify.sh', () => {
     MEDIA_BUCKET: 'evia-staging-media',
     DELETION_REGISTER_BUCKET: 'evia-staging-deletion-register',
     DB_BACKUP_BUCKET: 'evia-staging-db-backup',
+    MEDIA_EXPORT_BUCKET: 'evia-staging-exports',
     MEDIA_S3_ACCESS_KEY_ID: 'SCWMEDIA0001',
     MEDIA_WORKER_S3_ACCESS_KEY_ID: 'SCWMWORKER001',
     MEDIA_BACKUP_READER_ACCESS_KEY_ID: 'SCWMBREADER01',
@@ -265,7 +267,7 @@ describe('EVM-084 AC2: bucket-verify.sh', () => {
       'restore_reader',
     ]);
     for (const key of MATRIX_KEYS)
-      for (const bucket of ['media', 'register', 'db_backup']) {
+      for (const bucket of ['media', 'register', 'db_backup', 'exports']) {
         const rows = MATRIX_ROWS.filter((row) => row[0] === key && row[1] === bucket);
         assert.equal(rows.filter((row) => row[3] === 'list').length, 1, `${key} ${bucket} list`);
         const areas = bucket === 'db_backup' ? ['repo', 'results'] : ['any'];
@@ -276,7 +278,7 @@ describe('EVM-084 AC2: bucket-verify.sh', () => {
             `${key} ${bucket} ${operation}`,
           );
       }
-    assert.equal(MATRIX_ROWS.length, 7 * (3 * 4 + 3));
+    assert.equal(MATRIX_ROWS.length, 7 * (4 * 4 + 3));
     const decision = (/** @type {string[]} */ ...tuple) => MATRIX_ROWS.find((row) => row.slice(0, 4).join('|') === tuple.join('|'))?.[4];
     assert.equal(decision('restore_orchestrator', 'db_backup', 'results', 'put'), 'allow');
     assert.equal(decision('restore_orchestrator', 'db_backup', 'repo', 'get'), 'deny');
@@ -287,6 +289,12 @@ describe('EVM-084 AC2: bucket-verify.sh', () => {
     assert.equal(decision('register_writer', 'media', 'any', 'put'), 'deny');
     assert.equal(decision('register_writer', 'register', 'any', 'put'), 'allow');
     assert.equal(decision('register_writer', 'register', 'any', 'get'), 'deny');
+    // EVM-052: the bucket of the ZIP exports - the API key reads, the worker key writes and removes, the others are refused
+    assert.equal(decision('media_app', 'exports', 'any', 'get'), 'allow');
+    assert.equal(decision('media_app', 'exports', 'any', 'put'), 'deny');
+    assert.equal(decision('media_worker', 'exports', 'any', 'put'), 'allow');
+    assert.equal(decision('media_worker', 'exports', 'any', 'delete'), 'allow');
+    assert.equal(decision('backup_writer', 'exports', 'any', 'get'), 'deny');
   });
 
   it('EVM-084 AC2: a correctly configured storage passes: anonymous 403, the register adds once and nothing else, no administrative action, the whole matrix', async () => {
@@ -337,6 +345,7 @@ describe('EVM-084 AC2: bucket-verify.sh', () => {
     s3 = await startS3();
     assert.equal((await exec('bucket-verify.sh', [], { ...env(), RESTORE_ORCH_ACCESS_KEY_ID: '' })).status, 1);
     assert.equal((await exec('bucket-verify.sh', [], { ...env(), MEDIA_BUCKET: 'Bad Bucket' })).status, 1);
+    assert.equal((await exec('bucket-verify.sh', [], { ...env(), MEDIA_EXPORT_BUCKET: '' })).status, 1);
     assert.equal((await exec('bucket-verify.sh', [], { ...env(), RESTORE_READER_ACCESS_KEY_ID: 'bad id;' })).status, 1);
     assert.equal((await exec('bucket-verify.sh', [], { ...env(), EVIA_BUCKET_MATRIX: join(root, 'missing.tsv') })).status, 1);
     writeFileSync(join(root, 'odd.tsv'), 'weird\tline\n');

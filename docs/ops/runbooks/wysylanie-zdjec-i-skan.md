@@ -11,7 +11,7 @@ Zdjęcie przechodzi **jedną drogą**: panel tworzy medium (`createMediaAssets`)
 | Klucz obiektu | `media/{rok}/{miesiąc}/{id pliku}/original` | nadaje serwer; bez nazwy pliku, numeru zlecenia i danych osobowych |
 | Sesja | API | części po 16 MiB, najwyżej 1000; URL części ważny 3600 s, związany z kluczem, numerem i `Content-Length` |
 | Skan | worker, pętla co 5 s (`MediaScanService`) | bierze pliki `uploaded` i `scanning` nietknięte od 2 minut (compare-and-set); co najwyżej 5 na przebieg, po kolei |
-| `clamd` | `CLAMD_SOCKET` | `tcp://host:port` (staging: kontener w sieci `evia-scan`) albo `unix:///ścieżka` |
+| `clamd` | `CLAMD_SOCKET` | `tcp://host:port` (staging: `tcp://clamd:3310`, kontener w sieci `evia-scan`, do której należy wyłącznie `worker` — skan i monitor sygnatur to jego zadania; API nie ma adresu `clamd`) albo `unix:///ścieżka` |
 
 ## Konfiguracja (wszystko albo nic)
 Zmienne: `S3_ENDPOINT`, `S3_REGION`, `MEDIA_BUCKET`, `MEDIA_S3_ACCESS_KEY_ID`, `MEDIA_S3_SECRET_ACCESS_KEY` (na stagingu `MEDIA_S3_SECRET_ACCESS_KEY_FILE`), opcjonalnie `MEDIA_MAX_PENDING_PER_USER`, `MEDIA_MAX_PENDING_PER_ORDER`, `MEDIA_ABANDON_AFTER_DAYS` (limity niedokończonych i wiek porzuconego uploadu; domyślnie 200 / 500 / 7, zła wartość = błąd startu), `CLAMD_SOCKET`, `S3_FORCE_PATH_STYLE` (tylko serwer S3 testów), `MEDIA_BUCKET_ORIGIN` (jeden origin https bucketu dla CSP `connect-src`, bez ścieżki i wildcardów). Wzór: `.env.example`.
@@ -53,6 +53,13 @@ Zmienne: `S3_ENDPOINT`, `S3_REGION`, `MEDIA_BUCKET`, `MEDIA_S3_ACCESS_KEY_ID`, `
 | Odtworzenie bazy z kopii | rekordy bez `purged_at` zostaną usunięte ponownie przez sweeper (usunięcie jest idempotentne); kopia mediów (`rclone sync` do Storage Box ze snapshotami) może przechowywać obiekty z kwarantanny dłużej niż 30 dni i nieskanowane — wykluczenie do rozważenia w T3 |
 
 Zadania T3 (poza tą historyjką): reguły Grafana dla `media_quarantined`, wieku sygnatur i awarii retencji; test alertu na stagingu (AC7); lifecycle bucketu (kwarantanna 30 d, noncurrent 30 d). Dopóki ich nie ma, działa e-mail do Administratorów i wpis `security_alert_outbox` (log `alert: "security"`).
+
+## Eksport ZIP: bucket, klucze i konfiguracja (EVM-052; SR-FILE-09, SR-DATA-07)
+- **Bucket:** `evia-staging-exports` (moduł `object-storage`, `pl-waw`) — osobny od mediów: bez object lock i bez wersjonowania, prywatny, SSE-ONE, wygasanie obiektów po **1 dniu** i przerwanie multipart po 1 dniu. Zadanie workera usuwa plik po 24 h (`media.export`, sprzątanie), reguła cyklu życia to druga linia (Scaleway ocenia ją raz na dobę, więc bez zadania obiekt może zostać do ok. 48 h). Nie dodawać object lock ani wersjonowania: oryginały ze współrzędnymi GPS musiałyby przetrwać „usunięcie”.
+- **Klucze:** bez nowych aplikacji IAM. Kod używa tych samych poświadczeń procesu dla obu bucketów, więc polityka bucketu rozdziela dostęp: **API** (`media-s3-secret-access-key`) — tylko `GetObject` i `ListBucket` (podpisany link ważny ≤ 5 min i odpowiedź 404 po wygaśnięciu); **worker** (`media-worker-s3-secret-access-key`) — `PutObject` (multipart: utworzenie, części, zakończenie), `AbortMultipartUpload`, `ListMultipartUploadParts`, `GetObject` (sprawdzenie rozmiaru po powtórce), `DeleteObject`, `ListBucket`. Pozostałe klucze i uprawnienia administracyjne: `Deny`. Brak warunku `If-None-Match` w polityce — części multipart go nie niosą (aplikacja wysyła go przy zakończeniu).
+- **Zmienna:** `MEDIA_EXPORT_BUCKET=evia-staging-exports` w `api` **i** `worker` (niesekretna; `compose.staging.yaml`). Bez niej eksport odpowiada `503 media_storage_unavailable` (fail-closed), reszta mediów działa. Nazwa musi różnić się od `MEDIA_BUCKET` (inaczej błąd startu z nazwą zmiennej). Nowych plików sekretów nie ma, więc manifest `secrets.manifest.json` i `init-secrets` się nie zmieniają.
+- **Brak CORS:** przeglądarka pobiera ZIP przez zwykłe przejście do podpisanego linku (kotwica `download`), nie przez `fetch` — CSP `connect-src` i `MEDIA_BUCKET_ORIGIN` się nie zmieniają.
+- **Kolejność w sesji IaC:** `apply` modułu (bucket wraz z pozostałymi) → `bucket-verify.sh` z `MEDIA_EXPORT_BUCKET` (macierz kluczy × bucket eksportów) → dopiero potem zmienna w `compose.staging.yaml` i wdrożenie. Zmienna bez bucketu = błędy 503 przy eksporcie, nie awaria usługi.
 
 ## Czego tu nie ma
 Pobieranie i podgląd (EVM-045), miniatury i metadane (EVM-068), wideo (EVM-046), dokumenty (EVM-047), usuwanie (EVM-051).

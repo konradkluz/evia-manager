@@ -8,7 +8,8 @@
 #   deploy.sh from a fixed template (blue|green); the directory /etc/evia/caddy mounted read-only.
 # - postgres: data on the LUKS volume /srv/evia/pgdata; roles from postgres-init (evia_migrator, the API login).
 # - clamd on an internal network without egress; freshclam (the same image) updates the signatures with egress but is
-#   outside the network of the API (A6). The API joins evia-scan with EVM-044 (a change of the verifier configuration).
+#   outside the network of the worker (A6). The WORKER (the scan and the monitor of the signatures are its jobs; the API does not scan) joins evia-scan through the
+#   channel (EVM-084 K9: the canonical compose document of the verifier names the network; deploy.sh refuses to start unless it is internal); clamd never joins evia-runtime.
 #   The image is clamav/clamav-debian: the Alpine clamav/clamav is amd64-only and the VM is Arm64 (Hetzner CAX).
 # Secrets: the PostgreSQL superuser password as a file from /etc/evia/secrets (POSTGRES_PASSWORD_FILE).
 
@@ -135,7 +136,7 @@ networks:
           # Dynamic addresses only from the upper half, so that no container can take the fixed address of Caddy (.2) after a restart of
           # the VM (CWE-348: a container at .2 would become the trusted proxy of TRUSTED_PROXIES).
           ip_range: 172.30.10.128/25
-  # clamd without egress; the API joins it with EVM-044.
+  # clamd without egress; the worker joins it through the deployment channel (EVM-084 K9) - the network is created here, the channel only references it.
   evia-scan:
     name: evia-scan
     internal: true

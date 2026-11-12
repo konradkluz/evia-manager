@@ -264,6 +264,20 @@ export const BUCKET_POLICIES: Readonly<Record<string, Readonly<Record<string, re
     register_writer: ['s3:PutObject'],
     restore_reader: ['s3:GetObject', 's3:GetObjectVersion', 's3:ListBucket', 's3:ListBucketVersions'],
   },
+  // EVM-052: the ZIP exports. The API key only reads (a signed link is signed with it: GetObject; ListBucket makes a vanished object a 404, not a 403);
+  // the worker key builds the archive (a multipart upload: PutObject covers create, part and complete), checks it (HeadObject = GetObject) and removes it.
+  // The code of EVM-052 uses the credentials of the process for both buckets, so no new application exists: the policies of the two buckets split the keys.
+  exports_allow: {
+    media_app: ['s3:GetObject', 's3:ListBucket'],
+    media_worker: [
+      's3:PutObject',
+      's3:GetObject',
+      's3:DeleteObject',
+      's3:AbortMultipartUpload',
+      's3:ListMultipartUploadParts',
+      's3:ListBucket',
+    ],
+  },
   db_backup_allow: {
     backup_writer: [
       's3:PutObject',
@@ -364,10 +378,11 @@ export function bucketProblems(raw: string): string[] {
     'polityka IAM ograniczona do projektu staging',
   );
 
-  for (const name of ['media', 'register', 'db_backup']) {
+  for (const name of ['media', 'register', 'db_backup', 'exports']) {
     const body = bucket(name);
     need(body !== '', `bucket ${name}`);
-    need(/versioning\s*\{\s*enabled\s*=\s*true/.test(body), `${name}: wersjonowanie`);
+    // the exports are short-lived copies of originals (GPS): no versions, so that the one-day lifecycle really erases them (EVM-052)
+    if (name !== 'exports') need(/versioning\s*\{\s*enabled\s*=\s*true/.test(body), `${name}: wersjonowanie`);
     need(/force_destroy\s*=\s*false/.test(body), `${name}: force_destroy = false`);
     const sse = block(`resource "scaleway_object_bucket_server_side_encryption_configuration" "${name}"`);
     need(/sse_algorithm\s*=\s*"AES256"/.test(sse), `${name}: szyfrowanie SSE-ONE (AES256)`);
@@ -447,6 +462,23 @@ export function bucketProblems(raw: string): string[] {
     /media_worker\s*=\s*\[[^\]]*"ObjectStorageObjectsWrite"/.test(apps),
     'media_worker: zestaw uprawnień Write (zawężony polityką bucketu)',
   );
+
+  // EVM-052 (SR-DATA-07, SR-FILE-09): the bucket of the ZIP exports - no lock, no versions, no CORS (the browser follows a signed link), one day of life
+  const exportsBucket = bucket('exports');
+  need(
+    !/object_lock_enabled\s*=\s*true/.test(exportsBucket),
+    'exports: bez object lock (kopia oryginałów z GPS musi dać się usunąć po 24 h)',
+  );
+  need(!/versioning\s*\{\s*enabled\s*=\s*true/.test(exportsBucket), 'exports: bez wersjonowania');
+  need(!/cors_rule\s*\{/.test(exportsBucket), 'exports: bez CORS (pobranie przez link, nie fetch)');
+  need(
+    /id\s*=\s*"exports-expire"[\s\S]*?expiration\s*\{\s*days\s*=\s*1\b/.test(exportsBucket) &&
+      /abort_incomplete_multipart_upload_days\s*=\s*1\b/.test(exportsBucket),
+    'exports: wygasanie po 1 dniu i przerwanie multipart po 1 dniu',
+  );
+  need(!/lock_configuration"\s+"exports"/.test(content), 'exports: brak konfiguracji object lock');
+  // a multipart upload sends its parts without If-None-Match: a condition on s3:if-none-match would refuse the builder of the archive
+  need(!/s3:if-none-match/.test(policyOf('exports')), 'exports: bez warunku s3:if-none-match (UploadPart go nie wysyła)');
 
   // the register accepts only a conditional PutObject (no overwrite)
   need(
@@ -548,6 +580,7 @@ export const MATRIX_BUCKETS: Readonly<Record<string, string>> = Object.freeze({
   media: 'MEDIA_BUCKET',
   register: 'DELETION_REGISTER_BUCKET',
   db_backup: 'DB_BACKUP_BUCKET',
+  exports: 'MEDIA_EXPORT_BUCKET',
 });
 /** The prefix of the probe object per area. */
 export const MATRIX_AREAS: Readonly<Record<string, string>> = Object.freeze({

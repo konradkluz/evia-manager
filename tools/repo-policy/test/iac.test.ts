@@ -339,6 +339,99 @@ describe('Object Storage of staging (EVM-084 AC2; ADR-0009, ADR-0011; SR-INFRA-0
     expect(BUCKET_POLICIES['media_allow']?.['media_worker']).not.toContain('s3:PutObject');
   });
 
+  describe('the bucket of the ZIP exports (EVM-052: MEDIA_EXPORT_BUCKET; EVM-084 AC2)', () => {
+    const inExports = (field: RegExp | string, to: string): string => {
+      const header = 'resource "scaleway_object_bucket" "exports" {';
+      const start = storage.indexOf(header);
+      expect(start, 'the exports bucket exists').toBeGreaterThan(-1);
+      const end = storage.indexOf('\nresource ', start + header.length);
+      const body = storage.slice(start, end);
+      const changed = body.replace(field, to);
+      expect(changed, `mutation ${String(field)} changes the bucket`).not.toBe(body);
+      return storage.slice(0, start) + changed + storage.slice(end);
+    };
+    const policyWith = (from: string | RegExp, to: string): string => {
+      const header = 'resource "scaleway_object_bucket_policy" "exports" {';
+      const start = storage.indexOf(header);
+      expect(start, 'the exports policy exists').toBeGreaterThan(-1);
+      const end = storage.indexOf('\nresource ', start + header.length);
+      const rest = end === -1 ? storage.length : end;
+      const body = storage.slice(start, rest);
+      const changed = body.replace(from, to);
+      expect(changed, `mutation ${String(from)} changes the policy`).not.toBe(body);
+      return storage.slice(0, start) + changed + storage.slice(rest);
+    };
+
+    it('EVM-052 / EVM-084 AC2: the key of the API only reads (the signed link), the key of the worker writes, completes, aborts and removes — nobody else has a word', () => {
+      expect(BUCKET_POLICIES['exports_allow']).toEqual({
+        media_app: ['s3:GetObject', 's3:ListBucket'],
+        media_worker: [
+          's3:PutObject',
+          's3:GetObject',
+          's3:DeleteObject',
+          's3:AbortMultipartUpload',
+          's3:ListMultipartUploadParts',
+          's3:ListBucket',
+        ],
+      });
+      expect(bucketProblems(storage)).toEqual([]);
+      expect(storage).toMatch(/exports_bucket\s*=\s*"evia-staging-exports"/);
+    });
+
+    it('EVM-052 / EVM-084 AC2: no object lock, no versioning, no CORS (the browser follows a link, it does not fetch), a private bucket with SSE-ONE and force_destroy = false', () => {
+      expect(
+        bucketProblems(inExports(/force_destroy\s*=\s*false/, 'force_destroy = false\n  versioning {\n    enabled = true\n  }')),
+      ).not.toEqual([]);
+      expect(bucketProblems(inExports(/force_destroy\s*=\s*false/, 'force_destroy = false\n  object_lock_enabled = true'))).not.toEqual([]);
+      expect(
+        bucketProblems(
+          inExports(
+            /force_destroy\s*=\s*false/,
+            'force_destroy = false\n  cors_rule {\n    allowed_origins = ["https://x.example"]\n    allowed_methods = ["GET"]\n  }',
+          ),
+        ),
+      ).not.toEqual([]);
+      expect(bucketProblems(inExports(/force_destroy\s*=\s*false/, 'force_destroy = true'))).not.toEqual([]);
+      expect(
+        bucketProblems(swap(/(server_side_encryption_configuration" "exports" \{[\s\S]*?sse_algorithm = )"AES256"/, '$1"none"')),
+      ).not.toEqual([]);
+      expect(
+        bucketProblems(swap(/(resource "scaleway_object_bucket_acl" "exports" \{[\s\S]*?acl\s*=\s*)"private"/, '$1"public-read"')),
+      ).not.toEqual([]);
+      expect(storage).not.toMatch(/resource "scaleway_object_bucket_lock_configuration" "exports"/);
+    });
+
+    it('EVM-052 AC4 (SR-DATA-07): the lifecycle removes an object after one day and aborts a multipart upload after one day', () => {
+      expect(bucketProblems(inExports(/expiration\s*\{\s*days\s*=\s*1\b/, 'expiration {\n      days = 2'))).not.toEqual([]);
+      expect(
+        bucketProblems(inExports(/abort_incomplete_multipart_upload_days\s*=\s*1\b/, 'abort_incomplete_multipart_upload_days = 7')),
+      ).not.toEqual([]);
+      expect(bucketProblems(inExports(/id\s*=\s*"exports-expire"/, 'id = "other"'))).not.toEqual([]);
+    });
+
+    it('EVM-052 / EVM-084 AC2 (P4): the policy names the IaC application, denies the privileged actions and the other applications, and does not demand If-None-Match (a multipart part has no such header)', () => {
+      expect(bucketProblems(policyWith('Sid       = "DenyOtherApplications"', 'Sid       = "Skipped"'))).not.toEqual([]);
+      expect(bucketProblems(policyWith('Action    = local.privileged_actions', 'Action    = ["s3:PutBucketPolicy"]'))).not.toEqual([]);
+      expect(bucketProblems(policyWith('Sid       = "AllowIac"', 'Sid       = "AllowSomebody"'))).not.toEqual([]);
+      expect(bucketProblems(policyWith('Principal = { SCW = local.iac_principal }', 'Principal = { SCW = "*" }'))).not.toEqual([]);
+      expect(
+        bucketProblems(
+          policyWith(
+            'Sid       = "DenyPrivilegedForApplications"',
+            'Condition = { Null = { "s3:if-none-match" = "true" } }\n        Sid       = "DenyPrivilegedForApplications"',
+          ),
+        ),
+      ).not.toEqual([]);
+      expect(
+        bucketProblems(storage.replace('exports_allow = {', 'exports_allow = {\n    media_backup_reader = ["s3:GetObject"]')),
+      ).not.toEqual([]);
+    });
+
+    it('EVM-052 / EVM-084 AC2: the buckets output lists the exports bucket (the runtime configuration reads the name from there)', () => {
+      expect(storage).toMatch(/output "buckets"[\s\S]*exports\s*=\s*scaleway_object_bucket\.exports\.name/);
+    });
+  });
+
   it('EVM-084 AC2 (P1): a bucket or provider outside pl-waw is refused', () => {
     expect(bucketProblems(swap('default     = "pl-waw"', 'default     = "fr-par"'))).not.toEqual([]);
     expect(bucketProblems(swap('contains(["pl-waw"], var.region)', 'contains(["pl-waw", "fr-par"], var.region)'))).not.toEqual([]);
@@ -497,7 +590,7 @@ describe('EVM-084 AC2: the matrix key × bucket (one source of truth for bucket-
       'restore_orchestrator',
       'restore_reader',
     ]);
-    expect(rows).toHaveLength(7 * (3 * 4 + 3));
+    expect(rows).toHaveLength(7 * (4 * 4 + 3));
     for (const key of Object.keys(APPLICATION_KEYS))
       for (const bucket of Object.keys(MATRIX_BUCKETS))
         for (const operation of Object.keys(MATRIX_OPERATIONS))
@@ -541,6 +634,18 @@ describe('EVM-084 AC2: the matrix key × bucket (one source of truth for bucket-
     expect(matrixAllows('backup_writer', 'media', 'any', 'get')).toBe(false);
     expect(matrixAllows('unknown_key', 'media', 'any', 'get')).toBe(false);
     expect(matrixAllows('media_app', 'media', 'any', 'unknown_operation')).toBe(false);
+  });
+
+  it('EVM-052 / EVM-084 AC2: the exports bucket in the matrix — the API key reads, the worker key writes and removes, every other key is refused', () => {
+    expect(MATRIX_BUCKETS['exports']).toBe('MEDIA_EXPORT_BUCKET');
+    expect(matrixAllows('media_app', 'exports', 'any', 'get')).toBe(true);
+    expect(matrixAllows('media_app', 'exports', 'any', 'put')).toBe(false);
+    expect(matrixAllows('media_app', 'exports', 'any', 'delete')).toBe(false);
+    expect(matrixAllows('media_worker', 'exports', 'any', 'put')).toBe(true);
+    expect(matrixAllows('media_worker', 'exports', 'any', 'delete')).toBe(true);
+    for (const key of ['media_backup_reader', 'register_writer', 'backup_writer', 'restore_reader', 'restore_orchestrator'])
+      for (const operation of Object.keys(MATRIX_OPERATIONS))
+        expect(matrixAllows(key, 'exports', 'any', operation), `${key} ${operation}`).toBe(false);
   });
 });
 

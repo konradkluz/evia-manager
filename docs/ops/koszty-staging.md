@@ -6,7 +6,7 @@
 | Pozycja | Dostawca / plan | zł/mies. | Uwagi |
 |---|---|---|---|
 | VM (CAX11) i wolumen 10 GB | Hetzner | ok. 34,7 | CAX21: ok. 58,9 zł (EVM-007) |
-| Obiekty: baza (kopie, object lock), media, rejestr usunięć, stan OpenTofu | Scaleway Object Storage `pl-waw` | wg zużycia, rząd kilku zł | cennik za GB; dane syntetyczne, małe wolumeny; potwierdzić w sesji IaC |
+| Obiekty: baza (kopie, object lock), media, rejestr usunięć, eksporty ZIP (EVM-052, wygasają po 1 dniu), stan OpenTofu | Scaleway Object Storage `pl-waw` | wg zużycia, rząd kilku zł | cennik za GB; dane syntetyczne, małe wolumeny; potwierdzić w sesji IaC |
 | Kopia mediów | Hetzner Storage Box | zgodnie z wybranym wariantem (EVM-084) | kwota po wyborze rozmiaru w sesji IaC |
 | E-mail transakcyjny | Scaleway TEM Essential | 0 do 300 e-maili/mies. | potem 0,25 EUR za 1000 |
 | Test odtworzenia | Hetzner, tymczasowa VM cax11 | poniżej 2 | zasoby usuwane po teście; sprzątacz co godzinę |

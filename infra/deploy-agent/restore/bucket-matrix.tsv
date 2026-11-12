@@ -11,6 +11,7 @@ key	restore_orchestrator	RESTORE_ORCH_ACCESS_KEY_ID	restore-orchestrator-s3-secr
 bucket	media	MEDIA_BUCKET
 bucket	register	DELETION_REGISTER_BUCKET
 bucket	db_backup	DB_BACKUP_BUCKET
+bucket	exports	MEDIA_EXPORT_BUCKET
 area	any	verify-probes/
 area	repo	pgbackrest/verify-probes/
 area	results	restore-results/verify-probes/
@@ -29,6 +30,10 @@ row	media_app	db_backup	repo	delete	deny
 row	media_app	db_backup	results	put	deny
 row	media_app	db_backup	results	get	deny
 row	media_app	db_backup	results	delete	deny
+row	media_app	exports	-	list	allow
+row	media_app	exports	any	put	deny
+row	media_app	exports	any	get	allow
+row	media_app	exports	any	delete	deny
 row	media_worker	media	-	list	allow
 row	media_worker	media	any	put	deny
 row	media_worker	media	any	get	allow
@@ -44,6 +49,10 @@ row	media_worker	db_backup	repo	delete	deny
 row	media_worker	db_backup	results	put	deny
 row	media_worker	db_backup	results	get	deny
 row	media_worker	db_backup	results	delete	deny
+row	media_worker	exports	-	list	allow
+row	media_worker	exports	any	put	allow
+row	media_worker	exports	any	get	allow
+row	media_worker	exports	any	delete	allow
 row	media_backup_reader	media	-	list	allow
 row	media_backup_reader	media	any	put	deny
 row	media_backup_reader	media	any	get	allow
@@ -59,6 +68,10 @@ row	media_backup_reader	db_backup	repo	delete	deny
 row	media_backup_reader	db_backup	results	put	deny
 row	media_backup_reader	db_backup	results	get	deny
 row	media_backup_reader	db_backup	results	delete	deny
+row	media_backup_reader	exports	-	list	deny
+row	media_backup_reader	exports	any	put	deny
+row	media_backup_reader	exports	any	get	deny
+row	media_backup_reader	exports	any	delete	deny
 row	register_writer	media	-	list	deny
 row	register_writer	media	any	put	deny
 row	register_writer	media	any	get	deny
@@ -74,6 +87,10 @@ row	register_writer	db_backup	repo	delete	deny
 row	register_writer	db_backup	results	put	deny
 row	register_writer	db_backup	results	get	deny
 row	register_writer	db_backup	results	delete	deny
+row	register_writer	exports	-	list	deny
+row	register_writer	exports	any	put	deny
+row	register_writer	exports	any	get	deny
+row	register_writer	exports	any	delete	deny
 row	backup_writer	media	-	list	deny
 row	backup_writer	media	any	put	deny
 row	backup_writer	media	any	get	deny
@@ -89,6 +106,10 @@ row	backup_writer	db_backup	repo	delete	allow
 row	backup_writer	db_backup	results	put	allow
 row	backup_writer	db_backup	results	get	allow
 row	backup_writer	db_backup	results	delete	allow
+row	backup_writer	exports	-	list	deny
+row	backup_writer	exports	any	put	deny
+row	backup_writer	exports	any	get	deny
+row	backup_writer	exports	any	delete	deny
 row	restore_reader	media	-	list	deny
 row	restore_reader	media	any	put	deny
 row	restore_reader	media	any	get	deny
@@ -104,6 +125,10 @@ row	restore_reader	db_backup	repo	delete	deny
 row	restore_reader	db_backup	results	put	deny
 row	restore_reader	db_backup	results	get	allow
 row	restore_reader	db_backup	results	delete	deny
+row	restore_reader	exports	-	list	deny
+row	restore_reader	exports	any	put	deny
+row	restore_reader	exports	any	get	deny
+row	restore_reader	exports	any	delete	deny
 row	restore_orchestrator	media	-	list	deny
 row	restore_orchestrator	media	any	put	deny
 row	restore_orchestrator	media	any	get	deny
@@ -119,3 +144,7 @@ row	restore_orchestrator	db_backup	repo	delete	deny
 row	restore_orchestrator	db_backup	results	put	allow
 row	restore_orchestrator	db_backup	results	get	allow
 row	restore_orchestrator	db_backup	results	delete	deny
+row	restore_orchestrator	exports	-	list	deny
+row	restore_orchestrator	exports	any	put	deny
+row	restore_orchestrator	exports	any	get	deny
+row	restore_orchestrator	exports	any	delete	deny
