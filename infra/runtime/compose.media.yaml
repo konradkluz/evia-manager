@@ -45,6 +45,8 @@ services:
     cpus: 2
     pids_limit: 256
     stop_grace_period: 10s
+    # EVM-085 AC2 (CAX11 variant A): the first candidate of the OOM killer (a preview or a scan is retried; the database and the edge go last).
+    oom_score_adj: 500
     healthcheck:
       test: ['CMD', '/usr/local/bin/node', 'src/healthcheck.ts']
       interval: 30s

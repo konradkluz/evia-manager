@@ -150,6 +150,35 @@ for name in "${!expiry[@]}"; do
   add "evia_token_expiry_timestamp_seconds{token=\"$name\"} ${expiry[$name]}"
 done
 
+# 6. Capacity of the host (EVM-085 AC2, CAX11 variant A): available memory, the OOM kill counter of the kernel (host and container limits), and for the file systems
+# that matter the presence of the mount and the share of used space. The files are the kernel's (EVIA_ROOT/proc in tests); every value must be digits or the run is
+# refused (CWE-117); the label `mount` comes from the closed list below. A work volume that is not mounted is reported as absent - never as the figures of the
+# file system underneath.
+meminfo="$ROOT/proc/meminfo"
+if [ -r "$meminfo" ]; then
+  available_kb="$(sed -n 's/^MemAvailable: *\([0-9]\{1,12\}\) kB$/\1/p' "$meminfo" | head -n 1)"
+  [[ "$available_kb" =~ ^[0-9]+$ ]] || fail "meminfo"
+  add "evia_host_memory_available_bytes $((available_kb * 1024))"
+fi
+vmstat="$ROOT/proc/vmstat"
+if [ -r "$vmstat" ]; then
+  oom_kills="$(sed -n 's/^oom_kill \([0-9]\{1,15\}\)$/\1/p' "$vmstat" | head -n 1)"
+  [[ "$oom_kills" =~ ^[0-9]+$ ]] || fail "vmstat"
+  add "evia_host_oom_kills_total $oom_kills"
+fi
+for entry in root:/ pgdata:/srv/evia/pgdata media_video:/var/lib/evia/media-video clamav_scan:/var/lib/evia/clamav-scan; do
+  mount_name="${entry%%:*}"
+  mount_target="$ROOT${entry#*:}"
+  if mountpoint -q -- "$mount_target" 2> /dev/null; then
+    add "evia_host_mount_present{mount=\"$mount_name\"} 1"
+    read -r used_bytes total_bytes < <(df -B1 --output=used,size -- "$mount_target" | tail -n 1)
+    [[ "$used_bytes" =~ ^[0-9]+$ && "$total_bytes" =~ ^[0-9]+$ && "$total_bytes" -gt 0 ]] || fail "df of $mount_name"
+    add "evia_host_filesystem_used_ratio{mount=\"$mount_name\"} $(awk -v u="$used_bytes" -v t="$total_bytes" 'BEGIN { printf "%.4f", u / t }')"
+  else
+    add "evia_host_mount_present{mount=\"$mount_name\"} 0"
+  fi
+done
+
 # Write: tmp + mv in the same directory (atomic), 0644 in a 0755 directory; the lines are sorted for a stable file.
 install -d -m 0755 -- "$OUT_DIR"
 {

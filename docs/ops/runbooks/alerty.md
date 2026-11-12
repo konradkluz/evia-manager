@@ -65,6 +65,30 @@ Test dostarczenia e-maila wykonywany w sesji IaC: na VM staging zapisz do katalo
 - **Eskalacja:** `restore-sweep-refused` (zła wartownicza/obcy zasób) → sprawdź token i projekt, nic nie usuwaj ręcznie bez analizy.
 - **Test:** wpisz `evia_restore_sweeper_last_deleted 2`.
 
+## EviaHostMemoryLow
+- **Znaczenie:** dostępna pamięć VM (`MemAvailable`) jest poniżej 400 MB (419430400 B) przez 5 minut — staging (CAX11, 4 GB) nie ma zapasu (wariant A, decyzja Konrada 2026-11-12). Metryka `evia_host_memory_available_bytes` z `metrics.sh` (co minutę).
+- **Pierwsza reakcja:** `free -m`, `docker stats --no-stream` (kto zajmuje: `clamd` ok. 1,3 GB, procesor do 2 GB przy filmie, drugi kolor podczas wdrożenia); czy trwa przeładowanie sygnatur, transkodowanie filmu albo wdrożenie — jeśli tak, poczekaj do końca i obserwuj; `journalctl -k | grep -i oom`.
+- **Eskalacja:** próg przejścia na CAX21 — `MemAvailable` < 400 MB przez 5 minut **w stanie ustalonym** (bez wdrożenia i bez filmu) albo którykolwiek `EviaHostOomKill`. **Decyzja o zmianie typu VM należy do Konrada** (zmiana w miejscu z restartem, nieodwracalna: dysk rośnie do 80 GB; ok. +24 zł/mies., [wdrożenie](wdrozenie-staging.md) „Typ serwera”) — nic nie zmienia się automatycznie. Tymczasowo: odłóż wdrożenie i film.
+- **Test:** wpisz `evia_host_memory_available_bytes 300000000` na 6 minut.
+
+## EviaHostOomKill
+- **Znaczenie:** jądro zabiło proces z braku pamięci w ostatnich 15 minutach (licznik `oom_kill` z `/proc/vmstat`: limit pamięci kontenera albo OOM hosta).
+- **Pierwsza reakcja:** `journalctl -k --since "-30min" | grep -i -B2 -A8 "killed process"` — który proces; kontener z własnym limitem (`api` 768m, `worker` 512m, procesor 2048m) czy host. Zabity `clamd` lub procesor = skan lub podgląd ponowione (skan odmowny, nic nie jest `clean` bez skanu); zabity `postgres` (`oom_score_adj` −500 ma temu zapobiegać) = sprawdź odtwarzanie i `docker compose … ps`.
+- **Eskalacja:** host OOM, a nie limit kontenera, albo powtórzenie w 24 h → **decyzja Konrada o CAX21** (próg: patrz `EviaHostMemoryLow`). Limit kontenera: oceń limit z historyjki procesu, nie zmieniaj go bez decyzji.
+- **Test:** wpisz `evia_host_oom_kills_total` rosnące z 0 do 1.
+
+## EviaHostDiskFull
+- **Znaczenie:** system plików (`mount` = `root`, `pgdata`, `media_video` albo `clamav_scan`) jest zajęty ponad 80% przez 10 minut. Dla `media_video` i `clamav_scan` to limit wolumenu roboczego (rozmiar systemu plików = quota, [media-processor](media-processor.md) „Montaże dm-crypt”).
+- **Pierwsza reakcja:** `df -h`, `docker system df` (obrazy), `journalctl --disk-usage` (limit 1 GB); dla `media_video` — katalogi zadań są sprzątane po zadaniu i przy starcie workera, długie zajęcie = zawieszony film (metryka `media_video_workarea_full_total`); dla `root` — `docker image prune` obrazów starszych niż 3 wydania i cache budowy (`docker builder prune`).
+- **Eskalacja:** `pgdata` > 80% → zwiększ wolumen (decyzja Konrada, nie usuwaj danych); `root` nadal > 80% po sprzątaniu → decyzja o większym dysku (CAX21: 80 GB).
+- **Test:** wpisz `evia_host_filesystem_used_ratio{mount="root"} 0.85` na 11 minut.
+
+## EviaHostMountMissing
+- **Znaczenie:** wymagany montaż (`root`, `pgdata`, `media_video`, `clamav_scan`) nie jest punktem montowania — `media_video` i `clamav_scan` to zaszyfrowane wolumeny robocze; bez nich `deploy.sh` odmawia wdrożenia, a `clamd` nie startuje (skan odmowny).
+- **Pierwsza reakcja:** `findmnt /var/lib/evia/media-video /var/lib/evia/clamav-scan /srv/evia/pgdata`, `systemctl status evia-work-volumes.service`, `lsblk -o NAME,TYPE,MOUNTPOINT`; wolumen odłączony w konsoli Hetzner? Nie twórz katalogów zamiast montażu (`chattr +i` na punktach montowania ma temu zapobiegać).
+- **Eskalacja:** montaż nie wraca po restarcie `evia-work-volumes.service` → zgłoś Konradowi; nie omijaj kontroli w `deploy.sh`.
+- **Test:** wpisz `evia_host_mount_present{mount="clamav_scan"} 0` na 6 minut.
+
 ## EviaGrafanaUsageHigh
 - **Znaczenie:** zużycie limitów darmowej Grafany (serie lub objętość logów) przekroczyło 80%. Limit Sentry: powiadomienie o limicie ustawione w Sentry (osobny e-mail) oraz spike protection.
 - **Pierwsza reakcja:** zobacz, która usługa wysyła najwięcej (`sum by (service)` w Grafanie), zwiększ filtrowanie w `pipeline.alloy` lub obniż limit szybkości.

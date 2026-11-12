@@ -20,6 +20,15 @@ restore_test_max_age_seconds: 3024000
 restore_rpo_max_seconds: 900
 sweeper_max_silence_seconds: 10800
 
+# Capacity of the host (EVM-085 AC2; CAX11 variant A, decision of Konrad 2026-11-12). The memory threshold and the OOM kill are the signal to DECIDE on CAX21
+# (docs/ops/runbooks/alerty.md): the owner decides, nothing resizes the VM by itself.
+host_mem_available_min_bytes: 419430400
+host_mem_for: 5m
+host_oom_window: 15m
+host_disk_used_ratio_max: 0.8
+host_disk_for: 10m
+host_mount_for: 5m
+
 # Missing data (the check that the alerts themselves work)
 no_data_for: 15m
 

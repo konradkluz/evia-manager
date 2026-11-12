@@ -27,6 +27,7 @@ const AC2_ITEMS = [
   'restore-resources',
   'no-data',
   'usage-limits',
+  'host-capacity',
 ];
 
 describe('EVM-085 AC2 rules', () => {
@@ -98,9 +99,9 @@ describe('EVM-085 AC8 runbook', () => {
 });
 
 describe('EVM-085 AC2 notifications carry no log content (security A14)', () => {
-  it('EVM-085 AC2 annotations use only env, alertCode and token labels', () => {
+  it('EVM-085 AC2 annotations use only env, alertCode, token and mount labels (closed sets: metrics.sh)', () => {
     for (const match of rules.matchAll(/\{\{\s*([^}]*?)\s*\}\}/gu)) {
-      assert.match(match[1] ?? '', /^\$labels\.(env|alertCode|token)$/u, match[0]);
+      assert.match(match[1] ?? '', /^\$labels\.(env|alertCode|token|mount)$/u, match[0]);
     }
     assert.doesNotMatch(rules, /\$value|\$externalLabels|\.Labels|humanize/u);
   });
