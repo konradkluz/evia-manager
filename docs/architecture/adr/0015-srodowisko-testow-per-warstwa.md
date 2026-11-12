@@ -2,6 +2,7 @@
 
 - **Status:** Zaakceptowana (Konrad, 2026-10-03)
 - **Częściowo zastąpiona przez:** [ADR-0016](0016-github-free-ochrona-main-kontrole-kompensujace.md) (2026-10-04) — zakres: „Po EVM-006” p. 10 — joby backendu w CI uruchamiamy tym samym poleceniem co lokalnie (`docker compose -f compose.yaml run --rm backend-tests …`), a nie przez `container:`.
+- **Adnotacja 2026-11-12:** [bramka lokalna tylko natywna](#adnotacja-2026-11-12--bramka-lokalna-tylko-natywna) — testy backendu w kontenerze Linux i integracyjne z PostgreSQL wykonuje CI (wymagany `ci-gate`, [ADR-0022](0022-publiczne-repozytorium-ochrona-main-atestacje-runnery-arm64.md)); pełna bramka z kontenerami lokalnie na żądanie. Sekrety Sentry nieaktualne ([ADR-0013](0013-obserwowalnosc.md#aktualizacja-2026-11-12--rezygnacja-z-sentry)).
 - **Data:** 2026-10-03
 - **Decydent:** Konrad (akceptacja) · **Autor:** solution-architect
 - **Powiązane:** EVM-005, EVM-006, EVM-009, EVM-011, EVM-012, EVM-013; ADR-0002, ADR-0007, ADR-0011 (częściowo zastępuje), ADR-0012, ADR-0014 (częściowo zastępuje); `docs/process/testing-strategy.md`, `docs/security/README.md`
@@ -86,7 +87,7 @@ Pytania otwarte wersji 2 — rozstrzygnięte:
 
 | Warstwa / bramka | Dowód lokalny (raport agenta, DoD) | CI Linux (bramka merge) | Uwagi |
 |---|---|---|---|
-| **Backend**: API, worker, media-processor, migracje — jednostkowe, integracyjne (PostgreSQL, S3, ClamAV), kontraktowe, macierz ról, uprawnienia bazy | **tylko kontener Linux** (`docker compose -f compose.yaml run --rm backend-tests …`, od EVM-006). Wynik natywny na Windows **nie jest dowodem** | tak | nowe skrypty backendu piszemy tylko pod Linuksa |
+| **Backend**: API, worker, media-processor, migracje — jednostkowe, integracyjne (PostgreSQL, S3, ClamAV), kontraktowe, macierz ról, uprawnienia bazy | **tylko kontener Linux** (`docker compose -f compose.yaml run --rm backend-tests …`, od EVM-006). Wynik natywny na Windows **nie jest dowodem** | tak | nowe skrypty backendu piszemy tylko pod Linuksa; _adnotacja 2026-11-12: dowodem jest CI Linux, kontener lokalnie na żądanie (niżej)_ |
 | Pakiety współdzielone (kontrakt, `sync-core`, tokeny, typy generowane) | natywnie na Windows | tak | wykonywane też pośrednio w testach backendu w kontenerze |
 | Format, lint, typy, granice modułów, kontrakt (Redocly, oasdiff, regeneracja klientów) | natywnie na Windows | tak | determinizm generowanego kodu zapewnia `.gitattributes` (`eol=lf`) |
 | **Web**: Vitest (jednostkowe, komponentowe z axe), Playwright E2E | **natywnie na Windows, w przeglądarkach biura:** Chromium/Chrome, **Edge** (kanał `msedge`), Firefox | tak — dodatkowa bramka (Chromium, Firefox, WebKit na Linuksie) | WebKit (Safari) tylko w CI Linux. **Testy zrzutów ekranu** (`toHaveScreenshot`) — wzorce generowane i porównywane wyłącznie w CI Linux / obrazie Playwright (renderowanie różni się między systemami); lokalnie na Windows — tylko asercje funkcjonalne i a11y. Job Windows w CI — patrz „E2E web na runnerze Windows w CI” |
@@ -104,6 +105,14 @@ Zasady:
 3. Jedna komenda bramki lokalnej (ADR-0012) zostaje: na hoście, a część backendowa deleguje do kontenera (`docker compose -f compose.yaml run --rm backend-tests …`) — szczegóły EVM-006.
 4. Do merge potrzebne są oba wyniki: dowód lokalny właściwy dla warstwy **i** zielone CI Linux. Rozbieżność (lokalnie zielone, CI czerwone lub odwrotnie) to błąd do wyjaśnienia, nie do pominięcia — dla backendu rozstrzyga Linux, dla web nie wolno „naprawić” testu tak, by przestał sprawdzać zachowanie w przeglądarkach Windows.
 
+#### Adnotacja 2026-11-12 — bramka lokalna tylko natywna
+**Status:** decyzja Tech Leada z delegacji Konrada („tanio, szybko, bezpiecznie”, 2026-11-12; EVM-085 — uproszczenia).
+- **Lokalnie (dowód w raporcie agenta i DoD):** wyłącznie natywnie — format, lint, typy, testy z pokryciem natywnie, granice modułów, walidator dokumentacji; web i mobile bez zmian (przeglądarki biura, emulator).
+- **Testy backendu w kontenerze Linux i integracyjne z PostgreSQL** wykonuje **CI** (runnery Linux, minuty bezpłatne w repozytorium publicznym); `ci-gate` jest **wymaganym statusem rulesetu `main`** ([ADR-0022](0022-publiczne-repozytorium-ochrona-main-atestacje-runnery-arm64.md)), więc to twarda bramka scalania. Dla backendu dowodem rozstrzygającym jest wynik CI Linux — parytet z platformą docelową (motywacja Konrada, cytat 2) zostaje zachowany.
+- **Pełna bramka z kontenerami** (`backend-tests`, `gate:integration`) — lokalnie **na żądanie**, np. do diagnozy rozbieżności, debugowania testu backendu albo gdy CI nie daje dość informacji.
+- Zasada 3 (jedna komenda bramki) obowiązuje dla części natywnej; zasada 4 — dla backendu „dowód lokalny” zastępuje zielony wynik CI dla HEAD gałęzi. **Rozbieżność lokalnie/CI nadal wyjaśniamy, nie pomijamy.**
+- Polecenia (`CLAUDE.md` → „Stack i komendy”, `docs/process/`) aktualizują właściciele tych dokumentów.
+
 ### E2E web na runnerze Windows w CI — ocena
 - Koszt (GitHub Actions, cennik 2026): runner Windows 2-core 0,010 USD/min vs Linux 0,006 USD/min (≈ 1,7×); dokumentacja GitHub po zmianie cennika ze stycznia 2026 nie publikuje już mnożnika zużycia minut wliczonych (historycznie Windows ×2) — do planowania przyjmujemy ostrożnie ×2 względem puli 3000 min/mies. (GitHub Pro). Przebieg E2E web na Windows: szacunkowo 8–15 min (instalacja zależności i przeglądarek + testy), czyli 16–30 min puli na przebieg.
 - Wartość: dubluje dowód lokalny (Windows + Chrome/Edge/Firefox), który i tak jest wymagany w DoD; zyskiem byłaby tylko powtarzalność na czystej maszynie i Edge w CI.
@@ -120,7 +129,7 @@ Decyzja Konrada (2026-10-03): „Android w CI nie jest na razie potrzebny.” Do
 - Zmiana `.claude/settings.json` wymaga **osobnej zgody Konrada** — udzielonej 2026-10-03 dla `deny`/`ask` (lista zmian po akceptacji, pozycja 9); reguły `allow` dla `backend-tests` — w EVM-006.
 
 ### Sekrety (M2) — zasada (obowiązuje od 2026-10-03, odpowiedź 3)
-- Sekrety usług zewnętrznych (EAS, GitHub, Scaleway, Sentry, Grafana Cloud, konta Apple/Google) **nigdy w katalogu repozytorium** — w menedżerze sekretów albo poza repo (np. `%USERPROFILE%\.evia\`). W repo (ignorowane przez git) wyłącznie syntetyczne sekrety dev (hasło lokalnego PostgreSQL itp.).
+- Sekrety usług zewnętrznych (EAS, GitHub, Scaleway, Sentry — _wycofany 2026-11-12, ADR-0013_, Grafana Cloud, konta Apple/Google) **nigdy w katalogu repozytorium** — w menedżerze sekretów albo poza repo (np. `%USERPROFILE%\.evia\`). W repo (ignorowane przez git) wyłącznie syntetyczne sekrety dev (hasło lokalnego PostgreSQL itp.).
 - Obrona w głąb w kontenerze: zamiast masek (nie działają w montażu `:ro`, gdy cel nie istnieje — sprawdzone) montujemy **listę dozwolonych ścieżek** (np. `apps/api`, `apps/worker`, `packages`, manifesty i lockfile), bez katalogu głównego z plikami lokalnymi; konfiguracja dev przez `environment:` z wartościami syntetycznymi w `compose.yaml`, nie przez `.env` z hosta. Własny Dockerfile → `.dockerignore` (m.in. `.env*`, `secrets/`, `.git`, `.claude`, `.idea`).
 
 ### Uruchamianie lokalnie — na teraz (przed EVM-006)

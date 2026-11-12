@@ -18,10 +18,10 @@
 | Media | Scaleway Object Storage (Warszawa), multipart z podpisanymi URL-ami, ClamAV, izolowane przetwarzanie | [0009](adr/0009-storage-i-przetwarzanie-mediow.md) |
 | Zadania w tle | pg-boss w PostgreSQL | [0010](adr/0010-zadania-w-tle-pg-boss.md) |
 | Hosting | Hetzner (VM, Niemcy) + Scaleway (storage, backupy, e-mail) + Storage Box (kopia mediów) | [0011](adr/0011-hosting-i-srodowiska-ue.md) |
-| CI/CD | GitHub Actions, pnpm + Turborepo, EAS Build (iOS bez Maca); GitHub Free z kontrolami kompensującymi, zizmor i actionlint; wdrożenia pull z weryfikacją na VM, zero sekretów w GitHubie (2026-10-13) | [0012](adr/0012-ci-cd-monorepo-narzedzia-jakosci.md), [0016](adr/0016-github-free-ochrona-main-kontrole-kompensujace.md), [0018](adr/0018-wdrozenia-pull-z-weryfikacja-na-vm-github-free.md) |
-| Obserwowalność | Grafana Cloud (UE) + Sentry (UE), redakcja danych osobowych | [0013](adr/0013-obserwowalnosc.md) |
+| CI/CD | GitHub Actions, pnpm + Turborepo, EAS Build (iOS bez Maca); GitHub Free z kontrolami kompensującymi, zizmor i actionlint; wdrożenia pull z weryfikacją na VM, zero sekretów w GitHubie (2026-10-13); od 2026-11-12 repozytorium publiczne z rulesetem `main` (wymagany `ci-gate`) zamiast kontroli K6, atestacje pochodzenia, runnery `ubuntu-24.04-arm` | [0012](adr/0012-ci-cd-monorepo-narzedzia-jakosci.md), [0016](adr/0016-github-free-ochrona-main-kontrole-kompensujace.md), [0018](adr/0018-wdrozenia-pull-z-weryfikacja-na-vm-github-free.md), [0022](adr/0022-publiczne-repozytorium-ochrona-main-atestacje-runnery-arm64.md) |
+| Obserwowalność | Grafana Cloud (UE), redakcja danych osobowych; błędy API przez logi → Loki z alertem; Sentry wycofany 2026-11-12 (panel i aplikacja bez zewnętrznego raportowania błędów w MVP) | [0013](adr/0013-obserwowalnosc.md) |
 | Testy | Vitest, Testcontainers, macierz ról z kontraktu, Playwright, Maestro | [0014](adr/0014-narzedzia-testowe.md) |
-| Środowisko testów | Per warstwa: backend w kontenerach Linux, web w przeglądarkach na Windows, mobile i E2E Android na emulatorze Windows, narzędzia natywnie; CI Linux jako dodatkowa bramka (bez emulatora); iOS odłożony | [0015](adr/0015-srodowisko-testow-per-warstwa.md) |
+| Środowisko testów | Per warstwa: backend w kontenerach Linux, web w przeglądarkach na Windows, mobile i E2E Android na emulatorze Windows, narzędzia natywnie; CI Linux jako dodatkowa bramka (bez emulatora); iOS odłożony; od 2026-11-12 lokalnie tylko natywnie — testy backendu w kontenerze i integracyjne wykonuje CI (kontenery lokalnie na żądanie) | [0015](adr/0015-srodowisko-testow-per-warstwa.md) |
 
 **Dlaczego tak:** jeden język (TypeScript) w backendzie, panelu i aplikacji mobilnej — wspólny kontrakt i logika synchronizacji, mniej błędów, szybsza praca agentów. Sprawdzona („nudna”) technologia z dojrzałymi narzędziami testowymi. Jedna maszyna i jedna baza zamiast wielu usług — tanio i prosto. Dane klientów u firm z UE (Niemcy, Francja; storage w Warszawie). Upload dużych filmów w tle przez mechanizmy systemu (iOS URLSession, Android UIDT); ryzyko sprawdzamy w spike'u EVM-011 przed M2.
 
@@ -31,7 +31,7 @@
 1. **Upload w tle w React Native** opiera się na bibliotece społeczności lub własnym module natywnym → spike EVM-011; plan B: własny moduł Expo, w ostateczności Flutter.
 2. **Koszt mediów po 2 latach** (3 TB + kopia zapasowa ≈ 266 zł/mies. samego storage'u i backupu) → lifecycle (Glacier), limit jakości wideo w aplikacji.
 3. **Samodzielnie utrzymywany PostgreSQL** (aktualizacje, backup, szyfrowanie LUKS) → automatyzacja i testy odtworzenia (EVM-007); alternatywa: baza zarządzana (wariant B, ≈ 458 zł).
-4. **Podprocesorzy spoza UE** (Sentry, Grafana Labs, GitHub, Expo, Apple, Google — bez danych klientów w treści, telemetria po redakcji w regionach UE) → ryzyko rezydualne CLOUD Act do akceptacji w EVM-005.
+4. **Podprocesorzy spoza UE** (Sentry — wycofany 2026-11-12, Grafana Labs, GitHub, Expo, Apple, Google — bez danych klientów w treści, telemetria po redakcji w regionach UE) → ryzyko rezydualne CLOUD Act do akceptacji w EVM-005.
 5. **Podwyżki cen dostawców** (w 2026 r. Hetzner dwukrotnie, Scaleway, OVHcloud) → rezerwa budżetu, przenośność (Docker, PostgreSQL, S3, IaC).
 
 **Decyzje Konrada (2026-10-02, demo EVM-001)**
@@ -68,7 +68,7 @@ flowchart LR
   sys["EVia Manager<br/>panel web + aplikacja mobilna + API"]
   storage["Scaleway<br/>object storage, e-mail transakcyjny"]
   stores["Apple TestFlight / App Store<br/>Google Play"]
-  telemetry["Sentry i Grafana Cloud<br/>regiony UE"]
+  telemetry["Grafana Cloud<br/>region UE"]
   hibp["Pwned Passwords<br/>k-anonimowość"]
   devs["GitHub, Expo EAS<br/>kod, CI, buildy"]
   future["Przyszłe integracje<br/>system fakturowy KSeF, e-mail, kalendarz"]
@@ -76,7 +76,7 @@ flowchart LR
   tech -->|"zdjęcia, filmy, wpisy offline"| sys
   sys -->|"media, dokumenty, backupy"| storage
   storage -->|"zaproszenia, reset hasła"| office
-  sys -->|"błędy i logi po redakcji"| telemetry
+  sys -->|"logi i metryki po redakcji"| telemetry
   sys -->|"sprawdzenie hasła z wycieków"| hibp
   devs -->|"buildy aplikacji"| stores
   stores -->|"instalacja aplikacji"| tech
@@ -111,7 +111,6 @@ flowchart TB
     box[("Hetzner Storage Box FI<br/>kopia mediów, rclone crypt")]
   end
   subgraph TB6["Dostawcy spoza UE z regionem UE"]
-    sentry["Sentry UE"]
     grafana["Grafana Cloud UE"]
   end
   spa -->|"HTTPS /api, ciasteczko sesji [DO]"| proxy
@@ -129,11 +128,11 @@ flowchart TB
   worker -->|"e-mail [DO]"| tem
   db -.->|"pgBackRest WAL i backupy, szyfrowane [DO]"| s3
   worker -.->|"rclone sync nocą, szyfrowane [M]"| box
-  api -.->|"błędy [T]"| sentry
-  mobile -.->|"błędy [T]"| sentry
-  spa -.->|"błędy [T]"| sentry
+  api -.->|"logi, w tym błędy, przez Alloy [T]"| grafana
   worker -.->|"logi i metryki przez Alloy [T]"| grafana
 ```
+
+> **Adnotacja 2026-11-12 ([ADR-0013](adr/0013-obserwowalnosc.md#aktualizacja-2026-11-12--rezygnacja-z-sentry)):** Sentry usunięty z diagramów — błędy API trafiają do Grafana Cloud jako logi (Alloy), panel i aplikacja mobilna nie wysyłają raportów błędów w MVP.
 
 > **Stan realizacji workera (EVM-034, 2026-10-12).** Węzeł `worker` jest zrealizowany minimalnie: proces `node dist/src/worker.js` (ten sam obraz co API, bez HTTP i bez migracji, rola `evia_app`, `platform/jobs` z interfejsem `JobQueue` i adapterem pg-boss 12.35.1, schemat `pgboss` tworzony migracją `0024`) wykonuje jedno zadanie — `overview.verify-projection`, nocny `verify` projekcji listy zleceń (03:30 `Europe/Warsaw`, ADR-0017 W11). Lokalnie to usługa `worker` w `compose.dev.yaml`; wdrożenie na staging i produkcję (obraz, usługa) — EVM-076. EVM-024 rozszerza ten sam proces: kolejka `email`, transakcyjne `send` w jednej transakcji ze zmianą domenową, polityka ponowień i kolejki martwych listów per kolejka, healthcheck workera, ewentualnie `WorkerModule` z konfiguracją bez kluczy HTTP. Eksporter metryk — EVM-007.
 
@@ -291,6 +290,8 @@ Wartości bezpieczeństwa są propozycją do potwierdzenia polityk w EVM-005.
 
 > **Adnotacja 2026-10-13 ([ADR-0018](adr/0018-wdrozenia-pull-z-weryfikacja-na-vm-github-free.md) — Zaakceptowana):** **GitHub Free potwierdzony** (ADR-0016 zaakceptowany 2026-10-04; 2026-10-13 Konrad ponownie odrzucił Pro) — pozycja „Repozytorium i CI” = **0 zł** (pula 2000 min Actions, limit wydatków 0 USD; szacowane zużycie ok. 4000 min/mies. wymaga zmiany triggera CI w EVM-007a). Konto Apple Developer **nie jest ponoszone** (iOS odłożony, ADR-0015). Kanał wdrożeń ADR-0018 nie dodaje kosztów stałych (tymczasowe VM testu odtworzenia < 2 zł/mies.). Stąd **MVP ≈ 177 zł/mies.** (192,47 − 15,50 zł), w tym Apple 31,98 zł — **bez Apple ≈ 145 zł** przy 500 GB mediów. Koszt rośnie fazami (bez Apple i GitHub Pro, wg tabeli MVP): do EVM-061 **sam staging ≈ 28 zł/mies.** (CX23 + IPv4 + storage staging); **start prod ≈ 108 zł/mies.** (dochodzą CX33, IPv4, backup VM, wolumen LUKS, backup bazy i Storage Box BX11 — bez mediów i transferu); dalej storage mediów ok. 0,07 zł/GB/mies. plus transfer ponad 75 GB — **≈ 145 zł przy 500 GB**. Po 2 latach bez GitHub Pro: ≈ 482 zł (z lifecycle ≈ 391 zł). **Obserwowalność: jeden stos Grafana Cloud Free i jedna organizacja Sentry Developer (UE) wspólne dla staging i prod** (tokeny zapisu i DSN per środowisko; odstępstwo od ADR-0011, RR-24) — 0 zł; osobne konta prod wymagałyby płatnych planów. Pozycja „płatny plan GitHub” z listy „nie usuwać bez nowego ADR” (niżej) jest usunięta decyzjami ADR-0016 i ADR-0018. Tabele nie są przeliczane.
 
+> **Adnotacja 2026-11-12 ([ADR-0013](adr/0013-obserwowalnosc.md), [ADR-0022](adr/0022-publiczne-repozytorium-ochrona-main-atestacje-runnery-arm64.md) — Zaakceptowane):** Sentry wycofany (pozycja „Buildy mobilne, błędy, logi” bez Sentry; opcja Sentry Team z rezerwy nieaktualna); repozytorium publiczne — „Repozytorium i CI” nadal **0 zł**, a standardowe runnery (także `ubuntu-24.04-arm`) są bezpłatne bez limitu minut; ruleset `main` bez planu Pro. Suma MVP bez zmian; tabele nie są przeliczane.
+
 **Porównanie z budżetem 300 zł/mies.:** mieści się wszystko, łącznie z niezmiennym backupem bazy i mediów u innego dostawcy, skanem AV, MFA, kontem Apple i GitHub Pro. **Rezerwa ≈ 108 zł** wystarcza na jedną z opcji: EAS Starter (19 USD ≈ 74 zł — szybsza kolejka buildów) **albo** Sentry Team (26 USD ≈ 101 zł — więcej użytkowników i błędów); obu naraz nie. **Nie mieści się:** wariant B z zarządzaną bazą (≈ 458 zł/mies.) i samodzielnie hostowany stos obserwowalności (+ ok. 30–40 zł). Pozycji oznaczonych pogrubieniem (backup poza głównym miejscem, skan AV, MFA, płatny plan GitHub) nie wolno usunąć bez nowego ADR i zgody Konrada.
 
 **Po 2 latach (30 użytkowników, 3 TB)**
@@ -314,7 +315,7 @@ Wartości bezpieczeństwa są propozycją do potwierdzenia polityk w EVM-005.
 **Wniosek:** po 2 latach budżet 300 zł nie wystarczy — dominuje storage mediów i jego kopia (≈ 266 zł bez lifecycle). Dźwignie: lifecycle do Glacier (pytanie 2), limit jakości wideo w aplikacji (pytanie 3), klasa One Zone dla starszych pochodnych (decyzja po 12 miesiącach), przegląd retencji (EVM-005). Koszt rośnie liniowo z ilością mediów (~0,16 EUR/GB/rok w Multi-AZ + kopia).
 
 ## Podmioty zewnętrzne i podprocesorzy
-Pełna tabela (siedziba, rola, dane, region, umowa) i ocena ryzyka CLOUD Act: [ADR-0011](adr/0011-hosting-i-srodowiska-ue.md). W skrócie: **dane klientów** — wyłącznie Hetzner (DE/FI) i Scaleway (FR, region PL); **telemetria po redakcji** — Sentry i Grafana Labs (USA, regiony UE); **bez danych klientów** — GitHub, Expo, Apple, Google, Let's Encrypt, Pwned Passwords (tylko prefiks skrótu hasła). Wejście do `docs/security/rodo.md` (EVM-005).
+Pełna tabela (siedziba, rola, dane, region, umowa) i ocena ryzyka CLOUD Act: [ADR-0011](adr/0011-hosting-i-srodowiska-ue.md). W skrócie: **dane klientów** — wyłącznie Hetzner (DE/FI) i Scaleway (FR, region PL); **telemetria po redakcji** — Grafana Labs (USA, region UE; Sentry wycofany 2026-11-12 — ADR-0013); **bez danych klientów** — GitHub, Expo, Apple, Google, Let's Encrypt, Pwned Passwords (tylko prefiks skrótu hasła). Wejście do `docs/security/rodo.md` (EVM-005).
 
 ## Planowane dokumenty
 | Dokument | Zawartość | Kiedy |
