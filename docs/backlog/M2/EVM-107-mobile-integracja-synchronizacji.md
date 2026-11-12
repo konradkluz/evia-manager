@@ -4,7 +4,7 @@ title: "Aplikacja: integracja synchronizacji — pierwsze pobranie, wskaźnik, K
 type: story
 milestone: M2
 epic: E10 Zlecenia offline
-status: in-review
+status: done
 priority: P0
 path: pelna             # synchronizacja offline, uwierzytelnianie
 owner: mobile-developer
@@ -78,3 +78,4 @@ Ekrany funkcji (EVM-103…106), pliki (E11), powiadomienia push.
 - 2026-11-02 — implementacja (mobile-developer): sync-core (kolejność pobranie→kolejka do końca pierwszego pobrania, `QueueStore.rewrite`, discard/recreate/retarget, `attentionPlan`, test zgodności z kontraktem w obie strony), `src/sync` (transport, `SyncService`, host), M-12, SyncIndicator, banery, Kolejka z „Wymaga uwagi”, moduł `evia-clipboard`, scenariusz Maestro `sync-offline-recovery` z serwerem scenariuszy (idempotencja po `mutationId`; gwarancję „raz” serwera potwierdza test integracyjny idempotencji mutacji EVM-098, `services/api`). Kontrakt bez zmian. Pomiar nieblokujący (przybliżenie: syntetyczny agregat z fixture'ów kontraktu, `node:sqlite` bez szyfrowania, nie SQLCipher na urządzeniu): N=300 zleceń (16 200 encji), `limit`=200, 100 stron, ok. 4–10 s, plik bazy ok. 9,3 MB, największy agregat ok. 25 KB (próg 1 MB z ADR-0021 daleko). Do demo: Kotlin `evia-clipboard` i Maestro nie uruchomione na emulatorze w tej sesji; „Utwórz ponownie” dla szybkiego zlecenia woła wstrzykiwany handler (formularz M-10 w historyjce M-10; domyślnie odtworzenie bezpośrednie) — do potwierdzenia przez tech leada (blockers.md)
 - 2026-11-02 — poprawki rundy 1 (mobile-developer): rdzeń nie wysyła kolejki po `partial` pierwszego pobrania (tylko po jego końcu); powrót sieci na pierwszym planie wykrywany ponownym sprawdzaniem (10→60 s, tylko offline i na pierwszym planie), po nieudanym cyklu i dotknięciem wskaźnika; moduł Kotlin schowka liczy własne zdarzenia i synchronizuje stan; `SyncGate` pokazuje „Zaktualizuj aplikację” przed pierwszym pobraniem. Dowody E2E: 42 przepływy Maestro zielone na emulatorze (API 35), w tym `sync-offline-recovery` (5 unikalnych, 0 duplikatów) — [dowody](../../qa/EVM-107/dowody-e2e-android.md). Do demo: ręczna kontrola schowka na urządzeniu (checklista pkt 8); Kotlin skompilowany, ale bez przepływu wywołującego „Kopiuj treść”.
 - 2026-11-02 — in-review: pełna bramka zielona, przeglądy zakończone (orkiestrator)
+- 2026-11-12 — in-review → done: zaakceptowane przez Konrada i scalone 2026-11-02 (PR #125); status dopisany w gałęzi następnej pracy (orkiestrator)

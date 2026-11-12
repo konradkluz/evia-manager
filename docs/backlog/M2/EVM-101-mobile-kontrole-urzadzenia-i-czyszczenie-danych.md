@@ -4,7 +4,7 @@ title: "Aplikacja: kontrole urządzenia, ukrycie danych po 7 dniach, wyczyszczen
 type: story
 milestone: M2
 epic: E9 Dostęp mobilny
-status: in-review
+status: done
 priority: P1
 path: pelna             # dane na urządzeniu, uwierzytelnianie
 owner: mobile-developer
@@ -79,3 +79,4 @@ Usuwanie lokalnej bazy SQLCipher (port czyszczenia; podpina EVM-093/107); biomet
 - 2026-11-02 — plan gotowy (mobile-developer)
 - 2026-11-02 — implementacja: `DeviceGuard`/`AppLock`/`CompanyDataWipe`, slot potwierdzenia czyszczenia (kontrakt `confirmDeviceWipe`), `ContactClock.status` w `sync-core`, `androidx.biometric:biometric:1.1.0`; blokada aplikacji liczy czas w tle zegarem rozruchowym (`elapsedRealtime`) i ściennym — `systemClock` dla `ContactClock` bez zmian do EVM-109 (zegar procesu; po restarcie zegar ścienny z kontrolami anomalii); AC bez zmian (mobile-developer)
 - 2026-11-02 — poprawki rundy 1 (mobile-developer): czyszczenie nie emituje końca sesji (wynik `done` → „Wylogowano” bez zdania o niewysłanych, `incomplete` → dialog z ponowieniem); bez blokady ekranu nakładka blokady nie zasłania treści (komunikat „Włącz blokadę ekranu”, aparat i Kolejka dostępne); `ContactClock` na zegarze rozruchowym (`elapsedRealtime` + `Settings.Global.BOOT_COUNT`), brak modułu = dane ukryte (zastępuje wcześniejszą wzmiankę o EVM-109); odświeżenie sesji nie przywraca ukrytych danych — tylko pełne logowanie; ryzyko szczątkowe zmiany zegara ściennego przed restartem opisane w threat-model (do akceptacji Konrada); AC bez zmian
+- 2026-11-12 — in-review → done: zaakceptowane przez Konrada i scalone 2026-11-02 (PR #125); status dopisany w gałęzi następnej pracy (orkiestrator)
