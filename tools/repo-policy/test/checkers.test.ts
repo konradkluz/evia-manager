@@ -224,7 +224,7 @@ describe('workflow checkers (EVM-006 AC4; A2, A6, A7, W6)', () => {
     return found;
   };
 
-  it('EVM-006 AC4 (A2, W6), EVM-083 AC3: ci-gate must need every job of the full run, run only there and evaluate the results itself; K6 is not a job of ci.yml', () => {
+  it('EVM-006 AC4 (A2, W6), EVM-083 AC3: ci-gate must need every job of the full run, run only there and evaluate the results itself', () => {
     expect(ciGateProblems(real())).toEqual([]);
     const broken = real();
     broken.jobs['ci-gate'] = { needs: ['quality'], steps: [{ run: 'true' }] };
@@ -237,9 +237,6 @@ describe('workflow checkers (EVM-006 AC4; A2, A6, A7, W6)', () => {
     const weakened = real();
     ciJob(weakened, 'ci-gate').steps[0] = { run: `jq -e 'all(.[]; .result == "success" or .result == "skipped")'` };
     expect(ciGateProblems(weakened)).toContain('ci-gate: skrypt musi sprawdzać dokładną listę jobów z needs');
-    const integrity = real();
-    integrity.jobs['main-integrity'] = { steps: [] };
-    expect(ciGateProblems(integrity)).toContain('ci.yml: main-integrity (K6) wyłącznie w osobnym workflowie main-integrity.yml');
   });
 
   it('EVM-083 AC4: triggers must not filter by paths (paths-ignore leaves main without ci-gate) and must keep push, pull_request to main and dispatch', () => {

@@ -50,7 +50,7 @@ module.exports = {
     {
       name: 'nothing-imports-deploy-agent',
       comment:
-        'EVM-007 (architect 1): no other code depends on the verifier — two independent implementations (it and tools/main-integrity, K6).',
+        'EVM-007 (architect 1): no other code depends on the verifier — the verifier is an independent implementation, nothing imports it.',
       severity: 'error',
       from: { pathNot: '^services/deploy-agent/' },
       to: { path: '^services/deploy-agent/' },

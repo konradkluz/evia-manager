@@ -31,7 +31,6 @@ const DEPENDENCY_FREE = [
   'tools/docs-lifecycle',
   'tools/ghcr-retention',
   'tools/git-hooks',
-  'tools/main-integrity',
   'tools/mobile-apk',
   'tools/mobile-e2e',
   'tools/scan',
@@ -68,7 +67,6 @@ describe('monorepo structure (EVM-006 AC1, ADR-0012)', () => {
       'zizmor.yml',
       '.semgrepignore',
       '.github/workflows/ci.yml',
-      '.github/workflows/main-integrity.yml',
       '.github/workflows/nightly.yml',
       '.github/workflows/renovate.yml',
       '.github/CODEOWNERS',
@@ -90,7 +88,6 @@ describe('monorepo structure (EVM-006 AC1, ADR-0012)', () => {
       'services/media-processor',
       'packages/config',
       'packages/contracts',
-      'packages/observability-scrub',
       'packages/sync-core',
       'packages/tokens',
       'packages/ui-web',
@@ -101,7 +98,6 @@ describe('monorepo structure (EVM-006 AC1, ADR-0012)', () => {
       'tools/docs-lifecycle',
       'tools/ghcr-retention',
       'tools/git-hooks',
-      'tools/main-integrity',
       'tools/mobile-apk',
       'tools/mobile-e2e',
       'tools/repo-policy',
@@ -205,10 +201,18 @@ describe('quality gate of every workspace (EVM-006 AC2, AC3; W2, W3)', () => {
     );
   });
 
-  it('EVM-006 AC3 (W3b, B7): the gate checks hooks, removes stale reports first, then runs native, container and changed-code stages', () => {
-    expect(root.scripts?.['gate']).toBe(
-      'node tools/git-hooks/cli.mjs check && node tools/docs-lifecycle/cli.mjs check && node tools/diff-coverage/cli.mjs clean && pnpm run gate:native && docker compose -f compose.yaml run --rm backend-tests pnpm run gate:backend && pnpm run gate:integration && pnpm run gate:deploy && pnpm run coverage:diff',
+  it('EVM-006 AC3 (W3b, B7): the gate checks hooks, removes stale reports first, then runs the native stages and the changed-code stage (local mode)', () => {
+    const FIRST =
+      'node tools/git-hooks/cli.mjs check && node tools/docs-lifecycle/cli.mjs check && node tools/diff-coverage/cli.mjs clean && pnpm run gate:native';
+    // Decision 2026-11-12: `gate` is native only (fast); the database-bound API code is measured by the container run, so the local
+    // changed-code stage skips it (listed) — `gate:full` adds the container stages and counts it like CI does.
+    expect(root.scripts?.['gate']).toBe(`${FIRST} && pnpm run coverage:diff:local`);
+    expect(root.scripts?.['gate:full']).toBe(`${FIRST} && pnpm run gate:containers && pnpm run coverage:diff`);
+    expect(root.scripts?.['gate:containers']).toBe(
+      'docker compose -f compose.yaml run --rm backend-tests pnpm run gate:backend && pnpm run gate:integration && pnpm run gate:deploy',
     );
+    expect(root.scripts?.['coverage:diff']).toBe('node tools/diff-coverage/cli.mjs');
+    expect(root.scripts?.['coverage:diff:local']).toBe('node tools/diff-coverage/cli.mjs --local');
     expect(root.scripts?.['gate:native']).toBe('pnpm run format:check && turbo run lint typecheck test:coverage && pnpm run deps:check');
     // EVM-068: the processor is tested with the real libvips of Linux, as in production (ADR-0015)
     expect(root.scripts?.['gate:backend']).toBe(
@@ -230,6 +234,7 @@ describe('quality gate of every workspace (EVM-006 AC2, AC3; W2, W3)', () => {
     expect(stages[0]).toBe('node tools/git-hooks/cli.mjs check');
     expect(stages[1]).toBe('node tools/docs-lifecycle/cli.mjs check');
     expect(root.scripts?.['docs:check']).toBe(stages[1]);
+    expect((root.scripts?.['gate:full'] ?? '').split(' && ').slice(0, 2)).toEqual(stages.slice(0, 2));
   });
 
   it('EVM-006 AC2: tests reading the repository outside their workspace are never replayed from the Turborepo cache', () => {
@@ -296,7 +301,7 @@ describe('versions and supply chain (EVM-006 AC1; D1, SR-SUPPLY-01, -03, -04)', 
     expect(read('infra/docker/backend-tests/Dockerfile')).toMatch(
       new RegExp(`^FROM node:${major}\\.\\d+\\.\\d+-trixie-slim@sha256:[0-9a-f]{64}$`, 'm'),
     );
-    for (const workflow of ['ci.yml', 'main-integrity.yml', 'nightly.yml']) {
+    for (const workflow of ['ci.yml', 'nightly.yml']) {
       const raw = read(`.github/workflows/${workflow}`);
       expect(raw.match(/uses: actions\/setup-node@/g)?.length, workflow).toBe(raw.match(/node-version-file: \.nvmrc/g)?.length);
     }

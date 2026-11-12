@@ -15,7 +15,7 @@ import {
   workflowProblems,
 } from '../src/workflows.ts';
 
-const WORKFLOWS = ['ci.yml', 'main-integrity.yml', 'nightly.yml', 'renovate.yml'];
+const WORKFLOWS = ['ci.yml', 'nightly.yml', 'renovate.yml'];
 const ci = record(yaml('.github/workflows/ci.yml'));
 const jobs = record(ci['jobs']);
 const job = (name: string): Record<string, unknown> => record(jobs[name]);
@@ -188,44 +188,9 @@ describe('ci.yml (EVM-006 AC4; A2, W3c, W6)', () => {
     expect(list(job('ci-gate')['needs'])).not.toContain('quick');
   });
 
-  it('EVM-006 AC4 (A2, W6), EVM-083 AC3: ci-gate is green only when every required job succeeded (skips only for a documentation-only change); K6 is not a job of ci.yml', () => {
+  it('EVM-006 AC4 (A2, W6), EVM-083 AC3: ci-gate is green only when every required job succeeded (skips only for a documentation-only change)', () => {
     expect(ciGateProblems(ci)).toEqual([]);
     expect(job('ci-gate')['permissions']).toEqual({});
-  });
-});
-
-describe('main-integrity.yml (EVM-006 AC4; A1, K6, code and security review)', () => {
-  const workflow = record(yaml('.github/workflows/main-integrity.yml'));
-  const integrity = record(record(workflow['jobs'])['main-integrity']);
-
-  it('EVM-006 AC4 (A1): K6 runs on every push to main, nightly and on demand — in its own workflow without a concurrency group', () => {
-    expect(Object.keys(record(workflow['jobs']))).toEqual(['main-integrity']);
-    expect(record(workflow['on'])['push']).toEqual({ branches: ['main'] });
-    expect(list(record(workflow['on'])['schedule']).length).toBe(1);
-    expect('workflow_dispatch' in record(workflow['on'])).toBe(true);
-    // GitHub cancels a pending run of a concurrency group when a newer run queues — no K6 run may be dropped.
-    expect(workflow['concurrency']).toBeUndefined();
-    expect(integrity['concurrency']).toBeUndefined();
-    expect(integrity['if']).toBe("github.ref == 'refs/heads/main'");
-  });
-
-  it('EVM-006 AC4 (A1): read-only API access, the owner login, the baseline commit and the event of the run', () => {
-    expect(integrity['permissions']).toEqual({ contents: 'read', actions: 'read', 'pull-requests': 'read' });
-    const step = list(integrity['steps']).map(record).at(-1) ?? {};
-    expect(step['run']).toBe('node tools/main-integrity/cli.mjs');
-    const env = record(step['env']);
-    expect(env['MAIN_MERGER']).toBe('konradkluz');
-    expect(text(env['BASELINE'])).toMatch(/^[0-9a-f]{40}$/);
-    // Closed incidents only (code review, round 2): a literal list of full SHAs, never an expression or a variable.
-    expect(typeof env['ACKNOWLEDGED']).toBe('string');
-    expect(text(env['ACKNOWLEDGED'])).toMatch(/^(?:[0-9a-f]{40}(?: [0-9a-f]{40})*)?$/);
-    expect(env).toMatchObject({
-      GITHUB_TOKEN: '${{ github.token }}',
-      EVENT: '${{ github.event_name }}',
-      BEFORE: '${{ github.event.before }}',
-      AFTER: '${{ github.sha }}',
-      FORCED: '${{ github.event.forced }}',
-    });
   });
 });
 
@@ -272,7 +237,7 @@ describe('EVM-086 AC1, AC3, AC4: filters of the heavy jobs', () => {
       expect(condition.includes('always()'), name).toBe(name === 'ci-gate');
     }
     // No other workflow can skip the E2E or the integration tests by path.
-    for (const file of ['main-integrity.yml', 'nightly.yml', 'renovate.yml']) {
+    for (const file of ['nightly.yml', 'renovate.yml']) {
       const raw = read(`.github/workflows/${file}`);
       expect(raw, file).not.toContain('needs.changes');
       expect(raw, file).not.toMatch(/paths(-ignore)?:/);
