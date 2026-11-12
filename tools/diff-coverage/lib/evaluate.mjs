@@ -33,6 +33,7 @@ export function isSourceFile(path, exclude) {
  * @property {FileResult[]} files
  * @property {Count} lines
  * @property {Count} branches
+ * @property {string[]} skipped changed files left out because only the container integration run measures them (`containerOnly`)
  * @property {boolean} measurable at least one changed line or branch can be measured
  * @property {boolean} passed
  */
@@ -50,21 +51,30 @@ export const meets = (count, threshold) => count.total === 0 || count.covered * 
  * @param {string[]} input.exclude
  * @param {(path: string) => string[] | null} input.readLines lines of a working-tree file, null when unreadable
  * @param {number} input.threshold percent
+ * @param {string[]} [input.containerOnly] globs of files measured only by the container integration run: with no report at
+ *   all they are skipped (listed, not counted) — the local gate (`--local`); with a report they are measured as usual
  * @returns {Evaluation}
  */
-export function evaluate({ changed, coverage, exclude, readLines, threshold }) {
+export function evaluate({ changed, coverage, exclude, readLines, threshold, containerOnly = [] }) {
   /** @type {FileResult[]} */
   const files = [];
+  /** @type {string[]} */
+  const skipped = [];
   for (const [path, lines] of changed) {
     if (!isSourceFile(path, exclude)) continue;
     const report = coverage.get(path);
+    if (!report && containerOnly.some((pattern) => matchesGlob(path, pattern))) {
+      skipped.push(path);
+      continue;
+    }
     const result = report ? measured(path, lines, report) : unreported(path, lines, readLines(path));
     if (result.lines.total > 0 || result.branches.total > 0) files.push(result);
   }
   files.sort((a, b) => (a.path < b.path ? -1 : 1));
   const lines = sum(files.map((file) => file.lines));
   const branches = sum(files.map((file) => file.branches));
-  return { files, lines, branches, measurable: files.length > 0, passed: meets(lines, threshold) && meets(branches, threshold) };
+  skipped.sort();
+  return { files, lines, branches, skipped, measurable: files.length > 0, passed: meets(lines, threshold) && meets(branches, threshold) };
 }
 
 /**

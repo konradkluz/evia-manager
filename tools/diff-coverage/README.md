@@ -4,6 +4,7 @@ Bramka z EVM-006 (AC3): **≥ 90% linii i gałęzi zmienionego kodu** (`docs/pro
 
 ## Polecenia
 - `pnpm run coverage:diff` (= `node tools/diff-coverage/cli.mjs`) — tabela per plik, lista niepokrytych linii i gałęzi; kod `0` — próg spełniony albo brak mierzalnych zmian, `1` — poniżej progu, `2` — błąd użycia lub środowiska.
+- `pnpm run coverage:diff:local` (= `node tools/diff-coverage/cli.mjs --local`) — tryb lokalnej bramki natywnej (`pnpm run gate`): kod API zależny od bazy (lista `DATABASE_BOUND` w `apps/api/coverage.config.ts`, czytana jako tekst; brak listy = kod `2`), który mierzy wyłącznie test integracyjny w kontenerze, jest **pomijany, gdy nie ma dla niego żadnego raportu** — wypisany w sekcji „Pominięte lokalnie”, niewliczany do sum. Gdy raport z kontenera jest (po `pnpm run gate:full`), plik jest liczony normalnie. CI i `gate:full` używają trybu bez flagi: plik bez raportu = niepokryty.
 - `node tools/diff-coverage/cli.mjs clean` — usuwa stare raporty `lcov.info` (pierwszy krok `pnpm run gate`, brak fałszywej zieleni z nieaktualnych raportów).
 
 ## Jak liczy
