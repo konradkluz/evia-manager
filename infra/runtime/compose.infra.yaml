@@ -8,7 +8,8 @@
 #   deploy.sh from a fixed template (blue|green); the directory /etc/evia/caddy mounted read-only.
 # - postgres: data on the LUKS volume /srv/evia/pgdata; roles from postgres-init (evia_migrator, the API login).
 # - clamd on an internal network without egress; freshclam (the same image) updates the signatures with egress but is
-#   outside the network of the API (A6). The API joins evia-scan with EVM-044 (a change of the verifier configuration).
+#   outside the network of the worker (A6). The WORKER (the scan and the monitor of the signatures are its jobs; the API does not scan) joins evia-scan through the
+#   channel (EVM-084 K9: the canonical compose document of the verifier names the network; deploy.sh refuses to start unless it is internal); clamd never joins evia-runtime.
 #   The image is clamav/clamav-debian: the Alpine clamav/clamav is amd64-only and the VM is Arm64 (Hetzner CAX).
 # Secrets: the PostgreSQL superuser password as a file from /etc/evia/secrets (POSTGRES_PASSWORD_FILE).
 
@@ -19,6 +20,8 @@ services:
     read_only: true
     cap_drop: [ALL]
     cap_add: [NET_BIND_SERVICE]
+    # EVM-085 AC2 (CAX11 variant A): when the kernel must kill something for lack of memory, the edge and the database go last (clamd and the media processor first).
+    oom_score_adj: -500
     security_opt: ['no-new-privileges:true']
     ports:
       - '80:80'
@@ -46,6 +49,7 @@ services:
     cap_drop: [ALL]
     security_opt: ['no-new-privileges:true']
     shm_size: 256mb
+    oom_score_adj: -500 # the database is killed last (EVM-085 AC2, CAX11 variant A)
     networks: [evia-runtime]
     environment:
       POSTGRES_USER: evia_owner
@@ -73,8 +77,13 @@ services:
     cap_drop: [ALL]
     security_opt: ['no-new-privileges:true']
     networks: [evia-scan]
+    # EVM-085 AC2 (CAX11 variant A): a lack of memory kills clamd before the database; the scan then fails closed and is retried (restart: unless-stopped).
+    oom_score_adj: 300
     environment:
       CLAMAV_NO_FRESHCLAMD: 'true'
+      # EVM-085 AC2 (CAX11 variant A; ADR-0009 "przeładowanie nierównoległe"): without it clamd keeps BOTH databases in memory while it reloads the signatures (about 1.3 GB
+      # twice on a VM of 4 GB). With it the scan waits for the reload (tens of seconds, the worker retries a scan after 2 minutes; nothing becomes `clean` without a scan).
+      CLAMD_CONF_ConcurrentDatabaseReload: 'no'
       CLAMAV_NO_MILTERD: 'true'
       # EVM-049 AC7: the date in the reply to VERSION is in the local time of the container; the monitor of the signatures reads it as UTC.
       TZ: UTC
@@ -135,7 +144,7 @@ networks:
           # Dynamic addresses only from the upper half, so that no container can take the fixed address of Caddy (.2) after a restart of
           # the VM (CWE-348: a container at .2 would become the trusted proxy of TRUSTED_PROXIES).
           ip_range: 172.30.10.128/25
-  # clamd without egress; the API joins it with EVM-044.
+  # clamd without egress; the worker joins it through the deployment channel (EVM-084 K9) - the network is created here, the channel only references it.
   evia-scan:
     name: evia-scan
     internal: true
@@ -152,8 +161,9 @@ volumes:
   clamav-scan-tmp:
     name: evia-clamav-scan-tmp
     # A deviation from P3 (photos and films pass through this scratch space), accepted by the user at the demo of EVM-046 (RR-71): the directory is
-    # a SEPARATE mount of the host (not the root file system), encrypted with dm-crypt under an ephemeral key (kept in RAM only), mounted
-    # nodev,nosuid,noexec with a size quota >= 2.5 GB and an alert at 80%; the IaC session creates it. Cleaned at the start of clamd (CWE-459).
+    # a SEPARATE mount of the host (not the root file system): the second partition of the work volume (Hetzner Volume), plain dm-crypt under an ephemeral key (kept in
+    # RAM only), mounted nodev,nosuid,noexec; its size is the quota (>= 2.5 GB) with an alert at 80%. Set up at every start by evia-work-volumes.service (user-data of the
+    # VM module; docs/ops/runbooks/media-processor.md), which is RequiredBy=docker.service; the volume is formatted anew at every start, so it is clean when clamd starts (CWE-459).
     driver: local
     driver_opts:
       type: none

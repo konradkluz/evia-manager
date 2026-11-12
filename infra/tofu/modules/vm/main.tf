@@ -56,6 +56,24 @@ variable "data_volume_size" {
   default     = 10
 }
 
+variable "work_volume_size" {
+  description = "Size of the encrypted work volume in GB (EVM-084; RR-75, RR-76): one Hetzner Volume, two partitions - the films (15 GiB) and the scratch space of clamd (the rest, >= 2.5 GB). Given by the root; 20 is the planned value."
+  type        = number
+  validation {
+    condition     = var.work_volume_size >= 20 && var.work_volume_size <= 100
+    error_message = "Work volume 20-100 GB (15 GiB of films plus at least 2.5 GB of scratch space of clamd)."
+  }
+}
+
+variable "clamav_uid_gid" {
+  description = "uid:gid of the user of clamd in the pinned clamav/clamav-debian image (EVM-084 L8): the owner of the scratch space /var/lib/evia/clamav-scan (mode 0700). Read in the IaC session; no default."
+  type        = string
+  validation {
+    condition     = can(regex("^[1-9][0-9]{0,5}:[1-9][0-9]{0,5}$", var.clamav_uid_gid))
+    error_message = "uid:gid of the user of clamd, e.g. 100:101 (numbers only, not root)."
+  }
+}
+
 variable "network_id" {
   description = "Private network of the environment."
   type        = string
@@ -104,6 +122,19 @@ resource "hcloud_volume" "data" {
   delete_protection = true
 }
 
+# EVM-084 (decision of Konrad 2026-11-12): the work volumes of the films and of the scan on a volume of their own, encrypted on the VM with an ephemeral key
+# (docs/ops/runbooks/media-processor.md "Montaże dm-crypt"). Hetzner does not format it (no `format`): a file system made outside would be readable without the key.
+resource "hcloud_volume" "work" {
+  name              = "${var.name}-media-work"
+  location          = var.location
+  size              = var.work_volume_size
+  delete_protection = true
+  labels = {
+    purpose = "media-work"
+    env     = var.name
+  }
+}
+
 resource "hcloud_server" "this" {
   name               = var.name
   server_type        = var.server_type
@@ -126,13 +157,16 @@ resource "hcloud_server" "this" {
   }
 
   user_data = templatefile("${path.module}/templates/user-data.yaml.tftpl", {
-    admin_user             = var.admin_user
-    admin_ssh_public_key   = var.admin_ssh_public_key
-    data_volume_id         = hcloud_volume.data.id
-    docker_version         = var.docker_version
-    compose_plugin_version = var.compose_plugin_version
-    containerd_version     = var.containerd_version
-    buildx_version         = var.buildx_version
+    admin_user              = var.admin_user
+    admin_ssh_public_key    = var.admin_ssh_public_key
+    data_volume_id          = hcloud_volume.data.id
+    work_volume_id          = hcloud_volume.work.id
+    clamav_uid_gid          = var.clamav_uid_gid
+    work_volumes_script_b64 = filebase64("${path.module}/templates/evia-work-volumes.sh")
+    docker_version          = var.docker_version
+    compose_plugin_version  = var.compose_plugin_version
+    containerd_version      = var.containerd_version
+    buildx_version          = var.buildx_version
   })
 
   lifecycle {
@@ -145,6 +179,17 @@ resource "hcloud_volume_attachment" "data" {
   volume_id = hcloud_volume.data.id
   server_id = hcloud_server.this.id
   automount = false
+}
+
+resource "hcloud_volume_attachment" "work" {
+  volume_id = hcloud_volume.work.id
+  server_id = hcloud_server.this.id
+  automount = false
+}
+
+output "work_volume_id" {
+  description = "Id of the work volume (not a secret): the device of an existing VM is /dev/disk/by-id/scsi-0HC_Volume_<id> (runbook media-processor.md)."
+  value       = hcloud_volume.work.id
 }
 
 output "ipv4" {

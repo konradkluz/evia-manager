@@ -1,0 +1,81 @@
+{
+  "services": {
+    "api": {
+      "image": "ghcr.io/evia-test/evia-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "pull_policy": "never",
+      "user": "10001:10001",
+      "read_only": true,
+      "cap_drop": ["ALL"],
+      "security_opt": ["no-new-privileges:true"],
+      "command": ["dist/src/main.js"],
+      "init": true,
+      "restart": "unless-stopped",
+      "volumes": ["/run/evia/secrets/api:/run/secrets:ro"],
+      "tmpfs": ["/tmp:size=64m,noexec,nosuid,nodev"],
+      "mem_limit": "768m",
+      "pids_limit": 256,
+      "stop_grace_period": "20s",
+      "networks": ["evia-runtime"]
+    },
+    "migrate": {
+      "image": "ghcr.io/evia-test/evia-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "pull_policy": "never",
+      "user": "10003:10003",
+      "read_only": true,
+      "cap_drop": ["ALL"],
+      "security_opt": ["no-new-privileges:true"],
+      "command": ["dist/src/migrate.js"],
+      "init": true,
+      "restart": "no",
+      "volumes": ["/run/evia/secrets/migrate:/run/secrets:ro"],
+      "tmpfs": ["/tmp:size=16m,noexec,nosuid,nodev"],
+      "mem_limit": "512m",
+      "pids_limit": 128,
+      "networks": ["evia-runtime"]
+    },
+    "web": {
+      "image": "ghcr.io/evia-test/evia-web@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "pull_policy": "never",
+      "user": "10004:10004",
+      "read_only": true,
+      "cap_drop": ["ALL"],
+      "security_opt": ["no-new-privileges:true"],
+      "restart": "unless-stopped",
+      "tmpfs": ["/tmp:size=16m,noexec,nosuid,nodev"],
+      "mem_limit": "128m",
+      "pids_limit": 64,
+      "networks": ["evia-runtime"]
+    },
+    "worker": {
+      "image": "ghcr.io/evia-test/evia-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "pull_policy": "never",
+      "user": "10002:10002",
+      "read_only": true,
+      "cap_drop": ["ALL"],
+      "security_opt": ["no-new-privileges:true"],
+      "command": ["dist/src/worker.js"],
+      "init": true,
+      "restart": "unless-stopped",
+      "volumes": [
+        "/run/evia/secrets/worker:/run/secrets:ro",
+        "/run/evia/media-work:/run/media-work",
+        "/var/lib/evia/media-video:/var/lib/media-video"
+      ],
+      "tmpfs": ["/tmp:size=64m,noexec,nosuid,nodev"],
+      "mem_limit": "512m",
+      "pids_limit": 256,
+      "stop_grace_period": "20s",
+      "networks": ["evia-runtime", "evia-scan"]
+    }
+  },
+  "networks": {
+    "evia-runtime": {
+      "external": true,
+      "name": "evia-runtime"
+    },
+    "evia-scan": {
+      "external": true,
+      "name": "evia-scan"
+    }
+  }
+}

@@ -86,6 +86,97 @@ beforeEach(() => {
   chmodSync(join(bin, 'date'), 0o755);
 });
 
+/**
+ * EVM-085 AC2 (CAX11 variant A, decision of Konrad 2026-11-12): the host metrics the alerts of capacity read. The kernel files come from EVIA_ROOT/proc, mounts and
+ * sizes from stand-ins of mountpoint and df over one table (path, used, size), so the numbers are exact.
+ */
+describe('EVM-085 AC2 metrics.sh: capacity of the host', () => {
+  const MOUNTS = ['/', '/srv/evia/pgdata', '/var/lib/evia/media-video', '/var/lib/evia/clamav-scan'];
+  const FAKE_MOUNTPOINT = `#!/bin/bash
+args=("$@")
+grep -q "^\${args[\${#args[@]}-1]} " "$FAKE_DF"
+`;
+  const FAKE_DF = `#!/bin/bash
+args=("$@")
+printf 'Used 1B-blocks\\n'
+grep "^\${args[\${#args[@]}-1]} " "$FAKE_DF" | cut -d' ' -f2,3
+`;
+  /** @type {string} */ let table;
+  beforeEach(() => {
+    write(join(bin, 'mountpoint'), FAKE_MOUNTPOINT);
+    write(join(bin, 'df'), FAKE_DF);
+    chmodSync(join(bin, 'mountpoint'), 0o755);
+    chmodSync(join(bin, 'df'), 0o755);
+    table = join(root, 'df.table');
+    fixture();
+  });
+  const mounted = (/** @type {string[][]} */ rows) =>
+    write(
+      table,
+      rows.map(([path, used, size]) => [path === '/' ? root + '/' : join(root, path ?? ''), used, size].join(' ')).join('\n') + '\n',
+    );
+  const go = () => run({ FAKE_DF: table });
+
+  it('EVM-085 AC2: MemAvailable in bytes, the OOM kill counter and, per mount, the presence and the share of used space', () => {
+    write(join(root, 'proc/meminfo'), 'MemTotal:        4000000 kB\nMemAvailable:    1536000 kB\nMemFree: 100 kB\n');
+    write(join(root, 'proc/vmstat'), 'nr_free_pages 1\noom_kill 3\npgfault 9\n');
+    mounted([
+      ['/', '10000000000', '40000000000'],
+      ['/srv/evia/pgdata', '1000000000', '10000000000'],
+      ['/var/lib/evia/media-video', '8000000000', '16000000000'],
+      ['/var/lib/evia/clamav-scan', '3000000000', '4000000000'],
+    ]);
+    const result = go();
+    assert.equal(result.status, 0, result.stderr);
+    const text = content();
+    assert.match(text, /^evia_host_memory_available_bytes 1572864000$/mu);
+    assert.match(text, /^evia_host_oom_kills_total 3$/mu);
+    for (const [mount, ratio] of [
+      ['root', '0.2500'],
+      ['pgdata', '0.1000'],
+      ['media_video', '0.5000'],
+      ['clamav_scan', '0.7500'],
+    ]) {
+      assert.match(text, new RegExp(`^evia_host_mount_present\\{mount="${mount}"\\} 1$`, 'mu'), mount);
+      assert.match(text, new RegExp(`^evia_host_filesystem_used_ratio\\{mount="${mount}"\\} ${ratio.replace('.', '\\.')}$`, 'mu'), mount);
+    }
+    assert.equal(MOUNTS.length, 4);
+  });
+
+  it('EVM-085 AC2: a volume that is not mounted is reported as absent (the alert), without a ratio of another file system', () => {
+    mounted([
+      ['/', '10', '40'],
+      ['/srv/evia/pgdata', '1', '10'],
+    ]);
+    assert.equal(go().status, 0);
+    assert.match(content(), /^evia_host_mount_present\{mount="media_video"\} 0$/mu);
+    assert.match(content(), /^evia_host_mount_present\{mount="clamav_scan"\} 0$/mu);
+    assert.doesNotMatch(content(), /used_ratio\{mount="(media_video|clamav_scan)"\}/u);
+  });
+
+  it('EVM-085 AC2: a value that is not a number writes nothing (fail-closed: the old file stays and ages, the heartbeat alert fires)', () => {
+    mounted([['/', '10', '40']]);
+    for (const [file, text] of [
+      ['proc/meminfo', 'MemAvailable: 1; evil 2 kB\n'],
+      ['proc/meminfo', 'MemTotal: 1 kB\n'],
+      ['proc/vmstat', 'oom_kill 1x\n'],
+    ]) {
+      write(join(root, 'proc/meminfo'), 'MemAvailable: 1000 kB\n');
+      write(join(root, 'proc/vmstat'), 'oom_kill 0\n');
+      write(join(root, file ?? ''), text ?? '');
+      const result = go();
+      assert.equal(result.status, 1, file + text);
+      assert.ok(!existsSync(metricsFile()));
+    }
+    mounted([['/', 'x', '40']]);
+    write(join(root, 'proc/meminfo'), 'MemAvailable: 1000 kB\n');
+    write(join(root, 'proc/vmstat'), 'oom_kill 0\n');
+    assert.equal(go().status, 1);
+    mounted([['/', '10', '0']]);
+    assert.equal(go().status, 1, 'a size of zero is not divided by');
+  });
+});
+
 describe('EVM-085 AC2 metrics.sh', () => {
   it('EVM-085 AC2 writes the heartbeat, the deployed commit, V0 and the mismatch metrics atomically', () => {
     fixture();

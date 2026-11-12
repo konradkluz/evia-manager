@@ -6,6 +6,90 @@ rule_files:
 evaluation_interval: 1m
 
 tests:
+  # AC2 capacity of the host (CAX11 variant A, decision of Konrad 2026-11-12): memory, OOM, disk space and the mounts of the work volumes
+  - name: EVM-085 AC2 host memory low fires after 5 minutes and is quiet with enough memory
+    interval: 1m
+    input_series:
+      - series: 'evia_host_memory_available_bytes{env="staging"}'
+        values: '300000000x20'
+      - series: 'evia_host_memory_available_bytes{env="staging", other="ok"}'
+        values: '800000000x20'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: EviaHostMemoryLow
+        exp_alerts:
+          - exp_labels: { severity: warning, ac2: host-capacity, env: staging }
+            exp_annotations:
+              summary: 'Available memory of the staging VM is below 419430400 bytes for 5m (CAX21 threshold, the owner decides) (env staging)'
+              runbook: docs/ops/runbooks/alerty.md#eviahostmemorylow
+      - eval_time: 3m
+        alertname: EviaHostMemoryLow
+        exp_alerts: []
+  - name: EVM-085 AC2 host memory above the threshold is quiet
+    interval: 1m
+    input_series:
+      - series: 'evia_host_memory_available_bytes{env="staging"}'
+        values: '800000000x20'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: EviaHostMemoryLow
+        exp_alerts: []
+  - name: EVM-085 AC2 an OOM kill fires once and goes quiet after the window
+    interval: 1m
+    input_series:
+      - series: 'evia_host_oom_kills_total{env="staging"}'
+        values: '0 0 0 0 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: EviaHostOomKill
+        exp_alerts:
+          - exp_labels: { severity: critical, ac2: host-capacity, env: staging }
+            exp_annotations:
+              summary: 'The kernel killed a process for lack of memory in the last 15m (host or container limit); check which, then decide on CAX21 (env staging)'
+              runbook: docs/ops/runbooks/alerty.md#eviahostoomkill
+      - eval_time: 3m
+        alertname: EviaHostOomKill
+        exp_alerts: []
+      - eval_time: 35m
+        alertname: EviaHostOomKill
+        exp_alerts: []
+  - name: EVM-085 AC2 disk usage above 80 percent fires for the file system concerned only
+    interval: 1m
+    input_series:
+      - series: 'evia_host_filesystem_used_ratio{env="staging", mount="media_video"}'
+        values: '0.85x30'
+      - series: 'evia_host_filesystem_used_ratio{env="staging", mount="root"}'
+        values: '0.5x30'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: EviaHostDiskFull
+        exp_alerts:
+          - exp_labels: { severity: warning, ac2: host-capacity, env: staging, mount: media_video }
+            exp_annotations:
+              summary: 'File system media_video of the staging VM is above 0.8 of its size (env staging)'
+              runbook: docs/ops/runbooks/alerty.md#eviahostdiskfull
+      - eval_time: 5m
+        alertname: EviaHostDiskFull
+        exp_alerts: []
+  - name: EVM-085 AC2 a missing mount of a work volume fires
+    interval: 1m
+    input_series:
+      - series: 'evia_host_mount_present{env="staging", mount="clamav_scan"}'
+        values: '0x20'
+      - series: 'evia_host_mount_present{env="staging", mount="root"}'
+        values: '1x20'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: EviaHostMountMissing
+        exp_alerts:
+          - exp_labels: { severity: critical, ac2: host-capacity, env: staging, mount: clamav_scan }
+            exp_annotations:
+              summary: 'Mount clamav_scan of the staging VM is missing: a work volume is not mounted (env staging)'
+              runbook: docs/ops/runbooks/alerty.md#eviahostmountmissing
+      - eval_time: 3m
+        alertname: EviaHostMountMissing
+        exp_alerts: []
+
   # AC2 heartbeat: constant timestamp 0 is 20 minutes old at 20m (limit 600 s)
   - name: EVM-085 AC2 heartbeat missing fires
     interval: 1m

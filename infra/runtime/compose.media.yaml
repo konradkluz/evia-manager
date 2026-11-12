@@ -7,7 +7,7 @@
 #
 # The container parses files from outside (libvips), so it is the most restricted one of the VM:
 # - no network at all (network_mode none): it listens ONLY on a Unix socket and cannot send anything anywhere;
-# - read-only root, all capabilities dropped, no-new-privileges, a non-root user, memory 1536 MB, 2 CPUs, a bound on the processes; no published port;
+# - read-only root, all capabilities dropped, no-new-privileges, a non-root user, memory 2048 MB (EVM-046: H.265 decoding; was 1536 MB in EVM-068), 2 CPUs, a bound on the processes; no published port;
 # - ONE writable place shared with the worker: the work area /run/media-work, a tmpfs of the HOST (mounted by the IaC session, size-limited: the photos
 #   of private sites never reach the disk of the host - P3). The worker (uid 10002) and this container (uid 10005) share the GROUP 10002: the
 #   directory has mode 2770 and the group 10002, so the jobs of the worker are readable and the outputs of this container are readable by it.
@@ -45,6 +45,8 @@ services:
     cpus: 2
     pids_limit: 256
     stop_grace_period: 10s
+    # EVM-085 AC2 (CAX11 variant A): the first candidate of the OOM killer (a preview or a scan is retried; the database and the edge go last).
+    oom_score_adj: 500
     healthcheck:
       test: ['CMD', '/usr/local/bin/node', 'src/healthcheck.ts']
       interval: 30s

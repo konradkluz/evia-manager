@@ -20,6 +20,11 @@ export const USER_DATA_VARIABLES = Object.freeze([
   'compose_plugin_version',
   'buildx_version',
   'containerd_version',
+  // EVM-084 (decision of Konrad 2026-11-12): the encrypted work volume - the id of the Hetzner Volume and the script (base64) that sets it up on the VM
+  'work_volume_id',
+  'work_volumes_script_b64',
+  // EVM-084 (L8): uid:gid of the user of clamd in the pinned image (read in the IaC session; no default) - the owner of the scratch space, mode 0700
+  'clamav_uid_gid',
 ]);
 /**
  * Hetzner Arm64 (Ampere, CAX) server types: the only ones the VM may use, because every release and infrastructure
@@ -27,7 +32,7 @@ export const USER_DATA_VARIABLES = Object.freeze([
  */
 export const ARM64_SERVER_TYPES = Object.freeze(['cax11', 'cax21', 'cax31', 'cax41']);
 /** Variables that must be given in the IaC session — no default that looks like a production value (architect 23). */
-export const NO_DEFAULT_VARIABLES = Object.freeze(['server_type', 'location', 'admin_ssh_public_key']);
+export const NO_DEFAULT_VARIABLES = Object.freeze(['server_type', 'location', 'admin_ssh_public_key', 'clamav_uid_gid']);
 
 const FORBIDDEN: ReadonlyArray<readonly [RegExp, string]> = [
   [/provisioner\s+"(local-exec|remote-exec|file)"/, 'provisioner local-exec/remote-exec/file (kod poza planem)'],
@@ -168,12 +173,84 @@ export function userDataProblems(template: string): string[] {
       problems.push(`user-data: brak blokady metadanych z ${bridge}`);
   if (!template.includes('table inet evia') || !/type filter hook forward priority -10;/.test(template))
     problems.push('user-data: blokada metadanych we własnej tabeli inet evia (hook forward, priorytet przed filtrem Dockera)');
-  if (!template.includes('Before=docker.service') || !template.includes('RequiredBy=docker.service'))
+  if (
+    !/evia-metadata-block\.service(?:(?!- path:)[\s\S])*?Before=docker\.service(?:(?!- path:)[\s\S])*?RequiredBy=docker\.service/.test(
+      template,
+    )
+  )
     problems.push('user-data: blokada metadanych ładowana przed docker.service');
+  // EVM-084 (RR-75, RR-76): the work volumes of the films and of the scan are encrypted with an EPHEMERAL key and set up BEFORE Docker, which requires them.
+  if (
+    !/evia-work-volumes\.service(?:(?!- path:)[\s\S])*?Before=docker\.service(?:(?!- path:)[\s\S])*?RequiredBy=docker\.service/.test(
+      template,
+    )
+  )
+    problems.push('user-data: jednostka evia-work-volumes.service przed docker.service i wymagana przez niego');
+  if (!template.includes('EVIA_WORK_DEVICE=/dev/disk/by-id/scsi-0HC_Volume_${work_volume_id}'))
+    problems.push('user-data: urządzenie wolumenu roboczego z identyfikatora wolumenu (EVIA_WORK_DEVICE)');
+  if (!/systemctl enable --now evia-work-volumes\.service/.test(template))
+    problems.push('user-data: uruchomienie evia-work-volumes.service');
+  if (!template.includes('encoding: b64') || !template.includes('${work_volumes_script_b64}'))
+    problems.push('user-data: skrypt wolumenów roboczych przekazany jako base64 (jedno źródło: infra/deploy-agent/evia-work-volumes.sh)');
+  if (!template.includes('EVIA_CLAMAV_OWNER=${clamav_uid_gid}'))
+    problems.push('user-data: właściciel katalogu skanu (EVIA_CLAMAV_OWNER) z zmiennej clamav_uid_gid');
+  if (/luks-(media|clamav|work)/.test(template))
+    problems.push('user-data: klucz wolumenów roboczych jest efemeryczny — żadnego pliku klucza');
   for (const line of ['PermitRootLogin no', 'PasswordAuthentication no', 'AllowUsers ${admin_user}'])
     if (!template.includes(line)) problems.push(`user-data: sshd bez „${line}”`);
   if (!/ssh_pwauth:\s*false/.test(template) || !/lock_passwd:\s*true/.test(template))
     problems.push('user-data: logowanie wyłącznie kluczem');
+  return problems;
+}
+
+/**
+ * The script of the encrypted work volumes (EVM-084; RR-75, RR-76; decision of Konrad 2026-11-12): plain dm-crypt with a key read from /dev/urandom at every start and held
+ * by the kernel only - no key file, no LUKS header, no crypttab or fstab entry; nodev,nosuid,noexec; immutable mount points; a volume with a signature is never formatted.
+ */
+export function workVolumesScriptProblems(script: string): string[] {
+  const code = script.replace(/^\s*#.*$/gm, '');
+  const problems: string[] = [];
+  const need = (ok: boolean, message: string): void => {
+    if (!ok) problems.push(`evia-work-volumes.sh: ${message}`);
+  };
+  need(
+    /cryptsetup open --type plain --cipher aes-xts-plain64 --key-size 512 /.test(code),
+    'cryptsetup open w trybie plain, aes-xts-plain64, klucz 512 bit',
+  );
+  const keyFiles = [...code.matchAll(/--key-file (\S+)/g)].map((match) => match[1]);
+  need(keyFiles.length > 0 && keyFiles.every((file) => file === '/dev/urandom'), 'klucz wyłącznie z /dev/urandom (efemeryczny)');
+  need(
+    !/luksFormat|luksOpen|--type luks|crypttab|fstab|nofail|\/etc\/evia\/secrets/.test(code),
+    'bez LUKS, crypttab, fstab, nofail i plików klucza',
+  );
+  need(!/urandom\s*>|\bof=|\$keyfile|keyfile=/.test(code), 'klucz nigdy nie trafia do pliku');
+  need(/mount -o nodev,nosuid,noexec /.test(code), 'montaż z nodev,nosuid,noexec');
+  need(
+    code.includes('chattr +i') && code.indexOf('chattr +i') < code.indexOf('mount -o'),
+    'punkt montowania niezapisywalny (chattr +i) przed montażem',
+  );
+  need(/mkfs\.ext4 -q -F -L /.test(code), 'system plików zakładany od nowa przy każdym starcie');
+  need(/sfdisk -d/.test(code) && /blkid -p/.test(code), 'rozpoznanie tablicy partycji i sygnatury');
+  need(
+    /fail "[^"]*without a partition table: refusing"/.test(code),
+    'wolumen z sygnaturą bez tablicy partycji jest odrzucany, nie formatowany',
+  );
+  need(/fail "work volume has \$partitions partitions instead of 2: refusing"/.test(code), 'inny układ partycji jest odrzucany');
+  need(code.includes('=~ ^/dev/disk/by-id/scsi-0HC_Volume_[0-9]{1,12}$'), 'nazwa urządzenia sprawdzona wzorcem');
+  // L6: named partitions, required before anything is opened or formatted
+  need(code.includes('name=evia-media-video') && code.includes('name=evia-clamav-scan'), 'partycje GPT z nazwami przy tworzeniu');
+  need(
+    code.includes('name="evia-media-video"') && code.includes('name="evia-clamav-scan"'),
+    'nazwy i rozmiar partycji wymagane przed otwarciem',
+  );
+  // L7: what is already mounted must be our mapping of type crypt
+  need(/mounted_type" != crypt/.test(code) && /lsblk -no TYPE/.test(code), 'zamontowana ścieżka musi być naszym mapowaniem typu crypt');
+  // L8: the scratch space of clamd belongs to the user of clamd (required parameter, no default), never world-writable
+  need(
+    code.includes('readonly CLAMAV_OWNER="${EVIA_CLAMAV_OWNER:?EVIA_CLAMAV_OWNER}"'),
+    'EVIA_CLAMAV_OWNER wymagany, bez wartości domyślnej',
+  );
+  need(code.includes('"$CLAMAV_OWNER" 0700') && !/1777|0777/.test(code), 'katalog skanu: właściciel clamd, tryb 0700');
   return problems;
 }
 
@@ -263,6 +340,20 @@ export const BUCKET_POLICIES: Readonly<Record<string, Readonly<Record<string, re
   register_allow: {
     register_writer: ['s3:PutObject'],
     restore_reader: ['s3:GetObject', 's3:GetObjectVersion', 's3:ListBucket', 's3:ListBucketVersions'],
+  },
+  // EVM-052: the ZIP exports. The API key only reads (a signed link is signed with it: GetObject; ListBucket makes a vanished object a 404, not a 403);
+  // the worker key builds the archive (a multipart upload: PutObject covers create, part and complete), checks it (HeadObject = GetObject) and removes it.
+  // The code of EVM-052 uses the credentials of the process for both buckets, so no new application exists: the policies of the two buckets split the keys.
+  exports_allow: {
+    media_app: ['s3:GetObject', 's3:ListBucket'],
+    media_worker: [
+      's3:PutObject',
+      's3:GetObject',
+      's3:DeleteObject',
+      's3:AbortMultipartUpload',
+      's3:ListMultipartUploadParts',
+      's3:ListBucket',
+    ],
   },
   db_backup_allow: {
     backup_writer: [
@@ -364,10 +455,11 @@ export function bucketProblems(raw: string): string[] {
     'polityka IAM ograniczona do projektu staging',
   );
 
-  for (const name of ['media', 'register', 'db_backup']) {
+  for (const name of ['media', 'register', 'db_backup', 'exports']) {
     const body = bucket(name);
     need(body !== '', `bucket ${name}`);
-    need(/versioning\s*\{\s*enabled\s*=\s*true/.test(body), `${name}: wersjonowanie`);
+    // the exports are short-lived copies of originals (GPS): no versions, so that the one-day lifecycle really erases them (EVM-052)
+    if (name !== 'exports') need(/versioning\s*\{\s*enabled\s*=\s*true/.test(body), `${name}: wersjonowanie`);
     need(/force_destroy\s*=\s*false/.test(body), `${name}: force_destroy = false`);
     const sse = block(`resource "scaleway_object_bucket_server_side_encryption_configuration" "${name}"`);
     need(/sse_algorithm\s*=\s*"AES256"/.test(sse), `${name}: szyfrowanie SSE-ONE (AES256)`);
@@ -447,6 +539,23 @@ export function bucketProblems(raw: string): string[] {
     /media_worker\s*=\s*\[[^\]]*"ObjectStorageObjectsWrite"/.test(apps),
     'media_worker: zestaw uprawnień Write (zawężony polityką bucketu)',
   );
+
+  // EVM-052 (SR-DATA-07, SR-FILE-09): the bucket of the ZIP exports - no lock, no versions, no CORS (the browser follows a signed link), one day of life
+  const exportsBucket = bucket('exports');
+  need(
+    !/object_lock_enabled\s*=\s*true/.test(exportsBucket),
+    'exports: bez object lock (kopia oryginałów z GPS musi dać się usunąć po 24 h)',
+  );
+  need(!/versioning\s*\{\s*enabled\s*=\s*true/.test(exportsBucket), 'exports: bez wersjonowania');
+  need(!/cors_rule\s*\{/.test(exportsBucket), 'exports: bez CORS (pobranie przez link, nie fetch)');
+  need(
+    /id\s*=\s*"exports-expire"[\s\S]*?expiration\s*\{\s*days\s*=\s*1\b/.test(exportsBucket) &&
+      /abort_incomplete_multipart_upload_days\s*=\s*1\b/.test(exportsBucket),
+    'exports: wygasanie po 1 dniu i przerwanie multipart po 1 dniu',
+  );
+  need(!/lock_configuration"\s+"exports"/.test(content), 'exports: brak konfiguracji object lock');
+  // a multipart upload sends its parts without If-None-Match: a condition on s3:if-none-match would refuse the builder of the archive
+  need(!/s3:if-none-match/.test(policyOf('exports')), 'exports: bez warunku s3:if-none-match (UploadPart go nie wysyła)');
 
   // the register accepts only a conditional PutObject (no overwrite)
   need(
@@ -548,6 +657,7 @@ export const MATRIX_BUCKETS: Readonly<Record<string, string>> = Object.freeze({
   media: 'MEDIA_BUCKET',
   register: 'DELETION_REGISTER_BUCKET',
   db_backup: 'DB_BACKUP_BUCKET',
+  exports: 'MEDIA_EXPORT_BUCKET',
 });
 /** The prefix of the probe object per area. */
 export const MATRIX_AREAS: Readonly<Record<string, string>> = Object.freeze({

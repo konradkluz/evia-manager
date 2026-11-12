@@ -71,6 +71,8 @@ web_repo="$(jq -r '.imageRepositories.web' "$CONFIG")"
 network="$(jq -r '.runtimeNetwork' "$CONFIG")"
 baseline="$(jq -r '.baseline.commit' "$CONFIG")"
 [[ "$network" =~ ^[a-z][a-z0-9-]{1,40}$ ]] || fail "runtime network in the configuration"
+# EVM-084 (L5): the network of clamd is a second network of the worker; the same name for the runtime network would put api into it.
+[ "$network" != evia-scan ] || fail "runtime network in the configuration is the network of clamd"
 [[ "$baseline" =~ ^[0-9a-f]{40}$ ]] || fail "baseline in the configuration"
 check_image() {
   local image="$1" repository="$2"
@@ -94,18 +96,27 @@ install -d -m 0700 "$WORK/releases" "$release"
 jq -j '.compose' "$RESULT" > "$release/compose.json"
 [ "$(sha256sum -- "$release/compose.json" | cut -d' ' -f1)" = "$compose_sha" ] || fail "compose does not match its hash"
 cp -- "$manifest_file" "$release/release-manifest.json"
+# EVM-084 (K8, K9): the shapes of the verifier (services/deploy-agent/src/compose-policy.ts) - the worker alone may also mount the work area of the photos and of the
+# films (three fixed shapes, in this order) and joins the internal network of clamd, which the document only references. The golden file of
+# infra/deploy-agent/test/fixtures is the canonical form of the committed compose.staging.yaml; deploy.test.mjs runs it through this very filter.
 jq -e --arg a "$api" --arg w "$web" --arg n "$network" '
   (keys == ["networks", "services"])
-  and (.networks == {($n): {external: true, name: $n}})
+  and (.networks == {($n): {external: true, name: $n}, "evia-scan": {external: true, name: "evia-scan"}})
   and ((.services | keys) == ["api", "migrate", "web", "worker"])
   and all(.services | to_entries[];
     ((.value | keys) - ["cap_drop", "command", "environment", "image", "init", "mem_limit", "networks", "pids_limit",
       "pull_policy", "read_only", "restart", "security_opt", "stop_grace_period", "tmpfs", "user", "volumes"]) == []
     and .value.image == (if .key == "web" then $w else $a end)
     and .value.pull_policy == "never" and .value.read_only == true and .value.cap_drop == ["ALL"]
-    and .value.security_opt == ["no-new-privileges:true"] and .value.networks == [$n]
+    and .value.security_opt == ["no-new-privileges:true"]
+    and .value.networks == (if .key == "worker" then [$n, "evia-scan"] else [$n] end)
     and (.value.user | test("^[1-9][0-9]{3,5}:[1-9][0-9]{3,5}$"))
-    and ((.value.volumes // ["/run/evia/secrets/" + .key + ":/run/secrets:ro"]) == ["/run/evia/secrets/" + .key + ":/run/secrets:ro"]))
+    and (("/run/evia/secrets/" + .key + ":/run/secrets:ro") as $own
+      | (.value.volumes // [$own]) as $volumes
+      | ($volumes == [$own])
+        or (.key == "worker"
+          and (($volumes == [$own, "/run/evia/media-work:/run/media-work"])
+            or ($volumes == [$own, "/run/evia/media-work:/run/media-work", "/var/lib/evia/media-video:/var/lib/media-video"])))))
 ' "$release/compose.json" > /dev/null || fail "compose document outside the allow-list"
 
 if [ ! -f "$REGISTRY" ]; then
@@ -152,6 +163,34 @@ for image in "$api" "$web"; do
 done
 # A rollback never migrates: the schema is expand-only (tools/repo-policy migrations.test.ts), so N−1 runs on schema N,
 # and the older migrator would refuse a database with migrations it does not know (ADR-0018 "Rollback i migracje").
+# EVM-084 (K8, security-engineer M1): compose creates a missing host directory on the root disk. The work areas of the worker must therefore be REAL mounts
+# of the IaC session (the tmpfs of the photos; the dm-crypt volume of the films - RR-75/76/78 are accepted only with dm-crypt), with the options the runbook
+# demands - checked before anything is migrated or started, and only for the paths the (already validated) document mounts. No mount: REFUSED, nothing changes.
+host_mounts=()
+while IFS= read -r host_path; do host_mounts+=("$host_path"); done < <(
+  jq -r '(.services.worker.volumes // [])[] | split(":")[0] | select(. == "/run/evia/media-work" or . == "/var/lib/evia/media-video")' "$release/compose.json"
+)
+# --direction backward: of mounts stacked on one path the NEWEST comes first, and that is the one Docker uses (EVM-084 L4).
+mount_field() { findmnt -n -o "$1" --direction backward --mountpoint "$ROOT$2" 2> /dev/null | head -n 1; }
+for host_path in "${host_mounts[@]}"; do
+  mountpoint -q -- "$ROOT$host_path" || fail "host path $host_path is not a mount (the IaC session creates it; compose would create a directory on the root disk)"
+  mount_options=",$(mount_field OPTIONS "$host_path"),"
+  for option in noexec nosuid nodev; do
+    [[ "$mount_options" == *",$option,"* ]] || fail "host mount $host_path lacks $option"
+  done
+  case "$host_path" in
+    /run/evia/media-work) [ "$(mount_field FSTYPE "$host_path")" = tmpfs ] || fail "host mount $host_path must be a tmpfs (photos never reach the disk)" ;;
+    /var/lib/evia/media-video)
+      # /dev/mapper also holds LVM and other device-mapper targets: only the block device type "crypt" proves dm-crypt (EVM-084 L3).
+      mount_source="$(mount_field SOURCE "$host_path")"
+      [[ "$mount_source" == /dev/mapper/* && "$(lsblk -no TYPE -- "$mount_source" 2> /dev/null | head -n 1)" == crypt ]] ||
+        fail "host mount $host_path must be on a dm-crypt device (type crypt, RR-75)"
+      ;;
+  esac
+done
+# EVM-084 (K9): the network of clamd must stay internal (no way out for the worker that scans); the channel only references it, infra creates it.
+[ "$(docker network inspect --format '{{.Internal}}' -- evia-scan 2> /dev/null || true)" = true ] || fail "network evia-scan is not internal (or missing)"
+
 if [ "$decision" = rollback ]; then
   log "rollback: migrations skipped (expand-only schema)"
 elif ! compose_of "$project" "$release/compose.json" run --rm --no-deps migrate; then

@@ -82,6 +82,36 @@ groups:
         annotations:
           summary: 'Restore test resources older than 24 h were found, or the sweeper is failing or silent (env {{ $labels.env }})'
           runbook: docs/ops/runbooks/alerty.md#eviarestoreresourcesleftover
+  - name: host
+    rules:
+      - alert: EviaHostMemoryLow
+        expr: evia_host_memory_available_bytes{env="staging"} < ${host_mem_available_min_bytes}
+        for: ${host_mem_for}
+        labels: { severity: warning, ac2: host-capacity }
+        annotations:
+          summary: 'Available memory of the staging VM is below ${host_mem_available_min_bytes} bytes for ${host_mem_for} (CAX21 threshold, the owner decides) (env {{ $labels.env }})'
+          runbook: docs/ops/runbooks/alerty.md#eviahostmemorylow
+      - alert: EviaHostOomKill
+        expr: increase(evia_host_oom_kills_total{env="staging"}[${host_oom_window}]) > 0
+        for: 0m
+        labels: { severity: critical, ac2: host-capacity }
+        annotations:
+          summary: 'The kernel killed a process for lack of memory in the last ${host_oom_window} (host or container limit); check which, then decide on CAX21 (env {{ $labels.env }})'
+          runbook: docs/ops/runbooks/alerty.md#eviahostoomkill
+      - alert: EviaHostDiskFull
+        expr: evia_host_filesystem_used_ratio{env="staging"} > ${host_disk_used_ratio_max}
+        for: ${host_disk_for}
+        labels: { severity: warning, ac2: host-capacity }
+        annotations:
+          summary: 'File system {{ $labels.mount }} of the staging VM is above ${host_disk_used_ratio_max} of its size (env {{ $labels.env }})'
+          runbook: docs/ops/runbooks/alerty.md#eviahostdiskfull
+      - alert: EviaHostMountMissing
+        expr: evia_host_mount_present{env="staging"} == 0
+        for: ${host_mount_for}
+        labels: { severity: critical, ac2: host-capacity }
+        annotations:
+          summary: 'Mount {{ $labels.mount }} of the staging VM is missing: a work volume is not mounted (env {{ $labels.env }})'
+          runbook: docs/ops/runbooks/alerty.md#eviahostmountmissing
   - name: usage
     rules:
       - alert: EviaGrafanaUsageHigh
