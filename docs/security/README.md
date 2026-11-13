@@ -48,4 +48,4 @@
 ## W procesie
 - Model zagrożeń aktualizowany co kamień milowy; wymagania bezpieczeństwa wplecione w AC historyjek.
 - Przegląd `security-engineer` dla zmian wrażliwych (lista w `docs/process/workflow.md`), sign-off przed każdym wydaniem.
-- Przed startem produkcyjnym z realnymi danymi: zewnętrzny test penetracyjny w zakresie uwierzytelniania i MFA, IDOR oraz uploadu plików i jeden security sign-off wydania 1.0 (RR-10; decyzja 2026-11-12).
+- Przed startem produkcyjnym z realnymi danymi: zewnętrzny test penetracyjny w zakresie uwierzytelniania i MFA, IDOR oraz uploadu plików i jeden security sign-off wydania 1.0 (RR-10; decyzja 2026-11-12). **Zmiana 2026-11-13 (decyzja Konrada):** realne dane od 2026-11-13 na jedynym środowisku, bez pentestu i do posiedzenia B bez kopii zapasowych — RR-91, RR-92, RR-93 w modelu zagrożeń.

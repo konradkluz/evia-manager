@@ -8,7 +8,7 @@ import { list, record, text } from './files.ts';
 export const PUBLISH_IF =
   "github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.ci-gate.result == 'success' && needs.changes.outputs.publish == 'true'";
 /** Jobs that run after ci-gate and are never its dependencies (a red deployment never blocks a merge, and vice versa). */
-export const POST_GATE_JOBS = Object.freeze(['publish', 'staging-verify']);
+export const POST_GATE_JOBS = Object.freeze(['publish', 'publish-infra', 'staging-verify']);
 /** The compose file of the deployment channel — a constant of the VM configuration as well (V3, architect 7). */
 export const RELEASE_COMPOSE = 'infra/runtime/compose.staging.yaml';
 /**
@@ -101,6 +101,7 @@ export function publishProblems(document: unknown): string[] {
     problems.push(`${where}: skan obrazów (bramka 6) przed logowaniem do GHCR i wypchnięciem`);
   if (!script.includes('--severity HIGH,CRITICAL --ignore-unfixed --exit-code 1'))
     problems.push(`${where}: bramka 6 — Critical/High z poprawką = czerwony`);
+  problems.push(...secretScanProblems(script, where), ...secretReportUploadProblems(job, where));
   // docker save writes 0600 archives; the unprivileged scanner (65534) must be able to read them before the first scan.
   const readable = script.indexOf('chmod a+r .scratch/scans/*.tar');
   if (readable < 0 || readable < script.lastIndexOf('docker save ') || readable > scan)
@@ -171,15 +172,23 @@ export function stagingVerifyProblems(document: unknown): string[] {
   return problems;
 }
 
-/** `packages: write` only in the publish job of ci.yml, never at the workflow level or in another job (AC2). */
+/**
+ * `packages: write` only in publish and publish-infra of ci.yml, `id-token` and `attestations` only in publish-infra, never at
+ * the workflow level or in another job (AC2; EVM-124 P4).
+ */
 export function packagesWriteProblems(file: string, document: unknown): string[] {
   const workflow = record(document);
   const problems: string[] = [];
-  if (JSON.stringify(workflow['permissions'] ?? {}).includes('packages')) problems.push(`${file}: packages na poziomie workflowu`);
+  const isCi = file.endsWith('ci.yml');
+  const top = JSON.stringify(workflow['permissions'] ?? {});
+  if (top.includes('packages')) problems.push(`${file}: packages na poziomie workflowu`);
+  if (/id-token|attestations/.test(top)) problems.push(`${file}: id-token i attestations na poziomie workflowu`);
   for (const [name, value] of Object.entries(record(workflow['jobs']))) {
     const permissions = record(record(value)['permissions']);
-    if ('packages' in permissions && !(file.endsWith('ci.yml') && name === 'publish'))
-      problems.push(`${file}: job ${name}: packages wyłącznie w publish`);
+    if ('packages' in permissions && !(isCi && (name === 'publish' || name === 'publish-infra')))
+      problems.push(`${file}: job ${name}: packages wyłącznie w publish i publish-infra`);
+    if (('id-token' in permissions || 'attestations' in permissions) && !(isCi && name === 'publish-infra'))
+      problems.push(`${file}: job ${name}: id-token i attestations wyłącznie w publish-infra`);
   }
   return problems;
 }
@@ -309,6 +318,8 @@ export function releaseDockerfileProblems(name: string, dockerfile: string, igno
 
 /** The repository the published images are linked to (org.opencontainers.image.source; GHCR connects the package to it). */
 export const RELEASE_SOURCE = 'https://github.com/konradkluz/evia-manager';
+/** The licence notice and source offer of the public images (org.opencontainers.image.documentation; ADR-0022 pt 3). */
+export const RELEASE_DOCUMENTATION = `${RELEASE_SOURCE}/blob/main/infra/images/README.md`;
 
 /**
  * A published Dockerfile (api, web) carries exactly one source label equal to the repository URL, in the last stage
@@ -324,5 +335,287 @@ export function releaseLabelProblems(name: string, dockerfile: string): string[]
   if (all.length !== 1 || all[0] !== `${key}="${RELEASE_SOURCE}"`)
     problems.push(`${name}: dokładnie jedna etykieta ${key}="${RELEASE_SOURCE}"`);
   if (inLast !== 1) problems.push(`${name}: etykieta ${key} w ostatnim etapie`);
+  const docKey = 'org.opencontainers.image.documentation';
+  const docs = code.match(/org\.opencontainers\.image\.documentation=("[^"]*"|\S+)/g) ?? [];
+  const inLastDocs = [...lastStage.matchAll(/org\.opencontainers\.image\.documentation=/g)].length;
+  if (docs.length !== 1 || docs[0] !== `${docKey}="${RELEASE_DOCUMENTATION}"`)
+    problems.push(`${name}: dokładnie jedna etykieta ${docKey}="${RELEASE_DOCUMENTATION}"`);
+  if (inLastDocs !== 1) problems.push(`${name}: etykieta ${docKey} w ostatnim etapie`);
+  return problems;
+}
+
+/** A path glob (`*` within a segment, `**` across segments) as a regular expression source. */
+function globSource(path: string): string {
+  return path
+    .split('**')
+    .map((part) =>
+      part
+        .split('*')
+        .map((piece) => piece.replace(/[.+^${}()|[\]\\]/g, '\\$&'))
+        .join('[^/]*'),
+    )
+    .join('.*');
+}
+
+/**
+ * No upload-artifact step of a job may carry a secret scan report (trivy-secret-*.json): the report lists where a secret sits in an
+ * image, so it stays in the log of the failing job only. A path matches when it names the report, a glob that matches it, or the
+ * whole directory of the scans.
+ */
+export function secretReportUploadProblems(job: Record<string, unknown>, where: string): string[] {
+  const sample = '.scratch/scans/trivy-secret-evia-api.json';
+  return steps(job)
+    .filter((step) => text(step['uses']).startsWith('actions/upload-artifact@'))
+    .flatMap((step) => text(record(step['with'])['path']).split('\n'))
+    .map((path) => path.trim())
+    .filter((path) => path !== '')
+    .filter((path) => {
+      if (path.includes('trivy-secret')) return true;
+      const glob = new RegExp(`^${globSource(path)}$`);
+      return glob.test(sample) || path.replace(/\/$/, '') === '.scratch/scans' || path.replace(/\/$/, '') === '.scratch';
+    })
+    .map((path) => `${where}: artefakt z raportem skanu sekretów (${path}) — raport trivy-secret-* nie jest przesyłany`);
+}
+
+/**
+ * Secrets of any severity in an image = red before the push (the GHCR packages are public, ADR-0022 pt 3; decision of Konrad 2026-11-13):
+ * a vulnerability run (Critical/High) and an own secret run without --severity (the default covers every severity), the latter failing
+ * the job (failed=1) and not uploaded as an artifact.
+ */
+export function secretScanProblems(script: string, where: string): string[] {
+  const problems: string[] = [];
+  const runs = script.match(/--scanners \S+[^\n]*/g) ?? [];
+  const others = runs.filter((run) => !run.startsWith('--scanners secret ')).join('\n');
+  if (!runs.some((run) => run.startsWith('--scanners vuln ')) || /--scanners [^ ]*secret/.test(others))
+    problems.push(`${where}: skan podatności osobno od skanu sekretów (--scanners vuln i osobno --scanners secret)`);
+  const secretRuns = runs.filter((run) => run.startsWith('--scanners secret '));
+  if (secretRuns.length !== 1 || !secretRuns[0]?.includes('--exit-code 1') || /--severity/.test(secretRuns[0]))
+    problems.push(`${where}: skan sekretów (--scanners secret --exit-code 1 bez --severity: każdy poziom = czerwony)`);
+  if (!script.includes('trivy-secret-$name.json') || !/--scanners secret[\s\S]*?\|\| \{\s+failed=1/.test(script))
+    problems.push(`${where}: sekret w obrazie = failed=1 przed pushem`);
+  if (/secrets:/.test(script) || /--ignore-policy|--skip-files|--secret-config/.test(script))
+    problems.push(`${where}: bez wyjątków dla sekretów w skanie obrazów`);
+  return problems;
+}
+
+/** The infrastructure images built in CI (EVM-124): the order is the order of the builds, scans and pushes. */
+export const INFRA_IMAGES = Object.freeze(['postgres-pgbackrest', 'media-processor']);
+/** The exact condition of publish-infra: a push to main after a green ci-gate (every push — skipping unchanged inputs is out of scope). */
+export const PUBLISH_INFRA_IF = "github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.ci-gate.result == 'success'";
+/** The only actions publish-infra may use: an OIDC token is reachable by every action of the job (K3); pinned by SHA with a version comment. */
+const PUBLISH_INFRA_ACTIONS = [
+  /^actions\/checkout@[0-9a-f]{40}$/,
+  /^actions\/upload-artifact@[0-9a-f]{40}$/,
+  /^actions\/attest-build-provenance@[0-9a-f]{40}$/,
+];
+/** The Docker commands publish-infra may run — nothing else. */
+const PUBLISH_INFRA_DOCKER = [
+  /^docker buildx build --no-cache --pull --provenance=false --sbom=false --platform linux\/arm64 /,
+  /^docker image inspect --format '\{\{\.Os\}\}\/\{\{\.Architecture\}\}' "(evia-\$image:candidate|\$REGISTRY\/\$name@\$digest)"\)"$/,
+  /^docker image inspect --format '\{\{json \.RepoDigests\}\}' "\$target"$/,
+  /^docker save "evia-\$image:candidate" --output /,
+  /^docker compose -f compose\.yaml run --rm scan-trivy-image image /,
+  /^docker login ghcr\.io --username "\$GHCR_USER" --password-stdin$/,
+  /^docker tag "\$name:candidate" "\$target"$/,
+  /^docker push "\$target"$/,
+  /^docker buildx imagetools inspect --raw "\$REGISTRY\/\$name@\$digest"$/,
+  /^docker pull --platform linux\/arm64 "\$REGISTRY\/\$name@\$digest"$/,
+  /^docker logout ghcr\.io$/,
+];
+
+const stepText = (step: Record<string, unknown>): string => `${text(step['run'])}\n${text(step['uses'])}`;
+/** Index of the first step whose script or `uses` contains `needle` (-1 when none). */
+const firstStep = (job: Record<string, unknown>, needle: string): number => steps(job).findIndex((step) => stepText(step).includes(needle));
+const lastStep = (job: Record<string, unknown>, needle: string): number =>
+  steps(job).findLastIndex((step) => stepText(step).includes(needle));
+
+/**
+ * The publish-infra job of ci.yml (EVM-124 AC1-AC4; security-engineer P1-P4, K1-K7, K10): trigger, permissions, native arm64
+ * without emulation, hermetic (no cache, secret, foreign input or foreign action), all builds, then the platform check, the scan
+ * and only then the push of both images (all or nothing), the binding of the scanned image to the digest, the attestation and the record.
+ */
+export function publishInfraProblems(document: unknown): string[] {
+  const jobs = record(record(document)['jobs']);
+  const where = 'ci.yml: publish-infra';
+  if (!('publish-infra' in jobs)) return [`${where}: brak joba publish-infra`];
+  const job = record(jobs['publish-infra']);
+  const script = runs(job);
+  const whole = JSON.stringify(job);
+  const problems: string[] = [];
+  if (text(job['if']) !== PUBLISH_INFRA_IF) problems.push(`${where}: wymagane if: ${PUBLISH_INFRA_IF}`);
+  if (JSON.stringify(job['needs']) !== '["ci-gate"]') problems.push(`${where}: needs wyłącznie [ci-gate]`);
+  if (text(job['runs-on']) !== 'ubuntu-24.04-arm') problems.push(`${where}: runs-on: ubuntu-24.04-arm (natywny arm64, bez QEMU)`);
+  const timeout = job['timeout-minutes'];
+  if (typeof timeout !== 'number' || timeout > 45) problems.push(`${where}: timeout-minutes ≤ 45`);
+  const permissions = { contents: 'read', packages: 'write', 'id-token': 'write', attestations: 'write' };
+  if (JSON.stringify(job['permissions']) !== JSON.stringify(permissions))
+    problems.push(`${where}: permissions = { contents: read, packages: write, id-token: write, attestations: write }`);
+  if (whole.includes('secrets.')) problems.push(`${where}: sekrety repozytorium są zabronione`);
+  if (/\$\{\{\s*github\.event\./.test(whole)) problems.push(`${where}: interpolacja github.event.* (wyłącznie przez env)`);
+  if (
+    /--secret|--build-arg|ACTIONS_ID_TOKEN|ACTIONS_RUNTIME_TOKEN|ACTIONS_CACHE_URL|cache-from|cache-to|type=gha|--mount=type=cache/.test(
+      script,
+    )
+  )
+    problems.push(`${where}: sekret, --build-arg albo token Actions w budowie, cache buildx`);
+  if (/qemu|binfmt|--platform linux\/amd64/i.test(whole)) problems.push(`${where}: emulacja (QEMU, binfmt) albo platforma amd64`);
+  if (/apt(-get)? (dist-)?upgrade/.test(script)) problems.push(`${where}: apt upgrade`);
+  if (/\|\| true|continue-on-error/.test(whole.replace(/failed=1/g, '')))
+    problems.push(`${where}: błąd skanera albo kroku nie może być połknięty`);
+  if (JSON.stringify(job['env'] ?? {}).includes('needs.')) problems.push(`${where}: wyjście innego joba w env`);
+  for (const step of steps(job)) {
+    const uses = text(step['uses']);
+    if (uses !== '' && !PUBLISH_INFRA_ACTIONS.some((pattern) => pattern.test(uses)))
+      problems.push(`${where}: akcja ${uses} spoza listy (checkout, upload-artifact, attest-build-provenance po SHA)`);
+    if (JSON.stringify(step).includes('needs.')) problems.push(`${where}: wyjście innego joba jako wejście kroku`);
+    if (/[^|]\|[^|]/.test(text(step['run'])) && step['shell'] !== 'bash')
+      problems.push(`${where}: krok z potokiem bez shell: bash (pipefail)`);
+    if (/docker push|actions\/attest-build-provenance@/.test(stepText(step)) && ('if' in step || 'continue-on-error' in step))
+      problems.push(`${where}: krok push i atestacji bez if i continue-on-error`);
+  }
+  const checkouts = steps(job).filter((step) => text(step['uses']).startsWith('actions/checkout@'));
+  if (checkouts.length !== 1 || record(checkouts[0]?.['with'])['persist-credentials'] !== false)
+    problems.push(`${where}: jeden checkout z persist-credentials: false`);
+  for (const line of dockerLines(script))
+    if (!PUBLISH_INFRA_DOCKER.some((pattern) => pattern.test(line))) problems.push(`${where}: polecenie Docker spoza listy (${line})`);
+  if (!script.includes('"$(uname -m)" != aarch64')) problems.push(`${where}: kontrola uname -m = aarch64 przed budową`);
+  if (!script.includes('docker buildx build --no-cache --pull ')) problems.push(`${where}: budowa wyłącznie z --no-cache --pull`);
+  for (const image of INFRA_IMAGES)
+    if ((script.match(new RegExp(`for image in ${INFRA_IMAGES.join(' ')}`, 'g')) ?? []).length < 3 || !script.includes(image))
+      problems.push(`${where}: obraz ${image} we wszystkich pętlach budowy, skanu i pushu`);
+  if (!script.includes('infra/images/$image/Dockerfile')) problems.push(`${where}: Dockerfile z infra/images/$image/Dockerfile`);
+  if (!script.includes('--severity HIGH,CRITICAL --ignore-unfixed --exit-code 1'))
+    problems.push(`${where}: bramka — Critical/High z poprawką = czerwony (HIGH,CRITICAL, --ignore-unfixed, --exit-code 1)`);
+  problems.push(...secretScanProblems(script, where), ...secretReportUploadProblems(job, where));
+  if (!script.includes('--show-suppressed') || !script.includes('ExperimentalModifiedFindings'))
+    problems.push(`${where}: skan z --show-suppressed; wyciszone znaleziska procesora = czerwony (P2)`);
+  if (!script.includes('--ignorefile "$ignore"') || !script.includes('/out/trivyignore-none.yaml'))
+    problems.push(`${where}: procesor skanowany bez rejestru wyjątków infrastruktury (osobny pusty --ignorefile)`);
+  if (!script.includes('--format cyclonedx')) problems.push(`${where}: SBOM CycloneDX`);
+  if (!script.includes('chmod a+r .scratch/scans/*.tar')) problems.push(`${where}: archiwa docker save czytelne dla skanera`);
+  if (/ghcr\.io\/konradkluz\/[^"\s]*:(?!sha-)/.test(script)) problems.push(`${where}: obraz projektu po tagu innym niż sha-<commit>`);
+  // all or nothing: every build, then the platform check, the scan of both, then the push, the attestations, the record
+  const build = lastStep(job, 'docker buildx build');
+  const platform = firstStep(job, 'not linux/arm64');
+  const scan = firstStep(job, 'scan-trivy-image image');
+  const push = firstStep(job, 'docker push');
+  const login = firstStep(job, 'docker login');
+  const attest = firstStep(job, 'actions/attest-build-provenance@');
+  const lastAttest = lastStep(job, 'actions/attest-build-provenance@');
+  const recorded = firstStep(job, 'infra-images-record.json');
+  if (!(build >= 0 && build < platform && platform < scan && scan < push && push < attest && lastAttest < recorded))
+    problems.push(`${where}: kolejność kroków: budowy, platforma, skan, push, atestacja, rekord`);
+  if (login !== push) problems.push(`${where}: docker login dopiero po skanie, w kroku push`);
+  const platformRun = text(steps(job)[platform]?.['run']);
+  if (!/\[ "\$platform" != linux\/arm64 \]/.test(platformRun) || !platformRun.includes('is $platform, not linux/arm64'))
+    problems.push(`${where}: kontrola platformy z komunikatem o platformie przed skanem`);
+  const pushStep = steps(job)[push] ?? {};
+  const pushRun = text(pushStep['run']);
+  const pushEnv = { GHCR_TOKEN: '${{ github.token }}', GHCR_USER: '${{ github.actor }}' };
+  if (JSON.stringify(pushStep['env']) !== JSON.stringify(pushEnv))
+    problems.push(`${where}: logowanie do GHCR wyłącznie tokenem joba (env kroku push)`);
+  if (
+    !pushRun.includes('imagetools inspect --raw') ||
+    !pushRun.includes('.config.digest') ||
+    !pushRun.includes('[ "$config" != "$image_id" ]')
+  )
+    problems.push(`${where}: Metadata.ImageID ze skanu = config.digest manifestu z GHCR po digeście z pushu (P1)`);
+  if (!pushRun.includes('.RepoDigests') || /grep -oE '[^']*digest:/.test(pushRun))
+    problems.push(`${where}: digest publikacji z RepoDigests, nie z logu push`);
+  if (
+    !pushRun.includes('docker pull --platform linux/arm64 "$REGISTRY/$name@$digest"') ||
+    !pushRun.includes('in GHCR is $platform, not linux/arm64')
+  )
+    problems.push(`${where}: platforma linux/arm64 obrazu pobranego z GHCR po digeście`);
+  const attests = steps(job).filter((step) => text(step['uses']).startsWith('actions/attest-build-provenance@'));
+  if (attests.length !== INFRA_IMAGES.length) problems.push(`${where}: atestacja każdego obrazu (${String(INFRA_IMAGES.length)})`);
+  for (const image of INFRA_IMAGES) {
+    const input = attests.map((step) => record(step['with'])).find((entry) => entry['subject-name'] === `ghcr.io/konradkluz/evia-${image}`);
+    const digest = '${{ steps.push.outputs.digest-' + image + ' }}';
+    if (input?.['subject-digest'] !== digest || input['push-to-registry'] !== true)
+      problems.push(`${where}: atestacja evia-${image}: subject-name, subject-digest z kroku push, push-to-registry`);
+  }
+  const recordRun = text(steps(job)[recorded]?.['run']);
+  for (const key of ['commit', 'runId', 'workflowRef', 'imageId', 'digest', 'platform'])
+    if (!recordRun.includes(key)) problems.push(`${where}: rekord obrazów bez pola ${key}`);
+  const uploads = steps(job)
+    .filter((step) => text(step['uses']).startsWith('actions/upload-artifact@'))
+    .map((step) => record(step['with']));
+  const recordUpload = uploads.find((upload) => upload['name'] === 'infra-images-record');
+  if (
+    recordUpload?.['path'] !== 'infra-record/infra-images-record.json' ||
+    recordUpload['if-no-files-found'] !== 'error' ||
+    recordUpload['retention-days'] !== 90
+  )
+    problems.push(`${where}: artefakt infra-images-record (osobny od release-manifest, retencja 90 dni)`);
+  const evidence = uploads.find((upload) => upload['name'] === 'infra-images-evidence');
+  const evidencePath = text(evidence?.['path']);
+  if (!evidencePath.includes('sbom-evia-') || !evidencePath.includes('trivy-image-evia-') || evidence?.['retention-days'] !== 90)
+    problems.push(`${where}: artefakt SBOM i wyników skanu (retencja 90 dni)`);
+  if (uploads.some((upload) => text(upload['path']).includes('release-manifest')))
+    problems.push(`${where}: rekord osobny od release-manifest`);
+  const logout = steps(job).at(-1);
+  if (text(logout?.['run']) !== 'docker logout ghcr.io' || logout?.['if'] !== 'always()')
+    problems.push(`${where}: ostatni krok: docker logout (if: always())`);
+  return problems;
+}
+
+/** QEMU or binfmt anywhere in a workflow (K4: the infrastructure images are built natively). */
+export function emulationProblems(file: string, raw: string): string[] {
+  return /docker\/setup-qemu-action|tonistiigi\/binfmt/.test(raw) ? [`${file}: QEMU/binfmt zabronione (budowa natywna)`] : [];
+}
+
+/**
+ * infra-images.json "builtImages" (EVM-124 AC6; architect 1): the images built in CI, without a digest (it comes from the CI record
+ * and the attestation) — repository ghcr.io/konradkluz/evia-<name>, an existing Dockerfile and the names built by publish-infra.
+ * `images` (tag + digest, pulled and scanned in publish) must not contain them.
+ */
+export function builtImagesProblems(document: unknown, dockerfileExists: (path: string) => boolean): string[] {
+  const root = record(document);
+  const built = record(root['builtImages']);
+  const problems: string[] = [];
+  if (JSON.stringify(Object.keys(built).sort()) !== JSON.stringify([...INFRA_IMAGES].sort()))
+    problems.push(`infra-images.json: builtImages = ${INFRA_IMAGES.join(', ')} (obrazy budowane w publish-infra)`);
+  for (const [name, value] of Object.entries(built)) {
+    const entry = record(value);
+    if (text(entry['repository']) !== `ghcr.io/konradkluz/evia-${name}`)
+      problems.push(`infra-images.json: builtImages.${name}.repository = ghcr.io/konradkluz/evia-${name} (bez tagu i digestu)`);
+    if (text(entry['dockerfile']) !== `infra/images/${name}/Dockerfile` || !dockerfileExists(text(entry['dockerfile'])))
+      problems.push(`infra-images.json: builtImages.${name}.dockerfile = infra/images/${name}/Dockerfile (istniejący plik)`);
+    if (Object.keys(entry).sort().join(',') !== 'dockerfile,repository')
+      problems.push(`infra-images.json: builtImages.${name} bez digestu i innych pól`);
+  }
+  for (const ref of Object.values(record(root['images'])).map(text))
+    if (ref.startsWith('ghcr.io/konradkluz/evia-'))
+      problems.push(`infra-images.json: images bez obrazów projektu (${ref}) — digest z rekordu CI`);
+  return problems;
+}
+
+/**
+ * The Dockerfiles of the infrastructure images built in CI (EVM-124 AC2; security-engineer K5, K6): the apt packages at an exact
+ * version (fail-closed, no range, no empty value), no unauthenticated source, no pipe into a shell, no upgrade; the processor
+ * runtime without npm and corepack (RR-78); the source label of the repository on both.
+ */
+export function infraDockerfileProblems(name: string, dockerfile: string): string[] {
+  const code = dockerfile.replace(/^\s*#.*$/gm, '');
+  const where = `infra/images/${name}/Dockerfile`;
+  const problems: string[] = [];
+  if (/--allow-unauthenticated|\[trusted=yes\]|\bcurl\b[^\n]*\|\s*(ba)?sh|\bwget\b[^\n]*\|\s*(ba)?sh|apt(-get)? (dist-)?upgrade/.test(code))
+    problems.push(`${where}: niepodpisane źródło, curl|sh albo apt upgrade`);
+  if ((code.match(/org\.opencontainers\.image\.source="https:\/\/github\.com\/konradkluz\/evia-manager"/g) ?? []).length !== 1)
+    problems.push(`${where}: dokładnie jedna etykieta source z adresem repozytorium`);
+  if (name === 'media-processor') {
+    const ffmpeg = /^ARG FFMPEG_VERSION=(\d+:[0-9][0-9.]*-[0-9][0-9a-z.+~]*)$/m.exec(code);
+    if (ffmpeg === null) problems.push(`${where}: ARG FFMPEG_VERSION z dokładną wersją (epoch:wersja, bez *, >= i pustej wartości)`);
+    if (!/^ARG ZLIB_VERSION=\d+:[0-9a-z.+~-]+$/m.test(code)) problems.push(`${where}: ARG ZLIB_VERSION z dokładną wersją`);
+    if (!code.includes('test -n "${FFMPEG_VERSION}"')) problems.push(`${where}: test -n "\${FFMPEG_VERSION}"`);
+    const runtime = code.slice(code.lastIndexOf('AS runtime'));
+    const removal =
+      /^RUN rm -rf [^\n]*\/usr\/local\/lib\/node_modules\/npm[^\n]*\/usr\/local\/lib\/node_modules\/corepack[^\n]*\/usr\/local\/bin\/npm[^\n]*\/usr\/local\/bin\/npx[^\n]*\/usr\/local\/bin\/corepack[^\n]*\\\n\s+&& ! command -v npm \\\n\s+&& ! command -v corepack \\\n\s+&& node --version$/m;
+    if (!removal.test(runtime))
+      problems.push(`${where}: runtime bez npm i corepack (rm -rf, asercje ! command -v, node --version w jednym RUN)`);
+  }
+  if (name === 'postgres-pgbackrest' && !/pgbackrest=\d+\.\d+\.\d+-\d+\.pgdg\d+\+\d+/.test(code))
+    problems.push(`${where}: pgbackrest=<dokładna wersja>`);
   return problems;
 }

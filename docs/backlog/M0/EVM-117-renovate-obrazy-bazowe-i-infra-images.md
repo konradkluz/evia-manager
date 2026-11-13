@@ -52,3 +52,4 @@ Jako **właściciel produktu** chcę, **aby Renovate faktycznie działał i obej
 ## Dziennik
 - 2026-10-27 — utworzono (product-owner) z zamknięcia EVM-007
 - 2026-10-28 — decyzja Konrada (pytania po nocnej kolejce): odłożone do wejścia na produkcję (aplikacja GitHub; do tego czasu obecne tokeny z krótkim TTL).
+- 2026-11-13 — triage wg decyzji „jedno środowisko” (product-owner): „wejście na produkcję” = start realnych danych, więc odłożenie wygasa; **w pierwszym tygodniu po starcie** (część ręczna Konrada — aplikacja GitHub); zadbać o termin wyjątków RR-37/RR-38 (2026-11-20) — EVM-120 przed nim; AC bez zmian.

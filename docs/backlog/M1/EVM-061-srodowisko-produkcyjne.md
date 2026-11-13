@@ -1,66 +1,55 @@
 ---
 id: EVM-061
-title: Środowisko produkcyjne, wdrożenie i monitoring
+title: Start realnych danych na jedynym środowisku — warunki startu (zamiast osobnej produkcji)
 type: enabler
 milestone: M1
 epic: E8 Gotowość produkcyjna
 status: ready
-priority: P1
+priority: P0
+path: pelna            # realne dane osobowe, uwierzytelnianie, infrastruktura
 owner: devops-engineer
-contributors: []
-reviewers: [security-engineer, solution-architect]
-depends_on: [EVM-006, EVM-007, EVM-084, EVM-085]
+contributors: [security-engineer, product-owner]
+reviewers: [security-engineer]
+depends_on: [EVM-007, EVM-089, EVM-064, EVM-121]
 ---
 
-# EVM-061: Środowisko produkcyjne, wdrożenie i monitoring
+# EVM-061: Start realnych danych na jedynym środowisku — warunki startu (zamiast osobnej produkcji)
 
-## Historyjka
-Jako **właściciel produktu** chcę **środowiska produkcyjnego w UE, wdrażanego bezpiecznym kanałem, z kopiami i monitoringiem**, aby **firma mogła pracować na realnych danych, a ja wiedział o każdym wdrożeniu i problemie**.
+> **Przepisana 2026-11-13 (decyzja Konrada).** Pierwotna treść (osobne środowisko produkcyjne `evia-prod`, kanał wdrożeń prod z zatwierdzeniem `approvals/prod.json`, osobny monitoring i konta) **nie jest realizowana**: jest **jedno środowisko** — dotychczasowy staging (`staging.eviacharge.pl`) — które od startu obsługuje realne dane firmy; osobnej produkcji nie ma. Przemianowanie staging → produkcja (domena, nazwy, słownictwo) — osobna mała historyjka EVM-125. Kopie zapasowe i test odtworzenia — EVM-084 (sesja IaC B, zaraz po EVM-124); start bez nich jest świadomie zaakceptowanym ryzykiem (AC5). Treść historyczna — historia gita.
 
-## Kontekst
-- EVM-007 (staging) — te same skrypty IaC; ADR-0011 (Hetzner `evia-prod`, Scaleway `pl-waw`), ADR-0012, ADR-0013; SR-INFRA-13 i SR-INFRA-14.
-- **Decyzja 5 (plan GitHub — przed planem EVM-007):** na GitHub Free w repozytorium prywatnym nie ma Environments ani rulesetów — każdy sekret CI byłby sekretem repozytorium dostępnym dla workflow z dowolnej gałęzi. Ta historyjka realizuje wariant wybrany przez Konrada (README M1 → „Decyzje”, pkt 5): (Pro) środowisko `production` z sekretami ograniczonymi do `main`; (Free) wzorzec pull z weryfikacją na VM i zero sekretów prod w GitHubie (wymaga zmiany ADR-0012 i SR-INFRA-13 oraz nowego ryzyka do akceptacji).
-- Decyzje 7 (drugi Administrator / konto awaryjne, RR-16), 3 (klucze dostępu), 14 (rozmiar VM). Zasoby płatne — po akceptacji kosztów; pierwsze wdrożenie prod — wyłącznie po wyraźnej zgodzie Konrada.
+## Cel
+Jako **właściciel produktu** chcę **jasnej, krótkiej listy warunków, po spełnieniu których Konrad i biuro zaczynają wpisywać realne dane w obecnym środowisku**, aby **zacząć pracować w systemie jak najszybciej, bez osobnej produkcji i bez zbędnych kroków, ale z kontrolą najgroźniejszych ryzyk**.
 
 ## Kryteria akceptacji
-**AC1 — Infrastruktura prod jako kod (SR-INFRA-08)**
-- Zakładając zaakceptowane koszty
-- Gdy uruchamiam IaC dla prod
-- Wtedy powstaje środowisko w UE z tych samych modułów co staging, w osobnych projektach (Hetzner `evia-prod`, projekt Scaleway prod), z osobnymi kluczami, bucketami (media, kopie bazy, rejestr usunięć) i domeną; staging i prod nie współdzielą żadnych poświadczeń.
+**AC1 — Konta i dostęp administracyjny (RR-16, SR-INFRA-09)**
+- Zakładając środowisko z EVM-007 i konto Konrada (EVM-016)
+- Gdy sprawdzam konta
+- Wtedy są co najmniej dwa konta Administratora (drugi Administrator albo konto awaryjne — decyzja 7), każde z MFA i co najmniej dwoma kluczami dostępu, a kody odzyskiwania są przechowywane poza telefonem; wszystkie konta administracyjne dostawców (Hetzner, Scaleway, GitHub, Grafana, rejestrator) mają MFA, a runbook zawiera inwentarz kluczy (właściciel, miejsce, rotacja).
 
-**AC2 — Kanał wdrożenia (SR-INFRA-13, SR-INFRA-14)**
-- Zakładając kanał pull z weryfikacją na VM prod (ADR-0018; GitHub Free, zero sekretów prod w GitHubie)
-- Gdy wdrażam wersję na prod
-- Wtedy agent prod wykonuje V0–V6 z ADR-0018, w tym V5: wdraża się wyłącznie digest z `release-manifest` commita z `main`, dla którego zielony jest `staging-verify` z tym samym skrótem manifestu i który Konrad zatwierdził obiektem `approvals/prod.json` (`commit`, `manifestSha256`) wgranym przez konsolę Scaleway (MFA, urządzenie bez agentów AI) do wersjonowanego bucketu zatwierdzeń prod; agent używa osobnych PAT-ów prod (fine-grained tylko do odczytu, `read:packages`) i klucza odczytu zatwierdzenia z warunkiem IP VM prod
-- Oraz zatwierdzenie commita spoza `main`, po zdarzeniu `push`/`force_push` na `main`, z innym skrótem manifestu, `rollback` dla commita spoza rejestru, bez świeżego testu odtworzenia albo zapis obiektu cudzym kluczem jest odrzucone (test), port 22 jest niedostępny z runnera, a workflow `prod-verify` (bez sekretów, co noc i ręcznie po wdrożeniu) potwierdza stan prod (bramka 10).
+**AC2 — E-mail i domena (EVM-089, EVM-121)**
+- Gdy zaproszenia i reset hasła wychodzą do prawdziwych adresów
+- Wtedy EVM-089 jest `done` (SPF, DKIM, DMARC `p=reject`), a rekordy CAA i `rua` z EVM-121 są ustawione, a `staging-verify` w profilu `strict` jest zielony bez ostrzeżeń.
 
-**AC3 — Powiadomienie o wdrożeniu (SR-LOG-07)**
-- Gdy wdrożenie prod się kończy (sukces albo błąd)
-- Wtedy Konrad dostaje e-mail z wersją i wynikiem, a kanał alertów — zdarzenie.
+**AC3 — RODO przed pierwszymi danymi klientów (EVM-064)**
+- Gdy do systemu trafiają dane klientów
+- Wtedy EVM-064 jest `done` (umowy powierzenia i transfery, rejestr czynności, runbooki, uproszczona DPIA albo udokumentowana decyzja o jej zbędności) albo Konrad zapisał w „Decyzje” świadomą zgodę na start przed jej zakończeniem — z terminem i wskazanymi punktami.
 
-**AC4 — Zgoda na pierwsze wdrożenie**
+**AC4 — Dane syntetyczne i realne (decyzja 4 z 2026-11-13)**
+- Gdy w środowisku są dane syntetyczne i realne
+- Wtedy dane testowe są rozpoznawalne (adresy `.test` / `example.com`, nazwa z prefiksem „TEST”), nie wysyłają poczty (EVM-089 AC2), a runbook opisuje, jak je usunąć albo zostawić; realne zlecenia zakłada Konrad / biuro po zgodzie z AC6.
+
+**AC5 — Start bez kopii zapasowych (świadome ryzyko)**
+- Gdy start następuje przed EVM-084
+- Wtedy ryzyko braku kopii jest zapisane jako ryzyko rezydualne (numer RR nadaje `security-engineer`) z terminem „EVM-084 zaraz po EVM-124” i zaleceniem dla biura (równoległe dotychczasowe narzędzia do czasu pierwszego udanego testu odtworzenia); ryzyko ma decyzję Konrada.
+
+**AC6 — Zgoda na start**
+- Zakładając AC1–AC5
 - Gdy środowisko jest gotowe
-- Wtedy pierwsze wdrożenie prod odbywa się dopiero po wyraźnej zgodzie Konrada, zapisanej w „Decyzje” z datą.
-
-**AC5 — Kopie i szyfrowanie (SR-DATA-04, SR-INFRA-07)**
-- Gdy prod działa
-- Wtedy baza ma PITR 30 dni i niezmienne kopie 37 dni, media — wersjonowanie i object lock, wolumen bazy — LUKS, bucket — SSE, a nieudany backup wywołuje alert (SR-LOG-07); kopie i buckety pochodzą z modułów EVM-084 (te same skrypty co staging).
-
-**AC6 — Monitoring i alerty (SR-LOG-07)**
-- Gdy wykonuję test alertów na prod
-- Wtedy działają alerty dostępności, błędów i bezpieczeństwa z ADR-0013 (nieudane logowania, blokady, zmiany ról i MFA Administratora, masowe pobrania i odczyt, kwarantanna, eksport, wdrożenie, backup) z e-mailem do Konrada; alerty, wspólny stos Grafana z tokenami per środowisko (`env="prod"`) i alert „brak danych” dla prod wg modułów EVM-085.
-
-**AC7 — Konta i klucze (SR-INFRA-09, SR-CRYPTO-04)**
-- Wtedy wszystkie konta administracyjne dostawców (Hetzner, Scaleway, GitHub, Grafana, rejestrator) mają MFA, a runbook zawiera inwentarz kryptograficzny i politykę kluczy (właściciel, miejsce, algorytm, rotacja, zniszczenie).
-
-**AC8 — Administratorzy prod (RR-16)**
-- Zakładając wdrożone prod
-- Gdy Konrad aktywuje konto poleceniem na serwerze (EVM-016) i zaprasza drugiego Administratora albo zakłada konto awaryjne (decyzja 7)
-- Wtedy na prod są co najmniej dwa konta Administratora (albo Administrator + konto awaryjne), każde z co najmniej dwoma kluczami dostępu i kodami odzyskiwania przechowywanymi poza telefonem; konta prod są oddzielne od kont staging.
+- Wtedy start realnych danych następuje dopiero po wyraźnej zgodzie Konrada, zapisanej w „Decyzje” z datą (zastępuje „zgodę na pierwsze wdrożenie prod”).
 
 ## Poza zakresem
-- Test odtworzenia i rejestr usunięć po odtworzeniu — EVM-062. Wysoka dostępność (druga VM) — poza MVP (RR-16).
-- Warunki kolejnych wdrożeń prod w trakcie pilota realnego — bramka EVM-065 AC7 usunięta 2026-11-12 (połączona z EVM-070); kanał z AC2 pozostaje ten sam.
+- Osobne środowisko produkcyjne, osobny projekt dostawców, kanał wdrożeń prod z zatwierdzeniem digestu — nie realizujemy (jedno środowisko; ewentualny powrót do dwóch środowisk — nowa historyjka).
+- Przemianowanie staging → produkcja — EVM-125. Kopie zapasowe, test odtworzenia — EVM-084 (z EVM-062). Alerty i monitoring — EVM-085. Security review wydania 1.0 — EVM-070.
 - Dystrybucja aplikacji mobilnej — M2 (E14).
 
 ## UX / UI
@@ -69,34 +58,31 @@ Nie dotyczy.
 ## Bezpieczeństwo i prywatność
 | Rola | Dostęp |
 |---|---|
-| Administrator | nie dotyczy (infrastruktura) — konta aplikacji wg AC8 |
+| Administrator | nie dotyczy (proces) — konta wg AC1 |
 | Edytor | nie dotyczy |
 | Tylko odczyt | nie dotyczy |
 | Niezalogowany | tylko 80/443 (Caddy) |
 
-- Dane: realne dane osobowe klientów i pracowników (prod).
-- W AC: SR-INFRA-08, SR-INFRA-13, SR-INFRA-14, SR-LOG-07, SR-DATA-04, SR-INFRA-07, SR-INFRA-09, SR-CRYPTO-04.
-- W sekcji: SR-INFRA-01, SR-INFRA-02, SR-INFRA-05, SR-COMM-01, SR-SUPPLY-07. Ryzyka: RR-06, RR-11, RR-16, RR-19.
+- Dane: od startu realne dane osobowe klientów i pracowników na środowisku o nazwie „staging” (do EVM-125) — ryzyka rezydualne: brak kopii (AC5), brak zewnętrznego pentestu (decyzja 2026-11-13; EVM-070 jako wewnętrzny przegląd), wdrożenia automatyczne po scaleniu do `main` na środowisko z realnymi danymi (do oceny `solution-architect` / `security-engineer` — adnotacja do ADR-0018).
+- W AC: SR-INFRA-09, SR-CRYPTO-04, SR-INFRA-12, SR-PRIV-06. Ryzyka: RR-10 (zmieniony), RR-16, nowe RR (AC5).
 
 ## Notatki techniczne
-- Obie ścieżki kanału wdrożenia opisane w planie technicznym; wybór wg decyzji 5. Wariant Free: zmiana ADR-0012 (GitHub Pro to pozycja „nie usuwać bez nowego ADR”) i SR-INFRA-13 przez `solution-architect` i `security-engineer` — przed planem EVM-007.
-- Rozmiar VM prod: CX33 (jak staging od EVM-044 — decyzja 14).
 - Zasady wspólne: [README.md](README.md#zasady-wspólne-dla-historyjek-m1).
 
 ## Plan techniczny
 _Uzupełnia wykonawca przed implementacją._
 
 ## Decyzje
-_—_
+- 2026-11-13 — Konrad: jedno środowisko (obecny staging staje się produkcją; osobnej produkcji nie ma), start od razu na realnych danych, bez kopii zapasowych na starcie (EVM-084 zaraz po EVM-124), bez zewnętrznego pentestu, dane syntetyczne zostają.
 
 ## Uwagi do rozważenia
-_—_
+- RODO przed realnymi danymi klientów (AC3): EVM-064 to głównie dokumenty — rekomendacja: wykonać zaraz po EVM-089 (równolegle z jej oczekiwaniem na DNS).
 
 ## Definition of Done
-- [ ] AC1–AC8 spełnione i zweryfikowane przez QA (testy wdrożenia, test alertów)
-- [ ] Przeglądy: security-engineer, solution-architect — APPROVE
+- [ ] AC1–AC6 spełnione, dowody bez sekretów i danych osobowych
+- [ ] Przegląd: security-engineer — APPROVE
 - [ ] Runbooki (`docs/ops/runbooks/`) i `CHANGELOG.md` zaktualizowane
-- [ ] Demo i akceptacja Konrada (w tym zgoda na pierwsze wdrożenie prod)
+- [ ] Zgoda Konrada na start (AC6)
 
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
@@ -104,3 +90,5 @@ _—_
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-13 — podział EVM-007 wg ADR-0018: te same skrypty to kanał i VM (007a), backupy (EVM-084 = 007b) i obserwowalność (EVM-085 = 007c); `depends_on` + EVM-084, EVM-085. Zmiana AC (AC2, AC5, AC6 wg ADR-0018) zaakceptowana przez Konrada 2026-10-13; liczba AC bez zmian (product-owner)
 - 2026-11-12 — zmiana AC (decyzja Konrada 2026-11-12, bez Sentry): AC4 (alerty) i AC5 (MFA kont) bez Sentry; bramka wdrożeń w trakcie pilota (EVM-065 AC7) usunięta po połączeniu EVM-065 z EVM-070 (Tech Lead z delegacji Konrada)
+- 2026-11-13 — przepisana wg decyzji Konrada „jedno środowisko”: z osobnej produkcji na krótką listę warunków startu realnych danych (AC1 konta — dawne AC7/AC8, AC2 e-mail/domena, AC3 RODO, AC4 dane syntetyczne, AC5 start bez kopii, AC6 zgoda); dawne AC1–AC6 (osobna infrastruktura, kanał prod, alerty prod, kopie prod) wycofane; status `draft` do akceptacji Konrada, P1 → P0 (product-owner)
+- 2026-11-13 — akceptacja w ramach decyzji Konrada z 2026-11-13 (jedno środowisko, start bez kopii z terminem 2026-12-13, zasady RR-93, e-mail EVM-089); status `ready` (Tech Lead)

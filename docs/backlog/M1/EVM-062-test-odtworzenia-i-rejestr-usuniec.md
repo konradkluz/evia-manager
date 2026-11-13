@@ -14,6 +14,8 @@ depends_on: [EVM-040, EVM-061]
 
 # EVM-062: Test odtworzenia kopii produkcji i rejestr usunięć
 
+> **Połączona z EVM-084 (2026-11-13, decyzja Konrada „jedno środowisko”).** Nie ma osobnej produkcji, więc test odtworzenia, rejestr usunięć po odtworzeniu, test niezmienności i alerty „brak testu” wykonuje [EVM-084](../M0/EVM-084-backupy-i-test-odtworzenia-staging.md) na jedynym środowisku (z realnymi danymi, gdy już są). Z treści poniżej do EVM-084 przechodzą jako „delty” (do akceptacji Konrada przy dopisaniu do jej AC): AC2 (rejestr usunięć stosowany idempotentnie po odtworzeniu), AC3 (nieniszczący test niezmienności), AC5 (alert: ostatni udany test starszy niż próg), AC6 (uzgadnianie storage'u z EVM-051) i AC7 (runbook). Elementy tylko dla osobnej produkcji (VM prod, projekt `evia-restore` prod, V5 przed wdrożeniem prod, `skipRestoreTest`) nie obowiązują. Historyjka nie jest realizowana osobno; status zostaje (szablon nie ma statusu „połączona”). Treść poniżej — historia.
+
 ## Historyjka
 Jako **właściciel produktu** chcę **regularnie sprawdzać, że kopię produkcji da się odtworzyć, a dane usunięte na żądanie nie wracają po odtworzeniu**, aby **mieć pewność, że awaria nie zabierze danych firmy, a odtworzenie nie złamie RODO**.
 
@@ -90,3 +92,4 @@ _—_
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-13 — zmiana AC zaakceptowana przez Konrada (ADR-0018): AC1, AC4, AC5 — test z VM prod w projekcie `evia-restore` uruchamiany timerem, „udany ≤ 7 dni, inaczej automatycznie”, `skipRestoreTest` z alertem; liczba AC bez zmian (product-owner)
+- 2026-11-13 — połączona z EVM-084 wg decyzji Konrada „jedno środowisko” (product-owner); nie realizowana osobno

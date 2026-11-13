@@ -14,7 +14,9 @@ import {
   RELEASE_PLATFORM,
   RELEASE_SOURCE,
   releaseDockerfileProblems,
+  RELEASE_DOCUMENTATION,
   releaseLabelProblems,
+  secretReportUploadProblems,
   STAGING_VERIFY_IF,
   stagingVerifyProblems,
 } from '../src/release.ts';
@@ -42,6 +44,46 @@ const replaceRun = (from: string | RegExp, to: string) => (job: Record<string, u
 const replaceRunEnv = (run: string, env: Record<string, string>) => (job: Record<string, unknown>) => ({
   ...job,
   steps: steps(job).map((step) => (step['run'] === run ? { ...step, env } : step)),
+});
+
+describe('publish: secret scan of the public images (EVM-124, ADR-0022 pt 3)', () => {
+  it('EVM-124 AC2: no secret scan report (trivy-secret-*) is in any uploaded artifact path of publish and publish-infra', () => {
+    const infra = record(jobs['publish-infra']);
+    for (const [name, job] of [
+      ['publish', publish],
+      ['publish-infra', infra],
+    ] as const)
+      expect(secretReportUploadProblems(job, name)).toEqual([]);
+    const upload = (path: string): Record<string, unknown> => ({
+      steps: [{ uses: 'actions/upload-artifact@0000000000000000000000000000000000000000', with: { path } }],
+    });
+    for (const path of [
+      '.scratch/scans/trivy-secret-evia-api.json',
+      '.scratch/scans/trivy-secret-*.json',
+      '.scratch/scans/*.json',
+      '.scratch/scans/**',
+      '.scratch/scans/',
+      '.scratch',
+    ])
+      expect(secretReportUploadProblems(upload(['release/x.json', path].join('\n')), 'x')).toHaveLength(1);
+    expect(
+      secretReportUploadProblems(upload(['.scratch/scans/sbom-*.cdx.json', '.scratch/scans/trivy-image-*.json'].join('\n')), 'x'),
+    ).toEqual([]);
+  });
+
+  it('EVM-124 AC2: a secret of any severity in an image is red before the push - an own run without --severity that fails the job', () => {
+    expect(publishProblems(ci)).toEqual([]);
+    expect(publishProblems(withPublish(replaceRun('--scanners secret --exit-code 1', '--scanners vuln,secret --exit-code 1')))).not.toEqual(
+      [],
+    );
+    expect(
+      publishProblems(
+        withPublish(replaceRun('--scanners secret --exit-code 1', '--scanners secret --severity HIGH,CRITICAL --exit-code 1')),
+      ),
+    ).not.toEqual([]);
+    expect(publishProblems(withPublish(replaceRun('--scanners secret --exit-code 1', '--scanners secret')))).not.toEqual([]);
+    expect(publishProblems(withPublish(replaceRun(/(trivy-secret-\$name\.json" \|\| \{\n\s+)failed=1/, '$1true')))).not.toEqual([]);
+  });
 });
 
 describe('publish on the repository (EVM-007 AC2)', () => {
@@ -99,6 +141,37 @@ describe('release image source label (EVM-007 AC2; GHCR links the package to the
   it('EVM-007 AC2: every published Dockerfile (api, web; the worker runs the api image) labels the source with the repository URL, in the last stage', () => {
     expect(RELEASE_SOURCE).toBe('https://github.com/konradkluz/evia-manager');
     for (const image of IMAGES) expect(releaseLabelProblems(`infra/images/${image}`, read(`infra/images/${image}/Dockerfile`))).toEqual([]);
+  });
+
+  it('EVM-124 AC2: every public image (api, web, postgres-pgbackrest, media-processor) points to the licence notice with the documentation label, in the last stage', () => {
+    expect(RELEASE_DOCUMENTATION).toBe('https://github.com/konradkluz/evia-manager/blob/main/infra/images/README.md');
+    for (const image of [...IMAGES, 'postgres-pgbackrest', 'media-processor']) {
+      const dockerfile = read(`infra/images/${image}/Dockerfile`);
+      expect(releaseLabelProblems(`infra/images/${image}`, dockerfile)).toEqual([]);
+      const label = `LABEL org.opencontainers.image.documentation="${RELEASE_DOCUMENTATION}"`;
+      expect(dockerfile).toContain(label);
+      expect(releaseLabelProblems('x', dockerfile.replace(label, ''))).not.toEqual([]);
+      expect(
+        releaseLabelProblems('x', dockerfile.replace(label, 'LABEL org.opencontainers.image.documentation="https://example.com/x"')),
+      ).not.toEqual([]);
+      expect(
+        releaseLabelProblems(
+          'x',
+          `${label}
+${dockerfile.replace(label, '')}`,
+        ),
+      ).not.toEqual([]);
+      expect(
+        releaseLabelProblems(
+          'x',
+          dockerfile.replace(
+            label,
+            `${label}
+${label}`,
+          ),
+        ),
+      ).not.toEqual([]);
+    }
   });
 
   it('EVM-007 AC2: a missing, foreign, duplicated or non-final source label is detected', () => {
@@ -338,7 +411,7 @@ describe('publish checkers detect violations (EVM-007 AC2)', () => {
     const bad = (from: string, to: string): string[] =>
       releaseDockerfileProblems(dir, dockerfile.replace(from, to), ignore, packageManager);
     // a base by digest behind --platform is still checked
-    expect(bad('FROM --platform=$BUILDPLATFORM node:26.10.0-trixie-slim@sha256:', 'FROM --platform=$BUILDPLATFORM node:26#')).not.toEqual(
+    expect(bad('FROM --platform=$BUILDPLATFORM node:26.13.1-trixie-slim@sha256:', 'FROM --platform=$BUILDPLATFORM node:26#')).not.toEqual(
       [],
     );
     expect(bad('FROM --platform=$BUILDPLATFORM node:', 'FROM node:')).not.toEqual([]);

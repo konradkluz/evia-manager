@@ -45,11 +45,27 @@ function zip(name, text, method = 8) {
   return new Uint8Array(Buffer.concat([local, file, payload, central, file, end]));
 }
 
+const record = (/** @type {string} */ label) =>
+  JSON.stringify({
+    schemaVersion: 1,
+    commit: 'a'.repeat(40),
+    images: {
+      'media-processor': {
+        ref: `ghcr.io/${OWNER}/evia-media-processor@${digest(`evia-media-processor-${label}`)}`,
+        platform: 'linux/arm64',
+      },
+      'postgres-pgbackrest': { ref: `ghcr.io/${OWNER}/evia-postgres-pgbackrest@${digest(`evia-postgres-pgbackrest-${label}`)}` },
+    },
+  });
+
 const manifest = (/** @type {string} */ label) =>
   JSON.stringify({
     schemaVersion: 1,
     commit: 'a'.repeat(40),
-    images: { api: `ghcr.io/${OWNER}/evia-api@${digest(`api-${label}`)}`, web: `ghcr.io/${OWNER}/evia-web@${digest(`web-${label}`)}` },
+    images: {
+      api: `ghcr.io/${OWNER}/evia-api@${digest(`evia-api-${label}`)}`,
+      web: `ghcr.io/${OWNER}/evia-web@${digest(`evia-web-${label}`)}`,
+    },
     compose: 'infra/runtime/compose.staging.yaml',
   });
 
@@ -62,7 +78,7 @@ function stub({ count = 25, protectedLabels = ['r1', 'r2', 'r3'], broken = '' } 
   const versions = (/** @type {string} */ name) =>
     Array.from({ length: count }, (_, index) => ({
       id: index + 1,
-      name: digest(`${name === 'evia-api' ? 'api' : 'web'}-v${String(index)}`),
+      name: digest(`${name}-v${String(index)}`),
       created_at: new Date(Date.UTC(2026, 9, 21) - index * 3_600_000).toISOString(),
     }));
   /** @type {import('../lib/retention.mjs').Api} */
@@ -78,20 +94,29 @@ function stub({ count = 25, protectedLabels = ['r1', 'r2', 'r3'], broken = '' } 
         };
       const run = /\/actions\/runs\/(\d+)\/artifacts/.exec(path);
       if (run !== null) {
-        if (broken === 'expired' && run[1] === '2') return { artifacts: [{ name: 'release-manifest', expired: true }] };
+        const name = /name=([\w-]+)/.exec(path)?.[1] ?? '';
+        if (broken === 'expired' && run[1] === '2') return { artifacts: [{ name, expired: true }] };
+        if (broken === 'expired-infra' && run[1] === '2' && name === 'infra-images-record') return { artifacts: [{ name, expired: true }] };
+        // a run before EVM-124 (or one whose publish-infra failed) has no infra record: nothing to protect, not an error
+        if (broken === 'no-record' && name === 'infra-images-record' && run[1] === '1') return { artifacts: [] };
         return {
           artifacts: [
-            { name: 'release-manifest', expired: false, archive_download_url: `zip:${protectedLabels[Number(run[1]) - 1] ?? ''}` },
+            {
+              name,
+              expired: false,
+              archive_download_url: `${name === 'release-manifest' ? 'zip' : 'rec'}:${protectedLabels[Number(run[1]) - 1] ?? ''}`,
+            },
           ],
         };
       }
       if (broken === 'versions' && path.includes('/versions')) throw new Error('500');
-      const pkg = /\/packages\/container\/(evia-api|evia-web)\/versions/.exec(path);
+      const pkg = /\/packages\/container\/(evia-[a-z-]+)\/versions/.exec(path);
       if (pkg !== null) return versions(pkg[1] ?? '');
       throw new Error(`unexpected ${path}`);
     },
     artifact: async (url) => {
       if (broken === 'zip') return new Uint8Array(10);
+      if (url.startsWith('rec:')) return zip('infra-images-record.json', record(url.slice(4)));
       return zip('release-manifest.json', manifest(url.slice(4)));
     },
     remove: async (path) => {
@@ -108,28 +133,53 @@ describe('EVM-007 AC2: GHCR retention', () => {
     const result = await retention({ api, repository: REPOSITORY, mode: 'dry-run', log: (line) => lines.push(line) });
     assert.deepEqual(removed, []);
     assert.equal(result.aborted, false);
-    assert.equal(result.candidates, 10);
+    assert.equal(result.candidates, 20);
     assert.match(lines.at(-1) ?? '', /dry-run/);
     assert.ok(lines.every((line) => !line.includes('ghs_')));
   });
 
-  it('EVM-007 AC2: delete keeps the 20 newest and every digest of the manifests of the last push runs, in evia-api and evia-web only', async () => {
+  it('EVM-007 AC2: delete keeps the 20 newest and every digest of the manifests of the last push runs, in the four allowed packages only', async () => {
     const { api, removed, requested } = stub({ count: 25, protectedLabels: ['v22', 'v24'] });
     const result = await retention({ api, repository: REPOSITORY, mode: 'delete', log: () => undefined });
-    // 5 beyond the newest 20 per package, minus the protected v22 and v24 of each
-    assert.equal(result.deleted, 6);
-    assert.ok(removed.every((path) => /\/users\/evia-test\/packages\/container\/evia-(api|web)\/versions\/\d+$/.test(path)));
+    // 5 beyond the newest 20 per package, minus the protected v22 and v24 of each (releases and the infra records), 4 packages
+    assert.equal(result.deleted, 12);
+    assert.ok(
+      removed.every((path) =>
+        /\/users\/evia-test\/packages\/container\/evia-(api|web|postgres-pgbackrest|media-processor)\/versions\/\d+$/.test(path),
+      ),
+    );
     assert.ok(!removed.some((path) => path.endsWith('/versions/23') || path.endsWith('/versions/25')));
     assert.ok(requested.every((path) => !path.includes('deploy-agent')));
   });
 
-  for (const broken of ['runs', 'expired', 'zip'])
+  for (const broken of ['runs', 'expired', 'expired-infra', 'zip'])
     it(`EVM-007 AC2: fail-closed — an unreadable manifest source (${broken}) deletes nothing`, async () => {
       const { api, removed } = stub({ broken });
       const result = await retention({ api, repository: REPOSITORY, mode: 'delete', log: () => undefined });
       assert.equal(result.aborted, true);
       assert.deepEqual(removed, []);
     });
+
+  it('EVM-124: a run without an infra record (before EVM-124, or publish-infra failed) protects its release digests only and is not an error', async () => {
+    const { api, removed } = stub({ count: 25, protectedLabels: ['v22', 'v24'], broken: 'no-record' });
+    const result = await retention({ api, repository: REPOSITORY, mode: 'delete', log: () => undefined });
+    assert.equal(result.aborted, false);
+    // run 1 (v22) has no record: the infra versions v22 are no longer protected (one more per infra package)
+    assert.equal(result.deleted, 14);
+    assert.ok(removed.length === 14);
+  });
+
+  it('EVM-124: the infra record digests are read from objects with ref, from the infra packages only', () => {
+    assert.deepEqual(digestsOf(Buffer.from(record('x')), OWNER), [digest('evia-media-processor-x'), digest('evia-postgres-pgbackrest-x')]);
+    assert.throws(() =>
+      digestsOf(Buffer.from(record('x').replace(`ghcr.io/${OWNER}/evia-media-processor`, `ghcr.io/${OWNER}/evia-verifier`)), OWNER),
+    );
+    assert.equal(
+      new TextDecoder().decode(manifestFromZip(zip('infra-images-record.json', '{"a":1}', 0), 'infra-images-record.json')),
+      '{"a":1}',
+    );
+    assert.throws(() => manifestFromZip(zip('infra-images-record.json', '{}')));
+  });
 
   it('EVM-007 AC2: fail-closed — an error listing the versions deletes nothing', async () => {
     const { api, removed } = stub({ broken: 'versions' });
@@ -150,7 +200,7 @@ describe('EVM-007 AC2: GHCR retention', () => {
   });
 
   it('EVM-007 AC2: the manifest digests come only from the allowed repositories; the ZIP must hold exactly release-manifest.json', () => {
-    assert.deepEqual(digestsOf(Buffer.from(manifest('x')), OWNER), [digest('api-x'), digest('web-x')]);
+    assert.deepEqual(digestsOf(Buffer.from(manifest('x')), OWNER), [digest('evia-api-x'), digest('evia-web-x')]);
     assert.throws(() => digestsOf(Buffer.from(manifest('x').replace(`ghcr.io/${OWNER}/evia-api`, 'ghcr.io/other/evia-api')), OWNER));
     assert.throws(() => digestsOf(Buffer.from('{'), OWNER));
     assert.throws(() => digestsOf(Buffer.from('{}'), OWNER));
@@ -223,7 +273,7 @@ describe('EVM-007 AC2: GHCR retention', () => {
       () => api,
       () => undefined,
     );
-    assert.equal(real?.deleted, 10);
+    assert.equal(real?.deleted, 20);
     assert.equal(
       await runFromEnv(
         { GITHUB_REPOSITORY: 'not a repository' },

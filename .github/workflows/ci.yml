@@ -510,7 +510,7 @@ jobs:
           # docker save writes the archives as 0600 owned by the runner user; the scanner runs as 65534 (compose.yaml)
           # and only needs to read them (the mount stays as it is, the scanner does not run as root).
           chmod a+r .scratch/scans/*.tar
-      - name: Image scan and SBOM before the push (bramka 6, Critical/High with a fix = red)
+      - name: Image scan and SBOM before the push (bramka 6, Critical/High with a fix or any secret = red)
         shell: bash
         run: |
           # Every archive is scanned even after a failure; the findings are printed to the log (no local reproduction needed).
@@ -526,6 +526,20 @@ jobs:
                 jq -r '.Results[]? | .Target as $target | .Vulnerabilities[]? | "\(.Severity) \(.VulnerabilityID) \(.PkgName) \(.InstalledVersion) -> \(.FixedVersion) [\($target)]"' ".scratch/scans/trivy-image-$name.json"
               else
                 echo "no Trivy report for $name - see the scanner log above"
+              fi
+              continue
+            }
+            # Secrets of ANY severity = red (the packages are public, ADR-0022 pt 3): an own run without --severity (the default covers every
+            # severity), no secret entry in the exception register; only rule, severity, file and line are printed, the report is not uploaded.
+            docker compose -f compose.yaml run --rm scan-trivy-image image --config /src/trivy.yaml --skip-version-check \
+              --skip-db-update --input "/out/$name.tar" --scanners secret --exit-code 1 \
+              --format json --output "/out/trivy-secret-$name.json" || {
+              failed=1
+              echo "::error::bramka 6: secret in $name (or a scanner error) - nothing is pushed" >&2
+              if [ -s ".scratch/scans/trivy-secret-$name.json" ]; then
+                jq -r '.Results[]? | .Target as $target | .Secrets[]? | "\(.Severity) \(.RuleID) [\($target):\(.StartLine)]"' ".scratch/scans/trivy-secret-$name.json"
+              else
+                echo "no Trivy secret report for $name - see the scanner log above"
               fi
               continue
             }
@@ -584,6 +598,178 @@ jobs:
       - name: Notice when staging-verify is disabled (a skipped bramka 10 is not a pass)
         if: vars.STAGING_VERIFY_ENABLED != 'true'
         run: echo "::warning title=staging-verify::STAGING_VERIFY_ENABLED is not true - bramka 10 did not run for this release"
+      - name: Log out of GHCR
+        if: always()
+        run: docker logout ghcr.io
+
+  # EVM-124 (ADR-0022, ADR-0018; security-engineer P1-P4, K1-K11): the infrastructure images that used to be built by hand in an IaC
+  # session (postgres-pgbackrest, evia-media-processor) are built here, natively for linux/arm64 on a GitHub arm64 runner (no QEMU), for
+  # every push to main after a green ci-gate (skipping unchanged inputs is out of scope). Separate from `publish` because it alone holds
+  # id-token: write + attestations: write. Hermetic: no cache, no download-artifact, no output of another job, no secret, no action
+  # outside checkout, upload-artifact and attest-build-provenance (an OIDC token is reachable by every action of this job); the repository
+  # code runs only inside BuildKit. All-or-nothing: both images are built, checked for the platform and scanned before the first push
+  # (Trivy Critical/High with a fix = red; the processor has no exception register - the zlib exceptions of RR-89 do not apply there).
+  # The scanned image is the published one: Trivy Metadata.ImageID (from the docker save archive) must equal config.digest of the single
+  # manifest read back from GHCR by the digest of the push. Then the attestation of provenance (public Sigstore/Rekor, the repository is
+  # public) and the record `infra-images-record` (image, digest, commit, run), separate from release-manifest. The IaC session only
+  # verifies and pulls (docs/ops/runbooks/media-processor.md). The GHCR packages are public (Konrad 2026-11-13, ADR-0022 pt 3: code of the public repository); the condition is the secret scan of the images before the push. The packages are created by the first push.
+  publish-infra:
+    name: publish-infra
+    needs: [ci-gate]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.ci-gate.result == 'success'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    env:
+      EVIA_RELEASE_COMMIT: ${{ github.sha }}
+      REGISTRY: ghcr.io/konradkluz
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Native arm64 runner and output directories
+        shell: bash
+        run: |
+          if [ "$(uname -m)" != aarch64 ]; then echo "the runner is $(uname -m), not aarch64 (no emulation allowed)" >&2; exit 1; fi
+          mkdir -p .scratch/scans infra-record && chmod 0777 .scratch/scans
+      - name: Build the infrastructure images for linux/arm64 (no cache, fresh bases by digest)
+        shell: bash
+        run: |
+          for image in postgres-pgbackrest media-processor; do
+            docker buildx build --no-cache --pull --provenance=false --sbom=false --platform linux/arm64 \
+              --file "infra/images/$image/Dockerfile" --tag "evia-$image:candidate" --load .
+          done
+      - name: Platform check before the scan (anything but linux/arm64 is rejected)
+        shell: bash
+        run: |
+          for image in postgres-pgbackrest media-processor; do
+            platform="$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "evia-$image:candidate")"
+            if [ "$platform" != linux/arm64 ]; then echo "evia-$image is $platform, not linux/arm64" >&2; exit 1; fi
+          done
+      - name: Image scan and SBOM before the push (Critical/High with a fix or any secret = red; nothing is pushed unless both pass)
+        shell: bash
+        run: |
+          for image in postgres-pgbackrest media-processor; do
+            docker save "evia-$image:candidate" --output ".scratch/scans/evia-$image.tar"
+          done
+          # docker save writes the archives as 0600 owned by the runner user; the scanner runs as 65534 (compose.yaml).
+          chmod a+r .scratch/scans/*.tar
+          # The processor parses hostile files: its own empty exception register (the zlib exceptions of RR-89 cover postgres and pgbackrest only).
+          printf 'vulnerabilities: []\n' > .scratch/scans/trivyignore-none.yaml
+          chmod a+r .scratch/scans/trivyignore-none.yaml
+          failed=0
+          for image in postgres-pgbackrest media-processor; do
+            name="evia-$image"
+            ignore=/src/.trivyignore.yaml
+            if [ "$image" = media-processor ]; then ignore=/out/trivyignore-none.yaml; fi
+            docker compose -f compose.yaml run --rm scan-trivy-image image --config /src/trivy.yaml --skip-version-check \
+              --ignorefile "$ignore" --show-suppressed --input "/out/$name.tar" --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 \
+              --format json --output "/out/trivy-image-$name.json" || {
+              failed=1
+              echo "::error::Critical/High with a fix in $name (or a scanner error)"
+              if [ -s ".scratch/scans/trivy-image-$name.json" ]; then
+                jq -r '.Results[]? | .Target as $target | .Vulnerabilities[]? | "\(.Severity) \(.VulnerabilityID) \(.PkgName) \(.InstalledVersion) -> \(.FixedVersion) [\($target)]"' ".scratch/scans/trivy-image-$name.json"
+              else
+                echo "no Trivy report for $name - see the scanner log above"
+              fi
+              continue
+            }
+            if [ "$image" = media-processor ] && jq -e '[.Results[]? | .ExperimentalModifiedFindings[]?] | length > 0' ".scratch/scans/trivy-image-$name.json" > /dev/null; then
+              failed=1
+              echo "::error::suppressed findings in $name (the processor has no exception register)"
+              continue
+            fi
+            image_id="$(jq -r '.Metadata.ImageID // empty' ".scratch/scans/trivy-image-$name.json")"
+            if ! echo "$image_id" | grep -qE '^sha256:[0-9a-f]{64}$'; then
+              failed=1
+              echo "::error::no image ID in the Trivy report of $name"
+              continue
+            fi
+            # Secrets of ANY severity = red (the packages are public, ADR-0022 pt 3): an own run without --severity (the default covers every
+            # severity), no secret entry in the exception register; only rule, severity, file and line are printed, the report is not uploaded.
+            docker compose -f compose.yaml run --rm scan-trivy-image image --config /src/trivy.yaml --skip-version-check \
+              --ignorefile "$ignore" --skip-db-update --input "/out/$name.tar" --scanners secret --exit-code 1 \
+              --format json --output "/out/trivy-secret-$name.json" || {
+              failed=1
+              echo "::error::secret in $name (or a scanner error) - nothing is pushed" >&2
+              if [ -s ".scratch/scans/trivy-secret-$name.json" ]; then
+                jq -r '.Results[]? | .Target as $target | .Secrets[]? | "\(.Severity) \(.RuleID) [\($target):\(.StartLine)]"' ".scratch/scans/trivy-secret-$name.json"
+              else
+                echo "no Trivy secret report for $name - see the scanner log above"
+              fi
+              continue
+            }
+            echo "$image_id" > ".scratch/scans/$name.imageid"
+            docker compose -f compose.yaml run --rm scan-trivy-image image --config /src/trivy.yaml --skip-version-check \
+              --skip-db-update --input "/out/$name.tar" --format cyclonedx --output "/out/sbom-$name.cdx.json"
+          done
+          exit "$failed"
+      - name: Push to GHCR, bind the scanned image to the published digest
+        id: push
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+          GHCR_USER: ${{ github.actor }}
+        shell: bash
+        run: |
+          echo "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USER" --password-stdin
+          for image in postgres-pgbackrest media-processor; do
+            name="evia-$image"
+            target="$REGISTRY/$name:sha-$EVIA_RELEASE_COMMIT"
+            docker tag "$name:candidate" "$target"
+            docker push "$target"
+            # The digest of the publication = RepoDigests of the very image that was scanned (not parsed from a log).
+            digest="$(docker image inspect --format '{{json .RepoDigests}}' "$target" | jq -r --arg prefix "$REGISTRY/$name@" '[.[] | select(startswith($prefix))] | first // empty | sub("^.*@"; "")')"
+            if ! echo "$digest" | grep -qE '^sha256:[0-9a-f]{64}$'; then echo "no digest for $name" >&2; exit 1; fi
+            # The scanned image = the published one: config.digest of the single manifest read back from GHCR equals the image ID of the Trivy report.
+            image_id="$(cat ".scratch/scans/$name.imageid")"
+            config="$(docker buildx imagetools inspect --raw "$REGISTRY/$name@$digest" | jq -r 'select((((.mediaType // "") | test("index|list")) or has("manifests")) | not) | .config.digest // empty')"
+            if [ "$config" != "$image_id" ]; then echo "$name: config $config in GHCR is not the scanned image $image_id (or the manifest is an index)" >&2; exit 1; fi
+            docker pull --platform linux/arm64 "$REGISTRY/$name@$digest"
+            platform="$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$REGISTRY/$name@$digest")"
+            if [ "$platform" != linux/arm64 ]; then echo "$name in GHCR is $platform, not linux/arm64" >&2; exit 1; fi
+            echo "$digest" > ".scratch/scans/$name.digest"
+            echo "digest-$image=$digest" >> "$GITHUB_OUTPUT"
+          done
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ghcr.io/konradkluz/evia-postgres-pgbackrest
+          subject-digest: ${{ steps.push.outputs.digest-postgres-pgbackrest }}
+          push-to-registry: true
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ghcr.io/konradkluz/evia-media-processor
+          subject-digest: ${{ steps.push.outputs.digest-media-processor }}
+          push-to-registry: true
+      - name: Record of the images (image, digest, commit, run)
+        shell: bash
+        run: |
+          for image in postgres-pgbackrest media-processor; do
+            name="evia-$image"
+            jq -n --arg key "$image" --arg repository "$REGISTRY/$name" --arg digest "$(cat ".scratch/scans/$name.digest")" --arg imageId "$(cat ".scratch/scans/$name.imageid")" \
+              '{($key): {repository: $repository, digest: $digest, ref: "\($repository)@\($digest)", imageId: $imageId, platform: "linux/arm64"}}'
+          done | jq -s --arg commit "$EVIA_RELEASE_COMMIT" --arg runId "$GITHUB_RUN_ID" --arg workflowRef "$GITHUB_WORKFLOW_REF" \
+            '{schemaVersion: 1, commit: $commit, runId: $runId, workflowRef: $workflowRef, images: add}' > infra-record/infra-images-record.json
+          jq -e --arg commit "$EVIA_RELEASE_COMMIT" '(.commit == $commit) and (.commit | test("^[0-9a-f]{40}$")) and ((.images | keys) == ["media-processor", "postgres-pgbackrest"]) and ([.images[] | .digest, .imageId] | all(test("^sha256:[0-9a-f]{64}$"))) and ([.images[].platform] | all(. == "linux/arm64"))' infra-record/infra-images-record.json > /dev/null
+          echo "### infra-images-record" >> "$GITHUB_STEP_SUMMARY"
+          jq -r '.images | to_entries[] | "\(.key): \(.value.ref)"' infra-record/infra-images-record.json >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: infra-images-record
+          path: infra-record/infra-images-record.json
+          if-no-files-found: error
+          retention-days: 90
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: infra-images-evidence
+          path: |
+            .scratch/scans/sbom-evia-*.cdx.json
+            .scratch/scans/trivy-image-evia-*.json
+          if-no-files-found: error
+          retention-days: 90
       - name: Log out of GHCR
         if: always()
         run: docker logout ghcr.io

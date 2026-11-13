@@ -207,7 +207,8 @@ async function startS3(/** @type {string} */ broken = '') {
       const admin =
         ['policy', 'versioning', 'lifecycle', 'retention', 'acl', 'cors', 'object-lock', 'legal-hold'].some((name) =>
           url.searchParams.has(name),
-        ) || url.searchParams.has('versionId');
+        ) ||
+        (url.searchParams.has('versionId') && method !== 'GET'); // a GET pinned to a version is GetObjectVersion (a matrix operation), not an administrative call
       const reply = (/** @type {number} */ code, /** @type {Record<string, string>} */ headers = {}) => {
         response.writeHead(code, headers);
         response.end();
@@ -234,7 +235,15 @@ async function startS3(/** @type {string} */ broken = '') {
       const bucket = /** @type {Record<string, string>} */ (BUCKET_LOGICAL)[bucketName] ?? 'unknown';
       const objectKey = rest.join('/');
       const isList = objectKey === '';
-      const operation = isList ? 'list' : method === 'PUT' ? 'put' : method === 'DELETE' ? 'delete' : 'get';
+      const operation = isList
+        ? 'list'
+        : method === 'PUT'
+          ? 'put'
+          : method === 'DELETE'
+            ? 'delete'
+            : url.searchParams.has('versionId')
+              ? 'getversion'
+              : 'get';
       const area = isList ? '-' : (AREA_BY_PREFIX.find(([prefix]) => objectKey.startsWith(prefix ?? ''))?.[1] ?? 'any');
       tuples.add([who, bucket, area, operation].join('|'));
       let allowed = decisions.get([who, bucket, area, operation].join('|')) === 'allow';
@@ -300,7 +309,15 @@ describe('EVM-084 AC2: bucket-verify.sh', () => {
             `${key} ${bucket} ${operation}`,
           );
       }
-    assert.equal(MATRIX_ROWS.length, 7 * (4 * 4 + 3));
+    // the versioned GET (GetObjectVersion; the scan, the processing, the export builder and the signed links pin a version): one row per bucket, in its first area
+    for (const key of MATRIX_KEYS)
+      for (const bucket of ['media', 'register', 'db_backup', 'exports'])
+        assert.deepEqual(
+          MATRIX_ROWS.filter((row) => row[0] === key && row[1] === bucket && row[3] === 'getversion').map((row) => row[2]),
+          [bucket === 'db_backup' ? 'repo' : 'any'],
+          `${key} ${bucket} getversion`,
+        );
+    assert.equal(MATRIX_ROWS.length, 7 * (3 * 5 + 8));
     const decision = (/** @type {string[]} */ ...tuple) => MATRIX_ROWS.find((row) => row.slice(0, 4).join('|') === tuple.join('|'))?.[4];
     assert.equal(decision('restore_orchestrator', 'db_backup', 'results', 'put'), 'allow');
     assert.equal(decision('restore_orchestrator', 'db_backup', 'repo', 'get'), 'deny');
