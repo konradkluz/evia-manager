@@ -112,3 +112,4 @@ _—_
 
 - 2026-11-14 — bramka lokalna zielona (gate, test:tools, docs:check 0 błędów); zrzutów ekranu brak (do uzupełnienia po demo); do sprawdzenia w CI: e2e-web i gate:deploy (kontekst obrazu web z docs/user)
 - 2026-11-14 — reguła docs/user (żywy) potwierdzona testem config; wyjątek `!docs/user` w repo-policy zawężony do obrazu web (api nadal bez docs/); `pnpm run gate` i `npm run test:tools` zielone, docs:check 0 błędów (devops-engineer)
+- 2026-11-14 — poprawka E2E w kontenerze Linux (devops-engineer): `docs/user` zamontowany tylko w `web-e2e-linux` (tylko do odczytu); zmiana w `docs/user/**` uruchamia e2e-web i publikację obrazów (filtr `changes`), testy `EVM-066 AC6`
