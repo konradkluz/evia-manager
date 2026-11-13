@@ -57,18 +57,20 @@ export function osvExceptionProblems(toml: string, today: string): string[] {
 export function trivyExceptionProblems(document: unknown, today: string): string[] {
   const data = record(document);
   return Object.entries(data).flatMap(([kind, entries]) =>
-    list(entries).flatMap((entry, index) => {
-      const item = record(entry);
-      const where = `.trivyignore.yaml: ${kind}[${index}] (${text(item['id']) || 'bez id'})`;
-      const statement = text(item['statement']);
-      const problems =
-        /owner:\s*\S/.test(statement) && /EVM-\d{3,}/.test(statement)
-          ? []
-          : [`${where}: statement musi zawierać powód, „owner: …” i EVM-###`];
-      const horizon = kind === 'vulnerabilities' && severe(statement) ? SHORT : LONG;
-      const expiry = item['expired_at'] instanceof Date ? item['expired_at'].toISOString().slice(0, 10) : text(item['expired_at']);
-      return [...problems, ...expiryProblems(where, expiry, today, horizon)];
-    }),
+    kind === 'secrets'
+      ? ['.trivyignore.yaml: sekcja secrets niedozwolona — wyjątki dla sekretów nie istnieją (prawdziwy sekret = napraw przyczynę)']
+      : list(entries).flatMap((entry, index) => {
+          const item = record(entry);
+          const where = `.trivyignore.yaml: ${kind}[${index}] (${text(item['id']) || 'bez id'})`;
+          const statement = text(item['statement']);
+          const problems =
+            /owner:\s*\S/.test(statement) && /EVM-\d{3,}/.test(statement)
+              ? []
+              : [`${where}: statement musi zawierać powód, „owner: …” i EVM-###`];
+          const horizon = kind === 'vulnerabilities' && severe(statement) ? SHORT : LONG;
+          const expiry = item['expired_at'] instanceof Date ? item['expired_at'].toISOString().slice(0, 10) : text(item['expired_at']);
+          return [...problems, ...expiryProblems(where, expiry, today, horizon)];
+        }),
   );
 }
 

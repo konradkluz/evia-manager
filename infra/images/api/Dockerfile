@@ -7,7 +7,7 @@
 # The build context is the repository root, restricted by the allow-list Dockerfile.dockerignore.
 # Platform (Arm64 VM, Hetzner CAX): `publish` builds --platform linux/arm64 on the x86 runner WITHOUT emulation — every
 # stage that runs commands is on $BUILDPLATFORM, the runtime stage of the target platform only copies files.
-FROM --platform=$BUILDPLATFORM node:26.10.0-trixie-slim@sha256:ec7758ee051e457b468b32bde57b0879010b325bb9862718e9615225ce4aaae1 AS pnpm
+FROM --platform=$BUILDPLATFORM node:26.13.1-trixie-slim@sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc AS pnpm
 
 # renovate: datasource=npm depName=pnpm
 ARG PNPM_VERSION=12.8.1
@@ -52,6 +52,7 @@ FROM gcr.io/distroless/nodejs26-debian13:nonroot@sha256:767ffb7e2ffa9f4280f1af7b
 
 # Metadata only (no RUN): links the GHCR package to the repository.
 LABEL org.opencontainers.image.source="https://github.com/konradkluz/evia-manager"
+LABEL org.opencontainers.image.documentation="https://github.com/konradkluz/evia-manager/blob/main/infra/images/README.md"
 
 ARG EVIA_RELEASE_COMMIT
 ENV NODE_ENV=production \

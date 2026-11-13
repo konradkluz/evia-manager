@@ -48,7 +48,8 @@ describe('every workflow (EVM-006 AC4, A6, SR-SUPPLY-04)', () => {
       for (const [name, value] of Object.entries(record(record(yaml(`.github/workflows/${file}`))['jobs']))) {
         // EVM-007 AC2: the only exception — publish builds, scans and pushes images; its Docker commands are an exact
         // allow-list checked by publishProblems (test/publish.test.ts)
-        if (file === 'ci.yml' && name === 'publish') continue;
+        // EVM-124: publish-infra is the second one (allow-list checked by publishInfraProblems, test/publish-infra.test.ts)
+        if (file === 'ci.yml' && (name === 'publish' || name === 'publish-infra')) continue;
         for (const step of list(record(value)['steps'])) commands.push([`${file} ${name}`, text(record(step)['run'])]);
       }
     }
@@ -178,6 +179,7 @@ describe('ci.yml (EVM-006 AC4; A2, W3c, W6)', () => {
       'coverage',
       'ci-gate',
       'publish',
+      'publish-infra',
       'staging-verify',
     ]);
     expect(list(job('ci-gate')['needs'])).toContain('quality');
@@ -252,6 +254,8 @@ describe('EVM-086 AC1, AC3, AC4: filters of the heavy jobs', () => {
       'actions/setup-java',
       'actions/cache',
       'actions/upload-artifact',
+      // EVM-124: attestation of the provenance of the infrastructure images (publish-infra only; publishInfraProblems); GitHub, MIT.
+      'actions/attest-build-provenance',
       'actions/download-artifact',
       'pnpm/action-setup',
       'renovatebot/github-action',

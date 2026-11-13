@@ -1,15 +1,16 @@
 # Image evia-media-processor (EVM-068 AC5; ADR-0009; SR-FILE-06, SR-SUPPLY-02, SR-INFRA-11): the parser of hostile images, so the smallest runtime that
-# works. Built in an IaC session (docs/ops/runbooks/media-processor.md) from the commit of the release:
-#   docker build -f infra/images/media-processor/Dockerfile .   (the context is the repository root, restricted by Dockerfile.dockerignore)
+# works. Built in CI (job publish-infra of .github/workflows/ci.yml, EVM-124) natively for linux/arm64, scanned, attested and pushed to GHCR; the IaC
+# session only verifies and pulls it by digest (docs/ops/runbooks/media-processor.md). The context is the repository root, restricted by Dockerfile.dockerignore.
 # Every base by tag + digest (the same ones as the image of the API), pnpm in the exact version of package.json "packageManager" verified by its SHA-512,
 # the lockfile frozen, install scripts disabled (sharp has none: the prebuilt libvips comes in @img/sharp-libvips-*, with the integrity of the lockfile).
 # Runtime: Node.js 26 on Debian slim (the same base, by digest, as the image of the API) with ffmpeg and ffprobe from the Debian archive at an EXACT pinned version
 # (EVM-046, SR-SUPPLY-06: the build fails without FFMPEG_VERSION); non-root; the process runs `src/main.ts` with type stripping, no build step.
 # EVM-046 departs from the distroless runtime of EVM-068: ffprobe and ffmpeg are programs with many shared libraries, which the distroless image does not have.
 # The container stays closed by its configuration, not by the image alone (no network, read-only root, no capabilities - compose.media.yaml). The build of
-# ffmpeg in Debian is GPL (libx264); the image is not redistributed (server tool, scan 4 in docs/security/requirements.md lists ffmpeg). It is an OS package, so the library licence scan
-# (`--pkg-types library`) does not see it and no `.trivyignore.yaml` entry is needed; exception noted 2026-10-31 (SR-SUPPLY-06, as libvips in EVM-068).
-FROM --platform=$BUILDPLATFORM node:26.10.0-trixie-slim@sha256:ec7758ee051e457b468b32bde57b0879010b325bb9862718e9615225ce4aaae1 AS pnpm
+# ffmpeg in Debian is GPL (libx264); the image is public (GHCR, ADR-0022 point 3), so the licence notice and the written source offer are in infra/images/README.md
+# (the image points to it with the documentation label). It is an OS package, so the library licence scan (`--pkg-types library`) does not see it and no
+# `.trivyignore.yaml` entry is needed; exception noted 2026-10-31 (SR-SUPPLY-06, as libvips in EVM-068).
+FROM --platform=$BUILDPLATFORM node:26.13.1-trixie-slim@sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc AS pnpm
 
 # renovate: datasource=npm depName=pnpm
 ARG PNPM_VERSION=12.8.1
@@ -40,19 +41,31 @@ RUN --mount=type=bind,source=.,target=/context \
     done \
  && pnpm install --frozen-lockfile --ignore-scripts --prod --os=linux --cpu="$cpu" --libc=glibc --filter "@evia/media-processor..."
 
-FROM node:26.10.0-trixie-slim@sha256:ec7758ee051e457b468b32bde57b0879010b325bb9862718e9615225ce4aaae1 AS runtime
+FROM node:26.13.1-trixie-slim@sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc AS runtime
 
 # renovate: datasource=deb depName=ffmpeg
-# The exact Debian package version (`apt-cache madison ffmpeg` in the image of the build date), given by the IaC session and recorded in the register of releases.
-ARG FFMPEG_VERSION
-RUN test -n "${FFMPEG_VERSION}" \
+# The exact Debian package version (trixie-security), the default because CI passes no --build-arg (EVM-124). When Debian replaces the package the build
+# fails with "Version ... not found" (fail-closed) and this value is bumped in a PR (Renovate or by hand).
+ARG FFMPEG_VERSION=7:7.1.5-0+deb13u1
+# zlib1g is linked by ffmpeg and parses hostile input; the Debian fix (CVE-2026-76844, CVE-2026-85091) is not yet in the Node base image, so the fixed version is
+# installed together with ffmpeg at an exact version (no `apt upgrade`; fail-closed like ffmpeg). Drop it when the base carries the fix.
+ARG ZLIB_VERSION=1:1.3.dfsg+really1.3.1-1+deb13u1
+RUN test -n "${FFMPEG_VERSION}" && test -n "${ZLIB_VERSION}" \
   && apt-get update \
-  && apt-get install -y --no-install-recommends "ffmpeg=${FFMPEG_VERSION}" \
+  && apt-get install -y --no-install-recommends "ffmpeg=${FFMPEG_VERSION}" "zlib1g=${ZLIB_VERSION}" \
   && rm -rf /var/lib/apt/lists/* \
   && ffmpeg -version | head -n 1 && ffprobe -version | head -n 1
 
+# The runtime needs neither npm nor corepack (the entry point is node itself): removed, so their bundled packages (brace-expansion, undici, ...) are not in
+# the image (EVM-124, RR-78). Idempotent; the assertions fail the build when npm is still there or node is gone.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack /opt/yarn* /usr/local/bin/yarn /usr/local/bin/yarnpkg \
+  && ! command -v npm \
+  && ! command -v corepack \
+  && node --version
+
 # Metadata only (no RUN): links the GHCR package to the repository.
 LABEL org.opencontainers.image.source="https://github.com/konradkluz/evia-manager"
+LABEL org.opencontainers.image.documentation="https://github.com/konradkluz/evia-manager/blob/main/infra/images/README.md"
 
 ENV NODE_ENV=production
 

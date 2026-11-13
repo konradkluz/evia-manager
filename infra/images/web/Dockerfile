@@ -41,6 +41,7 @@ FROM caddy-src AS runtime
 
 # Metadata only (no RUN): links the GHCR package to the repository.
 LABEL org.opencontainers.image.source="https://github.com/konradkluz/evia-manager"
+LABEL org.opencontainers.image.documentation="https://github.com/konradkluz/evia-manager/blob/main/infra/images/README.md"
 
 ENV XDG_CONFIG_HOME=/tmp/caddy-config \
     XDG_DATA_HOME=/tmp/caddy-data
