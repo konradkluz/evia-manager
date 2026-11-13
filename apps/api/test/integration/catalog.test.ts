@@ -506,7 +506,8 @@ describe('the list of templates for the phone (EVM-127; SR-AUTHZ-05, SR-AUTHZ-12
       .set({ 'X-Client-Platform': 'android', 'X-Client-Version': '0.0.1' });
     expect(forged.status).toBe(200);
 
-    for (const headers of [{}, { 'X-Client-Platform': 'android', 'X-Client-Version': '1.0.0' }]) {
+    const oldHeaders: Array<Record<string, string>> = [{}, { 'X-Client-Platform': 'android', 'X-Client-Version': '1.0.0' }];
+    for (const headers of oldHeaders) {
       const old = await phoneGet(LIST, 'administrator', headers);
       expect(old.status, JSON.stringify(headers)).toBe(426);
       expect(old.body).toMatchObject({ code: 'client_version_unsupported' });
