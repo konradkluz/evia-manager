@@ -219,3 +219,6 @@ Wszystkie pytania rozstrzygnięte zgodnie z rekomendacjami:
 - Scaleway — polityki bucketów (principal `user_id` / `application_id`, zasoby z prefiksem, warunek `aws:SourceIp`, dozwolone tylko jawnie wymienione akcje): https://www.scaleway.com/en/docs/object-storage/api-cli/bucket-policy/ ; IAM — klucze API z datą wygaśnięcia, reguły zawężone do projektu: https://www.scaleway.com/en/developers/api/iam
 - Hetzner Cloud — tokeny API per projekt, „Read” albo „Read & Write”: https://docs.hetzner.com/cloud/api/getting-started/generating-api-token
 - Dane o zużyciu minut i stan DNS: `devops-engineer` (`gh api`, publiczne rekordy DNS), 2026-10-13.
+
+## Adnotacja EVM-089 (2026-11-13, decyzja Konrada; bez zmiany klasy dokumentu)
+Adres panelu i API to **`panel.eviacharge.pl`** (zamiast `staging.eviacharge.pl`); stary adres tylko przekierowuje (308) na stały host i nie obsługuje API ani panelu. Domena nadawcy poczty (Scaleway TEM, wysyłka przez HTTP API na 443) to ta sama nazwa: SPF, DKIM i DMARC (`p=none` z `rua`, po sprawdzeniu nagłówków `p=reject`) dodaje Konrad raz w OVH wg `tofu output`. Klucz TEM jest plikiem sekretu tylko dla workera (manifest). Zmiana RP ID WebAuthn wymaga ponownej rejestracji klucza dostępu Konrada. Kolejność: `docs/ops/runbooks/posiedzenie-adres-panelu-i-email.md`.
