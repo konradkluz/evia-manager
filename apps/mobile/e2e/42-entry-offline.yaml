@@ -18,6 +18,11 @@ appId: pl.eviacharge.manager
     visible: 'Zlecenie testowe 1'
     timeout: 10000
 # AC1: the note
+# "Dodaj wpis" sits in the journal section, below the fold on a phone-sized screen
+- scrollUntilVisible:
+    element:
+      id: 'order-detail-add-entry'
+    direction: DOWN
 - tapOn:
     id: 'order-detail-add-entry'
 - extendedWaitUntil:
@@ -57,6 +62,11 @@ appId: pl.eviacharge.manager
     timeout: 10000
 - takeScreenshot: m04-entry-saved-toast
 # AC2: the comment
+# "Dodaj wpis" sits in the journal section, below the fold on a phone-sized screen
+- scrollUntilVisible:
+    element:
+      id: 'order-detail-add-entry'
+    direction: DOWN
 - tapOn:
     id: 'order-detail-add-entry'
 - extendedWaitUntil:

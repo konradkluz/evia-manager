@@ -30,7 +30,10 @@ appId: pl.eviacharge.manager
 - scrollUntilVisible:
     element: 'Wniosek testowy'
     direction: DOWN
-- assertVisible: 'Zakończony'
+# the status badge of the stage can still be under the fold when the stage name is already visible
+- scrollUntilVisible:
+    element: 'Zakończony'
+    direction: DOWN
 - scrollUntilVisible:
     element: 'Wpis testowy: rozmowa fikcyjna\.'
     direction: DOWN

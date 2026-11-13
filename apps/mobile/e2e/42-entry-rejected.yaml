@@ -17,6 +17,11 @@ appId: pl.eviacharge.manager
 - extendedWaitUntil:
     visible: 'Zlecenie testowe 2'
     timeout: 10000
+# "Dodaj wpis" sits in the journal section, below the fold on a phone-sized screen
+- scrollUntilVisible:
+    element:
+      id: 'order-detail-add-entry'
+    direction: DOWN
 - tapOn:
     id: 'order-detail-add-entry'
 - extendedWaitUntil:
