@@ -56,9 +56,18 @@ services:
       CURSOR_KEY_FILE: /run/secrets/cursor-key
       FIELD_ENCRYPTION_KEYS_FILE: /run/secrets/field-encryption-keys
       LOGIN_THROTTLE_KEY_FILE: /run/secrets/login-throttle-key
-      # the key of the register of deletions (EVM-040/084); the endpoint, region, bucket and key id come with the IaC session
+      # Object Storage of Scaleway, pl-waw (EVM-084; not secrets). The key IDS are the placeholders below until the IaC session creates the keys (step A11):
+      # an unfilled placeholder is not a valid key id, so the API refuses to start (config-files.test.ts refuses to merge it) - never a silent 403 at run time.
+      S3_ENDPOINT: https://s3.pl-waw.scw.cloud
+      S3_REGION: pl-waw
+      # the key of the register of deletions (EVM-040/084)
+      DELETION_REGISTER_BUCKET: evia-staging-deletion-register
+      DELETION_REGISTER_S3_ACCESS_KEY_ID: SCWVF5FBY7YYYFZZE8XH
       DELETION_REGISTER_S3_SECRET_ACCESS_KEY_FILE: /run/secrets/deletion-register-s3-secret-access-key
-      # the media key of the API (signs the uploads; RR-42); the endpoint, region, bucket and key id come with the IaC session
+      # the media key of the API (signs the uploads and the links of the exports; RR-42) and the bucket of the ZIP exports (EVM-052)
+      MEDIA_BUCKET: evia-staging-media
+      MEDIA_EXPORT_BUCKET: evia-staging-exports
+      MEDIA_S3_ACCESS_KEY_ID: SCW8R9B2VM99TMZFAV2H
       MEDIA_S3_SECRET_ACCESS_KEY_FILE: /run/secrets/media-s3-secret-access-key
     volumes:
       - /run/evia/secrets/api:/run/secrets:ro
@@ -91,8 +100,16 @@ services:
       CURSOR_KEY_FILE: /run/secrets/cursor-key
       FIELD_ENCRYPTION_KEYS_FILE: /run/secrets/field-encryption-keys
       LOGIN_THROTTLE_KEY_FILE: /run/secrets/login-throttle-key
-      # the narrower media key of the worker (reads originals for the scan, deletes the expired ones; RR-42); the same variable name as in the API
+      # Object Storage (not secrets; the key id is a placeholder until step A11 of the IaC session, see the API above). The worker has no register key.
+      S3_ENDPOINT: https://s3.pl-waw.scw.cloud
+      S3_REGION: pl-waw
+      MEDIA_BUCKET: evia-staging-media
+      MEDIA_EXPORT_BUCKET: evia-staging-exports
+      # the narrower media key of the worker (reads originals for the scan, writes only the derivatives, builds and removes the ZIP exports; RR-42); the same variable names as in the API
+      MEDIA_S3_ACCESS_KEY_ID: SCW7QHJ55ARE4ZJ1G8D1
       MEDIA_S3_SECRET_ACCESS_KEY_FILE: /run/secrets/media-worker-s3-secret-access-key
+      # clamd of compose.infra.yaml in the internal network evia-scan, which the worker (and only the worker) joins through the channel (EVM-084 K9; the scan is its job)
+      CLAMD_SOCKET: tcp://clamd:3310
       # EVM-068: the image processor (compose.media.yaml, IaC session) shares ONE tmpfs of the host with the worker - the socket and the work area of the jobs
       MEDIA_PROCESSOR_SOCKET: /run/media-work/processor.sock
       MEDIA_PROCESSOR_WORKDIR: /run/media-work

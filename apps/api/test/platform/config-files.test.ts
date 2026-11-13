@@ -121,6 +121,10 @@ describe('EVM-007 AC4: compose.staging.yaml satisfies the configuration of the A
     'login-throttle-key': `${randomKey()}\n`,
     // Written by evia-secrets for the API only (the hash of the release manifest, not a secret).
     'release-manifest-sha256': `${'c3'.repeat(32)}\n`,
+    // EVM-084: the S3 secrets (synthetic; the real ones are files of the IaC session)
+    'media-s3-secret-access-key': `${randomKey()}\n`,
+    'media-worker-s3-secret-access-key': `${randomKey()}\n`,
+    'deletion-register-s3-secret-access-key': `${randomKey()}\n`,
   };
 
   /** The environment of a service and a reader that serves only the files the secrets manifest gives that service. */
@@ -145,6 +149,32 @@ describe('EVM-007 AC4: compose.staging.yaml satisfies the configuration of the A
   it('EVM-007 AC4 the worker starts with its secrets from files and without e-mail until EVM-089', () => {
     const { env, read } = service('worker');
     expect(loadWorkerConfig(env, read)).toMatchObject({ nodeEnv: 'production', email: { transport: 'none' } });
+  });
+
+  it('EVM-084 EVM-052 the API and the worker get complete media settings: endpoint and region in pl-waw, three different buckets, key ids of the Scaleway shape (a placeholder blocks the merge), clamd for the worker only', () => {
+    const scalewayKeyId = /^SCW[A-Z0-9]{17}$/;
+    const api = service('api');
+    const worker = service('worker');
+    const apiConfig = loadConfig(api.env, api.read);
+    const workerConfig = loadWorkerConfig(worker.env, worker.read);
+    for (const config of [apiConfig, workerConfig]) {
+      expect(config.media).toMatchObject({
+        s3: { endpoint: 'https://s3.pl-waw.scw.cloud', region: 'pl-waw', bucket: 'evia-staging-media', forcePathStyle: false },
+        exportBucket: 'evia-staging-exports',
+      });
+      expect(config.media?.s3.accessKeyId).toMatch(scalewayKeyId);
+    }
+    // only the worker scans (and is in the network of clamd, K9): the API has no clamd address
+    expect(workerConfig.media?.clamd).toEqual({ kind: 'tcp', host: 'clamd', port: 3310 });
+    expect(apiConfig.media?.clamd).toBeUndefined();
+    // the register of deletions is written by the API only (RR-55), with a key of its own
+    const register = apiConfig.deletionRegister;
+    expect(register).toMatchObject({ status: 'configured', bucket: 'evia-staging-deletion-register', region: 'pl-waw' });
+    expect(register.status === 'configured' && register.accessKeyId).toMatch(scalewayKeyId);
+    expect(apiConfig.media?.s3.accessKeyId).not.toBe(workerConfig.media?.s3.accessKeyId);
+    expect(
+      new Set([apiConfig.media?.s3.bucket, apiConfig.media?.exportBucket, register.status === 'configured' && register.bucket]).size,
+    ).toBe(3);
   });
 
   it('EVM-007 AC4 the migrations start with the migrator role only', () => {
