@@ -4,7 +4,7 @@ title: Stabilne testy w CI i poprawka podpowiedzi adresu panelu
 type: bug
 milestone: M0
 epic: E00 Fundamenty
-status: ready
+status: in-progress
 priority: P1
 path: lekka
 owner: web-developer
@@ -62,3 +62,4 @@ Zasada nadrzędna (`CLAUDE.md`, reguła 3): przyczynę usuwamy w teście lub kod
 ## Dziennik
 - 2026-11-13 — utworzono (product-owner), draft; gotowość ustawia orkiestrator po akceptacji Konrada
 - 2026-11-13 — akceptacja Konrada (DoR) do nocnej kolejki `/noc-2026-11-13`: kolejność toru A 104 → 105 → 127 → 106 (tor B: 126 → 066), autokorekta zostaje w długich tekstach (wyłączona w polach klienta, telefonu, adresu; autofill wszędzie wyłączony), bez szkiców i „ostatnio otwieranych” w M2, EVM-126 — budowa panelu bez adresu kończy się błędem; status `ready` (Tech Lead)
+- 2026-11-14 — start realizacji w kolejce nocnej `/noc-2026-11-13` (Tech Lead): status `in-progress`, gałąź `feature/EVM-126-066-testy-i-instrukcja`
