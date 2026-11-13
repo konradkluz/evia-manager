@@ -478,7 +478,19 @@ describe('smoke test run (EVM-009 AC4; ADR-0015)', () => {
     assert.ok(!machine.maestroFlows().includes('03-reconnect.yaml'));
     assert.ok(machine.maestroFlows().includes('04-update-required.yaml'));
     // the failed offline flow skips its return step: the next scenario switches airplane mode off, the later ones toggle as planned
-    assert.deepEqual(machine.airplane(), ['enable', 'disable', 'enable', 'disable', 'enable', 'disable', 'enable', 'disable']);
+    // EVM-103 adds the scenario "orders-list-and-search": one more offline stretch (two flows in airplane mode), switched off before "loading"
+    assert.deepEqual(machine.airplane(), [
+      'enable',
+      'disable',
+      'enable',
+      'disable',
+      'enable',
+      'disable',
+      'enable',
+      'disable',
+      'enable',
+      'disable',
+    ]);
     const report = Object.values(machine.written).join('\n');
     assert.match(report, /\| airplane-mode-and-return \| 02-offline\.yaml \| failed \|/);
     assert.match(report, /\| airplane-mode-and-return \| 03-reconnect\.yaml \| skipped \|/);

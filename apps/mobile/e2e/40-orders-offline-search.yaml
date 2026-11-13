@@ -1,0 +1,55 @@
+# EVM-103 AC1, AC2, AC3, AC4: in airplane mode (set by tools/mobile-e2e) the app starts straight on the list from the local database,
+# and the search works without a network: by a fragment of the number, without case, by the customer. The customer 2 of the scenario
+# server carries the marker of the encryption checks (EVM093-SENTINEL) in the name, and the same marker is typed as the query:
+# tools/mobile-e2e then proves (check-encrypted) that it is in no file of the app directory and no logcat line (AC6).
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible: 'Brak zasięgu.*'
+    timeout: 30000
+- assertVisible: 'ZL-E2E-1'
+- assertVisible: 'ZL-E2E-2'
+- assertVisible: 'Klient Testowy 1'
+- assertVisible: 'Niewysłane \(0\)'
+- takeScreenshot: m05-list-offline
+# a fragment of the number, no case
+- tapOn:
+    id: 'orders-search'
+- inputText: 'zl-e2e-2'
+- extendedWaitUntil:
+    visible: 'ZL-E2E-2'
+    timeout: 10000
+- assertNotVisible: 'ZL-E2E-1'
+- takeScreenshot: m05-search-number
+# special characters are literal: no error, no result
+- eraseText: 20
+- inputText: '%'
+- extendedWaitUntil:
+    visible: 'Brak zleceń dla.*'
+    timeout: 10000
+- assertVisible: 'Szukamy tylko w zleceniach zapisanych w telefonie\.'
+- assertVisible: 'Wymaga połączenia'
+- takeScreenshot: m05-search-no-match-offline
+# the marker in the name of the customer 2
+- eraseText: 20
+- inputText: 'EVM093-SENTINEL'
+- extendedWaitUntil:
+    visible: 'ZL-E2E-2'
+    timeout: 10000
+- assertNotVisible: 'ZL-E2E-1'
+- takeScreenshot: m05-search-marker
+# the clear button brings the whole list back
+- tapOn: 'Wyczyść wyszukiwanie'
+- extendedWaitUntil:
+    visible: 'ZL-E2E-1'
+    timeout: 10000
+- assertVisible: 'ZL-E2E-2'
+# the query is typed again: the next flow runs after the process was killed
+- tapOn:
+    id: 'orders-search'
+- inputText: 'EVM093-SENTINEL'
+- extendedWaitUntil:
+    visible: 'ZL-E2E-2'
+    timeout: 10000

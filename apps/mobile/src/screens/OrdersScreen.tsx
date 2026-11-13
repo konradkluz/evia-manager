@@ -183,6 +183,13 @@ export function OrdersScreen({ onOpenQueue, onAdd, now = Date.now }: { onOpenQue
     }
     return (
       <>
+        {state.kind === 'checking' && slow ? (
+          <View style={{ paddingHorizontal: space.inset.md, paddingTop: space.inset.sm }}>
+            <Text accessibilityLiveRegion="polite" style={{ ...text.body, color: color.text.secondary }} testID="orders-slow">
+              {t('shell.loading.slow')}
+            </Text>
+          </View>
+        ) : null}
         <View style={{ paddingHorizontal: space.inset.md, paddingTop: space.inset.sm, rowGap: space.stack.sm }}>
           <TextField
             label={t('shell.orders.searchLabel')}

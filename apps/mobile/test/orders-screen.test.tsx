@@ -6,7 +6,7 @@ import { App } from '../src/App';
 import { pl } from '../src/i18n/pl';
 import { buildOrderList, queueFact, type OrderListSource, type OrderRow } from '../src/orders/order-list-model';
 import { ANNOUNCE_AFTER_MS, SEARCH_MAX_LENGTH } from '../src/screens/OrdersScreen';
-import type { StartupChecker } from '../src/startup';
+import { SLOW_CHECK_MS, type StartupChecker } from '../src/startup';
 import { DAY, MIN } from './device-guard/fakes';
 import { stubOwner, stubPorts, type PortsRig } from './session-helpers';
 import { INITIAL_FIRST_PULL } from '../src/sync/types';
@@ -441,6 +441,31 @@ describe('empty states (EVM-103 AC4)', () => {
     expect(screen.getByTestId('first-pull')).toBeOnTheScreen();
     expect(screen.queryByTestId('orders-list')).toBeNull();
     expect(rig.sync.orderRequests).toEqual([]);
+  });
+
+  it('EVM-103 AC4: with local rows the list is there at once while the first check hangs (offline-first); the slow note appears above it', async () => {
+    jest.useFakeTimers();
+    try {
+      const rig = rigWith();
+      await render(
+        <App
+          session={rig.session}
+          checker={() => new Promise(() => undefined)}
+          storage={() => ({ prepare: () => Promise.resolve('ready' as const) })}
+        />,
+      );
+      await settle();
+      expect(shownIds()).toHaveLength(4);
+      expect(screen.queryByTestId('orders-skeleton')).toBeNull();
+      expect(screen.queryByTestId('orders-slow')).toBeNull();
+      await act(() => {
+        jest.advanceTimersByTime(SLOW_CHECK_MS);
+      });
+      expect(screen.getByTestId('orders-slow')).toHaveTextContent(pl.shell.loading.slow);
+      expect(shownIds()).toHaveLength(4);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('EVM-103 AC4: while the first check runs and nothing is local yet the skeleton shows; with local rows the list is there at once', async () => {
