@@ -4,7 +4,7 @@ title: "Aplikacja: wpisy i komentarze offline"
 type: story
 milestone: M2
 epic: E12 Wpisy offline
-status: in-progress
+status: in-review
 priority: P1
 path: pelna             # synchronizacja offline, treść wpisów (dane osobowe) w kolejce na urządzeniu
 owner: mobile-developer
@@ -72,3 +72,4 @@ Jako **technik** chcę **dopisać wpis (kategoria, treść, opcjonalnie etap) lu
 - 2026-11-13 — akceptacja Konrada (DoR) do nocnej kolejki `/noc-2026-11-13`: kolejność toru A 104 → 105 → 127 → 106 (tor B: 126 → 066), autokorekta zostaje w długich tekstach (wyłączona w polach klienta, telefonu, adresu; autofill wszędzie wyłączony), bez szkiców i „ostatnio otwieranych” w M2, EVM-126 — budowa panelu bez adresu kończy się błędem; status `ready` (Tech Lead)
 - 2026-11-14 — start realizacji w kolejce nocnej `/noc-2026-11-13` (Tech Lead): status `in-progress`, gałąź `feature/queue-2026-11-13-mobile`
 - 2026-11-14 — implementacja: formularz „Nowy wpis” (wpis / komentarz), zapis do kolejki przed zamknięciem, wybór zlecenia, tryb ukrytych danych, TextArea i Toast, przepływy Maestro 42-*, stub odrzuceń; bramka lokalna zielona (mobile-developer)
+- 2026-11-14 — workflow `deliver-story` (pelna) `passed` po 2 rundach: QA pass (AC1–AC6); runda 1 — code-reviewer i ux-designer `changes_required` (lista etapów w przewijanym obszarze; utrata tekstu przy „Zamknij”/Wstecz), runda 2 — oba approve. Bramka orkiestratora `pnpm run gate` zielona — pokrycie zmienionego kodu 99,4% linii, 97,2% gałęzi. E2E Maestro (przepływy 42-*) — na końcu toru A z klonu `C:`. Uwagi nieblokujące (makieta `05-wpis-i-komentarz.md` nadal ze szkicem, Maestro nie wybiera etapu, brak zrzutów — do demo) w raporcie nocnym. Koszt: 10 agentów, ok. 795 tys. tokenów, 49 min. Status `in-review` (Tech Lead, kolejka nocna)

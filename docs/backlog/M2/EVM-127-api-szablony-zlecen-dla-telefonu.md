@@ -4,7 +4,7 @@ title: "API: szablony zleceń dostępne dla telefonu"
 type: story
 milestone: M2
 epic: E13 Nowe zlecenie z telefonu
-status: ready
+status: in-progress
 priority: P1
 path: pelna             # zmiana uprawnień i kanału endpointu
 owner: backend-developer
@@ -47,3 +47,4 @@ Jako **technik** chcę, aby **telefon mógł pobrać aktywne szablony zleceń**,
 ## Dziennik
 - 2026-11-13 — utworzono jako podział EVM-106 (luka: telefon nie ma źródła szablonów) (product-owner)
 - 2026-11-13 — akceptacja Konrada (DoR) do nocnej kolejki `/noc-2026-11-13`: kolejność toru A 104 → 105 → 127 → 106 (tor B: 126 → 066), autokorekta zostaje w długich tekstach (wyłączona w polach klienta, telefonu, adresu; autofill wszędzie wyłączony), bez szkiców i „ostatnio otwieranych” w M2, EVM-126 — budowa panelu bez adresu kończy się błędem; status `ready` (Tech Lead)
+- 2026-11-14 — start realizacji w kolejce nocnej `/noc-2026-11-13` (Tech Lead): status `in-progress`, gałąź `feature/queue-2026-11-13-mobile`
