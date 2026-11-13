@@ -4,7 +4,7 @@ title: E-mail transakcyjny na jedynym środowisku — Scaleway TEM, strażnik od
 type: enabler
 milestone: M1
 epic: E1 Dostęp i użytkownicy
-status: in-review
+status: done
 priority: P0
 path: pelna            # wysyłka do realnych adresów (dane osobowe, przepływy uwierzytelniania), infrastruktura, DNS
 owner: devops-engineer
@@ -86,3 +86,4 @@ Jako **właściciel produktu** chcę **żeby zaproszenia, reset hasła i e-maile
 - 2026-11-13 — wznowienie implementacji (backend-developer): weryfikacja celowana i lokalna bramka natywna; kroki AC3/AC5 „na środowisku” i demo AC6 po scaleniu, w posiedzeniu z Konradem
 - 2026-11-13 — weryfikacja orkiestratora: `pnpm run gate` zielona (pokrycie zmienionego kodu 100% linii / 98,0% gałęzi), `pnpm run gate:deploy` i `iac-check` zielone, `docs:check` 0 błędów; QA PASS AC1–AC5, AC6 (demo) po posiedzeniu; przeglądy security-engineer i code-reviewer: akceptacja (2 rundy). **Scalenie dopiero w posiedzeniu, po krokach 1–3b runbooka `posiedzenie-adres-panelu-i-email.md`** (inaczej kanał wdroży konfigurację bez plików sekretów TEM i krawędzi); status `in-review` (Tech Lead)
 - 2026-11-13 — Koszt: ok. 0,95 mln tokenów agentów (10 agentów, 2 rundy, w tym wznowienie po przerwie sieci) — w granicach ścieżki `pelna` (Tech Lead)
+- 2026-11-13 — posiedzenie z Konradem (Tech Lead): `apply` (domena TEM `panel.eviacharge.pl`, CORS bucketu mediów, SSH na czas sesji), rekordy SPF/DKIM/DMARC w OVH (domena zweryfikowana w TEM), aplikacja IAM `evia-staging-tem` i pliki TEM na VM, pliki krawędzi i kanału (krok 3b), scalenie #133 i wdrożenie `ed75050f` na `panel.eviacharge.pl` (przekierowanie 308 ze `staging`), nowy passkey Konrada; AC6: wiadomość testowa — `spf=pass`, `dkim=pass`, `dmarc=pass`, TLS 1.3 → DMARC `p=reject; sp=reject`; tryb `otwarty`; pierwsze zaproszenie biura wysłane. Odchylenie: lista dozwolonych na start zawierała inny adres niż konto Konrada (przechwycenia `not_on_list`) — poprawiona w sesji. **Status `done`** (akceptacja Konrada) (Tech Lead)

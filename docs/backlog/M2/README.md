@@ -39,9 +39,11 @@ Technik dokumentuje zlecenie zdjęciami, filmami i wpisami także bez zasięgu; 
 | [EVM-093](EVM-093-mobile-szyfrowana-baza-lokalna.md) | Aplikacja: szyfrowana baza lokalna i adapter magazynu | E10 | enabler | P0 | pelna | EVM-091 | 2 |
 | [EVM-107](EVM-107-mobile-integracja-synchronizacji.md) | Aplikacja: integracja synchronizacji — pierwsze pobranie, wskaźnik, Kolejka, „Wymaga uwagi” | E10/E12 | story | P0 | pelna | EVM-092, EVM-093, EVM-094, EVM-096, EVM-098, EVM-100 | 2 |
 | [EVM-103](EVM-103-mobile-lista-zlecen-offline-i-wyszukiwanie.md) | Aplikacja: lista zleceń offline i wyszukiwanie | E10 | story | P1 | pelna | EVM-107 | 3 |
-| [EVM-104](EVM-104-mobile-szczegoly-zlecenia-offline.md) | Aplikacja: szczegóły zlecenia offline | E10 | story | P1 | lekka | EVM-103, EVM-097 | 3 |
+| [EVM-104](EVM-104-mobile-szczegoly-zlecenia-offline.md) | Aplikacja: szczegóły zlecenia offline | E10 | story | P1 | pelna (z lekka, 2026-11-13) | EVM-103, EVM-097 | 3 |
 | [EVM-105](EVM-105-mobile-wpisy-i-komentarze-offline.md) | Aplikacja: wpisy i komentarze offline | E12 | story | P1 | pelna | EVM-104, EVM-107 | 3 |
-| [EVM-106](EVM-106-mobile-szybkie-zlecenie.md) | Aplikacja: szybkie zlecenie z telefonu | E13 | story | P1 | pelna | EVM-099, EVM-103, EVM-107 | 3 |
+| [EVM-127](EVM-127-api-szablony-zlecen-dla-telefonu.md) | API: szablony zleceń dostępne dla telefonu (luka z refinementu EVM-106) | E13 | story | P1 | pelna | EVM-099 | 3 |
+| [EVM-106](EVM-106-mobile-szybkie-zlecenie.md) | Aplikacja: szybkie zlecenie z telefonu | E13 | story | P1 | pelna | EVM-099, EVM-103, EVM-104, EVM-105, EVM-107, EVM-127 | 3 |
+| [EVM-128](EVM-128-mobile-utworz-ponownie-szybkie-zlecenie.md) | Aplikacja: „Utwórz ponownie” odrzuconego szybkiego zlecenia | E13 | story | P2 | pelna | EVM-106 | 3 |
 | [EVM-109](EVM-109-mobile-upload-w-tle-android.md) | Aplikacja: wysyłanie plików w tle (moduł natywny Android) | E11 | story | P1 | pelna | EVM-009, EVM-093, EVM-044, EVM-084 | 4 |
 | [EVM-108](EVM-108-mobile-zdjecia-aparat-i-kolejka.md) | Aplikacja: zdjęcia — aparat, kategoria, opis, kolejka plików | E11 | story | P1 | pelna | EVM-107, EVM-109 | 4 |
 | [EVM-110](EVM-110-mobile-filmy-i-wifi.md) | Aplikacja: filmy i „filmy tylko przez Wi-Fi” | E11 | story | P1 | pelna | EVM-108, EVM-046 | 4 |
@@ -51,7 +53,7 @@ Technik dokumentuje zlecenie zdjęciami, filmami i wpisami także bez zasięgu; 
 
 Zmiany po konsultacjach (2026-10-27): EVM-109 decyzja o właścicielu odświeżania tokenów; EVM-104 zostaje `lekka`; EVM-103 po refinemencie z 2026-11-12: `pelna`, 7 AC. Zmiany z 2026-11-12: EVM-109 przejmuje bramki Kotlin (AC6), `depends_on` bez EVM-113; EVM-111 zawężona i `lekka` (bez EVM-045/068); EVM-112 bez zależności od EVM-102. EVM-100 zależy od EVM-009 (`in-review`) — **start toru C wymaga akceptacji EVM-009**. EVM-096 i EVM-097 wymagają ADR-0021 Zaakceptowanej.
 
-Fazy 4–5 to **szkice bez szczegółowych AC** (3–5 AC ramowych) — doprecyzowanie po EVM-044/084 i po wynikach faz 1–3. Liczby AC po konsultacjach: 090: 7, 091: 7, 092: 7, 093: 7, 094: 8, 095: 7, 096: 8, 097: 5, 098: 7, 099: 6, 100: 6, 101: 8, 102: 5, 103: 7, 104: 4, 105: 5, 106: 4, 107: 8, 108: 4, 109: 6, 110: 3, 111: 4, 112: 4, 113: połączona z 109 (limit pełnej: 8; lekkiej: 6).
+Fazy 4–5 to **szkice bez szczegółowych AC** (3–5 AC ramowych) — doprecyzowanie po EVM-044/084 i po wynikach faz 1–3. Liczby AC po konsultacjach: 090: 7, 091: 7, 092: 7, 093: 7, 094: 8, 095: 7, 096: 8, 097: 5, 098: 7, 099: 6, 100: 6, 101: 8, 102: 5, 103: 7, 104: 6, 105: 6, 106: 6, 127: 3, 128: 3, 107: 8, 108: 4, 109: 6, 110: 3, 111: 4, 112: 4, 113: połączona z 109 (limit pełnej: 8; lekkiej: 6).
 
 ## Graf zależności
 ```mermaid
@@ -177,3 +179,4 @@ Odpowiedzi wpisujemy tu po decyzji Konrada (stan: otwarte; pytanie 9 zastąpione
 - 2026-10-27 — szkic planu M2 i historyjek EVM-090…112 w `draft` (product-owner)
 - 2026-10-27 — naniesiono konsultacje (architekt, security, UX); dodano EVM-113; tabela decyzji i tory na noc zaktualizowane (product-owner)
 - 2026-11-12 — uproszczenia (decyzja Konrada 2026-11-12 / Tech Lead z delegacji Konrada „tanio, szybko, bezpiecznie”): bez Sentry (EVM-102 tylko M-11); EVM-113 → EVM-109 AC6; EVM-111 zawężona; EVM-112 MASVS L1 w sign-offie; EVM-106 zostaje w 1.1; poprawki po refinemencie EVM-103 (`pelna`, 7 AC, decyzja 12 → AC3, BYOD) (product-owner)
+- 2026-11-13 — refinement EVM-104/105/106 do DoR (kolejka nocna 104 → 105 → 127 → 106): EVM-104 `lekka` → `pelna` (dane osobowe na urządzeniu), po 6 AC; podział EVM-106: nowa EVM-127 (telefon nie ma źródła szablonów — endpoint tylko web) i EVM-128 („Utwórz ponownie”); pytania do Konrada w raporcie (product-owner)
