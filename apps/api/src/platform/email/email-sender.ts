@@ -6,10 +6,16 @@
  */
 import type { OutgoingEmail } from './email-address.ts';
 
+/** What the log of an adapter may say about a message: the id of the outbox row and its kind (a closed list) — never an address. */
+export interface EmailSendContext {
+  readonly outboxId: string;
+  readonly kind: string;
+}
+
 export interface EmailSender {
   /**
    * @throws EmailTransientError (email-errors.ts) the service is unavailable or asked to try later
    * @throws EmailPermanentError (email-errors.ts) the recipient or the message was refused
    */
-  send(email: OutgoingEmail): Promise<void>;
+  send(email: OutgoingEmail, context?: EmailSendContext): Promise<void>;
 }

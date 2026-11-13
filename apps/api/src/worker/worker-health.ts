@@ -33,7 +33,8 @@ export async function isWorkerHealthy(path: string, now: Date): Promise<boolean>
     const record = JSON.parse(await readFile(path, 'utf8')) as Partial<HealthRecord>;
     const at = typeof record.at === 'string' ? Date.parse(record.at) : Number.NaN;
     if (Number.isNaN(at) || now.getTime() - at > HEALTH_MAX_AGE_MS || at - now.getTime() > HEALTH_MAX_AGE_MS) return false;
-    return record.transport === 'smtp';
+    // `tem` is healthy without a call to the provider: a health check never makes outbound traffic (EVM-089)
+    return record.transport === 'smtp' || record.transport === 'tem';
   } catch {
     return false;
   }

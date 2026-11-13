@@ -1,8 +1,9 @@
 import { createServer } from 'node:net';
 import { describe, expect, it, vi } from 'vitest';
-import { createOutgoingEmail, parseEmailAddress, type EmailAddress } from '../../src/platform/email/email-address.ts';
+import { createOutgoingEmail, parseEmailAddress, type EmailAddress, type OutgoingEmail } from '../../src/platform/email/email-address.ts';
 import { EmailPermanentError, EmailTransientError } from '../../src/platform/email/email-errors.ts';
-import { GuardedEmailSender, isReservedRecipient } from '../../src/platform/email/guarded-email-sender.ts';
+import type { Logger } from '../../src/platform/logging/logger.ts';
+import { GuardedEmailSender, isReservedRecipient, parseRecipientMode } from '../../src/platform/email/guarded-email-sender.ts';
 import { InMemoryEmailSender } from '../../src/platform/email/in-memory-email-sender.ts';
 import { SmtpEmailSender, mapSmtpFailure } from '../../src/platform/email/smtp-email-sender.ts';
 import { describeEmailSenderContract, type EmailSenderHarness } from '../support/email-sender-contract.ts';
@@ -77,39 +78,59 @@ describe('the e-mail address as a type of the domain (EVM-024 AC2; SR-INPUT-07)'
   });
 });
 
-describe('the guard of the recipients of an external provider (EVM-024 AC6; SR-API-13)', () => {
+describe('the guard of the recipients of an external provider (EVM-024 AC6, EVM-089 AC2; SR-API-13)', () => {
   const message = (to: string) => createOutgoingEmail({ to: address(to), subject: 's', text: 't' });
+  const RESERVED = [
+    'a@example.com',
+    'a@mail.example.com',
+    'a@example.net',
+    'a@example.org',
+    'a@firma.test',
+    'a@x.y.test',
+    'a@firma.example',
+    'a@firma.invalid',
+    'a@firma.localhost',
+  ];
 
-  it('EVM-024 AC6 the adapter of a provider refuses example.com and .test (and the other names reserved by RFC 2606 and RFC 6761)', async () => {
-    const provider = new InMemoryEmailSender();
-    const guarded = new GuardedEmailSender(provider);
-    for (const to of [
-      'a@example.com',
-      'a@mail.example.com',
-      'a@example.net',
-      'a@example.org',
-      'a@firma.test',
-      'a@x.y.test',
-      'a@firma.example',
-      'a@firma.invalid',
-      'a@firma.localhost',
-    ]) {
-      const failure = await guarded.send(message(to)).then(
-        () => undefined,
-        (error: unknown) => error,
-      );
-      expect(failure, to).toBeInstanceOf(EmailPermanentError);
-      expect((failure as EmailPermanentError).code).toBe('recipient_not_allowed');
+  const observed = () => {
+    const infos: unknown[] = [];
+    const counts: unknown[] = [];
+    return {
+      infos,
+      counts,
+      observer: {
+        logger: { info: (...arguments_: unknown[]) => infos.push(arguments_) } as unknown as Logger,
+        intercepted: { increment: (labels: unknown) => counts.push(labels) },
+      },
+    };
+  };
+
+  it('EVM-089 AC2 a reserved domain is intercepted in EVERY mode: the send succeeds, nothing reaches the provider, no error, no retry', async () => {
+    for (const mode of ['lista', 'otwarty'] as const) {
+      const provider = new InMemoryEmailSender();
+      const guarded = new GuardedEmailSender(provider, { mode, allowed: new Set(RESERVED) });
+      for (const to of RESERVED) await expect(guarded.send(message(to)), `${mode} ${to}`).resolves.toBeUndefined();
+      expect(provider.sent, mode).toEqual([]);
     }
-    expect(provider.sent).toEqual([]);
   });
 
-  it('EVM-024 AC6 a real domain passes the guard — also one that merely ends like a reserved one', async () => {
+  it('EVM-089 AC2 mode lista (the default and the strictest): only an address of the list passes; an empty list, and no policy at all, intercept everything', async () => {
     const provider = new InMemoryEmailSender();
-    const guarded = new GuardedEmailSender(provider);
-    for (const to of ['a@evia.pl', 'a@notexample.com', 'a@example.com.pl', 'a@contest.pl', 'a@attest.com']) {
-      await guarded.send(message(to));
-    }
+    const listed = new GuardedEmailSender(provider, { mode: 'lista', allowed: new Set(['anna@evia.pl']) });
+    await listed.send(message('anna@evia.pl'));
+    await listed.send(message('jan@evia.pl'));
+    await listed.send(message('anna@sub.evia.pl'));
+    expect(provider.sent.map((sent) => sent.to)).toEqual(['anna@evia.pl']);
+    const empty = new InMemoryEmailSender();
+    await new GuardedEmailSender(empty, { mode: 'lista', allowed: new Set() }).send(message('anna@evia.pl'));
+    await new GuardedEmailSender(empty).send(message('anna@evia.pl'));
+    expect(empty.sent).toEqual([]);
+  });
+
+  it('EVM-089 AC2 mode otwarty: every well-formed address outside the reserved domains passes — also one that merely ends like a reserved one', async () => {
+    const provider = new InMemoryEmailSender();
+    const guarded = new GuardedEmailSender(provider, { mode: 'otwarty', allowed: new Set() });
+    for (const to of ['a@evia.pl', 'a@notexample.com', 'a@example.com.pl', 'a@contest.pl', 'a@attest.com']) await guarded.send(message(to));
     expect(provider.sent.map((sent) => sent.to)).toEqual([
       'a@evia.pl',
       'a@notexample.com',
@@ -118,6 +139,33 @@ describe('the guard of the recipients of an external provider (EVM-024 AC6; SR-A
       'a@attest.com',
     ]);
     expect(isReservedRecipient('a@example.com')).toBe(true);
+  });
+
+  it('EVM-089 AC2 the mode comes from text fail closed: anything but the word otwarty is lista', () => {
+    expect(parseRecipientMode('otwarty')).toBe('otwarty');
+    expect(parseRecipientMode(' Otwarty\n')).toBe('otwarty');
+    for (const raw of [undefined, '', 'lista', 'open', 'otwarty,lista', 'otwarty2', 'true'])
+      expect(parseRecipientMode(raw), String(raw)).toBe('lista');
+  });
+
+  it('EVM-089 AC2 an interception logs only the id of the row, the kind and the reason and counts by the reason — never an address, a domain or a text', async () => {
+    const provider = new InMemoryEmailSender();
+    const { infos, counts, observer } = observed();
+    const guarded = new GuardedEmailSender(provider, { mode: 'lista', allowed: new Set() }, observer);
+    await guarded.send(message('anna.tajna@firma.test'), { outboxId: 'row-1', kind: 'user_invitation' });
+    await guarded.send(message('jan.tajny@evia.pl'), { outboxId: 'row-2', kind: 'administrator_alert' });
+    expect(counts).toEqual([{ reason: 'reserved_domain' }, { reason: 'not_on_list' }]);
+    expect(infos).toEqual([
+      [{ outboxId: 'row-1', kind: 'user_invitation', reason: 'reserved_domain' }, 'email: intercepted'],
+      [{ outboxId: 'row-2', kind: 'administrator_alert', reason: 'not_on_list' }, 'email: intercepted'],
+    ]);
+    expect(JSON.stringify([infos, counts])).not.toMatch(/tajn|firma|evia\.pl|@/);
+  });
+
+  it('EVM-089 AC2 a message forged around the type fails loudly instead of being intercepted quietly', async () => {
+    const guarded = new GuardedEmailSender(new InMemoryEmailSender());
+    const forged = { to: 'a@b.test\r\nBcc: victim@evil.test', subject: 's', text: 't' } as unknown as OutgoingEmail;
+    await expect(guarded.send(forged)).rejects.toBeInstanceOf(EmailPermanentError);
   });
 });
 

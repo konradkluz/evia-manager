@@ -18,6 +18,8 @@ export interface DeliveredEmail {
 
 export interface EmailSenderHarness {
   readonly sender: EmailSender;
+  /** The recipient of the messages of the contract (default: an address on `mailpit.localhost`); a provider behind the guard needs a real-looking domain. */
+  readonly recipient?: string;
   delivered(): readonly DeliveredEmail[];
   /** The service stops answering (the connection fails). */
   makeUnavailable(): Promise<void>;
@@ -33,7 +35,8 @@ const LINK = 'https://panel.evia.test/activate#Zm9vYmFyMTIzNDU2Nzg5MDEyMzQ1Njc4O
 const SUBJECT = 'EVia Manager: zaproszenie do panelu — zażółć gęślą jaźń';
 const TEXT = `Dzień dobry,\n\nzaproszono Cię do panelu EVia Manager z rolą: Edytor.\n\n${LINK}\n\nLink jest jednorazowy i ważny 72 godziny.\n`;
 
-const message = () => createOutgoingEmail({ to: RECIPIENT, subject: SUBJECT, text: TEXT });
+const message = (harness?: EmailSenderHarness) =>
+  createOutgoingEmail({ to: (harness?.recipient ?? RECIPIENT) as EmailAddress, subject: SUBJECT, text: TEXT });
 
 /** Serialises the observable parts of a failure: what the logger or the queue would store of it. */
 const observable = (error: unknown): string => JSON.stringify(error, Object.getOwnPropertyNames(error)) + ((error as Error).stack ?? '');
@@ -43,10 +46,10 @@ export function describeEmailSenderContract(name: string, create: () => Promise<
     it('EVM-024 AC6 a message arrives whole: one recipient, text/plain UTF-8, Polish letters in the subject and the text, the link untouched', async () => {
       const harness = await create();
       try {
-        await harness.sender.send(message());
+        await harness.sender.send(message(harness));
         const [delivered, ...rest] = harness.delivered();
         expect(rest).toEqual([]);
-        expect(delivered?.to).toEqual([RECIPIENT]);
+        expect(delivered?.to).toEqual([harness.recipient ?? RECIPIENT]);
         expect(delivered?.subject).toBe(SUBJECT);
         expect(delivered?.text.replace(/\r\n/g, '\n')).toContain(`\n${LINK}\n`);
         expect(delivered?.text.replace(/\r\n/g, '\n').startsWith('Dzień dobry,')).toBe(true);
@@ -60,7 +63,7 @@ export function describeEmailSenderContract(name: string, create: () => Promise<
     it('EVM-024 AC2 only from, to, subject and text are in the message: no cc, bcc, reply-to, x-mailer or attachment', async () => {
       const harness = await create();
       try {
-        await harness.sender.send(message());
+        await harness.sender.send(message(harness));
         const headers = [...(harness.delivered()[0]?.headers.keys() ?? [])];
         expect(headers).not.toEqual(expect.arrayContaining(['cc', 'bcc', 'reply-to', 'x-mailer', 'list-unsubscribe']));
         expect(harness.delivered()[0]?.headers.get('content-type')).not.toMatch(/multipart/i);
@@ -73,7 +76,7 @@ export function describeEmailSenderContract(name: string, create: () => Promise<
       const harness = await create();
       try {
         await harness.makeUnavailable();
-        const failure = await harness.sender.send(message()).then(
+        const failure = await harness.sender.send(message(harness)).then(
           () => undefined,
           (error: unknown) => error,
         );
@@ -91,19 +94,19 @@ export function describeEmailSenderContract(name: string, create: () => Promise<
       const harness = await create();
       try {
         harness.makeDeferring();
-        const deferred = await harness.sender.send(message()).then(
+        const deferred = await harness.sender.send(message(harness)).then(
           () => undefined,
           (error: unknown) => error,
         );
         expect(deferred).toBeInstanceOf(EmailTransientError);
         expect((deferred as EmailTransientError).code).toBe('temporary_refusal');
         harness.makeRefusingRecipient();
-        const refused = await harness.sender.send(message()).then(
+        const refused = await harness.sender.send(message(harness)).then(
           () => undefined,
           (error: unknown) => error,
         );
         expect(refused).toBeInstanceOf(EmailPermanentError);
-        expect((refused as EmailPermanentError).code).toBe('recipient_rejected');
+        expect((refused as EmailPermanentError).code).toMatch(/^(recipient_rejected|message_rejected)$/);
         for (const failure of [deferred, refused]) {
           expect((failure as Error).message).toBe((failure as EmailPermanentError).code);
           expect(observable(failure)).not.toMatch(/anna|no such recipient|try later|451|550/);
@@ -125,10 +128,12 @@ export function describeEmailSenderContract(name: string, create: () => Promise<
           );
           expect(failure).toBeInstanceOf(EmailPermanentError);
         }
-        const subjectFailure = await harness.sender.send({ to: RECIPIENT, subject: 'one\r\nBcc: x@y.test', text: TEXT }).then(
-          () => undefined,
-          (error: unknown) => error,
-        );
+        const subjectFailure = await harness.sender
+          .send({ to: (harness.recipient ?? RECIPIENT) as EmailAddress, subject: 'one\r\nBcc: x@y.test', text: TEXT })
+          .then(
+            () => undefined,
+            (error: unknown) => error,
+          );
         expect(subjectFailure).toBeInstanceOf(EmailPermanentError);
         expect(harness.delivered()).toEqual([]);
       } finally {

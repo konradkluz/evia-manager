@@ -30,6 +30,12 @@ describe('the health file of the worker (EVM-024 AC6; SR-API-12)', () => {
     expect(await isWorkerHealthy(path, new Date(NOW.getTime() - HEALTH_MAX_AGE_MS - 1))).toBe(false);
   });
 
+  it('EVM-089 AC4 the transport tem is healthy without any call to the provider (a health check makes no outbound traffic)', async () => {
+    const path = join(directory, 'health');
+    await writeHealth(path, 'tem', NOW);
+    expect(await isWorkerHealthy(path, NOW)).toBe(true);
+  });
+
   it('EVM-024 AC6 fail closed: the transport none is never healthy, and neither is a missing, an empty or a damaged file', async () => {
     const path = join(directory, 'health');
     await writeHealth(path, 'none', NOW);
