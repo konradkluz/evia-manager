@@ -9,6 +9,10 @@ appId: pl.eviacharge.manager
 - extendedWaitUntil:
     visible: 'Brak zasięgu.*'
     timeout: 30000
+# the emulator image is older than 12 months: the security banner of EVM-100 pushes the list down - acknowledge it if shown
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
 - assertVisible: 'ZL-E2E-1'
 - assertVisible: 'ZL-E2E-2'
 - assertVisible: 'Klient Testowy 1'
@@ -26,6 +30,8 @@ appId: pl.eviacharge.manager
 # special characters are literal: no error, no result
 - eraseText: 20
 - inputText: '%'
+# the keyboard hides the empty state on a phone-sized screen
+- hideKeyboard
 - extendedWaitUntil:
     visible: 'Brak zleceń dla.*'
     timeout: 10000

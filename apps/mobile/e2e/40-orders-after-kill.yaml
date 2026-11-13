@@ -8,6 +8,10 @@ appId: pl.eviacharge.manager
 - extendedWaitUntil:
     visible: 'Brak zasięgu.*'
     timeout: 30000
+# the emulator image is older than 12 months: the security banner of EVM-100 pushes the list down - acknowledge it if shown
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
 - assertVisible: 'ZL-E2E-1'
 - assertVisible: 'ZL-E2E-2'
 - assertVisible: 'Szukaj: adres, nazwisko, numer'
