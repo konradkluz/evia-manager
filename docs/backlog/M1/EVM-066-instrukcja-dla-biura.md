@@ -110,3 +110,4 @@ _—_
 - 2026-11-14 — strona `/guide` w panelu budowana z `docs/user/instrukcja-dla-biura.md` (`?raw` + własny czytnik podzbioru Markdown, bez nowej zależności), odnośnik w W-19 → „Pomoc”, testy `EVM-066 AC6`, minimalna reguła walidatora `docs/user/**/*.md` (żywy), `!docs/user` w kontekście obrazu web, CHANGELOG (web-developer); reguła i testy narzędzi do dopracowania przez devops-engineer
 
 - 2026-11-14 — bramka lokalna zielona (gate, test:tools, docs:check 0 błędów); zrzutów ekranu brak (do uzupełnienia po demo); do sprawdzenia w CI: e2e-web i gate:deploy (kontekst obrazu web z docs/user)
+- 2026-11-14 — reguła docs/user (żywy) potwierdzona testem config; wyjątek `!docs/user` w repo-policy zawężony do obrazu web (api nadal bez docs/); `pnpm run gate` i `npm run test:tools` zielone, docs:check 0 błędów (devops-engineer)
