@@ -9,7 +9,7 @@
   "probes": ["Frankfurt", "Amsterdam"],
   "failuresBeforeAlert": 3,
   "checks": [
-    { "name": "staging-api-healthz", "url": "https://staging.eviacharge.pl/healthz", "expectStatus": 200 },
-    { "name": "staging-panel", "url": "https://staging.eviacharge.pl/", "expectStatus": 200 }
+    { "name": "staging-api-healthz", "url": "https://panel.eviacharge.pl/healthz", "expectStatus": 200 },
+    { "name": "staging-panel", "url": "https://panel.eviacharge.pl/", "expectStatus": 200 }
   ]
 }

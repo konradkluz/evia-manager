@@ -40,6 +40,10 @@ const EXTERNAL = [
   'restore-storagebox-password',
   'media-copy-storagebox-password',
   'grafana-write-token',
+  'tem-api-key',
+  'tem-project-id',
+  'email-recipient-mode',
+  'email-allowed-recipients',
 ];
 const RANDOM_KEYS = ['cursor-key', 'login-throttle-key', 'postgres-password', 'evia-migrator-password', 'evia-api-password'];
 const B64URL_32 = /^[A-Za-z0-9_-]{43}$/;
@@ -101,6 +105,9 @@ describe('EVM-084 AC2: the S3 keys, the pgBackRest password and the restore secr
     assert.deepEqual(holders('pgbackrest-cipher-pass'), ['postgres']);
     assert.deepEqual(holders('backup-s3-secret-access-key'), ['postgres']);
     assert.deepEqual(holders('grafana-write-token'), ['alloy']);
+    // EVM-089: the TEM key and the policy of the recipients reach the worker only - the API sends no mail
+    for (const file of ['tem-api-key', 'tem-project-id', 'email-recipient-mode', 'email-allowed-recipients'])
+      assert.deepEqual(holders(file), ['worker'], file);
     for (const file of EXTERNAL.filter((name) => /^(restore|rclone|media-backup|media-copy)/.test(name)))
       assert.deepEqual(holders(file), [], file);
   });
