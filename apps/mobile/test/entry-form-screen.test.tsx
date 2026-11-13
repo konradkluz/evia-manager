@@ -589,7 +589,81 @@ describe('entries and the target (EVM-105 AC4)', () => {
     expect(rig.sync.enqueued).toEqual([]);
   });
 
-  it('EVM-105 AC4: the system "back" closes the form first (the text is dropped, nothing is queued), then the details', async () => {
+  it('EVM-105 AC1: the stage dialog is a sibling of the scroll (never inside it), so it fills the screen and not the field', async () => {
+    const rig = rigWith();
+    await openForm(rig);
+    await fireEvent.press(screen.getByTestId('entry-stage'));
+    expect(screen.getByTestId('entry-stage-dialog')).toBeOnTheScreen();
+    expect(treeOf('entry-form-scroll')).not.toContain('entry-stage-dialog');
+    expect(treeOf('entry-form')).toContain('entry-stage-dialog');
+  });
+
+  it('EVM-105 AC1: "Zamknij" with a typed text asks "Odrzucić wpis?"; "Wróć do wpisu" keeps the text, "Odrzuć" drops it and queues nothing', async () => {
+    const rig = rigWith();
+    await openForm(rig);
+    await type(MARKER);
+    await fireEvent.press(screen.getByTestId('entry-close'));
+    const dialog = treeOf('entry-discard-dialog');
+    expect(dialog).toContain('Odrzucić wpis?');
+    expect(dialog).toContain('Wróć do wpisu');
+    await fireEvent.press(screen.getByTestId('entry-discard-back'));
+    expect(screen.queryByTestId('entry-discard-dialog')).toBeNull();
+    expect(screen.getByTestId('entry-body').props.value).toBe(MARKER);
+    await fireEvent.press(screen.getByTestId('entry-close'));
+    await fireEvent.press(screen.getByTestId('entry-discard-confirm'));
+    expect(screen.queryByTestId('entry-form')).toBeNull();
+    expect(rig.sync.enqueued).toEqual([]);
+    expect(whole()).not.toContain(MARKER);
+  });
+
+  it('EVM-105 AC1: "Zamknij" closes at once when the text is empty or white space only', async () => {
+    const rig = rigWith();
+    await openForm(rig);
+    await type('   ');
+    await fireEvent.press(screen.getByTestId('entry-close'));
+    expect(screen.queryByTestId('entry-discard-dialog')).toBeNull();
+    expect(screen.queryByTestId('entry-form')).toBeNull();
+  });
+
+  it('EVM-105 AC1: the system "back" with a typed text asks first; "back" again (the dialog) returns to the form; the text is kept', async () => {
+    const handlers: Parameters<typeof BackHandler.addEventListener>[1][] = [];
+    const spy = jest.spyOn(BackHandler, 'addEventListener').mockImplementation((_event, handler) => {
+      handlers.push(handler);
+      return {
+        remove: () => {
+          handlers.splice(handlers.indexOf(handler), 1);
+        },
+      };
+    });
+    // like the system: the last registered handler is asked first, the first that answers true wins
+    const back = async (): Promise<boolean> => {
+      let handled = false;
+      await act(() => {
+        for (const handler of [...handlers].reverse()) {
+          if (handler(undefined as never)) {
+            handled = true;
+            break;
+          }
+        }
+      });
+      return handled;
+    };
+    try {
+      const rig = rigWith();
+      await openForm(rig);
+      await type(MARKER);
+      expect(await back()).toBe(true);
+      expect(screen.getByTestId('entry-discard-dialog')).toBeOnTheScreen();
+      expect(await back()).toBe(true);
+      expect(screen.queryByTestId('entry-discard-dialog')).toBeNull();
+      expect(screen.getByTestId('entry-body').props.value).toBe(MARKER);
+      expect(rig.sync.enqueued).toEqual([]);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('EVM-105 AC4: the system "back" closes an empty form first, then the details', async () => {
     const handlers: Parameters<typeof BackHandler.addEventListener>[1][] = [];
     const spy = jest.spyOn(BackHandler, 'addEventListener').mockImplementation((_event, handler) => {
       handlers.push(handler);
@@ -602,10 +676,14 @@ describe('entries and the target (EVM-105 AC4)', () => {
     try {
       const rig = rigWith();
       await openForm(rig);
-      await type(MARKER);
       let handled = false;
       await act(() => {
-        handled = handlers.at(-1)?.(undefined as never) ?? false;
+        for (const handler of [...handlers].reverse()) {
+          if (handler(undefined as never)) {
+            handled = true;
+            break;
+          }
+        }
       });
       expect(handled).toBe(true);
       await settle();
@@ -618,11 +696,12 @@ describe('entries and the target (EVM-105 AC4)', () => {
     }
   });
 
-  it('EVM-105 AC4: "Zamknij" closes the form without saving', async () => {
+  it('EVM-105 AC4: "Zamknij" and then "Odrzuć" closes the form without saving', async () => {
     const rig = rigWith();
     await openForm(rig);
     await type('Porzucony');
     await fireEvent.press(screen.getByTestId('entry-close'));
+    await fireEvent.press(screen.getByTestId('entry-discard-confirm'));
     expect(screen.queryByTestId('entry-form')).toBeNull();
     expect(rig.sync.enqueued).toEqual([]);
   });

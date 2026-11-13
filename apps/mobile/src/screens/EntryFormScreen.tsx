@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ComponentRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { BackHandler, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import {
   buildEntryInput,
   DEFAULT_CATEGORY,
@@ -36,32 +36,17 @@ function problemOf(code: string): SaveProblem {
   return 'failed';
 }
 
-function StageSelect({
-  detail,
-  value,
-  onChange,
-}: {
-  detail: OrderDetail;
-  value: string | null;
-  onChange: (stageId: string | null) => void;
-}) {
+/** The button that opens the stage list; the list itself (AlertDialog) is drawn by the form at the root of the screen, not in the scroll. */
+function StageSelect({ detail, value, onOpen }: { detail: OrderDetail; value: string | null; onOpen: () => void }) {
   const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
-  const choices = stageChoices(detail);
-  const several = detail.processes.length > 1;
-  const chosen = choices.find((choice) => choice.id === value);
-  const close = () => {
-    setOpen(false);
-  };
+  const chosen = stageChoices(detail).find((choice) => choice.id === value);
   return (
     <View style={{ rowGap: space.stack.xs }}>
       <Text style={{ ...text.labelLg, color: color.text.primary }}>{t('entryForm.stageLabel')}</Text>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={t('entryForm.stageA11y', { value: chosen === undefined ? t('entryForm.stageNone') : chosen.name })}
-        onPress={() => {
-          setOpen(true);
-        }}
+        onPress={onOpen}
         testID="entry-stage"
         style={({ pressed }) => ({
           minHeight: size.control.height.mobile.md,
@@ -77,40 +62,6 @@ function StageSelect({
           {chosen === undefined ? t('entryForm.stageChoose') : chosen.name}
         </Text>
       </Pressable>
-      {open ? (
-        <AlertDialog
-          title={t('entryForm.stageDialogTitle')}
-          onCancel={close}
-          testID="entry-stage-dialog"
-          actions={<Button variant="tertiary" label={t('entryForm.stageCancel')} onPress={close} fullWidth testID="entry-stage-cancel" />}
-        >
-          <View style={{ rowGap: space.stack.xs }}>
-            <Button
-              variant="tertiary"
-              label={t('entryForm.stageNone')}
-              onPress={() => {
-                onChange(null);
-                close();
-              }}
-              fullWidth
-              testID="entry-stage-none"
-            />
-            {choices.map((choice) => (
-              <Button
-                key={choice.id}
-                variant="tertiary"
-                label={several ? t('entryForm.stageOption', { process: choice.process, name: choice.name }) : choice.name}
-                onPress={() => {
-                  onChange(choice.id);
-                  close();
-                }}
-                fullWidth
-                testID={`entry-stage-${choice.id}`}
-              />
-            ))}
-          </View>
-        </AlertDialog>
-      ) : null}
     </View>
   );
 }
@@ -136,8 +87,26 @@ export function EntryFormScreen({ orderId, onClose, onSaved }: { orderId: string
   const [body, setBody] = useState('');
   const [problem, setProblem] = useState<SaveProblem | null>(null);
   const [saving, setSaving] = useState(false);
+  const [stageOpen, setStageOpen] = useState(false);
+  const [discardAsk, setDiscardAsk] = useState(false);
   const busy = useRef(false);
   const alive = useRef(true);
+  // a non-empty text is never dropped by one touch or one gesture (no draft exists in M2): ask first
+  const hasText = body.trim() !== '';
+  const requestClose = useCallback(() => {
+    if (hasText) setDiscardAsk(true);
+    else onClose();
+  }, [hasText, onClose]);
+  // registered after the shell's handler (which leaves the open form to us) and before the dialogs' own handlers, which win while open
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      requestClose();
+      return true;
+    });
+    return () => {
+      subscription.remove();
+    };
+  }, [requestClose]);
   const field = useRef<ComponentRef<typeof TextInput>>(null);
   useEffect(
     () => () => {
@@ -197,6 +166,51 @@ export function EntryFormScreen({ orderId, onClose, onSaved }: { orderId: string
 
   const fieldProblem = problem === 'empty' || problem === 'too_long' || problem === 'invalid' ? problem : null;
   const bannerProblem = problem !== null && fieldProblem === null ? problem : null;
+
+  const closeStage = () => {
+    setStageOpen(false);
+  };
+  // drawn as a sibling of the scroll (the dialog fills its parent: here the whole screen), never inside the ScrollView
+  const stageDialog = (detail: OrderDetail) => {
+    const choices = stageChoices(detail);
+    const several = detail.processes.length > 1;
+    return (
+      <AlertDialog
+        title={t('entryForm.stageDialogTitle')}
+        onCancel={closeStage}
+        testID="entry-stage-dialog"
+        actions={
+          <Button variant="tertiary" label={t('entryForm.stageCancel')} onPress={closeStage} fullWidth testID="entry-stage-cancel" />
+        }
+      >
+        <View style={{ rowGap: space.stack.xs }}>
+          <Button
+            variant="tertiary"
+            label={t('entryForm.stageNone')}
+            onPress={() => {
+              setStageId(null);
+              closeStage();
+            }}
+            fullWidth
+            testID="entry-stage-none"
+          />
+          {choices.map((choice) => (
+            <Button
+              key={choice.id}
+              variant="tertiary"
+              label={several ? t('entryForm.stageOption', { process: choice.process, name: choice.name }) : choice.name}
+              onPress={() => {
+                setStageId(choice.id);
+                closeStage();
+              }}
+              fullWidth
+              testID={`entry-stage-${choice.id}`}
+            />
+          ))}
+        </View>
+      </AlertDialog>
+    );
+  };
 
   const content = () => {
     switch (state.kind) {
@@ -288,7 +302,13 @@ export function EntryFormScreen({ orderId, onClose, onSaved }: { orderId: string
                       ))}
                     </View>
                   </View>
-                  <StageSelect detail={detail} value={stageId} onChange={setStageId} />
+                  <StageSelect
+                    detail={detail}
+                    value={stageId}
+                    onOpen={() => {
+                      setStageOpen(true);
+                    }}
+                  />
                 </>
               ) : null}
               <TextArea
@@ -339,7 +359,7 @@ export function EntryFormScreen({ orderId, onClose, onSaved }: { orderId: string
             accessibilityLabel={t('entryForm.closeA11y')}
             variant="tertiary"
             inverse
-            onPress={onClose}
+            onPress={requestClose}
             testID="entry-close"
           />
         }
@@ -347,6 +367,37 @@ export function EntryFormScreen({ orderId, onClose, onSaved }: { orderId: string
         right={<SyncCapsule onPress={() => undefined} />}
       />
       {content()}
+      {stageOpen && state.kind === 'ready' ? stageDialog(state.detail) : null}
+      {discardAsk ? (
+        <AlertDialog
+          title={t('entryForm.discardTitle')}
+          onCancel={() => {
+            setDiscardAsk(false);
+          }}
+          testID="entry-discard-dialog"
+          actions={
+            <>
+              <Button
+                label={t('entryForm.discardBack')}
+                onPress={() => {
+                  setDiscardAsk(false);
+                }}
+                fullWidth
+                testID="entry-discard-back"
+              />
+              <Button
+                variant="dangerTertiary"
+                label={t('entryForm.discardConfirm')}
+                onPress={onClose}
+                fullWidth
+                testID="entry-discard-confirm"
+              />
+            </>
+          }
+        >
+          <Text style={{ ...text.body, color: color.text.primary }}>{t('entryForm.discardBody')}</Text>
+        </AlertDialog>
+      ) : null}
     </KeyboardAvoidingView>
   );
 }

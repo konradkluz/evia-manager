@@ -109,10 +109,7 @@ export function Shell() {
   // The system "back" from the queue returns to the orders; from the orders it leaves the app (default behaviour).
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (entry !== null) {
-        setEntry(null);
-        return true;
-      }
+      // the open entry form handles "back" itself (it asks before dropping a typed text); its handler is registered later, so it is asked first
       if (openOrderId !== null) {
         setOpenOrderId(null);
         return true;
@@ -126,7 +123,7 @@ export function Shell() {
     return () => {
       subscription.remove();
     };
-  }, [tab, openOrderId, entry]);
+  }, [tab, openOrderId]);
 
   // One polite announcement when the server is reachable again after a problem (styleguide § 5.4, no spam).
   useEffect(() => {

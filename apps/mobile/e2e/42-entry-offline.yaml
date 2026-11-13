@@ -26,9 +26,28 @@ appId: pl.eviacharge.manager
 - assertVisible: 'Nie wpisuj PESEL, numerów dokumentów ani kodów do bram i alarmów\.'
 - tapOn:
     id: 'entry-category-meeting'
+# the stage list opens over the whole screen (not inside the scroll) and is dismissed
+- tapOn:
+    id: 'entry-stage'
+- extendedWaitUntil:
+    visible: 'Etap wpisu'
+    timeout: 5000
+- assertVisible: 'Bez etapu'
+- tapOn:
+    id: 'entry-stage-cancel'
+# a typed text is not dropped by "Zamknij" without asking
 - tapOn:
     id: 'entry-body'
 - inputText: 'Wpis testowy z telefonu bez zasiegu'
+- hideKeyboard
+- tapOn:
+    id: 'entry-close'
+- extendedWaitUntil:
+    visible: 'Odrzucić wpis\?'
+    timeout: 5000
+- tapOn:
+    id: 'entry-discard-back'
+- assertVisible: 'Zapisz wpis'
 - hideKeyboard
 - takeScreenshot: m04-entry-form-filled
 - tapOn:
