@@ -85,14 +85,16 @@ describe('EVM-068 AC5: the container of the media processor', () => {
     for (const from of (code.match(/^FROM .*$/gm) ?? []).filter((line) => line.includes(':')))
       expect(from, from).toMatch(/@sha256:[0-9a-f]{64}/);
     // EVM-046: ffprobe and ffmpeg need a runtime with libraries (Debian slim, the same digest as the API); the exact version of the package is required at build time
-    expect(code).toMatch(/^FROM node:26.10.0-trixie-slim@sha256:[0-9a-f]{64} AS runtime$/m);
-    expect(code).toContain('ARG FFMPEG_VERSION');
+    expect(code).toMatch(/^FROM node:26\.\d+\.\d+-trixie-slim@sha256:[0-9a-f]{64} AS runtime$/m);
+    // EVM-124: CI passes no --build-arg, so the exact versions are the defaults of the ARGs (never empty, never a range)
+    expect(code).toMatch(/^ARG FFMPEG_VERSION=\d+:[0-9][0-9.]*-[0-9][0-9a-z.+~]*$/m);
+    expect(code).toMatch(/^ARG ZLIB_VERSION=\d+:[0-9a-z.+~-]+$/m);
     expect(code).toContain('test -n "${FFMPEG_VERSION}"');
     expect(code).toContain('apt-get install -y --no-install-recommends "ffmpeg=${FFMPEG_VERSION}"');
     // a literal backslash-n (a typo for a line continuation) would break the build; the RUN must be real continued lines
     expect(code).not.toContain(String.raw`\n`);
     expect(code).toMatch(
-      /test -n "\$\{FFMPEG_VERSION\}" \\\r?\n\s+&& apt-get update \\\r?\n\s+&& apt-get install[^\n]*\\\r?\n\s+&& rm -rf \/var\/lib\/apt\/lists\/\* \\\r?\n\s+&& ffmpeg -version/,
+      /test -n "\$\{FFMPEG_VERSION\}" && test -n "\$\{ZLIB_VERSION\}" \\\r?\n\s+&& apt-get update \\\r?\n\s+&& apt-get install[^\n]*\\\r?\n\s+&& rm -rf \/var\/lib\/apt\/lists\/\* \\\r?\n\s+&& ffmpeg -version/,
     );
     expect(code).toContain('ENTRYPOINT ["/usr/local/bin/node"]');
     expect(code).toMatch(/^USER 65532:65532$/m);
