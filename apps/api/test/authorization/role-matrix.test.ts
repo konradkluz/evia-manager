@@ -474,3 +474,31 @@ describe('the operation of the signed address of a file has variants (EVM-045 AC
     expect(entry?.authz.channels).toEqual(['web']);
   });
 });
+
+describe('the list of work order templates is open to both channels (EVM-127 AC2; SR-AUTHZ-05, SR-AUTHZ-12)', () => {
+  const cellsOf = buildMatrix(AUTHZ_MANIFEST, lists).filter((cell) => cell.operationId === 'listWorkOrderTemplates');
+  const phone = (role: string) =>
+    cellsOf.find(
+      (cell) =>
+        cell.caller.kind === 'session' && cell.caller.channel === 'mobile' && cell.caller.role === role && cell.caller.state === 'active',
+    );
+
+  it('EVM-127 AC2 the phone reads with a Bearer token: Administrator and Editor are allowed, Tylko odczyt is 403', () => {
+    expect(phone('administrator')).toMatchObject({ credential: 'bearer', expectation: { outcome: 'allowed' } });
+    expect(phone('editor')).toMatchObject({ credential: 'bearer', expectation: { outcome: 'allowed' } });
+    expect(phone('read_only')).toMatchObject({ credential: 'bearer', expectation: { outcome: 'denied', status: 403, code: 'forbidden' } });
+  });
+
+  it('EVM-127 AC2 the panel keeps its cookie and its rules: the three roles are allowed, a revoked or an expired session keeps its own 401', () => {
+    for (const cell of cellsOf.filter(
+      (item) => item.caller.kind === 'session' && item.caller.channel === 'web' && item.caller.state === 'active',
+    )) {
+      expect(cell.credential).toBe('cookie');
+      expect(cell.expectation).toEqual({ outcome: 'allowed' });
+    }
+    const code = (kind: string) => cellsOf.find((cell) => cell.caller.kind === kind)?.expectation;
+    expect(code('revoked')).toEqual({ outcome: 'denied', status: 401, code: 'session_revoked' });
+    expect(code('expired')).toEqual({ outcome: 'denied', status: 401, code: 'session_expired' });
+    expect(code('anonymous')).toEqual({ outcome: 'denied', status: 401, code: 'unauthenticated' });
+  });
+});

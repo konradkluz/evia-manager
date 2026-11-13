@@ -176,6 +176,11 @@ describe('an operation open to both channels, the credential and the version (EV
     expect(await code({ principal: cookie }, { principal: bearer }, OLD)).toEqual({ status: 200, code: undefined });
   });
 
+  it('EVM-127 AC2 a session of the phone in a cookie is no credential: 401, and a Bearer token next to it still wins', async () => {
+    expect(await code({ principal: bearer }, ANONYMOUS, APP)).toEqual({ status: 401, code: 'unauthenticated' });
+    expect(await code({ principal: bearer }, { principal: bearer }, APP)).toEqual({ status: 200, code: undefined });
+  });
+
   it('EVM-127 AC2 a Bearer principal of the role Tylko odczyt is 403 (the sign-in of that role is refused with channel_not_allowed, EVM-094)', async () => {
     const readOnly = principal({ channel: 'mobile', role: 'read_only', csrfToken: '' });
     expect(await code(ANONYMOUS, { principal: readOnly }, APP)).toMatchObject({ status: 403 });

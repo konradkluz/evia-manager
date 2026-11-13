@@ -97,7 +97,10 @@ export function expectationFor(operationId: string, manifest: AuthzManifest, lis
   if (caller.kind === 'anonymous') return { outcome: 'denied', status: 401, code: 'unauthenticated' };
   // An operation of the mobile channel alone takes the Bearer token of a phone (EVM-094; SR-AUTHZ-12): a cookie of the panel — a session, a revoked or an expired
   // one — is ignored and the caller is anonymous. The phone has no step-up and no enrolment state.
-  if (authz.channels?.includes('web') !== true) {
+  // An operation open to both channels (EVM-127) reads the cookie for a caller of the panel and the Bearer token for a phone: the phone follows the same rules.
+  const phoneCaller = caller.kind === 'session' && caller.channel === 'mobile';
+  const both = authz.channels?.includes('web') === true && authz.channels.includes('mobile');
+  if (authz.channels?.includes('web') !== true || (both && phoneCaller)) {
     if (caller.kind !== 'session' || caller.channel !== 'mobile') return { outcome: 'denied', status: 401, code: 'unauthenticated' };
     const entitledPhone = authz.roles?.includes(caller.role) === true && roleMayUseChannel(caller.role, caller.channel);
     return entitledPhone ? { outcome: 'allowed' } : { outcome: 'denied', status: 403, code: 'forbidden' };
@@ -123,6 +126,14 @@ export function expectationFor(operationId: string, manifest: AuthzManifest, lis
     return { outcome: 'denied', status: 403, code: 'reauthentication_required' };
   }
   return { outcome: 'allowed' };
+}
+
+/** The credential of the cell: the phone of an operation open to both channels (EVM-127) and every caller of an operation of the phone alone send a Bearer token. */
+function credentialOf(authz: AuthzManifest[string]['authz'], caller: Caller): 'cookie' | 'bearer' {
+  if (authz.public === true) return 'cookie';
+  if (authz.channels?.includes('web') !== true) return 'bearer';
+  const phone = caller.kind === 'session' && caller.channel === 'mobile';
+  return authz.channels.includes('mobile') && phone ? 'bearer' : 'cookie';
 }
 
 export function buildMatrix(manifest: AuthzManifest, lists: MatrixLists): MatrixCell[] {
@@ -155,7 +166,7 @@ export function buildMatrix(manifest: AuthzManifest, lists: MatrixLists): Matrix
       caller,
       expectation: expectationFor(operationId, manifest, lists, caller),
       idor: false,
-      credential: authz.channels?.includes('web') === true || authz.public === true ? 'cookie' : 'bearer',
+      credential: credentialOf(authz, caller),
     }));
     if (!addressesObject || authz.public === true) return cells;
     // IDOR: every caller entitled to the operation, asking for an object of somebody else, gets 404 (never 403: the object is not disclosed)
