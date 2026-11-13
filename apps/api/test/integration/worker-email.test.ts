@@ -116,7 +116,11 @@ describe('the worker sends the invitation through the outbox and the queue (EVM-
     smtp = await startSmtpTestServer();
     worker = startWorker(env({ EMAIL_SMTP_PORT: String(closed) }));
 
+    // The queue backs off between attempts (about 1, 2, 4 and 8 s even with a zero base delay, with jitter): waiting for that real time made
+    // the test depend on the random breaks and on the speed of the machine. The test owns the breaks instead: whenever a job waits for
+    // its retry, it is made due now; the policy of the queue and every assertion below stay as they were (EVM-126 AC2).
     const failed = await until(async () => {
+      await sql`update pgboss.job set start_after = now() where name = 'email.send' and state = 'retry'`.execute(app.database.admin);
       const [row] = await outboxRows(app, { recipient: body.id });
       return row?.state === 'failed' ? row : undefined;
     }, 'the row fails after the retries');

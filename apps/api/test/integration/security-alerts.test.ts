@@ -87,6 +87,35 @@ describe('security alerts through the outbox (EVM-016 AC2; SR-LOG-07, CWE-778)',
     expect(failures.length).toBeGreaterThanOrEqual(2);
     expect(failures[0]).toMatchObject({ level: 'warn' });
   });
+
+  it('EVM-126 AC2 EVM-016 AC2 a slow poll is not overlapped by the next tick: one poll at a time, the timer goes on after it ends', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    let started = 0;
+    let finish: () => void = () => undefined;
+    const slow = new SecurityAlertEmitter(
+      {
+        transaction: () => ({
+          execute: () => {
+            started += 1;
+            return new Promise<never[]>((resolve) => {
+              finish = () => {
+                resolve([]);
+              };
+            });
+          },
+        }),
+      } as unknown as Kysely<Database>,
+      createLogger({ level: 'info', destination: logs }),
+      clock,
+    );
+    const stopSlow = slow.start(20);
+    await vi.advanceTimersByTimeAsync(200);
+    expect(started).toBe(1);
+    finish();
+    await vi.advanceTimersByTimeAsync(20);
+    expect(started).toBe(2);
+    stopSlow();
+  });
 });
 
 describe('the running API process emits alerts (EVM-016 AC2)', () => {
