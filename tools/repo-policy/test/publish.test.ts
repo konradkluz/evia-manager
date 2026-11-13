@@ -338,7 +338,7 @@ describe('publish checkers detect violations (EVM-007 AC2)', () => {
     const bad = (from: string, to: string): string[] =>
       releaseDockerfileProblems(dir, dockerfile.replace(from, to), ignore, packageManager);
     // a base by digest behind --platform is still checked
-    expect(bad('FROM --platform=$BUILDPLATFORM node:26.10.0-trixie-slim@sha256:', 'FROM --platform=$BUILDPLATFORM node:26#')).not.toEqual(
+    expect(bad('FROM --platform=$BUILDPLATFORM node:26.13.1-trixie-slim@sha256:', 'FROM --platform=$BUILDPLATFORM node:26#')).not.toEqual(
       [],
     );
     expect(bad('FROM --platform=$BUILDPLATFORM node:', 'FROM node:')).not.toEqual([]);
