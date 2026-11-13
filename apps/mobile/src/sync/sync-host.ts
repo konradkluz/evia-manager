@@ -4,6 +4,7 @@
  * and disposes it on sign-out, `session_revoked`, wipe and `device_wipe_required` (security S2/S3).
  */
 import type { EnqueueInput } from '@evia/sync-core';
+import type { OrderRow } from '../orders/order-list-model';
 import { SyncService, type SyncServiceStore } from './sync-service';
 import {
   IDLE_SNAPSHOT,
@@ -105,6 +106,9 @@ export class SyncHost implements SyncRuntime {
   }
   queueView(withLabels: boolean): Promise<QueueView> {
     return this.#service?.queueView(withLabels) ?? Promise.resolve({ items: [], sent: [] });
+  }
+  orderList(withData: boolean): Promise<readonly OrderRow[]> {
+    return this.#service?.orderList(withData) ?? Promise.resolve([]);
   }
   dependentsOf(id: string): Promise<number> {
     return this.#service?.dependentsOf(id) ?? Promise.resolve(0);

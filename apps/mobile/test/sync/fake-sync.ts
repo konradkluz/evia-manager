@@ -1,5 +1,6 @@
 // A fake of the synchronization seen by the screens (EVM-107): a settable snapshot and queue, recorded calls.
 import type { EnqueueInput } from '@evia/sync-core';
+import { redactRows, type OrderRow } from '../../src/orders/order-list-model';
 import {
   EMPTY_COUNTS,
   INITIAL_FIRST_PULL,
@@ -84,6 +85,15 @@ export class FakeSync implements SyncRuntime {
       items: this.items.map((item) => ({ ...item, label: withLabels ? item.label : null })),
       sent: this.sent,
     });
+  }
+  /** The rows `orderList` answers (set by the test); `withData = false` rows are redacted by the fake like the real read. */
+  rows: OrderRow[] = [];
+  readonly orderRequests: boolean[] = [];
+  orderListHook: ((withData: boolean) => Promise<readonly OrderRow[]>) | undefined;
+  orderList(withData: boolean): Promise<readonly OrderRow[]> {
+    this.orderRequests.push(withData);
+    if (this.orderListHook !== undefined) return this.orderListHook(withData);
+    return Promise.resolve(withData ? this.rows : redactRows(this.rows));
   }
   dependentsOf(id: string): Promise<number> {
     this.calls.push(`dependentsOf:${id}`);

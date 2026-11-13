@@ -16,6 +16,7 @@ import {
   type SweepRule,
   type WriteOutcome,
 } from '@evia/sync-core';
+import type { OrderListSource, SourceCustomer, SourceOrder, SourceSite, SourceStage } from '../orders/order-list-model';
 import { MAX_PARAMS, chunk, type DbAccess, type Tx } from './database';
 import { nextGeneration, startFreshActiveGeneration } from './schema';
 import type { SqlRow, SqlValue } from './sql';
@@ -345,6 +346,65 @@ export class SqlReplicaStore implements ReplicaStore {
           title: typeof fields['title'] === 'string' ? fields['title'] : '',
         };
       });
+    });
+  }
+
+  /**
+   * The source of "Moje zlecenia" (EVM-103 AC1, AC5, AC6; security K1): ONE read of the active generation, no N+1, no LIMIT. It never
+   * selects the whole `fields` document - only allow-listed keys through `json_extract` - so the free-text fields of the projection
+   * (title, description, phone, e-mail, notes, apartment number) never leave the database. Without `withData` (the hidden-data mode)
+   * only the id, number, status and creation time of the work orders are read: no customer, no place, no stage.
+   * Tombstones are not listed, so an order removed from the scope by a synchronization is simply absent.
+   */
+  async readOrderListSource(withData: boolean): Promise<OrderListSource> {
+    const active = "JOIN replica_generations g ON g.generation = e.generation AND g.role = 'active'";
+    const text = (value: unknown): string => (typeof value === 'string' ? value : '');
+    const nullable = (value: unknown): string | null => (typeof value === 'string' ? value : null);
+    return this.#db.read(async (tx) => {
+      const orderRows = await tx.all(
+        withData
+          ? `SELECT e.id AS id, json_extract(e.fields, '$.number') AS number, json_extract(e.fields, '$.status') AS status, json_extract(e.fields, '$.createdAt') AS created_at, json_extract(e.fields, '$.customerId') AS customer_id, json_extract(e.fields, '$.siteId') AS site_id FROM replica_entities e ${active} WHERE e.type = 'work_order'`
+          : `SELECT e.id AS id, json_extract(e.fields, '$.number') AS number, json_extract(e.fields, '$.status') AS status, json_extract(e.fields, '$.createdAt') AS created_at FROM replica_entities e ${active} WHERE e.type = 'work_order'`,
+      );
+      const orders: SourceOrder[] = orderRows.map((row) => {
+        const created = typeof row['created_at'] === 'string' ? Date.parse(row['created_at']) : NaN;
+        return {
+          id: String(row['id']),
+          number: nullable(row['number']),
+          status: text(row['status']),
+          createdAt: Number.isFinite(created) ? created : 0,
+          customerId: nullable(row['customer_id']),
+          siteId: nullable(row['site_id']),
+        };
+      });
+      if (!withData) return { orders, customers: [], sites: [], stages: [] };
+      const customers: SourceCustomer[] = (
+        await tx.all(
+          `SELECT e.id AS id, json_extract(e.fields, '$.displayName') AS display_name FROM replica_entities e ${active} WHERE e.type = 'customer'`,
+        )
+      ).map((row) => ({ id: String(row['id']), displayName: text(row['display_name']) }));
+      const sites: SourceSite[] = (
+        await tx.all(
+          `SELECT e.id AS id, json_extract(e.fields, '$.street') AS street, json_extract(e.fields, '$.buildingNumber') AS building_number, json_extract(e.fields, '$.city') AS city, json_extract(e.fields, '$.parkingSpotNumber') AS parking_spot FROM replica_entities e ${active} WHERE e.type = 'site'`,
+        )
+      ).map((row) => ({
+        id: String(row['id']),
+        street: text(row['street']),
+        buildingNumber: text(row['building_number']),
+        city: text(row['city']),
+        parkingSpot: text(row['parking_spot']),
+      }));
+      const stages: SourceStage[] = (
+        await tx.all(
+          `SELECT e.work_order_id AS work_order_id, json_extract(e.fields, '$.name') AS name, json_extract(e.fields, '$.position') AS position, json_extract(e.fields, '$.status') AS status FROM replica_entities e ${active} WHERE e.type = 'procedure_stage' AND e.work_order_id IS NOT NULL`,
+        )
+      ).map((row) => ({
+        workOrderId: String(row['work_order_id']),
+        name: text(row['name']),
+        position: typeof row['position'] === 'number' ? row['position'] : 0,
+        status: text(row['status']),
+      }));
+      return { orders, customers, sites, stages };
     });
   }
 

@@ -1,4 +1,5 @@
 import type { QueueStore, ReplicaStore, SettledInfo } from '@evia/sync-core';
+import type { OrderListSource } from '../orders/order-list-model';
 import { Database } from './database';
 import { StorageError, toStorageError, type StorageErrorCode } from './errors';
 import { InstallationProof } from './installation-proof';
@@ -48,6 +49,8 @@ export interface UnlockedStore {
     readLastSuccess(): Promise<number | null>;
     writeLastSuccess(at: number): Promise<void>;
     listWorkOrders(limit?: number): Promise<{ id: string; number: string; title: string }[]>;
+    /** The source of "Moje zlecenia" (EVM-103): allow-listed keys only; no customer, place or stage without `withData`. */
+    readOrderListSource(withData: boolean): Promise<OrderListSource>;
   };
   /** Results of settled mutations for their consumer (EVM-107); taken = removed. */
   takeSettled(): Promise<{ mutationId: string; info: SettledInfo }[]>;
@@ -305,6 +308,8 @@ export class LocalDataHost {
         await tx.get('SELECT count(*) AS n FROM sqlite_master');
         if ((await tx.get('PRAGMA quick_check'))?.['quick_check'] !== 'ok') throw new StorageError('not_a_database');
         await tx.exec('PRAGMA temp_store = MEMORY');
+        // freed pages are overwritten, so a removed customer or address does not linger in the file (EVM-103, security Low)
+        await tx.exec('PRAGMA secure_delete = ON');
         await tx.exec('PRAGMA busy_timeout = 5000');
         if (Number((await tx.get('PRAGMA temp_store'))?.['temp_store']) !== 2) throw new StorageError('cipher_misconfigured');
       });
@@ -369,6 +374,7 @@ export class LocalDataHost {
         readLastSuccess: () => replica.readLastSuccess(),
         writeLastSuccess: (at) => replica.writeLastSuccess(at),
         listWorkOrders: (limit) => replica.listWorkOrders(limit),
+        readOrderListSource: (withData) => replica.readOrderListSource(withData),
       },
       takeSettled: () => queue.takeSettled(),
       unsentItemCount: async () => {
