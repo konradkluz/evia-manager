@@ -16,10 +16,10 @@ describe('EVM-085 AC2 (CAX11 variant A): memory under control', () => {
     expect(read('infra/runtime/clamav/clamd.conf').split(/\r?\n/)).toContain('ConcurrentDatabaseReload no');
   });
 
-  it('EVM-084: clamd and freshclam run as uid 1000 without the root entrypoint of the image, with the hardened posture kept (no capabilities, read-only root file system)', () => {
+  it('EVM-084: clamd and freshclam run as the dedicated uid 10006 (never 1000 = the administrator of the VM) without the root entrypoint of the image, with the hardened posture kept (no capabilities, read-only root file system)', () => {
     for (const name of ['clamd', 'freshclam']) {
       const service = record(infra[name]);
-      expect(service['user'], name).toBe('1000:1000');
+      expect(service['user'], name).toBe('10006:10006');
       expect(service['read_only'], name).toBe(true);
       expect(service['cap_drop'], name).toEqual(['ALL']);
       expect('cap_add' in service, name).toBe(false);

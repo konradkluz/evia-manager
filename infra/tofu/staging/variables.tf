@@ -31,7 +31,7 @@ variable "server_type" {
 }
 
 variable "clamav_uid_gid" {
-  description = "uid:gid of the user of clamd in the pinned clamav/clamav-debian image (EVM-084 L8; read in the IaC session, see docs/ops/runbooks/media-processor.md)."
+  description = "uid:gid the clamd and freshclam containers run as: 10006:10006, as in compose.infra.yaml (EVM-084 L8; see docs/ops/runbooks/media-processor.md)."
   type        = string
 }
 

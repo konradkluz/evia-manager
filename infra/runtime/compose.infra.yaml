@@ -70,14 +70,14 @@ services:
       timeout: 5s
       retries: 10
 
-  # clamd and freshclam run as uid 1000 (the clamav user of the image) and WITHOUT the image entrypoint /init (EVM-084, Tech Lead decision 2026-11-13). /init runs as root and needs
+  # clamd and freshclam run as the dedicated uid:gid 10006:10006 (not the clamav user 1000 of the image: on the host uid 1000 is the administrator, who has sudo; the pool 100xx is the one of the services) and WITHOUT the image entrypoint /init (EVM-084, Tech Lead decision 2026-11-13). /init runs as root and needs
   # CAP_CHOWN (chown -R of the signature volume) and a writable /etc/clamav (sed -i from CLAMD_CONF_*), which cap_drop ALL and read_only do not allow: with the previous
   # form (root + /init) the containers never started (clamd never ran before 2026-11-13). The configuration is a read-only file of the repository (clamav/*.conf,
   # installed in /etc/evia/runtime/clamav by the IaC session); the posture stays: no capabilities, read-only root file system, no-new-privileges.
   clamd:
     image: clamav/clamav-debian:1.5.4@sha256:76a9c3b63764b78178dc68fa7efcceca0cde2c8c9d4f925a8e697cb4511f8fdc
     restart: unless-stopped
-    user: '1000:1000'
+    user: '10006:10006'
     read_only: true
     cap_drop: [ALL]
     security_opt: ['no-new-privileges:true']
@@ -100,7 +100,7 @@ services:
   freshclam:
     image: clamav/clamav-debian:1.5.4@sha256:76a9c3b63764b78178dc68fa7efcceca0cde2c8c9d4f925a8e697cb4511f8fdc
     restart: unless-stopped
-    user: '1000:1000'
+    user: '10006:10006'
     read_only: true
     cap_drop: [ALL]
     security_opt: ['no-new-privileges:true']
