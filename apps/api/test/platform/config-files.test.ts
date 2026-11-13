@@ -125,6 +125,11 @@ describe('EVM-007 AC4: compose.staging.yaml satisfies the configuration of the A
     'media-s3-secret-access-key': `${randomKey()}\n`,
     'media-worker-s3-secret-access-key': `${randomKey()}\n`,
     'deletion-register-s3-secret-access-key': `${randomKey()}\n`,
+    // EVM-089: Scaleway TEM (synthetic UUIDs) and the policy of the recipients (test values; the real mode and list are files of the VM)
+    'tem-api-key': '00000000-0000-4000-8000-0000000000a1\n',
+    'tem-project-id': '00000000-0000-4000-8000-0000000000b2\n',
+    'email-recipient-mode': 'lista\n',
+    'email-allowed-recipients': '# synthetic\nkonto@biuro-firma.pl\n',
   };
 
   /** The environment of a service and a reader that serves only the files the secrets manifest gives that service. */
@@ -138,7 +143,7 @@ describe('EVM-007 AC4: compose.staging.yaml satisfies the configuration of the A
   it('EVM-007 AC4 the API starts on port 3000 in production with its secrets from files and reports its release', () => {
     const { env, read } = service('api');
     const config = loadConfig(env, read);
-    expect(config).toMatchObject({ nodeEnv: 'production', port: 3000, panelOrigin: 'https://staging.eviacharge.pl' });
+    expect(config).toMatchObject({ nodeEnv: 'production', port: 3000, panelOrigin: 'https://panel.eviacharge.pl' });
     expect(config.fieldEncryptionKeys.length).toBe(1);
     // EVM-026: production refuses to start without the key of the counters against guessing — on staging it comes from a file.
     expect(config.loginThrottleKey.length).toBe(32);
@@ -146,9 +151,30 @@ describe('EVM-007 AC4: compose.staging.yaml satisfies the configuration of the A
     expect(config.release.manifestSha256).toBe('c3'.repeat(32));
   });
 
-  it('EVM-007 AC4 the worker starts with its secrets from files and without e-mail until EVM-089', () => {
+  it('EVM-089 AC1 AC2 the worker starts with e-mail through TEM: the sender on exactly the domain of the panel, the key and the project from files, the mode lista', () => {
     const { env, read } = service('worker');
-    expect(loadWorkerConfig(env, read)).toMatchObject({ nodeEnv: 'production', email: { transport: 'none' } });
+    const config = loadWorkerConfig(env, read);
+    expect(config).toMatchObject({
+      nodeEnv: 'production',
+      email: { transport: 'tem', from: 'powiadomienia@panel.eviacharge.pl', mode: 'lista', allowed: ['konto@biuro-firma.pl'] },
+    });
+    // the key is in no value the environment carries (SR-INFRA-05): only the paths of the files
+    expect(JSON.stringify(env)).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-/);
+  });
+
+  it('EVM-089 (E) the API and the worker share ONE host of the panel: PANEL_ORIGIN and WEBAUTHN_RP_ID name panel.eviacharge.pl; the API has no EMAIL_* and no TEM file', () => {
+    const api = compose.services['api']?.environment ?? {};
+    const worker = compose.services['worker']?.environment ?? {};
+    for (const env of [api, worker]) {
+      expect(env['PANEL_ORIGIN']).toBe('https://panel.eviacharge.pl');
+      expect(env['WEBAUTHN_RP_ID']).toBe('panel.eviacharge.pl');
+    }
+    expect(Object.keys(api).filter((key) => key.startsWith('EMAIL_'))).toEqual([]);
+    for (const name of ['api', 'migrate'])
+      expect(
+        secrets.services[name]?.files.filter((file) => file.startsWith('tem-') || file.startsWith('email-')),
+        name,
+      ).toEqual([]);
   });
 
   it('EVM-084 EVM-052 the API and the worker get complete media settings: endpoint and region in pl-waw, three different buckets, key ids of the Scaleway shape (a placeholder blocks the merge), clamd for the worker only', () => {

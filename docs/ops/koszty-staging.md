@@ -9,7 +9,7 @@
 | Wolumen roboczy 20 GB (filmy i skan, szyfrowany kluczem efemerycznym; EVM-084, RR-75/76) | Hetzner Volume | ok. 4,9 | 20 GB × stawka wolumenu 10 GB z wiersza wyżej (ok. 0,056 EUR/GB); **cena do potwierdzenia w konsoli przed `apply`** |
 | Obiekty: baza (kopie, object lock), media, rejestr usunięć, eksporty ZIP (EVM-052, wygasają po 1 dniu), stan OpenTofu | Scaleway Object Storage `pl-waw` | wg zużycia, rząd kilku zł | cennik za GB; dane syntetyczne, małe wolumeny; potwierdzić w sesji IaC |
 | Kopia mediów | Hetzner Storage Box | zgodnie z wybranym wariantem (EVM-084) | kwota po wyborze rozmiaru w sesji IaC |
-| E-mail transakcyjny | Scaleway TEM Essential | 0 do 300 e-maili/mies. | potem 0,25 EUR za 1000 |
+| E-mail transakcyjny | Scaleway TEM Essential | 0 do 300 e-maili/mies. | potem 0,25 EUR za 1000; EVM-089: dwie domeny TEM (`panel.eviacharge.pl` i stara `staging.eviacharge.pl` do sprzątania) nie zmieniają progu; ruch to zaproszenia i resety biura (kilkadziesiąt miesięcznie); alert w konsoli Scaleway przy 250 e-mailach |
 | Test odtworzenia | Hetzner, tymczasowa VM cax11 | poniżej 2 | zasoby usuwane po teście; sprzątacz co godzinę |
 | Logi, metryki, alerty, monitoring dostępności | Grafana Cloud Free (jeden stos UE) | 0 | limity niżej |
 | Błędy aplikacji | bez osobnego serwisu (decyzja 2026-11-12): alert `EviaApiUnhandledError` z logów Grafana Cloud | 0 | w ramach limitów Grafany niżej |

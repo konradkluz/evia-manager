@@ -43,3 +43,16 @@ resource "scaleway_tem_domain" "this" {
 output "domain_id" {
   value = scaleway_tem_domain.this.id
 }
+
+# What Konrad adds in OVH by hand (EVM-089 AC3): public values, no secrets. The names and the values come from Scaleway, never typed from memory.
+output "dns_records" {
+  description = "SPF, DKIM and DMARC of the domain as given by Scaleway TEM, and the status of its verification."
+  value = {
+    domain      = var.domain
+    status      = scaleway_tem_domain.this.status
+    spf_value   = scaleway_tem_domain.this.spf_value
+    dkim_name   = scaleway_tem_domain.this.dkim_name
+    dkim_config = scaleway_tem_domain.this.dkim_config
+    dmarc_name  = scaleway_tem_domain.this.dmarc_name
+  }
+}

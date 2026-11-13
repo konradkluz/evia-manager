@@ -58,7 +58,7 @@ variable "storagebox_cidrs" {
 }
 
 variable "panel_origin" {
-  description = "Exact https origin of the web panel allowed to PUT media with a presigned URL (CORS); recommended https://staging.eviacharge.pl (EVM-084 D6)."
+  description = "Exact https origin of the web panel allowed to PUT media with a presigned URL (CORS); exactly https://panel.eviacharge.pl since EVM-089 (one origin, no wildcard, not the old staging host)."
   type        = string
 }
 

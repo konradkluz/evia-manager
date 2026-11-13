@@ -2,10 +2,11 @@
  * Errors of the port of sending an e-mail (EVM-024; SR-LOG-02, CWE-532, CWE-209): two kinds, each with a FIXED code and no text from the
  * driver — the response of a mail server carries the address of the recipient and a part of the message, and a job error is stored
  * by the queue and written to the log.
- * - transient: the service did not answer or asked to try later — the job is retried with growing breaks;
+ * - transient: the service did not answer or asked to try later — the job is retried with growing breaks (`provider_auth`: the provider
+ *   refused the key; retried like the rest — EVM-089 AC4 — and the fixed code tells the runbook to rotate the key);
  * - permanent: the recipient or the message was refused — no retry, the row goes to `failed` at once.
  */
-export const TRANSIENT_CODES = ['connection_failed', 'timeout', 'temporary_refusal', 'send_failed'] as const;
+export const TRANSIENT_CODES = ['connection_failed', 'timeout', 'temporary_refusal', 'send_failed', 'provider_auth'] as const;
 export const PERMANENT_CODES = [
   'recipient_rejected',
   'message_rejected',

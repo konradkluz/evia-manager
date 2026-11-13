@@ -186,6 +186,11 @@ function setup() {
     'backup-s3-secret-access-key',
     // EVM-085: the write token of the collector (alloy)
     'grafana-write-token',
+    // EVM-089: the TEM key and the policy of the recipients (the worker)
+    'tem-api-key',
+    'tem-project-id',
+    'email-recipient-mode',
+    'email-allowed-recipients',
   ])
     writeFileSync(join(root, 'etc/evia/secrets', file), `synthetic-${file}`, { mode: 0o600 });
   // deploy.sh and the boot unit share one materialisation of the secrets (/usr/local/sbin/evia-secrets on the VM).
@@ -247,7 +252,7 @@ describe('EVM-007 AC4: deploy.sh — order of the deployment', () => {
       '/api/health',
       'http://10.0.0.5:3000/api/version',
       'caddy reload',
-      'https://staging.eviacharge.pl/version',
+      'https://panel.eviacharge.pl/version',
     ];
     const positions = order.map((part) => index(run.calls, part));
     assert.ok(

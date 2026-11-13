@@ -230,6 +230,24 @@ export async function settleEmail(tx: Kysely<Database>, id: string, to: 'sent' |
   return rows.length === 1;
 }
 
+/**
+ * `pending` rows older than the limit → `failed` (EVM-089 D; TM-80): the token of an invitation is made at the moment of SENDING, so a row that waited
+ * for weeks (the transport was `none`) would send a FRESH link to a person who may no longer be meant to have it. Run once when the worker starts, BEFORE the
+ * relay and the handler exist; both kinds (`user_invitation`, `administrator_alert`). The row stays visible in W-16 as "Nie wysłano" and an Administrator
+ * can send again. The handler skips every row that is not `pending` under its lock, so a job already in the queue for such a row sends nothing.
+ * @returns how many rows were expired (the only thing that is logged)
+ */
+export async function expireStalePending(tx: Kysely<Database>, olderThan: Date): Promise<number> {
+  const rows = await outbox(tx)
+    .updateTable('platform.email_outbox')
+    .set({ state: 'failed', sent_at: null })
+    .where('state', '=', 'pending')
+    .where('created_at', '<', olderThan)
+    .returning('id')
+    .execute();
+  return rows.length;
+}
+
 /** The rows the relay has to hand to the queue: never handed over, or handed over long ago and still pending (a job that was lost). */
 export async function selectToRelay(tx: Kysely<Database>, handedOverBefore: Date, limit: number): Promise<string[]> {
   const rows = await outbox(tx)

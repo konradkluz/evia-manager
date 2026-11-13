@@ -13,7 +13,7 @@ const checks = JSON.parse(readFileSync(fileURLToPath(new URL('../synthetic/check
 describe('EVM-085 AC3 synthetic checks', () => {
   it('EVM-085 AC3 both /healthz and the panel of staging over HTTPS, with a status and a failure threshold', () => {
     const urls = checks.checks.map((/** @type {{ url: string }} */ check) => check.url);
-    assert.deepEqual(urls, ['https://staging.eviacharge.pl/healthz', 'https://staging.eviacharge.pl/']);
+    assert.deepEqual(urls, ['https://panel.eviacharge.pl/healthz', 'https://panel.eviacharge.pl/']);
     for (const check of checks.checks) assert.equal(check.expectStatus, 200);
     assert.ok(checks.failuresBeforeAlert >= 2 && checks.failuresBeforeAlert <= 5);
     assert.ok(checks.timeoutSeconds <= 30);

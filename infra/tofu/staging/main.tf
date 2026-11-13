@@ -101,11 +101,29 @@ module "vm" {
   depends_on             = [module.network]
 }
 
+# The OLD sending domain of staging (EVM-007). It STAYS until the sending from the new domain is stable (EVM-089 plan: no loss of the ability to send during
+# the switch); removing it is a separate step of the runbook (docs/ops/runbooks/kolejka-e-mail.md, "Sprzątanie"), after which the old name gets
+# `v=spf1 -all` and a DMARC `p=reject` in OVH so that the unused subdomain cannot be spoofed.
 module "tem" {
   source     = "../modules/tem"
   domain     = "staging.eviacharge.pl"
   project_id = var.scaleway_project_id
   region     = "fr-par"
+}
+
+# The sending domain of the application since 2026-11-13 (EVM-089; decision of Konrad): the same name as the panel. The sender is
+# powiadomienia@panel.eviacharge.pl (the worker refuses any other domain). Records SPF / DKIM / DMARC: `tofu output tem_panel_dns` -> OVH, by hand.
+module "tem_panel" {
+  source     = "../modules/tem"
+  domain     = "panel.eviacharge.pl"
+  project_id = var.scaleway_project_id
+  region     = "fr-par"
+}
+
+# The values of the DNS records for Konrad (EVM-089 AC3): taken from here, never from memory (the DKIM key is made by Scaleway). Public values, no secrets.
+output "tem_panel_dns" {
+  description = "SPF, DKIM and DMARC records of the sending domain panel.eviacharge.pl to add by hand in OVH (docs/ops/runbooks/kolejka-e-mail.md)."
+  value       = module.tem_panel.dns_records
 }
 
 # EVM-084: buckets, IAM applications and bucket policies. Inactive until the IaC session (new paid resources, apply with Konrad).

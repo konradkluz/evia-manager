@@ -21,7 +21,7 @@ readonly WORK="$ROOT/var/lib/evia/deploy"
 readonly REGISTRY="$ROOT/var/lib/evia/registry/registry.json"
 readonly CADDY_SNIPPET="$ROOT/etc/evia/caddy/upstream.caddy"
 readonly INFRA_COMPOSE="$ROOT/etc/evia/runtime/compose.infra.yaml"
-readonly DOMAIN="staging.eviacharge.pl"
+readonly DOMAIN="panel.eviacharge.pl"
 readonly KEEP_DEPLOYMENTS=3
 
 log() { printf '%s deploy: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" >&2; }

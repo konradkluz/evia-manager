@@ -7,12 +7,15 @@
 import { promises as dns } from 'node:dns';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { checkPorts, evaluateDns, evaluateHeaders, evaluateTls, probePort, readDns, readTls } from './checks.mjs';
+import { checkPorts, evaluateDns, evaluateHeaders, evaluateLegacyRedirect, evaluateTls, probePort, readDns, readTls } from './checks.mjs';
 import { bucketCheck, label, summarize } from './summary.mjs';
 import { waitForVersion } from './version.mjs';
 import { evaluateZap } from './zap.mjs';
 
-export const HOST = 'staging.eviacharge.pl';
+/** The address of the panel and the API since EVM-089 (decision of 2026-11-13). */
+export const HOST = 'panel.eviacharge.pl';
+/** The old address of staging: only a redirect to the panel. */
+export const LEGACY_HOST = 'staging.eviacharge.pl';
 
 /**
  * @typedef {object} Io
@@ -67,6 +70,24 @@ async function headersCheck(io) {
 }
 
 /** @param {Io} io */
+async function legacyRedirectCheck(io) {
+  try {
+    const answer = await io.fetchImpl(`https://${LEGACY_HOST}/api/v1/probe?x=1`, {
+      redirect: 'manual',
+      signal: AbortSignal.timeout(10_000),
+    });
+    return evaluateLegacyRedirect(
+      answer.status,
+      answer.headers.get('location'),
+      answer.headers.get('strict-transport-security'),
+      `https://${HOST}/api/v1/probe?x=1`,
+    );
+  } catch {
+    return { id: 'legacy-redirect', passed: false, details: [`brak połączenia HTTPS z ${LEGACY_HOST}`] };
+  }
+}
+
+/** @param {Io} io */
 async function tlsCheck(io) {
   try {
     const facts = await io.tls();
@@ -105,6 +126,7 @@ export async function main(command, io) {
       await checkPorts(io.probe),
       await tlsCheck(io),
       await headersCheck(io),
+      await legacyRedirectCheck(io),
       evaluateDns(await io.dns(), io.env['VERIFY_PROFILE'] ?? 'strict'),
       bucketCheck(),
     ];

@@ -11,7 +11,8 @@ import { zSemver } from '@evia/contracts/zod';
 import { z } from 'zod';
 import { parseFieldEncryptionKeys, type FieldKey } from '../crypto/field-encryption.ts';
 import { resolveDeletionRegisterSettings, type DeletionRegisterSettings } from '../deletion-register/deletion-register-settings.ts';
-import { parseEmailAddress } from '../email/email-address.ts';
+import { parseEmailAddress, type EmailAddress } from '../email/email-address.ts';
+import { TEM_SENDER_DOMAIN, parseRecipientMode, type RecipientMode } from '../email/email-settings.ts';
 import { loadMediaConfig, type MediaConfig } from './media-config.ts';
 
 export const LOG_LEVELS = ['fatal', 'error', 'warn', 'info', 'debug', 'trace'] as const;
@@ -363,9 +364,24 @@ function mediaOf(env: Env): MediaConfig | undefined {
   return result.media;
 }
 
-/** Where the transactional e-mail goes (EVM-024 AC6): the transport is an explicit, required setting — there is no default. */
+/**
+ * Where the transactional e-mail goes (EVM-024 AC6, EVM-089): the transport is an explicit, required setting - there is no default.
+ * `tem` (Scaleway) carries the key and the project read from the FILES of the secrets (the key is not enumerable: a log of the configuration, a
+ * `JSON.stringify` or a spread never shows it), the mode of the recipients (`lista` unless the file says exactly `otwarty`) and the list.
+ */
 export type EmailConfig =
-  { readonly transport: 'none' } | { readonly transport: 'smtp'; readonly host: string; readonly port: number; readonly from: string };
+  | { readonly transport: 'none' }
+  | { readonly transport: 'smtp'; readonly host: string; readonly port: number; readonly from: string }
+  | {
+      readonly transport: 'tem';
+      readonly from: string;
+      readonly apiKey: string;
+      readonly projectId: string;
+      readonly mode: RecipientMode;
+      readonly allowed: readonly EmailAddress[];
+      /** A row `pending` older than this (hours) is `failed` when the worker starts (EVM-089 D). */
+      readonly pendingMaxAgeHours: number;
+    };
 
 /** The configuration of the worker process: everything the server has, plus the transport of e-mail (the API sends no mail and never reads `EMAIL_*`). */
 export interface WorkerConfig extends AppConfig {
@@ -378,19 +394,38 @@ export interface WorkerConfig extends AppConfig {
  */
 export const SMTP_HOSTS = ['mailpit', 'localhost', '127.0.0.1', '::1'] as const;
 
+/** A secret file is addressed by an absolute path (the deployment channel mounts it; never a relative one). */
+const absolutePath = z.string().refine((value) => isAbsolute(value));
+
 const emailSchema = z
   .object({
     NODE_ENV: commonShape.NODE_ENV,
-    EMAIL_TRANSPORT: z.enum(['smtp', 'none']),
+    EMAIL_TRANSPORT: z.enum(['smtp', 'tem', 'none']),
     EMAIL_SMTP_HOST: z.enum(SMTP_HOSTS).optional(),
     EMAIL_SMTP_PORT: z.coerce.number().int().min(1).max(65_535).optional(),
     EMAIL_FROM: z
       .string()
       .refine((value) => parseEmailAddress(value) === value)
       .optional(),
+    // `tem` (EVM-089): the secrets and the policy of the recipients are FILES on the VM, never values of the environment (SR-INFRA-05)
+    EMAIL_TEM_API_KEY_FILE: absolutePath.optional(),
+    EMAIL_TEM_PROJECT_ID_FILE: absolutePath.optional(),
+    EMAIL_RECIPIENT_MODE_FILE: absolutePath.optional(),
+    EMAIL_ALLOWED_RECIPIENTS_FILE: absolutePath.optional(),
+    EMAIL_PENDING_MAX_AGE_HOURS: z.coerce.number().int().min(1).max(720).default(24),
   })
-  // `smtp` needs its host, port and sender — a transport that is half configured is an error at start, never a silent skip.
   .superRefine((env, context) => {
+    if (env.EMAIL_TRANSPORT === 'tem') {
+      for (const key of ['EMAIL_FROM', 'EMAIL_TEM_API_KEY_FILE', 'EMAIL_TEM_PROJECT_ID_FILE'] as const) {
+        if (env[key] === undefined) context.addIssue({ code: 'custom', path: [key] });
+      }
+      // the sender is on EXACTLY the domain verified in TEM (a label boundary, not a suffix): anything else would fail the DMARC alignment
+      if (env.EMAIL_FROM !== undefined && env.EMAIL_FROM.slice(env.EMAIL_FROM.indexOf('@') + 1) !== TEM_SENDER_DOMAIN) {
+        context.addIssue({ code: 'custom', path: ['EMAIL_FROM'] });
+      }
+      return;
+    }
+    // `smtp` needs its host, port and sender - a transport that is half configured is an error at start, never a silent skip.
     if (env.EMAIL_TRANSPORT !== 'smtp') return;
     for (const key of ['EMAIL_SMTP_HOST', 'EMAIL_SMTP_PORT', 'EMAIL_FROM'] as const) {
       if (env[key] === undefined) context.addIssue({ code: 'custom', path: [key] });
@@ -419,14 +454,62 @@ export function loadWorkerConfig(env: Env, read: ReadConfigFile = readConfigFile
     email = parseEnv(emailSchema, env);
   });
   if (base === undefined || email === undefined) throw new ConfigError([...keys].sort());
-  const transport: EmailConfig =
-    email.EMAIL_TRANSPORT === 'none'
-      ? { transport: 'none' }
-      : {
-          transport: 'smtp',
-          host: email.EMAIL_SMTP_HOST as string,
-          port: email.EMAIL_SMTP_PORT as number,
-          from: email.EMAIL_FROM as string,
-        };
+  const transport = emailTransportOf(email, keys, read);
+  if (transport === undefined) throw new ConfigError([...keys].sort());
   return { ...base, email: transport };
+}
+
+/** The text of a secret file: the file read, one trailing line break removed; `undefined` when it cannot be read or is over 64 KiB. */
+function readSecretFile(path: string | undefined, read: ReadConfigFile): string | undefined {
+  if (path === undefined) return undefined;
+  try {
+    const text = read(path);
+    return Buffer.byteLength(text, 'utf8') > MAX_FILE_BYTES ? undefined : text.replace(/\r?\n$/, '');
+  } catch {
+    return undefined;
+  }
+}
+
+const UUID_FORMAT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The addresses of the list, one per line (`#` starts a comment); `undefined` when ANY entry is not an address (the start stops, never a silent skip). */
+function parseAllowedRecipients(text: string): EmailAddress[] | undefined {
+  const entries = text
+    .split(/\r?\n/)
+    .map((line) => line.replace(/#.*$/, '').trim())
+    .filter((line) => line !== '');
+  const parsed = entries.map((entry) => parseEmailAddress(entry));
+  return parsed.every((entry) => entry !== undefined) ? parsed : undefined;
+}
+
+/** Builds the transport of the worker from the validated keys; the names of the keys that are wrong go to `keys` (never a value). */
+function emailTransportOf(email: z.output<typeof emailSchema>, keys: Set<string>, read: ReadConfigFile): EmailConfig | undefined {
+  if (email.EMAIL_TRANSPORT === 'none') return { transport: 'none' };
+  if (email.EMAIL_TRANSPORT === 'smtp') {
+    return {
+      transport: 'smtp',
+      host: email.EMAIL_SMTP_HOST as string,
+      port: email.EMAIL_SMTP_PORT as number,
+      from: email.EMAIL_FROM as string,
+    };
+  }
+  const apiKey = readSecretFile(email.EMAIL_TEM_API_KEY_FILE, read)?.trim();
+  const projectId = readSecretFile(email.EMAIL_TEM_PROJECT_ID_FILE, read)?.trim();
+  if (apiKey === undefined || !UUID_FORMAT.test(apiKey)) keys.add('EMAIL_TEM_API_KEY_FILE');
+  if (projectId === undefined || !UUID_FORMAT.test(projectId)) keys.add('EMAIL_TEM_PROJECT_ID_FILE');
+  // Fail closed: a missing, empty or unknown mode is `lista`; a missing list is an empty one (everything is intercepted).
+  const mode = parseRecipientMode(readSecretFile(email.EMAIL_RECIPIENT_MODE_FILE, read));
+  const allowed = parseAllowedRecipients(readSecretFile(email.EMAIL_ALLOWED_RECIPIENTS_FILE, read) ?? '');
+  if (allowed === undefined) keys.add('EMAIL_ALLOWED_RECIPIENTS_FILE');
+  if (keys.size > 0 || apiKey === undefined || projectId === undefined || allowed === undefined) return undefined;
+  const config = {
+    transport: 'tem',
+    from: email.EMAIL_FROM as string,
+    projectId,
+    mode,
+    allowed,
+    pendingMaxAgeHours: email.EMAIL_PENDING_MAX_AGE_HOURS,
+  };
+  Object.defineProperty(config, 'apiKey', { value: apiKey, enumerable: false });
+  return config as EmailConfig;
 }

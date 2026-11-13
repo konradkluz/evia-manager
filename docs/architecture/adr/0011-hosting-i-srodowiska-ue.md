@@ -136,3 +136,6 @@ Test odtworzenia bazy: automatycznie co miesiąc i przed każdym wydaniem na tym
 - Scaleway — object lock (tryby governance/compliance, wymaga wersjonowania): https://www.scaleway.com/en/docs/object-storage/how-to/use-object-lock/ ; lifecycle (`NoncurrentVersionExpiration`): https://www.scaleway.com/en/docs/object-storage/api-cli/lifecycle-rules-api/
 - Hetzner Cloud — backupy i snapshoty obejmują dysk serwera, nie wolumeny: https://docs.hetzner.com/cloud/servers/backups-snapshots/overview/
 - Sentry — region UE we wszystkich planach: https://docs.sentry.io/organization/data-storage-location/
+
+## Adnotacja EVM-089 (2026-11-13, decyzja Konrada; bez zmiany klasy dokumentu)
+Jedyne środowisko działa pod adresem `panel.eviacharge.pl` (przemianowanie na produkcję — EVM-125 — nie zmienia już nazwy hosta); `staging.eviacharge.pl` przekierowuje na ten adres do czasu sprzątania. Domena nadawcy e-maili: `panel.eviacharge.pl` (Scaleway TEM, region UE `fr-par`, dane we Francji).

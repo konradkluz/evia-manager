@@ -151,6 +151,24 @@ export function evaluateHeaders(headers, redirectStatus, location, host) {
 }
 
 /**
+ * The old address of staging (EVM-089; SR-WEB-02, CWE-601): `https://staging.eviacharge.pl/…` ONLY redirects (308 keeps the method; 301 is accepted) to the FIXED
+ * origin of the panel, keeps HSTS and serves nothing else. The `Location` is compared whole: a host taken from the request (an open redirect) is red.
+ * @param {number} status @param {string | null} location @param {string | null} hsts @param {string} expectedLocation
+ * @returns {Check}
+ */
+export function evaluateLegacyRedirect(status, location, hsts, expectedLocation) {
+  const details = [];
+  if (![301, 308].includes(status)) details.push(`staging.eviacharge.pl nie przekierowuje (status ${String(status)})`);
+  if (location !== expectedLocation) details.push('przekierowanie nie wskazuje stałego adresu panelu');
+  if (hsts !== 'max-age=31536000; includeSubDomains') details.push('brak HSTS na odpowiedzi przekierowania');
+  return {
+    id: 'legacy-redirect',
+    passed: details.length === 0,
+    details: details.length === 0 ? ['staging.eviacharge.pl → 308/301 na stały adres panelu, z HSTS'] : details,
+  };
+}
+
+/**
  * @typedef {{ a: string[], aaaa: string[], caa: Array<{ critical: number, issue?: string, issuewild?: string, iodef?: string }>,
  *   spf: string[], dmarc: string[] }} DnsFacts
  */

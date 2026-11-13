@@ -14,8 +14,18 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { CLOSED_PORTS, checkPorts, evaluateDns, evaluateHeaders, evaluateTls, probePort, readDns, readTls } from '../lib/checks.mjs';
-import { HOST, defaultIo, main } from '../lib/main.mjs';
+import {
+  CLOSED_PORTS,
+  checkPorts,
+  evaluateDns,
+  evaluateHeaders,
+  evaluateLegacyRedirect,
+  evaluateTls,
+  probePort,
+  readDns,
+  readTls,
+} from '../lib/checks.mjs';
+import { HOST, LEGACY_HOST, defaultIo, main } from '../lib/main.mjs';
 import { bucketCheck, summarize } from '../lib/summary.mjs';
 import { waitForVersion } from '../lib/version.mjs';
 import { evaluateZap, parseRules } from '../lib/zap.mjs';
@@ -55,8 +65,27 @@ const GOOD_DNS = {
     { critical: 0, issuewild: ';' },
   ],
   spf: ['v=spf1 include:_spf.tem.scaleway.com -all'],
-  dmarc: ['v=DMARC1; p=none; rua=mailto:dmarc@staging.eviacharge.pl'],
+  dmarc: ['v=DMARC1; p=none; rua=mailto:dmarc@panel.eviacharge.pl'],
 };
+
+describe('EVM-089 (E, CWE-601): the old address of staging only redirects to the fixed address of the panel', () => {
+  const EXPECTED = 'https://panel.eviacharge.pl/x';
+  const HSTS = 'max-age=31536000; includeSubDomains';
+  it('EVM-089 AC4: 308 or 301 to the fixed address with HSTS is green', () => {
+    assert.equal(evaluateLegacyRedirect(308, EXPECTED, HSTS, EXPECTED).passed, true);
+    assert.equal(evaluateLegacyRedirect(301, EXPECTED, HSTS, EXPECTED).passed, true);
+  });
+  for (const [name, status, location, hsts] of /** @type {const} */ ([
+    ['it serves the page (200)', 200, null, HSTS],
+    ['an open redirect (host from the request)', 308, 'https://staging.eviacharge.pl/x', HSTS],
+    ['another host', 308, 'https://evil.example/x', HSTS],
+    ['no HSTS', 308, EXPECTED, null],
+    ['302', 302, EXPECTED, HSTS],
+  ]))
+    it(`EVM-089 AC4: ${name} is red`, () => {
+      assert.equal(evaluateLegacyRedirect(status, location, hsts, EXPECTED).passed, false);
+    });
+});
 
 describe('EVM-007 AC6: ports — only 80 and 443 (port 22 closed)', () => {
   it('EVM-007 AC6: a host with only 80 and 443 open passes; 22, 5432 or 2019 open or 443 closed is red', async () => {
@@ -427,6 +456,15 @@ describe('EVM-007 AC6: the summary and the steps of the job', () => {
       fetchImpl: async (url) => {
         const target = url instanceof Request ? url.url : url.toString();
         if (target.endsWith('/version')) return new Response(JSON.stringify({ commit: COMMIT, manifestSha256: MANIFEST }));
+        if (target.startsWith(`https://${LEGACY_HOST}/`)) {
+          return new Response('', {
+            status: 308,
+            headers: {
+              location: `https://${HOST}${new URL(target).pathname}${new URL(target).search}`,
+              'strict-transport-security': 'max-age=31536000; includeSubDomains',
+            },
+          });
+        }
         if (target.startsWith('http://')) return new Response('', { status: 308, headers: { location: `https://${HOST}/` } });
         return new Response('', { headers: GOOD_HEADERS });
       },
@@ -461,7 +499,7 @@ describe('EVM-007 AC6: the summary and the steps of the job', () => {
     assert.equal(artifact.passed, true);
     assert.deepEqual(
       artifact.checks.map((/** @type {{ id: string }} */ check) => check.id),
-      ['version', 'ports', 'tls', 'headers', 'dns', 'bucket-403', 'zap'],
+      ['version', 'ports', 'tls', 'headers', 'legacy-redirect', 'dns', 'bucket-403', 'zap'],
     );
     assert.match(readFileSync(summary, 'utf8'), /zielony/);
   });
@@ -515,13 +553,26 @@ describe('EVM-007 AC6: the summary and the steps of the job', () => {
     assert.equal(await main('unknown', wrong), 2);
   });
 
+  it('EVM-089 AC4: an unreachable old host is red', async () => {
+    const steps = io({
+      fetchImpl: async (url) => {
+        const target = url instanceof Request ? url.url : url.toString();
+        if (target.startsWith(`https://${LEGACY_HOST}`)) throw new Error('offline');
+        return new Response('', { headers: GOOD_HEADERS, status: target.startsWith('http://') ? 308 : 200 });
+      },
+    });
+    assert.equal(await main('checks', steps), 0);
+    const checks = /** @type {Array<{ id: string, passed: boolean }>} */ (readJson(join(steps.outDir, 'checks.json')));
+    assert.equal(checks.find((check) => check.id === 'legacy-redirect')?.passed, false);
+  });
+
   it('EVM-007 AC6: the CLI prints the usage without a step, and the default I/O targets the staging host', () => {
     const cli = fileURLToPath(new URL('../cli.mjs', import.meta.url));
     const run = spawnSync(process.execPath, [cli], { encoding: 'utf8', cwd: mkdtempSync(join(tmpdir(), 'staging-verify-cli-')) });
     assert.equal(run.status, 2);
     assert.match(run.stdout, /wait \| checks \| report/);
     const real = defaultIo('x');
-    assert.equal(real.host, 'staging.eviacharge.pl');
+    assert.equal(real.host, 'panel.eviacharge.pl');
     assert.equal(typeof execFileSync, 'function');
   });
 });

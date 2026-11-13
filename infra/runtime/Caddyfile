@@ -57,7 +57,8 @@
 	}
 }
 
-staging.eviacharge.pl {
+# The panel and the API (EVM-089: the address of the panel since 2026-11-13; the sender domain of the e-mail is the same).
+panel.eviacharge.pl {
 	tls {
 		issuer acme {
 			dir https://acme-v02.api.letsencrypt.org/directory
@@ -69,4 +70,20 @@ staging.eviacharge.pl {
 	}
 	import access_log
 	import /etc/caddy/upstream.caddy
+}
+
+# The old address of staging (EVM-089; decision of 2026-11-13): ONLY a redirect to a FIXED host - never the Host of the request (no open redirect), never
+# the upstream (the old host serves neither the API nor the panel). 308 keeps the method of the request. Same TLS, HSTS and access log.
+staging.eviacharge.pl {
+	tls {
+		issuer acme {
+			dir https://acme-v02.api.letsencrypt.org/directory
+		}
+	}
+	header {
+		-Server
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	}
+	import access_log
+	redir https://panel.eviacharge.pl{uri} 308
 }

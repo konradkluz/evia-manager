@@ -41,10 +41,16 @@ import type { Kysely } from 'kysely';
 import { loadWorkerConfig, type EmailConfig } from '../platform/config/config.ts';
 import type { Clock } from '../platform/clock/clock.ts';
 import { WORKER_POOL_SETTINGS, type Database } from '../platform/database/database.ts';
+import { expireStalePending } from '../platform/email/email-outbox.ts';
 import { EmailRelay } from '../platform/email/email-relay.ts';
 import type { EmailSender } from '../platform/email/email-sender.ts';
 import { SendEmailJob } from '../platform/email/send-email.job.ts';
+import { INTERCEPTED_METRIC } from '../platform/email/guarded-email-sender.ts';
 import { SmtpEmailSender } from '../platform/email/smtp-email-sender.ts';
+import { createTemEmailSender } from '../platform/email/tem-email-sender.ts';
+import type { MetricsRegistry } from '../platform/metrics/metrics.ts';
+import { METRICS } from '../platform/tokens.ts';
+import { runInTransaction } from '../platform/database/transactional.ts';
 import { PgBossJobQueue } from '../platform/jobs/pg-boss-job-queue.ts';
 import type { JobDefinition, JobQueue } from '../platform/jobs/index.ts';
 import { createLogger, type Logger } from '../platform/logging/logger.ts';
@@ -64,8 +70,9 @@ export interface WorkerIo {
 export interface WorkerWiring {
   /** The queue over the database; replaced by the tests that need other timings. */
   readonly createQueue?: (connectionString: string, logger: Logger) => JobQueue;
-  /** The sender of e-mails for `EMAIL_TRANSPORT=smtp`; the tests put a fake here (the fake is never chosen by configuration). */
-  readonly createEmailSender?: (config: Extract<EmailConfig, { transport: 'smtp' }>) => EmailSender;
+  /** The sender of e-mails for `EMAIL_TRANSPORT=smtp` or `tem`; the tests put a fake here (the fake is never chosen by configuration). */
+  /** Test seam: the adapter for the configured transport; it gets the logger of the worker (the guard logs `email: intercepted`). */
+  readonly createEmailSender?: (config: Extract<EmailConfig, { transport: 'smtp' | 'tem' }>, logger: Logger) => EmailSender;
   /** The file the health of the worker is written to (the container's `tmpfs`); shortened by nothing, moved by the tests only. */
   readonly healthFile?: string;
   /** The interval of the relay of the outbox; shortened by the tests only (the default is 5 seconds). */
@@ -153,8 +160,17 @@ export async function runWorkerFromProcess(
     if (mediaExport.enabled) tasks.push({ start: () => mediaExport.start(wiring.mediaExportIntervalMs) });
     else logger.warn({ job: 'media.export' }, 'worker: the ZIP export is off (the bucket of the exports is not configured)');
 
-    if (config.email.transport === 'smtp') {
-      const sender = wiring.createEmailSender?.(config.email) ?? new SmtpEmailSender(config.email);
+    if (config.email.transport === 'smtp' || config.email.transport === 'tem') {
+      const emailConfig = config.email;
+      if (emailConfig.transport === 'tem') {
+        // EVM-089 D: BEFORE the relay and the handler exist, the rows that waited too long are `failed` (a stale invitation must not get a fresh link)
+        const olderThan = new Date(clock.now().getTime() - emailConfig.pendingMaxAgeHours * 3_600_000);
+        const expired = await runInTransaction(db, (tx) => expireStalePending(tx, olderThan));
+        logger.info({ expired }, 'worker: stale pending e-mails expired');
+      }
+      const sender =
+        wiring.createEmailSender?.(emailConfig, logger) ??
+        defaultEmailSender(emailConfig, logger, app.get<MetricsRegistry>(METRICS, { strict: false }));
       const composers = [
         app.get(InvitationEmailComposer, { strict: false }),
         app.get(PasswordEmailComposer, { strict: false }),
@@ -179,4 +195,20 @@ export async function runWorkerFromProcess(
   } finally {
     await app.close();
   }
+}
+
+/** The adapter of the configured transport: Mailpit for `smtp`, Scaleway TEM (always behind the guard of recipients) for `tem`. */
+function defaultEmailSender(
+  config: Extract<EmailConfig, { transport: 'smtp' | 'tem' }>,
+  logger: Logger,
+  metrics: MetricsRegistry,
+): EmailSender {
+  if (config.transport === 'smtp') return new SmtpEmailSender(config);
+  return createTemEmailSender({
+    from: config.from,
+    apiKey: config.apiKey,
+    projectId: config.projectId,
+    policy: { mode: config.mode, allowed: new Set(config.allowed) },
+    observer: { logger, intercepted: metrics.counter(INTERCEPTED_METRIC, ['reason']) },
+  });
 }

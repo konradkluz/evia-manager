@@ -96,7 +96,7 @@ export class SendEmailJob {
 
     const { message, email, attempts } = prepared;
     try {
-      await this.#sender.send(email);
+      await this.#sender.send(email, { outboxId: message.id, kind: message.kind });
     } catch (error) {
       return this.#afterFailure(message, attempts, error);
     }
