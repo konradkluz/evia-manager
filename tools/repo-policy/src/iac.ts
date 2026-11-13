@@ -549,7 +549,7 @@ export function bucketProblems(raw: string): string[] {
     'media_worker: PutObject tylko z If-None-Match (Allow z warunkiem Null = "false", bez nadpisywania)',
   );
   need(
-    !/\/originalb/.test(mediaPolicy) && !/DenyWorker/.test(mediaPolicy),
+    !/\/original\b/.test(mediaPolicy) && !/DenyWorker/.test(mediaPolicy),
     'media_worker: oryginały media/*/original poza jakimkolwiek Allow (odmowa domyślna)',
   );
   need(

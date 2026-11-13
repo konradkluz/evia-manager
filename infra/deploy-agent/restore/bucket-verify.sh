@@ -4,14 +4,21 @@
 # ok / FAIL lines (never a key, a response or a header value) and exits 1 on any FAIL.
 #   - anonymous GET and list of every bucket -> 403
 #   - register key: a PUT with If-None-Match works once (200), the second is 412, a PUT without it, GET, list and DELETE -> 403
-#   - every key: PutBucketPolicy, PutBucketVersioning, PutLifecycleConfiguration, PutObjectRetention, DeleteObjectVersion -> 403
+#   - every key × every bucket -> 403: PutBucketPolicy, DeleteBucketPolicy, PutBucketVersioning, PutLifecycleConfiguration, PutBucketAcl,
+#     PutBucketCors, PutObjectLockConfiguration, PutObjectRetention, PutObjectLegalHold, PutObjectAcl, DeleteObjectVersion (also with
+#     x-amz-bypass-governance-retention), DeleteBucket (security-engineer F1)
+#   - public ACL: PUT with x-amz-acl: public-read by media_app (media), media_worker (exports), backup_writer (db_backup) -> 403; a 2xx is
+#     tolerated only if the anonymous GET of the object is 403, otherwise FAIL ... BLOCKER (F-ACL)
+#   - media_worker in media: thumbnail.webp under media/verify-probes-<run>/ with If-None-Match: * -> 200, again -> 412, without the header
+#     -> 403, `original` there -> 403 (F2: the resource media/*/thumbnail.webp matches the probe key)
+#   - register: If-None-Match with an ETag instead of * must not be accepted (F3)
 #   - the whole matrix key × bucket × area × {list, GET, PUT, DELETE} from bucket-matrix.tsv (generated from BUCKET_POLICIES in
 #     tools/repo-policy): `allow` = any answer but 403, `deny` = exactly 403 — this proves that the constructs of the bucket policies
 #     (implicit deny without any Deny statement, the condition Null on s3:if-none-match, the prefix of the orchestrator) mean at Scaleway
 #     what the module assumes and that the project-wide permission sets do not open another bucket
 #   - an object written by the media key carries x-amz-server-side-encryption (SSE-ONE)
 # Requests are signed by curl (--aws-sigv4); the secret goes to curl on stdin, never into argv. The probes are objects under
-# `verify-probes/` prefixes (they expire with the lifecycle of their buckets).
+# `verify-probes/` prefixes (they expire with the lifecycle of their buckets; under object lock they stay: see the last line of the output).
 set -euo pipefail
 set +x
 umask 077
@@ -114,6 +121,13 @@ for who in "${KEYS[@]}"; do
   for name in "${BUCKETS[@]}"; do
     bucket="${BUCKET_NAME[$name]}"
     expect 403 "$who key: PutBucketPolicy in $name is AccessDenied" "$who" PUT "/$bucket?policy" --data-binary '{}'
+    expect 403 "$who key: DeleteBucketPolicy in $name is AccessDenied" "$who" DELETE "/$bucket?policy"
+    expect 403 "$who key: PutBucketAcl in $name is AccessDenied" "$who" PUT "/$bucket?acl" -H 'x-amz-acl: public-read' --data-binary ''
+    expect 403 "$who key: PutBucketCors in $name is AccessDenied" "$who" PUT "/$bucket?cors" --data-binary '<CORSConfiguration/>'
+    expect 403 "$who key: PutObjectLockConfiguration in $name is AccessDenied" "$who" PUT "/$bucket?object-lock" --data-binary '<ObjectLockConfiguration/>'
+    expect 403 "$who key: PutObjectLegalHold in $name is AccessDenied" "$who" PUT "/$bucket/$probe?legal-hold" --data-binary '<LegalHold/>'
+    expect 403 "$who key: PutObjectAcl in $name is AccessDenied" "$who" PUT "/$bucket/$probe?acl" -H 'x-amz-acl: public-read' --data-binary ''
+    expect 403 "$who key: DeleteObjectVersion with bypass-governance in $name is AccessDenied" "$who" DELETE "/$bucket/$probe?versionId=verify" -H 'x-amz-bypass-governance-retention: true'
     expect 403 "$who key: PutBucketVersioning in $name is AccessDenied" "$who" PUT "/$bucket?versioning" --data-binary '<VersioningConfiguration/>'
     expect 403 "$who key: PutLifecycleConfiguration in $name is AccessDenied" "$who" PUT "/$bucket?lifecycle" --data-binary '<LifecycleConfiguration/>'
     expect 403 "$who key: PutObjectRetention in $name is AccessDenied" "$who" PUT "/$bucket/$probe?retention" --data-binary '<Retention/>'
@@ -172,4 +186,53 @@ else
   echo "FAIL: the media object has no x-amz-server-side-encryption header"
   failed=1
 fi
+
+# F3: a conditional write with an ETag (not *) is not a way to overwrite or probe the register: anything but 2xx.
+got="$(code register_writer PUT "$entry" -H 'If-None-Match: "deadbeef"' --data-binary "@$body")"
+if [[ "$got" =~ ^(4[0-9][0-9]|501)$ ]]; then
+  echo "ok: register: PUT with If-None-Match of an ETag is not accepted ($got)"
+else
+  echo "FAIL: register: PUT with If-None-Match of an ETag (expected 4xx or 501, got $got)"
+  failed=1
+fi
+
+# F2: the worker key writes thumbnail.webp once (add-only) and never `original`; the probe key matches media/*/thumbnail.webp.
+thumb="/$media/media/verify-probes-$run_id/thumbnail.webp"
+expect 200 "media_worker: thumbnail.webp with If-None-Match is accepted" media_worker PUT "$thumb" -H 'If-None-Match: *' --data-binary "@$body"
+expect 412 "media_worker: the second thumbnail.webp with If-None-Match is refused" media_worker PUT "$thumb" -H 'If-None-Match: *' --data-binary "@$body"
+expect 403 "media_worker: thumbnail.webp without If-None-Match is AccessDenied" media_worker PUT "$thumb" --data-binary "@$body"
+expect 403 "media_worker: original with If-None-Match is AccessDenied" media_worker PUT "/$media/media/verify-probes-$run_id/original" -H 'If-None-Match: *' --data-binary "@$body"
+
+# Public ACL: refused; if a store ignores the header and accepts the write, the object must not be readable anonymously (BLOCKER otherwise).
+public_acl() { # KEY BUCKET-NAME OBJECT-PATH-IN-BUCKET
+  local who="$1" name="$2" path="/${BUCKET_NAME[$2]}/$3" got anonymous
+  got="$(code "$who" PUT "$path" -H 'x-amz-acl: public-read' --data-binary "@$body")"
+  if [ "$got" = 403 ]; then
+    echo "ok: public ACL: $who key in $name is AccessDenied"
+  elif [[ "$got" =~ ^2[0-9][0-9]$ ]]; then
+    anonymous="$(code anonymous GET "$path")"
+    if [ "$anonymous" = 403 ]; then
+      echo "ok: public ACL: $who key in $name accepted the write ($got), the anonymous GET is 403"
+    else
+      echo "FAIL: BLOCKER: public ACL: $who key in $name accepted the write ($got) and the anonymous GET is $anonymous"
+      failed=1
+    fi
+  else
+    echo "FAIL: public ACL: $who key in $name (expected 403, got $got)"
+    failed=1
+  fi
+}
+public_acl media_app media "${AREA_PREFIX[any]}$run_id-acl"
+public_acl media_worker exports "${AREA_PREFIX[any]}$run_id-acl"
+public_acl backup_writer db_backup "${AREA_PREFIX[repo]}$run_id-acl"
+
+# DeleteBucket last: every bucket holds an object by now (the exports one is a probe that expires in a day), so a wrong Allow fails with
+# BucketNotEmpty instead of removing a bucket.
+expect 200 "exports: a probe object that keeps the bucket non-empty" media_worker PUT "/${BUCKET_NAME[exports]}/${AREA_PREFIX[any]}$run_id-keep" --data-binary "@$body"
+for who in "${KEYS[@]}"; do
+  for name in "${BUCKETS[@]}"; do
+    expect 403 "$who key: DeleteBucket $name is AccessDenied" "$who" DELETE "/${BUCKET_NAME[$name]}"
+  done
+done
+echo "note: probe objects left under object lock until retention ends: db_backup 3-4 (COMPLIANCE 37 d), media 3-4 (GOVERNANCE 30 d); no lock: exports 1-2 (expire in 1 d), register 2 (40 d)"
 exit "$failed"

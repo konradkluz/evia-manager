@@ -345,6 +345,13 @@ describe('Object Storage of staging (EVM-084 AC2; ADR-0009, ADR-0011; SR-INFRA-0
       ),
     ).not.toEqual([]);
     expect(bucketProblems(swap(/(media_worker\s*=\s*\[[^\]]*?)"ObjectStorageObjectsWrite", /, '$1'))).not.toEqual([]);
+    // F5: the check is `/original` (it was the literal "originalb" and never fired): `.../original` in the policy is reported by its own message, `.../originals` is not
+    const originals = (suffix: string): boolean =>
+      bucketProblems(swap('Id      = "evia-staging-media"', `Id      = "evia-staging-media/${suffix}"`)).some((problem) =>
+        problem.includes('oryginały media/*/original'),
+      );
+    expect(originals('original')).toBe(true);
+    expect(originals('originals')).toBe(false);
     // the list of media_allow stays without PutObject for the worker (the matrix of the verification script proves the denial of a plain PUT)
     expect(BUCKET_POLICIES['media_allow']?.['media_worker']).not.toContain('s3:PutObject');
   });
