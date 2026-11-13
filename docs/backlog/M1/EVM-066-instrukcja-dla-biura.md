@@ -83,7 +83,10 @@ Jako **pracownik biura** chcę **krótkiej instrukcji krok po kroku z zasadami b
 _Uzupełnia wykonawca przed implementacją._
 
 ## Decyzje
-_—_
+- 2026-11-14 — źródło instrukcji: `docs/user/instrukcja-dla-biura.md` (klasa „żywy”, reguła walidatora dodawana w tej historyjce) — do potwierdzenia rano.
+- 2026-11-14 — zrzutów ekranu nie ma (noc, brak MCP playwright): instrukcja tekstowa krok po kroku; zrzuty z testów E2E na danych syntetycznych do uzupełnienia po demo — do potwierdzenia rano.
+- 2026-11-14 — klasy poufności dokumentów opisane wg etykiet panelu (`document-labels.ts`): „Bezpieczeństwo budynku” i „Dane identyfikacyjne” pobierają tylko Administrator i Edytor — do potwierdzenia rano.
+- 2026-11-14 — strona instrukcji pod adresem `/guide` (otwarta jak W-19: z sesją i bez); w kontekście budowy obrazu `evia-web` dozwolony wyłącznie katalog `docs/user` (reguła `repo-policy` zawężona do `docs(?!/user$)`) — do potwierdzenia rano.
 
 ## Uwagi do rozważenia
 _—_
@@ -103,3 +106,6 @@ _—_
 - 2026-11-13 — dostosowanie do jednego środowiska `panel.eviacharge.pl` (product-owner): `path: lekka`, jeden recenzent `ux-designer`, `model: sonnet`; AC1 — adres i zaproszenie e-mail; AC3 — zrzuty tylko z lokalnego środowiska (RR-93). Recenzje `code-reviewer` i `security-engineer` zdjęte (treść bez kodu; wyjątek: zmiana polityki dokumentów w AC5 zatwierdza Konrad)
 - 2026-11-13 — decyzja Konrada: przegląd tylko `ux-designer` (ścieżka `lekka`); w nocnej kolejce `/noc-2026-11-13` (tor B po EVM-126) (Tech Lead)
 - 2026-11-14 — start realizacji w kolejce nocnej `/noc-2026-11-13` (Tech Lead): status `in-progress`, gałąź `feature/EVM-126-066-testy-i-instrukcja`
+- 2026-11-14 — treść instrukcji napisana (product-owner): `docs/user/instrukcja-dla-biura.md`, nazwy z kodu panelu; bez zrzutów ekranu; strona w panelu, odnośnik W-19, reguła walidatora i testy — web-developer / devops-engineer
+- 2026-11-14 — strona `/guide` w panelu budowana z `docs/user/instrukcja-dla-biura.md` (`?raw` + własny czytnik podzbioru Markdown, bez nowej zależności), odnośnik w W-19 → „Pomoc”, testy `EVM-066 AC6`, minimalna reguła walidatora `docs/user/**/*.md` (żywy), `!docs/user` w kontekście obrazu web, CHANGELOG (web-developer); reguła i testy narzędzi do dopracowania przez devops-engineer
+
