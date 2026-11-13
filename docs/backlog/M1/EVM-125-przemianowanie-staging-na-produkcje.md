@@ -41,3 +41,4 @@ Jako **właściciel produktu** chcę, **aby jedyne środowisko, na którym pracu
 
 ## Dziennik
 - 2026-11-13 — utworzono (product-owner) wg decyzji Konrada „jedno środowisko; przemianowanie osobną małą historyjką”; `draft`, P3 (3 AC)
+- 2026-11-13 — decyzja Konrada: adres `panel.eviacharge.pl` wchodzi od razu z EVM-089 (przed wpuszczeniem biura, żeby nikt nie rejestrował kluczy dostępu dwa razy); w tej historyjce zostaje tylko kosmetyka nazw (projekty w konsolach, nazwy zasobów i dokumentów; nazwy bucketów zostają) (Tech Lead)
