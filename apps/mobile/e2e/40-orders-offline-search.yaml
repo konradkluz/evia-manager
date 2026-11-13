@@ -36,9 +36,18 @@ appId: pl.eviacharge.manager
     visible: 'Brak zleceń dla.*'
     timeout: 10000
 - assertVisible: 'Szukamy tylko w zleceniach zapisanych w telefonie\.'
-- assertVisible: 'Wymaga połączenia'
+# the empty state continues below the fold on a phone-sized screen (the list scrolls)
+- scrollUntilVisible:
+    element: 'Wymaga połączenia'
+    direction: DOWN
 - takeScreenshot: m05-search-no-match-offline
 # the marker in the name of the customer 2
+- scrollUntilVisible:
+    element:
+      id: 'orders-search'
+    direction: UP
+- tapOn:
+    id: 'orders-search'
 - eraseText: 20
 - inputText: 'EVM093-SENTINEL'
 - extendedWaitUntil:
