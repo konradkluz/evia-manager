@@ -253,7 +253,7 @@ async function startS3(/** @type {string} */ broken = '') {
         publicObjects.add(url.pathname);
       if (method === 'HEAD') return reply(200, broken === 'no-sse' ? {} : { 'x-amz-server-side-encryption': 'AES256' });
       if (operation === 'get') return reply(existing.has(url.pathname) ? 200 : 404);
-      return reply(operation === 'delete' ? 204 : 200);
+      return reply(operation === 'delete' ? 204 : 200, operation === 'put' ? { 'x-amz-version-id': `v${existing.size}abc` } : {});
     });
   });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(undefined)));
@@ -349,6 +349,23 @@ describe('EVM-084 AC2: bucket-verify.sh', () => {
     }
     noSecret(run.stdout + run.stderr);
     assert.ok(s3.seen.every((entry) => !/SYNTHETIC/.test(entry)));
+  });
+
+  it('EVM-084 AC2: BUCKET_VERIFY_ONLY=admin runs only the admin probes; version ids are real, object-lock bodies are valid and equal to the bucket', async () => {
+    s3 = await startS3();
+    const run = await exec('bucket-verify.sh', [], { ...env(), BUCKET_VERIFY_ONLY: 'admin' });
+    assert.equal(run.status, 0, run.stdout + run.stderr);
+    assert.doesNotMatch(run.stdout, /FAIL|matrix:|anonymous list/);
+    assert.match(run.stdout, /ok: media_app key: DeleteObjectVersion in media is AccessDenied/);
+    assert.match(run.stdout, /ok: media_app key: PutObjectLockConfiguration in media is AccessDenied/);
+    assert.match(run.stdout, /inconclusive|ok: media_app key: PutObjectLockConfiguration in exports/);
+    assert.ok(s3.seen.some((entry) => /^DELETE \/evia-staging-media\/verify-probes\/[^ ?]+\?versionId=v\d+abc media_app$/.test(entry)));
+    assert.ok(
+      s3.seen.some((entry) => /^DELETE \/evia-staging-db-backup\/pgbackrest\/[^ ?]+\?versionId=v\d+abc backup_writer$/.test(entry)),
+    );
+    assert.ok(!s3.seen.some((entry) => entry.includes('versionId=verify')));
+    assert.ok(!s3.seen.some((entry) => entry.includes('anonymous-probe')));
+    assert.equal((await exec('bucket-verify.sh', [], { ...env(), BUCKET_VERIFY_ONLY: 'bad' })).status, 1);
   });
 
   it('EVM-084 AC2: every defect is a FAIL line and exit code 1 (public bucket, overwrite or read by the register key, administrative action, no SSE, a key that reaches another bucket, the orchestrator in the repository, a reader that writes)', async () => {

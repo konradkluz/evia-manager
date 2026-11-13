@@ -19,6 +19,7 @@
 #   - an object written by the media key carries x-amz-server-side-encryption (SSE-ONE)
 # Requests are signed by curl (--aws-sigv4); the secret goes to curl on stdin, never into argv. The probes are objects under
 # `verify-probes/` prefixes (they expire with the lifecycle of their buckets; under object lock they stay: see the last line of the output).
+#   BUCKET_VERIFY_ONLY=admin runs only the per-key administrative probes (a subset re-run; fewer probe objects under lock).
 set -euo pipefail
 set +x
 umask 077
@@ -95,11 +96,22 @@ expect() { # EXPECTED DESCRIPTION KEY-NAME METHOD PATH [curl args...]
   fi
 }
 
-for name in "${BUCKETS[@]}"; do
-  bucket="${BUCKET_NAME[$name]}"
-  expect 403 "anonymous list of $bucket" anonymous GET "/$bucket/"
-  expect 403 "anonymous GET in $bucket" anonymous GET "/$bucket/anonymous-probe"
-done
+only="${BUCKET_VERIFY_ONLY:-}"
+case "$only" in
+  '' | admin) ;;
+  *)
+    echo "bucket-verify: BUCKET_VERIFY_ONLY (admin or empty)" >&2
+    exit 1
+    ;;
+esac
+
+if [ -z "$only" ]; then
+  for name in "${BUCKETS[@]}"; do
+    bucket="${BUCKET_NAME[$name]}"
+    expect 403 "anonymous list of $bucket" anonymous GET "/$bucket/"
+    expect 403 "anonymous GET in $bucket" anonymous GET "/$bucket/anonymous-probe"
+  done
+fi
 
 run_id="$(date -u +%Y%m%dt%H%M%Sz)-$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')"
 probe="verify-probes/$run_id"
@@ -109,12 +121,50 @@ printf 'verify' > "$body"
 
 register="${BUCKET_NAME[register]}"
 entry="/$register/$probe"
-expect 200 "register: a new entry (If-None-Match) is accepted" register_writer PUT "$entry" -H 'If-None-Match: *' --data-binary "@$body"
-expect 412 "register: the second PUT with If-None-Match is refused" register_writer PUT "$entry" -H 'If-None-Match: *' --data-binary "@$body"
-expect 403 "register: an overwrite (PUT without If-None-Match) is AccessDenied" register_writer PUT "$entry" --data-binary "@$body"
-expect 403 "register: GET is AccessDenied" register_writer GET "$entry"
-expect 403 "register: list is AccessDenied" register_writer GET "/$register/?list-type=2"
-expect 403 "register: DELETE is AccessDenied" register_writer DELETE "$entry"
+if [ -z "$only" ]; then
+  expect 200 "register: a new entry (If-None-Match) is accepted" register_writer PUT "$entry" -H 'If-None-Match: *' --data-binary "@$body"
+  expect 412 "register: the second PUT with If-None-Match is refused" register_writer PUT "$entry" -H 'If-None-Match: *' --data-binary "@$body"
+  expect 403 "register: an overwrite (PUT without If-None-Match) is AccessDenied" register_writer PUT "$entry" --data-binary "@$body"
+  expect 403 "register: GET is AccessDenied" register_writer GET "$entry"
+  expect 403 "register: list is AccessDenied" register_writer GET "/$register/?list-type=2"
+  expect 403 "register: DELETE is AccessDenied" register_writer DELETE "$entry"
+fi
+
+# Real version ids for DeleteObjectVersion: one probe object per bucket written by a key that may write there; the id comes from
+# x-amz-version-id ("null" where the bucket has no versioning). A 400 would prove nothing (validation runs before authorization).
+declare -A VERSION_PATH VERSION_ID
+put_version() { # BUCKET-NAME KEY PATH-IN-BUCKET [curl args...]
+  local name="$1" who="$2" path="$3" out version secret
+  shift 3
+  secret="$(< "$SECRETS_DIR/${KEY_SECRET_FILE[$who]}")"
+  out="$(printf 'user = "%s:%s"\n' "${KEY_ID[$who]}" "$secret" | curl -sS --proto "=${S3_ENDPOINT%%://*}" --max-time 30 -D - -o /dev/null -w 'status=%{http_code}' -X PUT --aws-sigv4 "aws:amz:$S3_REGION:s3" --config - "$@" --data-binary "@$body" "$S3_ENDPOINT/${BUCKET_NAME[$name]}/$path" 2> /dev/null || printf 'status=000')"
+  if [[ "$out" != *status=200 ]]; then
+    echo "FAIL: version probe: $who could not write the probe object in $name"
+    failed=1
+  fi
+  version="$(tr -d '\r' <<< "$out" | sed -n 's/^[Xx]-[Aa]mz-[Vv]ersion-[Ii]d: *//p' | head -n 1)"
+  [[ "$version" =~ ^[A-Za-z0-9._-]+$ ]] || version=null
+  VERSION_PATH[$name]="$path"
+  VERSION_ID[$name]="$version"
+}
+put_version media media_app "$probe"
+put_version register register_writer "$probe-v" -H 'If-None-Match: *'
+put_version exports media_worker "${AREA_PREFIX[any]}$run_id-v"
+put_version db_backup backup_writer "${AREA_PREFIX[repo]}$run_id-v"
+
+# A valid PutObjectLockConfiguration identical to the current lock of the bucket (a no-op if it were ever allowed): the module sets
+# media GOVERNANCE 30 d and db_backup COMPLIANCE 37 d (infra/tofu/modules/object-storage/main.tf); register and exports have no lock.
+lock_xml() { # MODE DAYS
+  printf '<ObjectLockConfiguration xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><ObjectLockEnabled>Enabled</ObjectLockEnabled><Rule><DefaultRetention><Mode>%s</Mode><Days>%s</Days></DefaultRetention></Rule></ObjectLockConfiguration>' "$1" "$2"
+}
+declare -A LOCK_BODY LOCK_MD5
+LOCK_BODY[media]="$(lock_xml GOVERNANCE 30)"
+LOCK_BODY[db_backup]="$(lock_xml COMPLIANCE 37)"
+LOCK_BODY[register]="$(lock_xml GOVERNANCE 30)"
+LOCK_BODY[exports]="$(lock_xml GOVERNANCE 30)"
+for name in "${BUCKETS[@]}"; do
+  LOCK_MD5[$name]="$(printf '%s' "${LOCK_BODY[$name]}" | openssl dgst -md5 -binary | base64)"
+done
 
 # Administrative actions: refused for every key in every bucket (the bucket of its own and the others).
 for who in "${KEYS[@]}"; do
@@ -124,16 +174,27 @@ for who in "${KEYS[@]}"; do
     expect 403 "$who key: DeleteBucketPolicy in $name is AccessDenied" "$who" DELETE "/$bucket?policy"
     expect 403 "$who key: PutBucketAcl in $name is AccessDenied" "$who" PUT "/$bucket?acl" -H 'x-amz-acl: public-read' --data-binary ''
     expect 403 "$who key: PutBucketCors in $name is AccessDenied" "$who" PUT "/$bucket?cors" --data-binary '<CORSConfiguration/>'
-    expect 403 "$who key: PutObjectLockConfiguration in $name is AccessDenied" "$who" PUT "/$bucket?object-lock" --data-binary '<ObjectLockConfiguration/>'
+    lock_description="$who key: PutObjectLockConfiguration in $name is AccessDenied"
+    if [ "$name" = media ] || [ "$name" = db_backup ]; then
+      expect 403 "$lock_description" "$who" PUT "/$bucket?object-lock" -H "Content-MD5: ${LOCK_MD5[$name]}" -H 'Content-Type: application/xml' --data-binary "${LOCK_BODY[$name]}"
+    else
+      # no object lock on this bucket: Scaleway may answer 400/409 before authorization; only 403 proves the policy, anything else is not a FAIL
+      got="$(code "$who" PUT "/$bucket?object-lock" -H "Content-MD5: ${LOCK_MD5[$name]}" -H 'Content-Type: application/xml' --data-binary "${LOCK_BODY[$name]}")"
+      if [ "$got" = 403 ]; then echo "ok: $lock_description"; else echo "inconclusive: $lock_description (bucket without object lock, got $got)"; fi
+    fi
     expect 403 "$who key: PutObjectLegalHold in $name is AccessDenied" "$who" PUT "/$bucket/$probe?legal-hold" --data-binary '<LegalHold/>'
     expect 403 "$who key: PutObjectAcl in $name is AccessDenied" "$who" PUT "/$bucket/$probe?acl" -H 'x-amz-acl: public-read' --data-binary ''
-    expect 403 "$who key: DeleteObjectVersion with bypass-governance in $name is AccessDenied" "$who" DELETE "/$bucket/$probe?versionId=verify" -H 'x-amz-bypass-governance-retention: true'
+    expect 403 "$who key: DeleteObjectVersion with bypass-governance in $name is AccessDenied" "$who" DELETE "/$bucket/${VERSION_PATH[$name]}?versionId=${VERSION_ID[$name]}" -H 'x-amz-bypass-governance-retention: true'
     expect 403 "$who key: PutBucketVersioning in $name is AccessDenied" "$who" PUT "/$bucket?versioning" --data-binary '<VersioningConfiguration/>'
     expect 403 "$who key: PutLifecycleConfiguration in $name is AccessDenied" "$who" PUT "/$bucket?lifecycle" --data-binary '<LifecycleConfiguration/>'
     expect 403 "$who key: PutObjectRetention in $name is AccessDenied" "$who" PUT "/$bucket/$probe?retention" --data-binary '<Retention/>'
-    expect 403 "$who key: DeleteObjectVersion in $name is AccessDenied" "$who" DELETE "/$bucket/$probe?versionId=verify"
+    expect 403 "$who key: DeleteObjectVersion in $name is AccessDenied" "$who" DELETE "/$bucket/${VERSION_PATH[$name]}?versionId=${VERSION_ID[$name]}"
   done
 done
+if [ "$only" = admin ]; then
+  echo "note: BUCKET_VERIFY_ONLY=admin: only the per-key administrative probes ran (matrix, anonymous, register, SSE, ACL, DeleteBucket skipped)"
+  exit "$failed"
+fi
 
 # The matrix. The rows of one group come as put -> get -> delete on the same object, so an allowed GET after an allowed PUT
 # is 200 and an allowed GET without one is 404; both are "anything but 403".
@@ -234,5 +295,5 @@ for who in "${KEYS[@]}"; do
     expect 403 "$who key: DeleteBucket $name is AccessDenied" "$who" DELETE "/${BUCKET_NAME[$name]}"
   done
 done
-echo "note: probe objects left under object lock until retention ends: db_backup 3-4 (COMPLIANCE 37 d), media 3-4 (GOVERNANCE 30 d); no lock: exports 1-2 (expire in 1 d), register 2 (40 d)"
+echo "note: probe objects left under object lock until retention ends: db_backup 4-5 (COMPLIANCE 37 d), media 4-5 (GOVERNANCE 30 d); no lock: exports 2-3 (expire in 1 d), register 3 (40 d)"
 exit "$failed"
