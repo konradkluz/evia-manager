@@ -97,9 +97,9 @@ describe('the worker with the transport tem (EVM-089 AC1, AC2, AC4)', () => {
         EMAIL_ALLOWED_RECIPIENTS_FILE: file('email-allowed-recipients', ''),
       },
       {
-        createEmailSender: (config) =>
+        createEmailSender: (config, logger) =>
           createTemEmailSenderForTest(
-            { from: config.from, apiKey: KEY, projectId: PROJECT, policy: { mode: 'otwarty', allowed: new Set() } },
+            { from: config.from, apiKey: KEY, projectId: PROJECT, policy: { mode: 'otwarty', allowed: new Set() }, observer: { logger } },
             (_url, init) => {
               const body = JSON.parse(init.body as string) as { to: { email: string }[] };
               requests.push({ to: body.to[0]?.email ?? '' });

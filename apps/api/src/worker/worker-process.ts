@@ -71,7 +71,8 @@ export interface WorkerWiring {
   /** The queue over the database; replaced by the tests that need other timings. */
   readonly createQueue?: (connectionString: string, logger: Logger) => JobQueue;
   /** The sender of e-mails for `EMAIL_TRANSPORT=smtp` or `tem`; the tests put a fake here (the fake is never chosen by configuration). */
-  readonly createEmailSender?: (config: Extract<EmailConfig, { transport: 'smtp' | 'tem' }>) => EmailSender;
+  /** Test seam: the adapter for the configured transport; it gets the logger of the worker (the guard logs `email: intercepted`). */
+  readonly createEmailSender?: (config: Extract<EmailConfig, { transport: 'smtp' | 'tem' }>, logger: Logger) => EmailSender;
   /** The file the health of the worker is written to (the container's `tmpfs`); shortened by nothing, moved by the tests only. */
   readonly healthFile?: string;
   /** The interval of the relay of the outbox; shortened by the tests only (the default is 5 seconds). */
@@ -168,7 +169,7 @@ export async function runWorkerFromProcess(
         logger.info({ expired }, 'worker: stale pending e-mails expired');
       }
       const sender =
-        wiring.createEmailSender?.(emailConfig) ??
+        wiring.createEmailSender?.(emailConfig, logger) ??
         defaultEmailSender(emailConfig, logger, app.get<MetricsRegistry>(METRICS, { strict: false }));
       const composers = [
         app.get(InvitationEmailComposer, { strict: false }),
