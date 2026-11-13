@@ -513,14 +513,26 @@ jobs:
       - name: Image scan and SBOM before the push (bramka 6, Critical/High with a fix = red)
         shell: bash
         run: |
+          # Every archive is scanned even after a failure; the findings are printed to the log (no local reproduction needed).
+          failed=0
           for archive in .scratch/scans/*.tar; do
             name="$(basename "$archive" .tar)"
             docker compose -f compose.yaml run --rm scan-trivy-image image --config /src/trivy.yaml --skip-version-check \
               --input "/out/$name.tar" --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 \
-              --format json --output "/out/trivy-image-$name.json"
+              --format json --output "/out/trivy-image-$name.json" || {
+              failed=1
+              echo "::error::bramka 6: Critical/High with a fix in $name (or a scanner error)"
+              if [ -s ".scratch/scans/trivy-image-$name.json" ]; then
+                jq -r '.Results[]? | .Target as $target | .Vulnerabilities[]? | "\(.Severity) \(.VulnerabilityID) \(.PkgName) \(.InstalledVersion) -> \(.FixedVersion) [\($target)]"' ".scratch/scans/trivy-image-$name.json"
+              else
+                echo "no Trivy report for $name - see the scanner log above"
+              fi
+              continue
+            }
             docker compose -f compose.yaml run --rm scan-trivy-image image --config /src/trivy.yaml --skip-version-check \
               --skip-db-update --input "/out/$name.tar" --format cyclonedx --output "/out/sbom-$name.cdx.json"
           done
+          exit "$failed"
       - name: Push to GHCR and read the digests
         env:
           GHCR_TOKEN: ${{ github.token }}

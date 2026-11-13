@@ -70,7 +70,7 @@ describe('pgBackRest configuration (EVM-084 AC1; security-engineer P8, architect
 
   it('EVM-084 AC1: violations in the image — another base, an old or unpinned pgBackRest, root, latest', () => {
     expect(pgbackrestPinProblems(dockerfile.replace(/@sha256:[0-9a-f]{64}/, ''), postgresImage)).not.toEqual([]);
-    expect(pgbackrestPinProblems(dockerfile.replace(/sha256:1267c7e6/, 'sha256:aaaaaaaa'), postgresImage)).not.toEqual([]);
+    expect(pgbackrestPinProblems(dockerfile.replace(/sha256:e3d24f69/, 'sha256:aaaaaaaa'), postgresImage)).not.toEqual([]);
     expect(pgbackrestPinProblems(dockerfile.replace('pgbackrest=2.60.0-1.pgdg13+1', 'pgbackrest'), postgresImage)).not.toEqual([]);
     expect(pgbackrestPinProblems(dockerfile.replace('2.60.0-1.pgdg13+1', '2.53.1-1.pgdg13+1'), postgresImage)).not.toEqual([]);
     expect(pgbackrestPinProblems(dockerfile.replace('2.60.0-1', '1.99.0-1'), postgresImage)).not.toEqual([]);

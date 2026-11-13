@@ -3,7 +3,7 @@
 # the base image, signed repository), the exact version (>= 2.54 is needed for --repo-target-time). MIT licence.
 # NOT yet in infra-images.json: the entry (tag + digest) and the change of compose.infra.yaml (image + archive_command) come
 # together in the IaC session, after the image has passed the pipeline (scan, signature). Until then this file is only prepared.
-FROM postgres:18.6-trixie@sha256:1267c7e692de235fda2a50dbcdbcbca4672ea6a0298576a6bd9d07cafc319b32
+FROM postgres:18.6-trixie@sha256:e3d24f6906d0760bf4da0dae872415391ededefad23fd471c47dc53b0ddf3c42
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends pgbackrest=2.60.0-1.pgdg13+1 \

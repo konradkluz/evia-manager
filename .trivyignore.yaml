@@ -18,172 +18,175 @@ vulnerabilities:
   # from docker-entrypoint.sh as uid 0: every compose service (compose.yaml, compose.dev.yaml, infra/runtime) runs as
   # 999:999 with no-new-privileges, so it never runs there; Testcontainers in CI (root) runs it once with fixed arguments.
   # No upstream postgres image with a rebuilt gosu (trixie and alpine alike). Remove with a postgres digest whose gosu
-  # is clean (Renovate) — at the latest on expiry.
+  # is clean (Renovate) — at the latest on expiry. Re-checked 2026-11-12 (EVM-084) on digest e3d24f69…: the same gosu
+  # binary (Go 1.24.6, built 2025-09-23, 0755 root:root), the same symbol check, no new ID; expiry moved to 2026-12-10.
   - id: CVE-2025-68121
     paths: ['usr/local/bin/gosu']
     purls: ['pkg:golang/stdlib@v1.24.6']
     statement: &gosu-critical 'Critical in Go stdlib 1.24.6 of gosu (postgres:18.6-trixie); not reachable — gosu links none of the affected packages, takes no external input, is not setuid and runs only as uid 0 from the entrypoint (compose services run as 999:999 with no-new-privileges); no upstream image with a rebuilt gosu (RR-36) · owner: security-engineer · EVM-007'
-    expired_at: 2026-11-20
+    expired_at: 2026-12-10
   - id: CVE-2025-61726
     paths: ['usr/local/bin/gosu']
     purls: ['pkg:golang/stdlib@v1.24.6']
     statement: &gosu-high 'High in Go stdlib 1.24.6 of gosu (postgres:18.6-trixie); not reachable — gosu links none of the affected packages, takes no external input, is not setuid and runs only as uid 0 from the entrypoint (compose services run as 999:999 with no-new-privileges); no upstream image with a rebuilt gosu (RR-36) · owner: security-engineer · EVM-007'
-    expired_at: 2026-11-20
+    expired_at: 2026-12-10
   - id: CVE-2025-61729
     paths: ['usr/local/bin/gosu']
     purls: ['pkg:golang/stdlib@v1.24.6']
     statement: *gosu-high
-    expired_at: 2026-11-20
+    expired_at: 2026-12-10
   - id: CVE-2026-111943
     paths: ['usr/local/bin/gosu']
     purls: ['pkg:golang/stdlib@v1.24.6']
     statement: *gosu-high
-    expired_at: 2026-11-20
+    expired_at: 2026-12-10
   - id: CVE-2026-25679
     paths: ['usr/local/bin/gosu']
     purls: ['pkg:golang/stdlib@v1.24.6']
     statement: *gosu-high
-    expired_at: 2026-11-20
+    expired_at: 2026-12-10
   - id: CVE-2026-27145
     paths: ['usr/local/bin/gosu']
     purls: ['pkg:golang/stdlib@v1.24.6']
     statement: *gosu-high
-    expired_at: 2026-11-20
+    expired_at: 2026-12-10
   - id: CVE-2026-32280
     paths: ['usr/local/bin/gosu']
     purls: ['pkg:golang/stdlib@v1.24.6']
     statement: *gosu-high
-    expired_at: 2026-11-20
+    expired_at: 2026-12-10
   - id: CVE-2026-32281
     paths: ['usr/local/bin/gosu']
     purls: ['pkg:golang/stdlib@v1.24.6']
     statement: *gosu-high
-    expired_at: 2026-11-20
+    expired_at: 2026-12-10
   - id: CVE-2026-32283
     paths: ['usr/local/bin/gosu']
     purls: ['pkg:golang/stdlib@v1.24.6']
     statement: *gosu-high
-    expired_at: 2026-11-20
+    expired_at: 2026-12-10
   - id: CVE-2026-33811
     paths: ['usr/local/bin/gosu']
     purls: ['pkg:golang/stdlib@v1.24.6']
     statement: *gosu-high
-    expired_at: 2026-11-20
+    expired_at: 2026-12-10
   - id: CVE-2026-33814
     paths: ['usr/local/bin/gosu']
     purls: ['pkg:golang/stdlib@v1.24.6']
     statement: *gosu-high
-    expired_at: 2026-11-20
+    expired_at: 2026-12-10
   - id: CVE-2026-33818
     paths: ['usr/local/bin/gosu']
     purls: ['pkg:golang/stdlib@v1.24.6']
     statement: *gosu-high
-    expired_at: 2026-11-20
+    expired_at: 2026-12-10
   - id: CVE-2026-39820
     paths: ['usr/local/bin/gosu']
     purls: ['pkg:golang/stdlib@v1.24.6']
     statement: *gosu-high
-    expired_at: 2026-11-20
+    expired_at: 2026-12-10
   - id: CVE-2026-39821
     paths: ['usr/local/bin/gosu']
     purls: ['pkg:golang/stdlib@v1.24.6']
     statement: *gosu-high
-    expired_at: 2026-11-20
+    expired_at: 2026-12-10
   - id: CVE-2026-39822
     paths: ['usr/local/bin/gosu']
     purls: ['pkg:golang/stdlib@v1.24.6']
     statement: *gosu-high
-    expired_at: 2026-11-20
+    expired_at: 2026-12-10
   - id: CVE-2026-39836
     paths: ['usr/local/bin/gosu']
     purls: ['pkg:golang/stdlib@v1.24.6']
     statement: *gosu-high
-    expired_at: 2026-11-20
+    expired_at: 2026-12-10
   - id: CVE-2026-42499
     paths: ['usr/local/bin/gosu']
     purls: ['pkg:golang/stdlib@v1.24.6']
     statement: *gosu-high
-    expired_at: 2026-11-20
+    expired_at: 2026-12-10
   - id: CVE-2026-42504
     paths: ['usr/local/bin/gosu']
     purls: ['pkg:golang/stdlib@v1.24.6']
     statement: *gosu-high
-    expired_at: 2026-11-20
+    expired_at: 2026-12-10
   - id: CVE-2026-56853
     paths: ['usr/local/bin/gosu']
     purls: ['pkg:golang/stdlib@v1.24.6']
     statement: *gosu-high
-    expired_at: 2026-11-20
+    expired_at: 2026-12-10
   - id: CVE-2026-56858
     paths: ['usr/local/bin/gosu']
     purls: ['pkg:golang/stdlib@v1.24.6']
     statement: *gosu-high
-    expired_at: 2026-11-20
+    expired_at: 2026-12-10
   - id: CVE-2026-56859
     paths: ['usr/local/bin/gosu']
     purls: ['pkg:golang/stdlib@v1.24.6']
     statement: *gosu-high
-    expired_at: 2026-11-20
+    expired_at: 2026-12-10
   - id: CVE-2026-56860
     paths: ['usr/local/bin/gosu']
     purls: ['pkg:golang/stdlib@v1.24.6']
     statement: *gosu-high
-    expired_at: 2026-11-20
+    expired_at: 2026-12-10
   - id: CVE-2026-56862
     paths: ['usr/local/bin/gosu']
     purls: ['pkg:golang/stdlib@v1.24.6']
     statement: *gosu-high
-    expired_at: 2026-11-20
+    expired_at: 2026-12-10
   - id: CVE-2026-78667
     paths: ['usr/local/bin/gosu']
     purls: ['pkg:golang/stdlib@v1.24.6']
     statement: *gosu-high
-    expired_at: 2026-11-20
+    expired_at: 2026-12-10
   - id: CVE-2026-78669
     paths: ['usr/local/bin/gosu']
     purls: ['pkg:golang/stdlib@v1.24.6']
     statement: *gosu-high
-    expired_at: 2026-11-20
+    expired_at: 2026-12-10
   - id: CVE-2026-97031
     paths: ['usr/local/bin/gosu']
     purls: ['pkg:golang/stdlib@v1.24.6']
     statement: *gosu-high
-    expired_at: 2026-11-20
-  # (B) Caddy 2.11.7 (Go stdlib 1.26.8, golang.org/x/net 0.59.0) — the edge Caddy (infra-images.json) and the runtime of
-  # evia-web. REACHABLE: DoS by HTTP/2 SETTINGS frames on the public :443 (CVE-2026-78669) and by crafted Range headers
-  # in file_server of evia-web (CVE-2026-78667). Not a "not reachable" exception: Konrad consciously accepted the risk
-  # on 2026-10-21 for STAGING ONLY (synthetic data; RR-37) until Caddy 2.11.8 — never for prod. Remove with the Caddy
-  # update (Go ≥ 1.26.10, x/net ≥ 0.60.0) — at the latest on expiry; not prolonged without a new decision by Konrad.
-  - id: CVE-2026-78669
+    expired_at: 2026-12-10
+  # (B) Findings with a fix that no upstream image carries yet (EVM-084, 2026-11-12; the Caddy/Alpine exceptions of
+  # 2.11.7 are gone with the bump to 2.11.9). Each entry names the exact version, so the next digest is scanned again.
+  # Remove with the first upstream rebuild — at the latest on expiry; never prolonged without a new review (RR-89).
+  # Caddy 2.11.9 (edge Caddy of infra-images.json and the runtime of evia-web): golang.org/x/net 0.60.0, fix 0.62.0.
+  # The HTML parser IS linked (html.Parse, addText, fosterParent — by a dependency, not by a handler we configure);
+  # not reachable through the configured handlers, but the absence of every other caller is not proven: STAGING ONLY,
+  # risk (DoS of the edge at worst) accepted by Konrad 2026-11-12 for staging only (RR-89); no entry for the Caddy binary may exist before prod.
+  - id: CVE-2026-78661
     paths: ['usr/bin/caddy', 'usr/local/bin/caddy']
-    purls: ['pkg:golang/stdlib@v1.26.8', 'pkg:golang/golang.org/x/net@v0.59.0']
-    statement: &caddy-high 'High in Caddy 2.11.7 (Go stdlib 1.26.8, x/net 0.59.0) — reachable DoS (HTTP/2 SETTINGS on :443, Range in file_server); risk accepted by Konrad 2026-10-21 for staging only until Caddy 2.11.8, never for prod (RR-37) · owner: security-engineer · EVM-007'
-    expired_at: 2026-11-20
-  - id: CVE-2026-78667
-    paths: ['usr/bin/caddy', 'usr/local/bin/caddy']
-    purls: ['pkg:golang/stdlib@v1.26.8']
-    statement: *caddy-high
-    expired_at: 2026-11-20
-  - id: CVE-2026-97031
-    paths: ['usr/bin/caddy', 'usr/local/bin/caddy']
-    purls: ['pkg:golang/stdlib@v1.26.8']
-    statement: *caddy-high
-    expired_at: 2026-11-20
-  - id: CVE-2026-111943
-    paths: ['usr/bin/caddy', 'usr/local/bin/caddy']
-    purls: ['pkg:golang/stdlib@v1.26.8']
-    statement: *caddy-high
-    expired_at: 2026-11-20
-  # (C) Alpine packages of caddy:2.11.7-alpine (edge Caddy and the runtime of evia-web) - NOT REACHABLE, STAGING ONLY (RR-38).
-  - id: CVE-2026-111497
-    purls: ['pkg:apk/alpine/brotli-libs@1.2.0-r0']
-    statement: &caddy-apk 'High in Alpine packages of caddy:2.11.7-alpine (brotli-libs 1.2.0-r0, curl/libcurl 8.22.0-r0); not reachable — only /usr/bin/curl loads libcurl and libbrotlidec and nothing runs it (CMD caddy run, HEALTHCHECK NONE, deploy.sh uses the host curl); caddy is a static Go binary without Brotli decoding; staging only, never for prod (RR-38) · owner: security-engineer · EVM-007'
-    expired_at: 2026-11-20
-  - id: CVE-2026-92392
-    purls: ['pkg:apk/alpine/curl@8.22.0-r0']
-    statement: *caddy-apk
-    expired_at: 2026-11-20
-  - id: CVE-2026-92392
-    purls: ['pkg:apk/alpine/libcurl@8.22.0-r0']
-    statement: *caddy-apk
-    expired_at: 2026-11-20
+    purls: ['pkg:golang/golang.org/x/net@v0.60.0']
+    statement: 'High in golang.org/x/net/html 0.60.0 of Caddy 2.11.9 (CPU DoS by crafted HTML in the HTML parser); not reachable through the configured handlers — both Caddyfiles use only reverse_proxy, file_server, try_files, rewrite, header, log filters and ACME (no templates, markdown or body processing), so no HTML is parsed; the parser is linked by a dependency, other callers not excluded — risk accepted by Konrad 2026-11-12 for staging only, never for prod (RR-89); no Caddy release with x/net >= 0.62.0 yet · owner: security-engineer · EVM-084'
+    expired_at: 2026-12-10
+  # Alloy v1.21.3 (Ubuntu 24.04): the same x/net CVE (verified 2026-11-12: only html/charset is linked — no Parse,
+  # parser or Tokenizer symbols) and apt (the container runs as 10020, read-only, cap_drop ALL, no-new-privileges).
+  - id: CVE-2026-78661
+    paths: ['usr/bin/alloy']
+    purls: ['pkg:golang/golang.org/x/net@v0.61.0']
+    statement: 'High in golang.org/x/net 0.61.0 of Alloy v1.21.3 (DoS by crafted HTML in the HTML parser); not reachable — the binary links only x/net/html/charset, not the HTML parser; no Alloy release with x/net >= 0.62.0 yet · owner: security-engineer · EVM-084'
+    expired_at: 2026-12-10
+  - id: CVE-2026-109518
+    purls: ['pkg:deb/ubuntu/apt@2.8.3?arch=arm64&distro=ubuntu-24.04']
+    statement: &alloy-apt 'High in apt/libapt-pkg 2.8.3 of Alloy v1.21.3 (RCE by an on-path attacker during a package download); not reachable — nothing in the container runs apt (non-root, no package installation at run time), the image is replaced, never patched in place; no Alloy image with apt 2.8.4ubuntu0.1 yet · owner: security-engineer · EVM-084'
+    expired_at: 2026-12-10
+  - id: CVE-2026-109518
+    purls: ['pkg:deb/ubuntu/libapt-pkg6.0t64@2.8.3?arch=arm64&distro=ubuntu-24.04']
+    statement: *alloy-apt
+    expired_at: 2026-12-10
+  # postgres:18.6-trixie (Debian 13.7): zlib1g 1.3.1-1+b1, fix 1.3.1-1+deb13u1 not in the official image yet. The same
+  # zlib is in infra/images/postgres-pgbackrest (FROM the same digest). Verified 2026-11-12 in the binaries: postgres
+  # and pgbackrest import only deflateInit2_/inflateInit2_ (compress-type=zst); gzopen/gzdopen/gzwrite are imported
+  # only by the client tools pg_dump, pg_dumpall, pg_restore, pg_basebackup, pg_receivewal, pg_recvlogical and
+  # pg_verifybackup, which no script, test or runbook of the project runs. Do not run them in these containers until fixed.
+  - id: CVE-2026-76844
+    purls: ['pkg:deb/debian/zlib1g@1.3.dfsg%2Breally1.3.1-1%2Bb1?arch=arm64&distro=debian-13.7&epoch=1']
+    statement: &zlib-gz 'High in zlib1g 1.3.1-1+b1 of postgres:18.6-trixie and the pgBackRest image built on it (heap overflow in the gzwrite/gzprintf API after a failed write); not reachable — postgres and pgbackrest use only the in-memory deflate/inflate API (pgBackRest compress-type=zst), the gz* file API is used only by client tools (pg_dump, pg_basebackup, pg_receivewal …) that the project never runs in these containers; no official image with zlib 1.3.1-1+deb13u1 yet · owner: security-engineer · EVM-084'
+    expired_at: 2026-12-10
+  - id: CVE-2026-85091
+    purls: ['pkg:deb/debian/zlib1g@1.3.dfsg%2Breally1.3.1-1%2Bb1?arch=arm64&distro=debian-13.7&epoch=1']
+    statement: *zlib-gz
+    expired_at: 2026-12-10

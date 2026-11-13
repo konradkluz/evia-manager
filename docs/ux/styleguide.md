@@ -1093,6 +1093,10 @@ Testy dostępności (narzędzia automatyczne + klawiatura + czytnik ekranu) — 
 ---
 
 ## 8. Changelog
+### Odstępstwo M2 — 2026-11-12 (EVM-103, zgoda Konrada 2026-11-12)
+- **Zakres:** aplikacja mobilna, lista zleceń M-05 — chipy „Wszystkie” i „Niewysłane (n)” zamiast „Wszystkie / Moje / Czekamy na…” z makiety (`ux-designer`: [flow 16](flows/16-m2-uzupelnienia-teren-i-urzadzenia.md), decyzja 3). „Moje” w M2 dublowałoby „Wszystkie” (zakres urządzenia), a „Czekamy na…” wymaga danych procesu.
+- **Wykonanie:** § 3.7 FilterChip jako przełącznik ze stanem, bez nowych tokenów i komponentów; „Niewysłane (n)” = zlecenia z elementami w Kolejce.
+- **Termin usunięcia:** M4 (rola Monter) — powrót chipów z makiety M-05.
 ### Propozycja do 1.3.0 — 2026-10-20 (EVM-009, zaakceptowana przez Konrada 2026-10-21; do włączenia do treści 1.3.0 przy konsolidacji propozycji)
 Szkielet aplikacji mobilnej przed M2; bez nowych tokenów i komponentów.
 - **§ 3.18 BottomNav — szkielet z 2 pozycjami:** wyjątkowo „Moje zlecenia” i „Kolejka” (zamiast 3–5), bo pozostałe pozycje (Aparat/Dodaj, Więcej) nie mają jeszcze funkcji, a pozycji bez funkcji nie pokazujemy; pełny zestaw od M2.

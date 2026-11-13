@@ -28,7 +28,7 @@ describe.skipIf(!DOCKER)('EVM-044 AC3 — the real ClamAV (the image of the infr
   beforeAll(async () => {
     // the same image as infra/runtime/compose.infra.yaml; the limits of RR-NOC-T1-2: the stream and the file up to 64M, a larger one is an ERROR (deliberately small: the test of an oversize stream needs a limit that 70 MiB exceeds; production uses 2000M, compose.infra.yaml)
     clamav = await new GenericContainer(
-      'clamav/clamav-debian:1.5.4@sha256:cce3e1a43ae2bb40e11335c52c0e1e98273b12fa3d587e617f63a6907cc4b70b',
+      'clamav/clamav-debian:1.5.4@sha256:76a9c3b63764b78178dc68fa7efcceca0cde2c8c9d4f925a8e697cb4511f8fdc',
     )
       .withEnvironment({
         CLAMAV_NO_FRESHCLAMD: 'true',

@@ -151,7 +151,7 @@ Wszystkie pytania z konsultacji w jednym miejscu; jeśli Konrad nie zdecyduje in
 | 9 | `pendingItemsReported` minimalnie w M2 (zgodnie z P2/SR-MOB-04) — zastępuje pytanie 9 z pierwszej wersji planu | Tak (alternatywa: odstępstwo od P2 z RR) | security | EVM-090, 094, 095 (AC4–AC5), 107 (AC2) |
 | 10 | Skąd technik bierze nową wersję APK: link w panelu; do czasu decyzji M-02 mówi „poproś administratora” | Tak | UX | EVM-100 (AC3), 112 (AC3) |
 | 11 | Numer telefonu biura w M-11 (numer funkcyjny z konfiguracji) | Tak | UX | EVM-102 (AC4) |
-| 12 | Chipy M-05 w M2: „Wszystkie” i „Niewysłane (n)” zamiast „Wszystkie/Moje/Czekamy na…” (odstępstwo od makiety, wpis w changelogu styleguide'u) | Tak | UX | EVM-103 (AC3) |
+| 12 | Chipy M-05 w M2: „Wszystkie” i „Niewysłane (n)” zamiast „Wszystkie/Moje/Czekamy na…” (odstępstwo od makiety, wpis w changelogu styleguide'u) | Tak — zgoda Konrada 2026-11-12 | UX | EVM-103 (AC3) |
 | 13 | „Utwórz ponownie” przenosi zależne elementy do nowego zlecenia | Tak (automatycznie) | UX | EVM-106 (AC4), 091 (ponowne wskazanie celu) |
 | 14 | N = 30 dni zamkniętych zleceń w zakresie (konfigurowalne; pomiar w EVM-107, nieblokujący) — pkt 3 | Tak | architekt | EVM-096 (AC2), 097 (AC4), 107 |
 | 15 | Wyszukiwanie duplikatów klientów lokalnie (E.164 + nazwa bez polskich znaków), bez deduplikacji na serwerze (pkt 9) | Tak; scalanie poza v1 | architekt | EVM-099, 106 (AC2) |
