@@ -142,6 +142,19 @@ describe('buildOrderList (EVM-103 AC1)', () => {
   });
 });
 
+describe('buildOrderList edge cases (EVM-103 AC1)', () => {
+  it('EVM-103 AC1: the earliest unfinished stage wins whatever the order of the read; an unknown customer of a queued order leaves the name empty', () => {
+    const stages = [
+      { workOrderId: 'o-old', name: 'Później', position: 5, status: 'todo' },
+      { workOrderId: 'o-old', name: 'Wcześniej', position: 4, status: 'todo' },
+      { workOrderId: 'o-old', name: 'Najpóźniej', position: 9, status: 'todo' },
+    ];
+    expect(buildOrderList({ ...SOURCE, stages }, []).find((r) => r.id === 'o-old')?.stage).toBe('Wcześniej');
+    const unknown = queueFact(quickRecord({ payload: { workOrderId: 'o-quick', customerId: 'nobody', siteId: 'nowhere' } }), true);
+    expect(buildOrderList(SOURCE, [unknown]).find((r) => r.id === 'o-quick')).toMatchObject({ customer: '', street: '', city: '' });
+  });
+});
+
 describe('queueFact (EVM-103 AC5, security K2)', () => {
   it('EVM-103 AC5: without data only the id, the type, the key, the state and the time are mapped - no title, customer or address', () => {
     const fact = queueFact(quickRecord({ state: 'needs_attention' }), false);
