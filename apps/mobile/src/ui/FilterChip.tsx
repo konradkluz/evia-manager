@@ -11,6 +11,8 @@ export interface FilterChipProps {
   accessibilityLabel: string;
   selected: boolean;
   onPress: () => void;
+  /** A member of a single-choice group (radio): the role is `radio` and the state is `checked`; the group itself is a `radiogroup` of the screen. */
+  radio?: boolean;
   testID?: string;
 }
 
@@ -18,13 +20,13 @@ export interface FilterChipProps {
  * Filter chip (styleguide § 3.7): `radius.pill`, height `size.touch-target.min`, a toggle with a state - the selected chip has
  * `color.bg.selected`, `color.border.selected` and a check mark (the state is never colour alone).
  */
-export function FilterChip({ label, accessibilityLabel, selected, onPress, testID }: FilterChipProps) {
+export function FilterChip({ label, accessibilityLabel, selected, onPress, radio = false, testID }: FilterChipProps) {
   const [focused, setFocused] = useState(false);
   return (
     <Pressable
-      accessibilityRole="button"
+      accessibilityRole={radio ? 'radio' : 'button'}
       accessibilityLabel={accessibilityLabel}
-      accessibilityState={{ selected }}
+      accessibilityState={radio ? { checked: selected } : { selected }}
       onPress={onPress}
       onFocus={() => {
         setFocused(true);
