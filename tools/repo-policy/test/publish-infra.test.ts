@@ -165,36 +165,23 @@ describe('publish-infra checkers detect violations (EVM-124)', () => {
     ).not.toEqual([]);
   });
 
-  it('EVM-124 AC1 (SR-INFRA-09; ADR-0022 pt 3): the packages must be private - an anonymous manifest request after the push and before the attestation, red unless 401, 403 or 404', () => {
-    const anonymousIndex = indexOfRun(infra, 'anonymous access denied');
-    expect(anonymousIndex).toBeGreaterThan(indexOfRun(infra, 'docker push'));
-    expect(anonymousIndex).toBeLessThan(indexOfRun(infra, 'actions/attest-build-provenance@'));
-    // the check moved after the attestation, removed, accepting a 200, or authenticated is a violation
-    expect(problems(swap('anonymous access denied', 'actions/attest-build-provenance@'))).not.toEqual([]);
-    expect(
-      problems((job) => ({ ...job, steps: steps(job).filter((step) => !text(step['run']).includes('anonymous access denied')) })),
-    ).not.toEqual([]);
-    expect(problems(replaceRun('401|403|404)', '200|401|403|404)'))).not.toEqual([]);
-    expect(problems(replaceRun('exit 1 ;;', 'true ;;'))).not.toEqual([]);
-    expect(problems(replaceRun('--max-time 20 --write-out', '--max-time 20 --user "$GHCR_USER:$GHCR_TOKEN" --write-out'))).not.toEqual([]);
-    expect(problems(replaceRun('/manifests/$digest"', '/manifests/latest"'))).not.toEqual([]);
-  });
-
-  it('EVM-124 AC1 (SR-INFRA-09; ADR-0022 pt 3): the private-package guard stands in the push step before the first docker push - anonymous tags/list denied, authenticated 200', () => {
-    const pushRun = text(steps(infra)[indexOfRun(infra, 'docker push')]?.['run']);
-    const guardAt = pushRun.indexOf('tags/list');
-    expect(guardAt).toBeGreaterThan(pushRun.indexOf('docker login'));
-    expect(guardAt).toBeLessThan(pushRun.indexOf('docker push "$target"'));
-    expect(problems(() => structuredClone(infra))).toEqual([]);
-    // removing, weakening or moving a condition behind the push is a violation
-    expect(problems(replaceRun('401|403|404) ;;', '200|401|403|404) ;;'))).not.toEqual([]);
-    expect(problems(replaceRun('[ "$auth_status" != 200 ]', '[ "$auth_status" != 999 ]'))).not.toEqual([]);
-    expect(problems(replaceRun('--user "$GHCR_USER:$GHCR_TOKEN" "https://ghcr.io/token', '"https://ghcr.io/token'))).not.toEqual([]);
-    expect(problems(replaceRun(/\$name\/tags\/list/g, '$name/tag/list'))).not.toEqual([]);
-    expect(problems(replaceRun('anon_status" in', 'anon_status_x" in'))).not.toEqual([]);
-    expect(problems(replaceRun(/exit 1 ;;\n(\s+)esac/, 'true ;;\n$1esac'))).not.toEqual([]);
-    // a push ahead of the guard
-    expect(problems(replaceRun('--password-stdin\n', '--password-stdin\ndocker push "$target"\n'))).not.toEqual([]);
+  it('EVM-124 AC2 (ADR-0022 pt 3, decision 2026-11-13): public packages - a secret of any severity in an image is red before the push; no guard of private packages remains', () => {
+    const scanRun = text(steps(infra)[indexOfRun(infra, 'scan-trivy-image image')]?.['run']);
+    expect(scanRun).toContain('--scanners vuln --severity HIGH,CRITICAL');
+    expect(scanRun).toContain('--scanners secret --exit-code 1');
+    expect(scanRun).not.toMatch(/--scanners secret[^\n]*--severity/);
+    expect(indexOfRun(infra, 'scan-trivy-image image')).toBeLessThan(indexOfRun(infra, 'docker push'));
+    expect(indexOfRun(infra, 'anonymous access denied')).toBe(-1);
+    expect(indexOfRun(infra, 'tags/list')).toBe(-1);
+    // a secret scan folded into the severity-filtered run, with a severity filter, ignored, removed or without failing the job
+    expect(problems(replaceRun('--scanners secret --exit-code 1', '--scanners vuln,secret --exit-code 1'))).not.toEqual([]);
+    expect(problems(replaceRun('--scanners secret --exit-code 1', '--scanners secret --severity HIGH,CRITICAL --exit-code 1'))).not.toEqual(
+      [],
+    );
+    expect(problems(replaceRun('--scanners secret --exit-code 1', '--scanners secret'))).not.toEqual([]);
+    expect(problems(replaceRun('--scanners secret', '--scanners misconfig'))).not.toEqual([]);
+    expect(problems(replaceRun(/(trivy-secret-\$name\.json" \|\| \{\n\s+)failed=1/, '$1true'))).not.toEqual([]);
+    expect(problems(replaceRun('--ignorefile "$ignore" --skip-db-update', '--ignore-policy x.rego --skip-db-update'))).not.toEqual([]);
   });
 
   it('EVM-124 AC2 (architect 4; K2): all or nothing — a push before the scan or the platform check, a login before the scan, a push step that may be skipped or fail open', () => {

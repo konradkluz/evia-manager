@@ -510,7 +510,7 @@ jobs:
           # docker save writes the archives as 0600 owned by the runner user; the scanner runs as 65534 (compose.yaml)
           # and only needs to read them (the mount stays as it is, the scanner does not run as root).
           chmod a+r .scratch/scans/*.tar
-      - name: Image scan and SBOM before the push (bramka 6, Critical/High with a fix = red)
+      - name: Image scan and SBOM before the push (bramka 6, Critical/High with a fix or any secret = red)
         shell: bash
         run: |
           # Every archive is scanned even after a failure; the findings are printed to the log (no local reproduction needed).
@@ -526,6 +526,20 @@ jobs:
                 jq -r '.Results[]? | .Target as $target | .Vulnerabilities[]? | "\(.Severity) \(.VulnerabilityID) \(.PkgName) \(.InstalledVersion) -> \(.FixedVersion) [\($target)]"' ".scratch/scans/trivy-image-$name.json"
               else
                 echo "no Trivy report for $name - see the scanner log above"
+              fi
+              continue
+            }
+            # Secrets of ANY severity = red (the packages are public, ADR-0022 pt 3): an own run without --severity (the default covers every
+            # severity), no secret entry in the exception register; only rule, severity, file and line are printed, the report is not uploaded.
+            docker compose -f compose.yaml run --rm scan-trivy-image image --config /src/trivy.yaml --skip-version-check \
+              --skip-db-update --input "/out/$name.tar" --scanners secret --exit-code 1 \
+              --format json --output "/out/trivy-secret-$name.json" || {
+              failed=1
+              echo "::error::bramka 6: secret in $name (or a scanner error) - nothing is pushed" >&2
+              if [ -s ".scratch/scans/trivy-secret-$name.json" ]; then
+                jq -r '.Results[]? | .Target as $target | .Secrets[]? | "\(.Severity) \(.RuleID) [\($target):\(.StartLine)]"' ".scratch/scans/trivy-secret-$name.json"
+              else
+                echo "no Trivy secret report for $name - see the scanner log above"
               fi
               continue
             }
@@ -598,7 +612,7 @@ jobs:
   # The scanned image is the published one: Trivy Metadata.ImageID (from the docker save archive) must equal config.digest of the single
   # manifest read back from GHCR by the digest of the push. Then the attestation of provenance (public Sigstore/Rekor, the repository is
   # public) and the record `infra-images-record` (image, digest, commit, run), separate from release-manifest. The IaC session only
-  # verifies and pulls (docs/ops/runbooks/media-processor.md). The GHCR packages stay private (GPL ffmpeg).
+  # verifies and pulls (docs/ops/runbooks/media-processor.md). The GHCR packages are public (Konrad 2026-11-13, ADR-0022 pt 3: code of the public repository); the condition is the secret scan of the images before the push. The packages are created by the first push.
   publish-infra:
     name: publish-infra
     needs: [ci-gate]
@@ -636,7 +650,7 @@ jobs:
             platform="$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "evia-$image:candidate")"
             if [ "$platform" != linux/arm64 ]; then echo "evia-$image is $platform, not linux/arm64" >&2; exit 1; fi
           done
-      - name: Image scan and SBOM before the push (Critical/High with a fix = red; nothing is pushed unless both pass)
+      - name: Image scan and SBOM before the push (Critical/High with a fix or any secret = red; nothing is pushed unless both pass)
         shell: bash
         run: |
           for image in postgres-pgbackrest media-processor; do
@@ -675,6 +689,20 @@ jobs:
               echo "::error::no image ID in the Trivy report of $name"
               continue
             fi
+            # Secrets of ANY severity = red (the packages are public, ADR-0022 pt 3): an own run without --severity (the default covers every
+            # severity), no secret entry in the exception register; only rule, severity, file and line are printed, the report is not uploaded.
+            docker compose -f compose.yaml run --rm scan-trivy-image image --config /src/trivy.yaml --skip-version-check \
+              --ignorefile "$ignore" --skip-db-update --input "/out/$name.tar" --scanners secret --exit-code 1 \
+              --format json --output "/out/trivy-secret-$name.json" || {
+              failed=1
+              echo "::error::secret in $name (or a scanner error) - nothing is pushed" >&2
+              if [ -s ".scratch/scans/trivy-secret-$name.json" ]; then
+                jq -r '.Results[]? | .Target as $target | .Secrets[]? | "\(.Severity) \(.RuleID) [\($target):\(.StartLine)]"' ".scratch/scans/trivy-secret-$name.json"
+              else
+                echo "no Trivy secret report for $name - see the scanner log above"
+              fi
+              continue
+            }
             echo "$image_id" > ".scratch/scans/$name.imageid"
             docker compose -f compose.yaml run --rm scan-trivy-image image --config /src/trivy.yaml --skip-version-check \
               --skip-db-update --input "/out/$name.tar" --format cyclonedx --output "/out/sbom-$name.cdx.json"
@@ -688,24 +716,6 @@ jobs:
         shell: bash
         run: |
           echo "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USER" --password-stdin
-          # Private-package guard BEFORE the first push (a push creates a missing package, possibly public - irreversible; ADR-0022 pt 3).
-          # (1) anonymously the package list must be denied (401, 403 or 404 = private or absent); (2) with the job token it must be readable (200 =
-          # the package exists and this repository has access to it). Anything else is red before anything is pushed.
-          for image in postgres-pgbackrest media-processor; do
-            name="evia-$image"
-            anon_token="$(curl --silent --show-error --max-time 20 "https://ghcr.io/token?service=ghcr.io&scope=repository:konradkluz/$name:pull" | jq -r '.token // empty')"
-            anon_status="$(curl --silent --output /dev/null --max-time 20 --write-out '%{http_code}' ${anon_token:+--header "Authorization: Bearer $anon_token"} "https://ghcr.io/v2/konradkluz/$name/tags/list")"
-            case "$anon_status" in
-              401|403|404) ;;
-              *) echo "::error::package $name is public or unverifiable (anonymous request: HTTP $anon_status) - nothing was pushed" >&2; exit 1 ;;
-            esac
-            auth_token="$(curl --silent --show-error --max-time 20 --user "$GHCR_USER:$GHCR_TOKEN" "https://ghcr.io/token?service=ghcr.io&scope=repository:konradkluz/$name:pull" | jq -r '.token // empty')"
-            auth_status="$(curl --silent --output /dev/null --max-time 20 --write-out '%{http_code}' ${auth_token:+--header "Authorization: Bearer $auth_token"} "https://ghcr.io/v2/konradkluz/$name/tags/list")"
-            if [ "$auth_status" != 200 ]; then
-              echo "::error::package $name does not exist or this repository has no access (authenticated request: HTTP $auth_status) - create it private first (docs/ops/github-i-ci.md); nothing was pushed" >&2
-              exit 1
-            fi
-          done
           for image in postgres-pgbackrest media-processor; do
             name="evia-$image"
             target="$REGISTRY/$name:sha-$EVIA_RELEASE_COMMIT"
@@ -723,22 +733,6 @@ jobs:
             if [ "$platform" != linux/arm64 ]; then echo "$name in GHCR is $platform, not linux/arm64" >&2; exit 1; fi
             echo "$digest" > ".scratch/scans/$name.digest"
             echo "digest-$image=$digest" >> "$GITHUB_OUTPUT"
-          done
-      - name: Anonymous access check - the packages must be private (red before the attestation when anyone can read the manifest)
-        shell: bash
-        run: |
-          # A package first created by GITHUB_TOKEN from a public repository can be public (ADR-0022 pt 3). The packages are created private
-          # beforehand (docs/ops/github-i-ci.md); this step fails closed if that did not hold. Anonymous = no registry login, no credential of ours (only the anonymous pull token of the registry):
-          # only a 401, 403 or 404 for the manifest of the pushed digest passes (a 200, a network error or anything else is red).
-          for image in postgres-pgbackrest media-processor; do
-            name="evia-$image"
-            digest="$(cat ".scratch/scans/$name.digest")"
-            token="$(curl --silent --show-error --max-time 20 "https://ghcr.io/token?service=ghcr.io&scope=repository:konradkluz/$name:pull" | jq -r '.token // empty')"
-            status="$(curl --silent --output /dev/null --max-time 20 --write-out '%{http_code}' ${token:+--header "Authorization: Bearer $token"}               --header 'Accept: application/vnd.oci.image.manifest.v1+json' "https://ghcr.io/v2/konradkluz/$name/manifests/$digest")"
-            case "$status" in
-              401|403|404) echo "$name: anonymous access denied ($status) - the package is private" ;;
-              *) echo "::error::package $name is public or unverifiable (anonymous manifest request: HTTP $status) - set it to private and delete the version" >&2; exit 1 ;;
-            esac
           done
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:

@@ -101,6 +101,7 @@ export function publishProblems(document: unknown): string[] {
     problems.push(`${where}: skan obrazów (bramka 6) przed logowaniem do GHCR i wypchnięciem`);
   if (!script.includes('--severity HIGH,CRITICAL --ignore-unfixed --exit-code 1'))
     problems.push(`${where}: bramka 6 — Critical/High z poprawką = czerwony`);
+  problems.push(...secretScanProblems(script, where));
   // docker save writes 0600 archives; the unprivileged scanner (65534) must be able to read them before the first scan.
   const readable = script.indexOf('chmod a+r .scratch/scans/*.tar');
   if (readable < 0 || readable < script.lastIndexOf('docker save ') || readable > scan)
@@ -335,6 +336,27 @@ export function releaseLabelProblems(name: string, dockerfile: string): string[]
   return problems;
 }
 
+/**
+ * Secrets of any severity in an image = red before the push (the GHCR packages are public, ADR-0022 pt 3; decision of Konrad 2026-11-13):
+ * a vulnerability run (Critical/High) and an own secret run without --severity (the default covers every severity), the latter failing
+ * the job (failed=1) and not uploaded as an artifact.
+ */
+export function secretScanProblems(script: string, where: string): string[] {
+  const problems: string[] = [];
+  const runs = script.match(/--scanners \S+[^\n]*/g) ?? [];
+  const others = runs.filter((run) => !run.startsWith('--scanners secret ')).join('\n');
+  if (!runs.some((run) => run.startsWith('--scanners vuln ')) || /--scanners [^ ]*secret/.test(others))
+    problems.push(`${where}: skan podatności osobno od skanu sekretów (--scanners vuln i osobno --scanners secret)`);
+  const secretRuns = runs.filter((run) => run.startsWith('--scanners secret '));
+  if (secretRuns.length !== 1 || !secretRuns[0]?.includes('--exit-code 1') || /--severity/.test(secretRuns[0]))
+    problems.push(`${where}: skan sekretów (--scanners secret --exit-code 1 bez --severity: każdy poziom = czerwony)`);
+  if (!script.includes('trivy-secret-$name.json') || !/--scanners secret[\s\S]*?\|\| \{\s+failed=1/.test(script))
+    problems.push(`${where}: sekret w obrazie = failed=1 przed pushem`);
+  if (/secrets:/.test(script) || /--ignore-policy|--skip-files|--secret-config/.test(script))
+    problems.push(`${where}: bez wyjątków dla sekretów w skanie obrazów`);
+  return problems;
+}
+
 /** The infrastructure images built in CI (EVM-124): the order is the order of the builds, scans and pushes. */
 export const INFRA_IMAGES = Object.freeze(['postgres-pgbackrest', 'media-processor']);
 /** The exact condition of publish-infra: a push to main after a green ci-gate (every push — skipping unchanged inputs is out of scope). */
@@ -423,6 +445,7 @@ export function publishInfraProblems(document: unknown): string[] {
   if (!script.includes('infra/images/$image/Dockerfile')) problems.push(`${where}: Dockerfile z infra/images/$image/Dockerfile`);
   if (!script.includes('--severity HIGH,CRITICAL --ignore-unfixed --exit-code 1'))
     problems.push(`${where}: bramka — Critical/High z poprawką = czerwony (HIGH,CRITICAL, --ignore-unfixed, --exit-code 1)`);
+  problems.push(...secretScanProblems(script, where));
   if (!script.includes('--show-suppressed') || !script.includes('ExperimentalModifiedFindings'))
     problems.push(`${where}: skan z --show-suppressed; wyciszone znaleziska procesora = czerwony (P2)`);
   if (!script.includes('--ignorefile "$ignore"') || !script.includes('/out/trivyignore-none.yaml'))
@@ -436,30 +459,11 @@ export function publishInfraProblems(document: unknown): string[] {
   const scan = firstStep(job, 'scan-trivy-image image');
   const push = firstStep(job, 'docker push');
   const login = firstStep(job, 'docker login');
-  const anonymous = firstStep(job, 'anonymous access denied');
   const attest = firstStep(job, 'actions/attest-build-provenance@');
   const lastAttest = lastStep(job, 'actions/attest-build-provenance@');
   const recorded = firstStep(job, 'infra-images-record.json');
-  if (!(
-    build >= 0 &&
-    build < platform &&
-    platform < scan &&
-    scan < push &&
-    push < anonymous &&
-    anonymous < attest &&
-    lastAttest < recorded
-  ))
-    problems.push(`${where}: kolejność kroków: budowy, platforma, skan, push, kontrola anonimowa, atestacja, rekord`);
-  const anonymousRun = text(steps(job)[anonymous]?.['run']);
-  if (
-    !anonymousRun.includes('https://ghcr.io/v2/konradkluz/$name/manifests/$digest') ||
-    !/case "\$status" in\s+401\|403\|404\) /.test(anonymousRun) ||
-    !anonymousRun.includes('exit 1') ||
-    /docker login|GHCR_TOKEN|github\.token|--user/.test(anonymousRun)
-  )
-    problems.push(
-      `${where}: kontrola anonimowa pakietów (manifest po digeście bez logowania; tylko 401, 403, 404 przechodzi, inaczej czerwony)`,
-    );
+  if (!(build >= 0 && build < platform && platform < scan && scan < push && push < attest && lastAttest < recorded))
+    problems.push(`${where}: kolejność kroków: budowy, platforma, skan, push, atestacja, rekord`);
   if (login !== push) problems.push(`${where}: docker login dopiero po skanie, w kroku push`);
   const platformRun = text(steps(job)[platform]?.['run']);
   if (!/\[ "\$platform" != linux\/arm64 \]/.test(platformRun) || !platformRun.includes('is $platform, not linux/arm64'))
@@ -469,19 +473,6 @@ export function publishInfraProblems(document: unknown): string[] {
   const pushEnv = { GHCR_TOKEN: '${{ github.token }}', GHCR_USER: '${{ github.actor }}' };
   if (JSON.stringify(pushStep['env']) !== JSON.stringify(pushEnv))
     problems.push(`${where}: logowanie do GHCR wyłącznie tokenem joba (env kroku push)`);
-  // the private-package guard stands after the login and before the first push (a push creates a missing package, maybe public)
-  const guardEnd = pushRun.indexOf('docker push "$target"');
-  const guard = guardEnd < 0 ? '' : pushRun.slice(0, guardEnd);
-  if (
-    !guard.includes('https://ghcr.io/v2/konradkluz/$name/tags/list') ||
-    !/case "\$anon_status" in\s+401\|403\|404\) ;;\s+\*\) [^\n]*exit 1/.test(guard) ||
-    !/\[ "\$auth_status" != 200 \]/.test(guard) ||
-    !guard.includes('--user "$GHCR_USER:$GHCR_TOKEN"') ||
-    guard.indexOf('anon_status') > guard.indexOf('auth_status')
-  )
-    problems.push(
-      `${where}: strażnik prywatności przed pierwszym docker push (anonimowo tags/list tylko 401, 403, 404; z tokenem joba 200; inaczej czerwony)`,
-    );
   if (
     !pushRun.includes('imagetools inspect --raw') ||
     !pushRun.includes('.config.digest') ||

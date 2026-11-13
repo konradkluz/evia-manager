@@ -44,6 +44,22 @@ const replaceRunEnv = (run: string, env: Record<string, string>) => (job: Record
   steps: steps(job).map((step) => (step['run'] === run ? { ...step, env } : step)),
 });
 
+describe('publish: secret scan of the public images (EVM-124, ADR-0022 pt 3)', () => {
+  it('EVM-124 AC2: a secret of any severity in an image is red before the push - an own run without --severity that fails the job', () => {
+    expect(publishProblems(ci)).toEqual([]);
+    expect(publishProblems(withPublish(replaceRun('--scanners secret --exit-code 1', '--scanners vuln,secret --exit-code 1')))).not.toEqual(
+      [],
+    );
+    expect(
+      publishProblems(
+        withPublish(replaceRun('--scanners secret --exit-code 1', '--scanners secret --severity HIGH,CRITICAL --exit-code 1')),
+      ),
+    ).not.toEqual([]);
+    expect(publishProblems(withPublish(replaceRun('--scanners secret --exit-code 1', '--scanners secret')))).not.toEqual([]);
+    expect(publishProblems(withPublish(replaceRun(/(trivy-secret-\$name\.json" \|\| \{\n\s+)failed=1/, '$1true')))).not.toEqual([]);
+  });
+});
+
 describe('publish on the repository (EVM-007 AC2)', () => {
   it('EVM-007 AC2: publish runs only for a push to main with a changed build input after a green ci-gate — hermetic, with bramka 6 before the push', () => {
     expect(publishProblems(ci)).toEqual([]);
