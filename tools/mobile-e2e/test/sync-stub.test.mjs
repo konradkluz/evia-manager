@@ -30,7 +30,9 @@ describe('sync part of the scenario server (EVM-107 AC6)', () => {
   });
 
   it('EVM-104 AC1: the snapshot carries the details of the work order 1 (scope, stages, journal) in invented text only', () => {
+    /** @type {Record<string, unknown>[]} */
     const changes = snapshotPage().changes.map((change) => change.entity);
+    /** @param {string} type */
     const types = (type) => changes.filter((entity) => entity.type === type);
     assert.equal(types('scope_item').length, 1);
     assert.equal(types('procedure_stage').length, 2);
