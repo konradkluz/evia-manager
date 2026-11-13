@@ -4,7 +4,7 @@ title: Krótka instrukcja dla biura
 type: story
 milestone: M1
 epic: E8 Gotowość produkcyjna
-status: ready
+status: in-progress
 priority: P1
 path: lekka
 owner: product-owner
@@ -102,3 +102,4 @@ _—_
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-11-13 — dostosowanie do jednego środowiska `panel.eviacharge.pl` (product-owner): `path: lekka`, jeden recenzent `ux-designer`, `model: sonnet`; AC1 — adres i zaproszenie e-mail; AC3 — zrzuty tylko z lokalnego środowiska (RR-93). Recenzje `code-reviewer` i `security-engineer` zdjęte (treść bez kodu; wyjątek: zmiana polityki dokumentów w AC5 zatwierdza Konrad)
 - 2026-11-13 — decyzja Konrada: przegląd tylko `ux-designer` (ścieżka `lekka`); w nocnej kolejce `/noc-2026-11-13` (tor B po EVM-126) (Tech Lead)
+- 2026-11-14 — start realizacji w kolejce nocnej `/noc-2026-11-13` (Tech Lead): status `in-progress`, gałąź `feature/EVM-126-066-testy-i-instrukcja`
