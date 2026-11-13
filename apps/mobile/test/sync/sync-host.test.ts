@@ -1,6 +1,6 @@
 import { SyncHost } from '../../src/sync/sync-host';
 import { IDLE_SNAPSHOT } from '../../src/sync/types';
-import { NOTE_WO, Phone, ScriptedServer, aggregate, notePayload, page, settle } from './harness';
+import { NOTE_WO, Phone, ScriptedServer, aggregate, notePayload, page, settle, uid } from './harness';
 
 let phone: Phone;
 beforeEach(async () => {
@@ -87,10 +87,12 @@ describe('synchronization host (EVM-107 AC2, AC5; security S2, S3)', () => {
     expect(await host.copyText('x')).toBeNull();
     expect(await host.retargetOptions(null)).toEqual([]);
     expect(await host.orderList(true)).toEqual([]);
+    expect(await host.orderDetail('x')).toBeNull(); // EVM-104 AC5: no session, nothing to show
     host.setOnline(true);
     host.startSession();
     await settle();
     expect((await host.orderList(true)).map((row) => row.number)).toEqual(['ZL-1']);
+    expect((await host.orderDetail(uid('work_order', 1)))?.number).toBe('ZL-1'); // EVM-104 AC1
     phone.clockNow += 5_000;
     phone.online = false;
     host.setOnline(false);

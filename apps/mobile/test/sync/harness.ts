@@ -184,6 +184,7 @@ export class Phone {
         writeLastSuccess: (at) => this.replica.writeLastSuccess(at),
         listWorkOrders: (limit) => this.replica.listWorkOrders(limit),
         readOrderListSource: (withData) => this.replica.readOrderListSource(withData),
+        readOrderDetailSource: (id) => this.replica.readOrderDetailSource(id),
       },
       takeSettled: () => this.queue.takeSettled(),
     };

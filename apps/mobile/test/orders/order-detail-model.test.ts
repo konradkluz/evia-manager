@@ -128,8 +128,8 @@ const record = (over: Partial<QueueRecord> & { mutationId: string }): QueueRecor
   ...over,
 });
 
-const must = <T>(value: T | null): T => {
-  if (value === null) throw new Error('expected a value');
+const must = <T>(value: T | null | undefined): T => {
+  if (value === null || value === undefined) throw new Error('expected a value');
   return value;
 };
 

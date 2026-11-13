@@ -31,6 +31,7 @@ import {
   type SyncOptions,
   type Transport,
 } from '@evia/sync-core';
+import { buildOrderDetail, type OrderDetail, type OrderDetailSource } from '../orders/order-detail-model';
 import { buildOrderList, queueFact, type OrderListSource, type OrderRow } from '../orders/order-list-model';
 import { classifySqlError } from '../storage/errors';
 import {
@@ -66,6 +67,7 @@ export interface SyncServiceStore {
     writeLastSuccess(at: number): Promise<void>;
     listWorkOrders(limit?: number): Promise<{ id: string; number: string; title: string }[]>;
     readOrderListSource(withData: boolean): Promise<OrderListSource>;
+    readOrderDetailSource(workOrderId: string): Promise<OrderDetailSource | null>;
   };
   takeSettled(): Promise<{ mutationId: string; info: SettledInfo }[]>;
 }
@@ -522,6 +524,20 @@ export class SyncService implements SyncControl {
       source,
       records.map((record) => queueFact(record, withData)),
     );
+  }
+
+  /**
+   * The details of one work order (EVM-104): one read of the replica and one of the queue, joined in memory; no request to the server.
+   * `null` = the order is not in the active generation (outside the scope or deleted; AC5) - its queue items stay untouched. Only
+   * notes and comments of this order are taken from the queue (security K5). Never called in the hidden-data mode (the screen decides).
+   */
+  async orderDetail(workOrderId: string): Promise<OrderDetail | null> {
+    const [source, records, userId] = await Promise.all([
+      this.#deps.store.replicaExtras.readOrderDetailSource(workOrderId),
+      this.#records(),
+      this.#deps.owner.currentUserId(),
+    ]);
+    return buildOrderDetail(source, records, userId ?? '');
   }
 
   async dependentsOf(id: string): Promise<number> {

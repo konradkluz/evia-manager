@@ -2,6 +2,7 @@
  * Types of the synchronization that screens may import (EVM-107): no runtime dependency on the transport, the service or the store
  * (dependency-cruiser `mobile-screens-without-adapters`). The screens read `SyncSnapshot` and call `SyncControl`.
  */
+import type { OrderDetail } from '../orders/order-detail-model';
 import type { OrderRow } from '../orders/order-list-model';
 import type { AttentionAction, AttentionReason, EnqueueInput, MutationType } from '@evia/sync-core';
 
@@ -108,6 +109,11 @@ export interface SyncControl {
    * hidden-data mode: no name, address or place is read at all.
    */
   orderList(withData: boolean): Promise<readonly OrderRow[]>;
+  /**
+   * The details of one work order (EVM-104): the local replica and the queue only, never the server. `null` = not available (outside
+   * the scope of the phone or deleted). Never called in the hidden-data mode.
+   */
+  orderDetail(workOrderId: string): Promise<OrderDetail | null>;
   /** Entries that depend on this one, for the confirmation dialog. */
   dependentsOf(id: string): Promise<number>;
   discard(id: string): Promise<AttentionResult>;
