@@ -4,7 +4,7 @@ title: Stabilne testy w CI i poprawka podpowiedzi adresu panelu
 type: bug
 milestone: M0
 epic: E00 Fundamenty
-status: in-progress
+status: in-review
 priority: P1
 path: lekka
 owner: web-developer
@@ -64,3 +64,4 @@ Zasada nadrzędna (`CLAUDE.md`, reguła 3): przyczynę usuwamy w teście lub kod
 - 2026-11-13 — akceptacja Konrada (DoR) do nocnej kolejki `/noc-2026-11-13`: kolejność toru A 104 → 105 → 127 → 106 (tor B: 126 → 066), autokorekta zostaje w długich tekstach (wyłączona w polach klienta, telefonu, adresu; autofill wszędzie wyłączony), bez szkiców i „ostatnio otwieranych” w M2, EVM-126 — budowa panelu bez adresu kończy się błędem; status `ready` (Tech Lead)
 - 2026-11-14 — start realizacji w kolejce nocnej `/noc-2026-11-13` (Tech Lead): status `in-progress`, gałąź `feature/EVM-126-066-testy-i-instrukcja`
 - 2026-11-14 — wykonanie (web-developer, wznowienie po awarii): AC1 testy web deterministyczne (rozdzielony test EVM-043 AC1, jawne oczekiwanie w EVM-046 AC4; 20/20 pod obciążeniem), AC2 test worker-email steruje odstępami ponowień, emiter alertów bez nakładających się odpytań (10/10 w kontenerze), AC3/AC4 budowa wydania wymaga PANEL_ORIGIN
+- 2026-11-14 — workflow `deliver-story` (lekka) `passed`, code-reviewer: approve (uwagi nieblokujące: CHANGELOG — dopisany; nit: `--build-arg PANEL_ORIGIN` trafia też do obrazu api). Bramka orkiestratora: `pnpm run gate` zielona (pokrycie zmienionego kodu 100% linii i gałęzi; `security-alerts.ts` mierzy CI), `pnpm run gate:deploy` zielona. Weryfikacja AC3 lokalnie: `vite build` z `EVIA_RELEASE_BUILD=true` bez `PANEL_ORIGIN` kończy się błędem, z `https://panel.eviacharge.pl` — w paczce jest adres panelu i brak `localhost:5173`. AC5 potwierdzi `ci-gate` i `e2e-web` na PR; budowę obrazu `evia-web` z argumentem sprawdzi dopiero job publikacji po scaleniu. Koszt: 3 agentów, ok. 176 tys. tokenów, 34 min. Status `in-review` (Tech Lead, kolejka nocna)
