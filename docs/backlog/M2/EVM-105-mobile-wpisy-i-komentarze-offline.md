@@ -4,7 +4,7 @@ title: "Aplikacja: wpisy i komentarze offline"
 type: story
 milestone: M2
 epic: E12 Wpisy offline
-status: ready
+status: in-progress
 priority: P1
 path: pelna             # synchronizacja offline, treść wpisów (dane osobowe) w kolejce na urządzeniu
 owner: mobile-developer
@@ -70,3 +70,4 @@ Jako **technik** chcę **dopisać wpis (kategoria, treść, opcjonalnie etap) lu
 - 2026-10-27 — naniesiono konsultację UX (product-owner)
 - 2026-11-13 — refinement do DoR: 6 AC (dodano wejścia i cel, ukryte dane, zlecenia zamknięte; usunięto szkic i „ostatnio otwierane” — YAGNI), rozgraniczenie z EVM-104/107, pytania 2–3 do Konrada z rekomendacją; status `draft` do akceptacji (product-owner)
 - 2026-11-13 — akceptacja Konrada (DoR) do nocnej kolejki `/noc-2026-11-13`: kolejność toru A 104 → 105 → 127 → 106 (tor B: 126 → 066), autokorekta zostaje w długich tekstach (wyłączona w polach klienta, telefonu, adresu; autofill wszędzie wyłączony), bez szkiców i „ostatnio otwieranych” w M2, EVM-126 — budowa panelu bez adresu kończy się błędem; status `ready` (Tech Lead)
+- 2026-11-14 — start realizacji w kolejce nocnej `/noc-2026-11-13` (Tech Lead): status `in-progress`, gałąź `feature/queue-2026-11-13-mobile`
