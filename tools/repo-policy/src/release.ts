@@ -101,7 +101,7 @@ export function publishProblems(document: unknown): string[] {
     problems.push(`${where}: skan obrazów (bramka 6) przed logowaniem do GHCR i wypchnięciem`);
   if (!script.includes('--severity HIGH,CRITICAL --ignore-unfixed --exit-code 1'))
     problems.push(`${where}: bramka 6 — Critical/High z poprawką = czerwony`);
-  problems.push(...secretScanProblems(script, where), ...secretReportUploadProblems(job, where));
+  problems.push(...secretScanProblems(script, where, true), ...secretReportUploadProblems(job, where));
   // docker save writes 0600 archives; the unprivileged scanner (65534) must be able to read them before the first scan.
   const readable = script.indexOf('chmod a+r .scratch/scans/*.tar');
   if (readable < 0 || readable < script.lastIndexOf('docker save ') || readable > scan)
@@ -381,9 +381,19 @@ export function secretReportUploadProblems(job: Record<string, unknown>, where: 
  * Secrets of any severity in an image = red before the push (the GHCR packages are public, ADR-0022 pt 3; decision of Konrad 2026-11-13):
  * a vulnerability run (Critical/High) and an own secret run without --severity (the default covers every severity), the latter failing
  * the job (failed=1) and not uploaded as an artifact.
+ * `publishedOnly` (job publish, which also pulls third-party infrastructure images for the vulnerability scan only): the secret run
+ * is required for every image we publish (archives evia-*) and must not run for the pulled ones (infra-*; upstream placeholders such as
+ * the Debian ssl-cert snakeoil key) - it sits inside `if [[ "$name" == evia-* ]]; then ... fi`.
  */
-export function secretScanProblems(script: string, where: string): string[] {
+export function secretScanProblems(script: string, where: string, publishedOnly = false): string[] {
   const problems: string[] = [];
+  const guard = script.indexOf('if [[ "$name" == evia-* ]]; then');
+  const secretAt = script.indexOf('--scanners secret ');
+  const guardEnd = guard < 0 ? -1 : guard + script.slice(guard).search(/\n\s*fi\n/);
+  if (publishedOnly && !(guard >= 0 && secretAt > guard && guardEnd > secretAt))
+    problems.push(
+      `${where}: skan sekretów tylko dla obrazów publikowanych (if [[ "$name" == evia-* ]]), nie dla pobranych obrazów infra-*`,
+    );
   const runs = script.match(/--scanners \S+[^\n]*/g) ?? [];
   const others = runs.filter((run) => !run.startsWith('--scanners secret ')).join('\n');
   if (!runs.some((run) => run.startsWith('--scanners vuln ')) || /--scanners [^ ]*secret/.test(others))

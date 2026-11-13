@@ -529,20 +529,24 @@ jobs:
               fi
               continue
             }
-            # Secrets of ANY severity = red (the packages are public, ADR-0022 pt 3): an own run without --severity (the default covers every
-            # severity), no secret entry in the exception register; only rule, severity, file and line are printed, the report is not uploaded.
-            docker compose -f compose.yaml run --rm scan-trivy-image image --config /src/trivy.yaml --skip-version-check \
-              --skip-db-update --input "/out/$name.tar" --scanners secret --exit-code 1 \
-              --format json --output "/out/trivy-secret-$name.json" || {
-              failed=1
-              echo "::error::bramka 6: secret in $name (or a scanner error) - nothing is pushed" >&2
-              if [ -s ".scratch/scans/trivy-secret-$name.json" ]; then
-                jq -r '.Results[]? | .Target as $target | .Secrets[]? | "\(.Severity) \(.RuleID) [\($target):\(.StartLine)]"' ".scratch/scans/trivy-secret-$name.json"
-              else
-                echo "no Trivy secret report for $name - see the scanner log above"
-              fi
-              continue
-            }
+            # Only the images WE publish (evia-*) get the secret pass: the pulled third-party infrastructure images (infra-*) are only vuln-scanned
+            # (upstream placeholders such as the Debian ssl-cert snakeoil key are not ours to fix); no exception entry for the secret pass.
+            if [[ "$name" == evia-* ]]; then
+              # Secrets of ANY severity = red (the packages are public, ADR-0022 pt 3): an own run without --severity (the default covers every
+              # severity), no secret entry in the exception register; only rule, severity, file and line are printed, the report is not uploaded.
+              docker compose -f compose.yaml run --rm scan-trivy-image image --config /src/trivy.yaml --skip-version-check \
+                --skip-db-update --input "/out/$name.tar" --scanners secret --exit-code 1 \
+                --format json --output "/out/trivy-secret-$name.json" || {
+                failed=1
+                echo "::error::bramka 6: secret in $name (or a scanner error) - nothing is pushed" >&2
+                if [ -s ".scratch/scans/trivy-secret-$name.json" ]; then
+                  jq -r '.Results[]? | .Target as $target | .Secrets[]? | "\(.Severity) \(.RuleID) [\($target):\(.StartLine)]"' ".scratch/scans/trivy-secret-$name.json"
+                else
+                  echo "no Trivy secret report for $name - see the scanner log above"
+                fi
+                continue
+              }
+            fi
             docker compose -f compose.yaml run --rm scan-trivy-image image --config /src/trivy.yaml --skip-version-check \
               --skip-db-update --input "/out/$name.tar" --format cyclonedx --output "/out/sbom-$name.cdx.json"
           done

@@ -84,6 +84,12 @@ describe('publish: secret scan of the public images (EVM-124, ADR-0022 pt 3)', (
     expect(publishProblems(withPublish(replaceRun('--scanners secret --exit-code 1', '--scanners secret')))).not.toEqual([]);
     expect(publishProblems(withPublish(replaceRun(/(trivy-secret-\$name\.json" \|\| \{\n\s+)failed=1/, '$1true')))).not.toEqual([]);
   });
+  it('EVM-124 AC2: publish runs the secret pass for the images we publish (evia-*) and not for the pulled infrastructure images (infra-*)', () => {
+    const guard = 'if [[ "$name" == evia-* ]]; then';
+    expect(publishProblems(withPublish(replaceRun(guard, 'if true; then')))).not.toEqual([]);
+    expect(publishProblems(withPublish(replaceRun(guard, 'if [[ "$name" == infra-* ]]; then')))).not.toEqual([]);
+    expect(publishProblems(withPublish(replaceRun(guard + '\n', 'true\n')))).not.toEqual([]);
+  });
 });
 
 describe('publish on the repository (EVM-007 AC2)', () => {
