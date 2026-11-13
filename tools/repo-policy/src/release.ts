@@ -310,9 +310,11 @@ export function releaseDockerfileProblems(name: string, dockerfile: string, igno
     .map((line) => line.trim())
     .filter((line) => line !== '' && !line.startsWith('#'));
   if (entries[0] !== '*') problems.push(`${name}.dockerignore: pierwszy wpis * (lista dozwolonych)`);
+  // docs/user (the source of the office guide, EVM-066 AC6) may enter the context of the web image only.
+  const docsPattern = name.endsWith('/web') ? String.raw`docs(?!/user$)` : 'docs';
+  const forbiddenEntry = new RegExp(String.raw`(^|/)(\.env|\.scratch|\.git|coverage|${docsPattern}|\.claude|tools/[^*])`);
   for (const entry of entries.filter((item) => item.startsWith('!')))
-    if (/(^|\/)(\.env|\.scratch|\.git|coverage|docs(?!\/user$)|\.claude|tools\/[^*])/.test(entry.slice(1)) || entry === '!.')
-      problems.push(`${name}.dockerignore: niedozwolony wpis ${entry}`);
+    if (forbiddenEntry.test(entry.slice(1)) || entry === '!.') problems.push(`${name}.dockerignore: niedozwolony wpis ${entry}`);
   return problems;
 }
 
