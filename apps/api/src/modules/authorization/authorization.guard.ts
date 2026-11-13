@@ -87,7 +87,9 @@ export class AuthorizationGuard implements CanActivate {
         decision.retryAfterSeconds === undefined ? {} : { retryAfterSeconds: decision.retryAfterSeconds },
       );
     }
-    if (versionChecked && !isPublic) this.#assertClientVersion(request);
+    // Only a Bearer principal of the phone is asked for the version: the credential the guard chose decides, never the X-Client-* headers (EVM-127; SR-AUTHZ-12).
+    if (versionChecked && !isPublic && source.bearer && source.authentication.principal?.channel === 'mobile')
+      this.#assertClientVersion(request);
     assertQueryParameters(request.query, declaredQuery);
     const { authentication } = source;
     if (authentication.principal !== null && this.#recordsActivity(operationId)) await authentication.touch?.();
@@ -126,7 +128,10 @@ function authenticationFor(
   if (mobile && !web) return { authentication: bearerAuthenticationOf(request), bearer: true };
   if (!mobile) return { authentication: authenticationOf(request), bearer: false };
   const cookie = authenticationOf(request);
-  return cookie.principal !== null
-    ? { authentication: cookie, bearer: false }
-    : { authentication: bearerAuthenticationOf(request), bearer: true };
+  if (cookie.principal !== null) return { authentication: cookie, bearer: false };
+  const token = bearerAuthenticationOf(request);
+  // No Bearer token at all: the answer is the one of the cookie with its reason (session_revoked / session_expired of the panel, EVM-127; SR-SESS-06).
+  // A Bearer token that was recognised (a wipe, a revoked family) keeps its own answer.
+  if (token.principal === null && token.reason === 'anonymous') return { authentication: cookie, bearer: false };
+  return { authentication: token, bearer: true };
 }
