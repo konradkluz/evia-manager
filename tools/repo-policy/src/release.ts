@@ -469,6 +469,19 @@ export function publishInfraProblems(document: unknown): string[] {
   const pushEnv = { GHCR_TOKEN: '${{ github.token }}', GHCR_USER: '${{ github.actor }}' };
   if (JSON.stringify(pushStep['env']) !== JSON.stringify(pushEnv))
     problems.push(`${where}: logowanie do GHCR wyłącznie tokenem joba (env kroku push)`);
+  // the private-package guard stands after the login and before the first push (a push creates a missing package, maybe public)
+  const guardEnd = pushRun.indexOf('docker push "$target"');
+  const guard = guardEnd < 0 ? '' : pushRun.slice(0, guardEnd);
+  if (
+    !guard.includes('https://ghcr.io/v2/konradkluz/$name/tags/list') ||
+    !/case "\$anon_status" in\s+401\|403\|404\) ;;\s+\*\) [^\n]*exit 1/.test(guard) ||
+    !/\[ "\$auth_status" != 200 \]/.test(guard) ||
+    !guard.includes('--user "$GHCR_USER:$GHCR_TOKEN"') ||
+    guard.indexOf('anon_status') > guard.indexOf('auth_status')
+  )
+    problems.push(
+      `${where}: strażnik prywatności przed pierwszym docker push (anonimowo tags/list tylko 401, 403, 404; z tokenem joba 200; inaczej czerwony)`,
+    );
   if (
     !pushRun.includes('imagetools inspect --raw') ||
     !pushRun.includes('.config.digest') ||

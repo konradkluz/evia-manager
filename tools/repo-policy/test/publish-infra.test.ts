@@ -180,6 +180,23 @@ describe('publish-infra checkers detect violations (EVM-124)', () => {
     expect(problems(replaceRun('/manifests/$digest"', '/manifests/latest"'))).not.toEqual([]);
   });
 
+  it('EVM-124 AC1 (SR-INFRA-09; ADR-0022 pt 3): the private-package guard stands in the push step before the first docker push - anonymous tags/list denied, authenticated 200', () => {
+    const pushRun = text(steps(infra)[indexOfRun(infra, 'docker push')]?.['run']);
+    const guardAt = pushRun.indexOf('tags/list');
+    expect(guardAt).toBeGreaterThan(pushRun.indexOf('docker login'));
+    expect(guardAt).toBeLessThan(pushRun.indexOf('docker push "$target"'));
+    expect(problems(() => structuredClone(infra))).toEqual([]);
+    // removing, weakening or moving a condition behind the push is a violation
+    expect(problems(replaceRun('401|403|404) ;;', '200|401|403|404) ;;'))).not.toEqual([]);
+    expect(problems(replaceRun('[ "$auth_status" != 200 ]', '[ "$auth_status" != 999 ]'))).not.toEqual([]);
+    expect(problems(replaceRun('--user "$GHCR_USER:$GHCR_TOKEN" "https://ghcr.io/token', '"https://ghcr.io/token'))).not.toEqual([]);
+    expect(problems(replaceRun(/\$name\/tags\/list/g, '$name/tag/list'))).not.toEqual([]);
+    expect(problems(replaceRun('anon_status" in', 'anon_status_x" in'))).not.toEqual([]);
+    expect(problems(replaceRun(/exit 1 ;;\n(\s+)esac/, 'true ;;\n$1esac'))).not.toEqual([]);
+    // a push ahead of the guard
+    expect(problems(replaceRun('--password-stdin\n', '--password-stdin\ndocker push "$target"\n'))).not.toEqual([]);
+  });
+
   it('EVM-124 AC2 (architect 4; K2): all or nothing — a push before the scan or the platform check, a login before the scan, a push step that may be skipped or fail open', () => {
     expect(problems(swap('scan-trivy-image image', 'docker push'))).not.toEqual([]);
     expect(problems(swap('not linux/arm64', 'scan-trivy-image image'))).not.toEqual([]);

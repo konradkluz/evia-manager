@@ -688,6 +688,24 @@ jobs:
         shell: bash
         run: |
           echo "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USER" --password-stdin
+          # Private-package guard BEFORE the first push (a push creates a missing package, possibly public - irreversible; ADR-0022 pt 3).
+          # (1) anonymously the package list must be denied (401, 403 or 404 = private or absent); (2) with the job token it must be readable (200 =
+          # the package exists and this repository has access to it). Anything else is red before anything is pushed.
+          for image in postgres-pgbackrest media-processor; do
+            name="evia-$image"
+            anon_token="$(curl --silent --show-error --max-time 20 "https://ghcr.io/token?service=ghcr.io&scope=repository:konradkluz/$name:pull" | jq -r '.token // empty')"
+            anon_status="$(curl --silent --output /dev/null --max-time 20 --write-out '%{http_code}' ${anon_token:+--header "Authorization: Bearer $anon_token"} "https://ghcr.io/v2/konradkluz/$name/tags/list")"
+            case "$anon_status" in
+              401|403|404) ;;
+              *) echo "::error::package $name is public or unverifiable (anonymous request: HTTP $anon_status) - nothing was pushed" >&2; exit 1 ;;
+            esac
+            auth_token="$(curl --silent --show-error --max-time 20 --user "$GHCR_USER:$GHCR_TOKEN" "https://ghcr.io/token?service=ghcr.io&scope=repository:konradkluz/$name:pull" | jq -r '.token // empty')"
+            auth_status="$(curl --silent --output /dev/null --max-time 20 --write-out '%{http_code}' ${auth_token:+--header "Authorization: Bearer $auth_token"} "https://ghcr.io/v2/konradkluz/$name/tags/list")"
+            if [ "$auth_status" != 200 ]; then
+              echo "::error::package $name does not exist or this repository has no access (authenticated request: HTTP $auth_status) - create it private first (docs/ops/github-i-ci.md); nothing was pushed" >&2
+              exit 1
+            fi
+          done
           for image in postgres-pgbackrest media-processor; do
             name="evia-$image"
             target="$REGISTRY/$name:sha-$EVIA_RELEASE_COMMIT"
