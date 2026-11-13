@@ -103,22 +103,24 @@ describe('the VM side of the channel (EVM-007 AC1, AC4, AC7; architect 3, 12–1
 
   it('EVM-044 (RR-44) EVM-046: clamd runs with explicit limits of 2000M (above SCAN_LIMIT_BYTES), AlertExceedsMax, the settings against macros and zip bombs (EVM-047), a scratch directory on a disk volume and timeouts', () => {
     const infra = read('infra/runtime/compose.infra.yaml');
+    // since 2026-11-13 the values are a read-only file of the repository (the root entrypoint of the image, which turned CLAMD_CONF_* into a file, needs capabilities)
+    const conf = read('infra/runtime/clamav/clamd.conf');
     for (const line of [
-      'CLAMD_CONF_StreamMaxLength: 2000M',
-      'CLAMD_CONF_MaxFileSize: 2000M',
-      'CLAMD_CONF_MaxScanSize: 2000M',
-      'CLAMD_CONF_TemporaryDirectory: /scan-tmp',
-      "CLAMD_CONF_ReadTimeout: '300'",
-      'clamav-scan-tmp:/scan-tmp',
-      "CLAMD_CONF_AlertExceedsMax: 'yes'",
+      'StreamMaxLength 2000M',
+      'MaxFileSize 2000M',
+      'MaxScanSize 2000M',
+      'TemporaryDirectory /scan-tmp',
+      'ReadTimeout 300',
+      'AlertExceedsMax yes',
       // EVM-047 (P5 point 2): the second line of defence against macros and zip bombs in documents
-      "CLAMD_CONF_AlertOLE2Macros: 'yes'",
-      "CLAMD_CONF_MaxRecursion: '16'",
-      "CLAMD_CONF_MaxFiles: '10000'",
-      "CLAMD_CONF_AlertEncryptedArchive: 'yes'",
-      "CLAMD_CONF_AlertEncryptedDoc: 'no'",
+      'AlertOLE2Macros yes',
+      'MaxRecursion 16',
+      'MaxFiles 10000',
+      'AlertEncryptedArchive yes',
+      'AlertEncryptedDoc no',
     ])
-      expect(infra, line).toContain(line);
+      expect(conf.split(/\r?\n/), line).toContain(line);
+    expect(infra).toContain('clamav-scan-tmp:/scan-tmp');
     // RR-71: the scratch space of clamd is a separate host mount (encrypted, size-limited by the IaC session), never the root file system
     expect(infra).toContain('device: /var/lib/evia/clamav-scan');
     expect(infra).toContain('dm-crypt');

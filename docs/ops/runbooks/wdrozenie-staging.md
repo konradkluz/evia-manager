@@ -33,7 +33,7 @@ Wyniki (same linie ok/FAIL, bez wartości) do `docs/qa/EVM-084/`.
 - **(13) sieć clamd:** `docker network inspect evia-scan` — `Internal=true`, członkowie wyłącznie `clamd` i worker aktywnego koloru; z workera `clamd:3310` odpowiada, z `api` nazwa `clamd` się nie rozwiązuje.
 - **(14) okno rollbacku (M5):** po pierwszym wdrożeniu nowym weryfikatorem — **drugie wdrożenie** i **próbny rollback** ([rollback](rollback-staging.md)); dopiero wtedy rollback kanałem do świeżych wpisów rejestru działa. Do tego czasu plan B ręczny z runbooka rollbacku.
 - **(16) restart VM:** po `sudo reboot` oba wolumeny robocze są puste i sformatowane na nowo, `pgdata` i baza nietknięte, Docker czekał na `evia-work-volumes.service` (`systemctl list-dependencies docker.service`), kontenery wstały same.
-- **(17) ustawienia pojemności:** `docker inspect --format '{{.HostConfig.OomScoreAdj}}'` — −500 (caddy, postgres), 300 (`clamd`), 500 (procesor); w kontenerze `clamd` `ConcurrentDatabaseReload no`; alerty `EviaHostMountMissing` i `EviaHostDiskFull` widoczne w Grafanie (posiedzenie C).
+- **(17) ustawienia pojemności:** `docker inspect --format '{{.HostConfig.OomScoreAdj}}'` — −500 (caddy, postgres), 300 (`clamd`), 500 (procesor); w kontenerze `clamd` `ConcurrentDatabaseReload no` w `/etc/evia-clamav/clamd.conf`; alerty `EviaHostMountMissing` i `EviaHostDiskFull` widoczne w Grafanie (posiedzenie C).
 - **(18) obraz procesora (warunek RR-78):** `FFMPEG_VERSION` przypięty, Trivy 0 High/Critical bez uzasadnienia, SBOM — dowody w `docs/qa/EVM-084/`; bez nich nie podstawiamy digestu.
 - **(15) bucket eksportów:** wersjonowanie wyłączone, obie reguły cyklu życia (`exports-expire` i przerwanie multipart), ACL private; `bucket-verify.sh` z `MEDIA_EXPORT_BUCKET` zielony.
 
