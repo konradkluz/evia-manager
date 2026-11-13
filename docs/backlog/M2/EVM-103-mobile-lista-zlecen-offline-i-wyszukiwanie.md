@@ -81,3 +81,5 @@ Jako **technik** chcę **widzieć listę zleceń i szukać po numerze, kliencie,
 - 2026-11-12 — naniesiono konsultacje: architekt (wyszukiwanie w pamięci, bez FTS i migracji, sortowanie), security (AC2, AC5, AC6), UX (AC2, AC3, dostępność) (product-owner)
 - 2026-11-12 — akceptacja Konrada (DoR): kolejność wg daty utworzenia malejąco, chipy „Wszystkie / Niewysłane (n)” (odstępstwo M2 wpisane w styleguide'zie), bez pluginu IME (ryzyko rezydualne zaakceptowane), Tylko odczyt tylko w panelu; ścieżka `pelna` zatwierdzona z delegacji; status `ready` (Tech Lead)
 - 2026-11-13 — start realizacji (`/deliver`, ścieżka `pelna`, równolegle z EVM-124 za zgodą Konrada; EVM-084/085 zostają `in-progress` — posiedzenia B/C, bez kodu w toku) (Tech Lead)
+- 2026-11-13 — plan gotowy (mobile-developer)
+- 2026-11-13 — implementacja gotowa (ścieżka `pelna`): model i wyszukiwanie w pamięci (bez FTS i migracji), odczyt repliki z listą kluczy `json_extract`, ekran M-05 z chipami i stanami, tryb ukrytych danych, scenariusz Maestro offline, dowody w `docs/qa/EVM-103/` (wyniki emulatora i pomiaru AC7 czekają na przebieg orkiestratora i telefon referencyjny) (mobile-developer)
