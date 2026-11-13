@@ -1,6 +1,7 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
+import { resolvePanelOrigin } from './panel-origin.ts';
 import { securityHeadersPlugin } from './security-headers.ts';
 
 // Panel web (ADR-0006; EVM-008). The API is same-origin under /api: locally through this proxy (API on API_PORT,
@@ -13,7 +14,8 @@ export default defineConfig({
   plugins: [react(), tailwindcss(), securityHeadersPlugin()],
   build: { sourcemap: false },
   // The address shown when the panel is opened under another origin than PANEL_ORIGIN (API answers 403 csrf_failed).
-  define: { 'import.meta.env.VITE_PANEL_ORIGIN': JSON.stringify(process.env['PANEL_ORIGIN'] ?? 'http://localhost:5173') },
+  // A release build (EVIA_RELEASE_BUILD=true in the Dockerfile) fails without PANEL_ORIGIN instead of baking in localhost (EVM-126).
+  define: { 'import.meta.env.VITE_PANEL_ORIGIN': JSON.stringify(resolvePanelOrigin(process.env)) },
   server: { host: '127.0.0.1', port: 5173, strictPort: true, proxy: { '/api': api } },
   preview: { host: '127.0.0.1', port: 4173, strictPort: true, proxy: { '/api': api } },
 });

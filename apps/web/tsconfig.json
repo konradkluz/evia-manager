@@ -7,6 +7,15 @@
     "allowJs": true,
     "checkJs": true
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts", "test/**/*.tsx", "security-headers.ts", "*.config.ts", "*.config.js"],
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "test/**/*.ts",
+    "test/**/*.tsx",
+    "security-headers.ts",
+    "panel-origin.ts",
+    "*.config.ts",
+    "*.config.js"
+  ],
   "exclude": ["node_modules", "dist", "coverage"]
 }

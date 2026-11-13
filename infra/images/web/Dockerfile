@@ -21,6 +21,12 @@ RUN npm pack "pnpm@${PNPM_VERSION}" --silent \
  && npm install --global "./pnpm-${PNPM_VERSION}.tgz" --ignore-scripts --no-audit --no-fund \
  && npm cache clean --force
 
+# The address of the panel baked into the bundle (shown when the panel is opened under another address). The release build
+# fails without it (apps/web/panel-origin.ts), so `localhost` never reaches the production image (EVM-126 AC3).
+ARG PANEL_ORIGIN
+ENV EVIA_RELEASE_BUILD=true \
+    PANEL_ORIGIN=${PANEL_ORIGIN}
+
 WORKDIR /app
 COPY . .
 RUN pnpm install --frozen-lockfile --ignore-scripts --filter "@evia/web..." \
