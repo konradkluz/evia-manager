@@ -16,6 +16,7 @@ import {
   bucketMatrixFile,
   bucketMatrixRows,
   bucketProblems,
+  policyShapeProblems,
   encryptionProblems,
   firewallProblems,
   hclBlock,
@@ -333,11 +334,24 @@ describe('Object Storage of staging (EVM-084 AC2; ADR-0009, ADR-0011; SR-INFRA-0
       ),
     ).not.toEqual([]);
     expect(bucketProblems(swap('Sid       = "AllowWorkerDerivatives"', 'Sid       = "AllowWorker"'))).not.toEqual([]);
-    expect(bucketProblems(swap('Sid       = "DenyWorkerOverwrite"', 'Sid       = "DenyWorker"'))).not.toEqual([]);
-    expect(bucketProblems(swap(/(Sid\s*=\s*"DenyWorkerOverwrite"[\s\S]*?"s3:if-none-match"\s*=\s*)"true"/, '$1"false"'))).not.toEqual([]);
-    expect(bucketProblems(swap('/media/*/original"]', '/media/*/original2"]'))).not.toEqual([]);
-    expect(bucketProblems(swap('concat(actions, ["s3:PutObject"])', 'concat(actions, ["s3:PutObject", "s3:*"])'))).not.toEqual([]);
+    // the Allow of the derivatives requires the header (Null "false" = present); "true" would allow exactly the requests WITHOUT it
+    expect(bucketProblems(swap(/(Sid\s*=\s*"AllowWorkerDerivatives"[\s\S]*?"s3:if-none-match"\s*=\s*)"false"/, '$1"true"'))).not.toEqual(
+      [],
+    );
+    expect(bucketProblems(swap(/(Sid\s*=\s*"AllowWorkerDerivatives"[\s\S]*?)Condition = \{ Null[^\n]*\n/, '$1'))).not.toEqual([]);
+    expect(
+      bucketProblems(
+        swap('"${scaleway_object_bucket.media.name}/media/*/${name}"]', '"${scaleway_object_bucket.media.name}/media/*/original"]'),
+      ),
+    ).not.toEqual([]);
     expect(bucketProblems(swap(/(media_worker\s*=\s*\[[^\]]*?)"ObjectStorageObjectsWrite", /, '$1'))).not.toEqual([]);
+    // F5: the check is `/original` (it was the literal "originalb" and never fired): `.../original` in the policy is reported by its own message, `.../originals` is not
+    const originals = (suffix: string): boolean =>
+      bucketProblems(swap('Id      = "evia-staging-media"', `Id      = "evia-staging-media/${suffix}"`)).some((problem) =>
+        problem.includes('oryginały media/*/original'),
+      );
+    expect(originals('original')).toBe(true);
+    expect(originals('originals')).toBe(false);
     // the list of media_allow stays without PutObject for the worker (the matrix of the verification script proves the denial of a plain PUT)
     expect(BUCKET_POLICIES['media_allow']?.['media_worker']).not.toContain('s3:PutObject');
   });
@@ -412,17 +426,13 @@ describe('Object Storage of staging (EVM-084 AC2; ADR-0009, ADR-0011; SR-INFRA-0
       expect(bucketProblems(inExports(/id\s*=\s*"exports-expire"/, 'id = "other"'))).not.toEqual([]);
     });
 
-    it('EVM-052 / EVM-084 AC2 (P4): the policy names the IaC application, denies the privileged actions and the other applications, and does not demand If-None-Match (a multipart part has no such header)', () => {
-      expect(bucketProblems(policyWith('Sid       = "DenyOtherApplications"', 'Sid       = "Skipped"'))).not.toEqual([]);
-      expect(bucketProblems(policyWith('Action    = local.privileged_actions', 'Action    = ["s3:PutBucketPolicy"]'))).not.toEqual([]);
+    it('EVM-052 / EVM-084 AC2 (P4): the policy names the IaC application, uses no NotAction, and does not demand If-None-Match (a multipart part has no such header)', () => {
+      expect(bucketProblems(policyWith('Action    = ["s3:*"]', 'NotAction = ["s3:*"]'))).not.toEqual([]);
       expect(bucketProblems(policyWith('Sid       = "AllowIac"', 'Sid       = "AllowSomebody"'))).not.toEqual([]);
       expect(bucketProblems(policyWith('Principal = { SCW = local.iac_principal }', 'Principal = { SCW = "*" }'))).not.toEqual([]);
       expect(
         bucketProblems(
-          policyWith(
-            'Sid       = "DenyPrivilegedForApplications"',
-            'Condition = { Null = { "s3:if-none-match" = "true" } }\n        Sid       = "DenyPrivilegedForApplications"',
-          ),
+          policyWith('Sid       = "AllowIac"', 'Condition = { Null = { "s3:if-none-match" = "false" } }\n        Sid       = "AllowIac"'),
         ),
       ).not.toEqual([]);
       expect(
@@ -485,25 +495,59 @@ describe('Object Storage of staging (EVM-084 AC2; ADR-0009, ADR-0011; SR-INFRA-0
     expect(bucketProblems(withRule)).not.toEqual([]);
   });
 
-  it('EVM-084 AC2 (P4): every policy names the IaC application, denies the privileged actions and the other applications, no Allow for "*"', () => {
+  it('EVM-084 AC2 (P4): every policy names the IaC application and holds Allow statements only that Scaleway accepts (no NotAction, an Action each, at most 10 statements, no Deny), no Allow for "*"', () => {
     expect(
       bucketProblems(swap(/(resource "scaleway_object_bucket_policy" "media" \{[\s\S]*?Sid\s*=\s*)"AllowIac"/, '$1"AllowSomebody"')),
     ).not.toEqual([]);
+    for (const bucket of ['media', 'register', 'db_backup', 'exports'])
+      expect(
+        bucketProblems(
+          swap(
+            new RegExp(String.raw`(resource "scaleway_object_bucket_policy" "${bucket}" \{[\s\S]*?)Action {4}= \["s3:\*"\]`),
+            '$1NotAction = ["s3:*"]',
+          ),
+        ),
+        bucket,
+      ).not.toEqual([]);
     expect(
-      bucketProblems(
-        swap(/(resource "scaleway_object_bucket_policy" "register" \{[\s\S]*?Sid\s*=\s*)"DenyOtherApplications"/, '$1"Nothing"'),
-      ),
+      bucketProblems(swap(/(resource "scaleway_object_bucket_policy" "register" \{[\s\S]*?)Action {4}= \["s3:\*"\]/, '$1Resource  = []')),
     ).not.toEqual([]);
     expect(
       bucketProblems(
         swap(
-          /(resource "scaleway_object_bucket_policy" "db_backup" \{[\s\S]*?Sid\s*=\s*"DenyPrivilegedForApplications"[\s\S]*?Action\s*=\s*)local\.privileged_actions/,
-          '$1["s3:GetObject"]',
+          'Effect    = "Allow"\n        Principal = { SCW = local.iac_principal }',
+          'Effect    = "Deny"\n        Principal = { SCW = local.iac_principal }',
         ),
       ),
     ).not.toEqual([]);
+    expect(bucketProblems(storage)).toEqual([]);
+    expect(policyShapeProblems('f', 'x', 'Sid = "a"\n NotPrincipal = {}')).not.toEqual([]);
+    expect(policyShapeProblems('f', 'x', 'Sid = "a"\n Action = ["s3:*"]\n Effect = "Deny"')).not.toEqual([]);
+    expect(policyShapeProblems('f', 'x', '')).not.toEqual([]);
+    const statements = (count: number): string =>
+      Array.from({ length: count }, (_, index) => `Sid = "s${index}"\n Action = ["s3:GetObject"]\n`).join('');
+    expect(policyShapeProblems('f', 'x', statements(10))).toEqual([]);
+    expect(policyShapeProblems('f', 'x', statements(11))).toEqual([expect.stringContaining('11 instrukcji')]);
+    // a for expression over local.<bucket>_allow counts once per entry of the list, a filter removes one
+    expect(
+      policyShapeProblems(
+        'f',
+        'x',
+        `${statements(1)}[for app, actions in local.media_allow : {\n Sid = "A"\n Action = actions\n } if app != "media_app"]`,
+      ),
+    ).toEqual([]);
     expect(bucketProblems(swap('Principal = { SCW = local.iac_principal }', 'Principal = { SCW = "*" }'))).not.toEqual([]);
-    for (const action of PRIVILEGED_ACTIONS) expect(bucketProblems(swap(`    "${action}",\n`, '')), action).not.toEqual([]);
+    // the explicit Deny of the privileged actions is gone: no list may hold one of them or a wildcard that could cover one
+    for (const action of PRIVILEGED_ACTIONS)
+      expect(
+        bucketProblems(
+          swap('media_backup_reader = ["s3:ListBucket", "s3:GetObject"]', `media_backup_reader = ["s3:ListBucket", "${action}"]`),
+        ),
+        action,
+      ).not.toEqual([]);
+    expect(bucketProblems(swap('media_backup_reader = ["s3:ListBucket", "s3:GetObject"]', 'media_backup_reader = ["s3:*"]'))).not.toEqual(
+      [],
+    );
   });
 
   it('EVM-084 AC2 (P4): a key in the state, FullAccess / BucketsWrite / AllProducts or a project-wide scope is refused', () => {
@@ -536,8 +580,11 @@ describe('Object Storage of staging (EVM-084 AC2; ADR-0009, ADR-0011; SR-INFRA-0
   });
 
   it('EVM-084 AC2: the register rejects a PutObject without If-None-Match (no overwrite)', () => {
-    expect(bucketProblems(swap('Null = { "s3:if-none-match" = "true" }', 'Null = { "s3:if-none-match" = "false" }'))).not.toEqual([]);
-    expect(bucketProblems(swap('Sid       = "DenyOverwriteByRegisterWriter"', 'Sid       = "Skipped"'))).not.toEqual([]);
+    expect(
+      bucketProblems(swap(/(Sid\s*=\s*"AllowRegisterWriterConditionalPut"[\s\S]*?"s3:if-none-match"\s*=\s*)"false"/, '$1"true"')),
+    ).not.toEqual([]);
+    expect(bucketProblems(swap('Sid       = "AllowRegisterWriterConditionalPut"', 'Sid       = "Skipped"'))).not.toEqual([]);
+    expect(bucketProblems(swap('} if app != "register_writer"]', '}]'))).not.toEqual([]);
   });
 
   it('EVM-084 AC2: CORS — one https origin from a validated variable, PUT, ExposeHeaders ETag, explicit headers, MaxAge ≤ 3600', () => {
@@ -557,7 +604,15 @@ describe('Object Storage of staging (EVM-084 AC2; ADR-0009, ADR-0011; SR-INFRA-0
         swap('"${scaleway_object_bucket.db_backup.name}/${local.restore_results_prefix}*"', '"${scaleway_object_bucket.db_backup.name}/*"'),
       ),
     ).not.toEqual([]);
-    expect(bucketProblems(swap('/pgbackrest/*', '/other/*'))).not.toEqual([]);
+    // no Allow may reach the repository of pgBackRest (the former Deny is implicit)
+    expect(
+      bucketProblems(
+        swap(
+          '"${scaleway_object_bucket.db_backup.name}/${local.restore_results_prefix}*"',
+          '"${scaleway_object_bucket.db_backup.name}/pgbackrest/*"',
+        ),
+      ),
+    ).not.toEqual([]);
     expect(bucketProblems(swap('restore_results_prefix  = "restore-results/"', 'restore_results_prefix  = "x/"'))).not.toEqual([]);
   });
 

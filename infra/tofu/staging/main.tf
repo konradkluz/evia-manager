@@ -52,15 +52,19 @@ terraform {
 provider "hcloud" {}
 
 provider "scaleway" {
-  region     = "fr-par"
-  project_id = var.scaleway_project_id
+  region          = "fr-par"
+  project_id      = var.scaleway_project_id
+  organization_id = var.scaleway_organization_id
 }
 
-# Object Storage in pl-waw (ADR-0009, ADR-0011); the default provider (fr-par) stays for TEM.
+# Object Storage in pl-waw (ADR-0009, ADR-0011); the default provider (fr-par) stays for TEM. IAM applications and
+# policies (module object_storage) are organization resources: the API key of an application carries no default
+# organization, so it is given explicitly (EVM-084, IaC session 2026-11-13).
 provider "scaleway" {
-  alias      = "waw"
-  region     = "pl-waw"
-  project_id = var.scaleway_project_id
+  alias           = "waw"
+  region          = "pl-waw"
+  project_id      = var.scaleway_project_id
+  organization_id = var.scaleway_organization_id
 }
 
 locals {

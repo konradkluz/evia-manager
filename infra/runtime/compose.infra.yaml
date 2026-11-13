@@ -70,66 +70,50 @@ services:
       timeout: 5s
       retries: 10
 
+  # clamd and freshclam run as the dedicated uid:gid 10006:10006 (not the clamav user 1000 of the image: on the host uid 1000 is the administrator, who has sudo; the pool 100xx is the one of the services) and WITHOUT the image entrypoint /init (EVM-084, Tech Lead decision 2026-11-13). /init runs as root and needs
+  # CAP_CHOWN (chown -R of the signature volume) and a writable /etc/clamav (sed -i from CLAMD_CONF_*), which cap_drop ALL and read_only do not allow: with the previous
+  # form (root + /init) the containers never started (clamd never ran before 2026-11-13). The configuration is a read-only file of the repository (clamav/*.conf,
+  # installed in /etc/evia/runtime/clamav by the IaC session); the posture stays: no capabilities, read-only root file system, no-new-privileges.
   clamd:
     image: clamav/clamav-debian:1.5.4@sha256:76a9c3b63764b78178dc68fa7efcceca0cde2c8c9d4f925a8e697cb4511f8fdc
     restart: unless-stopped
+    user: '10006:10006'
     read_only: true
     cap_drop: [ALL]
     security_opt: ['no-new-privileges:true']
     networks: [evia-scan]
     # EVM-085 AC2 (CAX11 variant A): a lack of memory kills clamd before the database; the scan then fails closed and is retried (restart: unless-stopped).
     oom_score_adj: 300
+    entrypoint: ['clamd']
+    command: ['--foreground', '--config-file=/etc/evia-clamav/clamd.conf']
     environment:
-      CLAMAV_NO_FRESHCLAMD: 'true'
-      # EVM-085 AC2 (CAX11 variant A; ADR-0009 "przeładowanie nierównoległe"): without it clamd keeps BOTH databases in memory while it reloads the signatures (about 1.3 GB
-      # twice on a VM of 4 GB). With it the scan waits for the reload (tens of seconds, the worker retries a scan after 2 minutes; nothing becomes `clean` without a scan).
-      CLAMD_CONF_ConcurrentDatabaseReload: 'no'
-      CLAMAV_NO_MILTERD: 'true'
-      # EVM-049 AC7: the date in the reply to VERSION is in the local time of the container; the monitor of the signatures reads it as UTC.
+      # the date in the reply to VERSION is in the local time of the container; the monitor of the signatures (EVM-049 AC7) reads it as UTC.
       TZ: UTC
-      # RR-44: limits above the largest scanned file and AlertExceedsMax, so a file over the limit is an error and never `clean` without a scan.
-      # EVM-046 (P5): the largest scanned file is 2 000 000 000 B (SCAN_LIMIT_BYTES of the API; a film above it is left out of the scan by the API, never by clamd).
-      # 2000M (2 097 152 000 B) is above that and below the ~2^31 B at which clamd stops scanning streams.
-      CLAMD_CONF_StreamMaxLength: 2000M
-      CLAMD_CONF_MaxFileSize: 2000M
-      CLAMD_CONF_MaxScanSize: 2000M
-      CLAMD_CONF_AlertExceedsMax: 'yes'
-      # EVM-047 (P5 point 2, SR-FILE-04): the second line of defence for documents (DOCX/XLSX are the first OOXML uploads): macros in OLE2 containers are alerts, the nesting
-      # and the number of files of an archive are bounded (zip bombs), an encrypted ARCHIVE is an alert (it cannot be scanned), an encrypted office document is left to
-      # the type check of the API (an OLE container is never accepted as DOCX/XLSX).
-      CLAMD_CONF_AlertOLE2Macros: 'yes'
-      CLAMD_CONF_MaxRecursion: '16'
-      CLAMD_CONF_MaxFiles: '10000'
-      CLAMD_CONF_AlertEncryptedArchive: 'yes'
-      CLAMD_CONF_AlertEncryptedDoc: 'no'
-      # clamd keeps a stream it scans in TemporaryDirectory: a DISK volume (a tmpfs inside the 2 GB memory limit would not hold a film of 2 GB); a full or missing
-      # directory is an error of the scan (the file stays `scanning` and is retried), never a `clean`. The timeouts allow a slow upload of 2 GB (the client of the
-      # API waits for the verdict in proportion to the size).
-      CLAMD_CONF_TemporaryDirectory: /scan-tmp
-      CLAMD_CONF_ReadTimeout: '300'
-      CLAMD_CONF_CommandReadTimeout: '30'
-      # P5: no statistics and no samples leave the system - no option that reports detections is set (clamd has no egress to report to).
+    # the health check is that of the image (clamdcheck.sh: PING on 127.0.0.1:3310, no root needed)
     tmpfs:
       - /tmp:size=256m,noexec,nosuid,nodev
-      - /run/clamav:size=8m,nosuid,nodev
     volumes:
+      - /etc/evia/runtime/clamav:/etc/evia-clamav:ro
       - clamav-signatures:/var/lib/clamav:ro
       - clamav-scan-tmp:/scan-tmp
 
   freshclam:
     image: clamav/clamav-debian:1.5.4@sha256:76a9c3b63764b78178dc68fa7efcceca0cde2c8c9d4f925a8e697cb4511f8fdc
     restart: unless-stopped
+    user: '10006:10006'
     read_only: true
     cap_drop: [ALL]
     security_opt: ['no-new-privileges:true']
     networks: [evia-updates]
+    entrypoint: ['freshclam']
+    command: ['--daemon', '--foreground', '--config-file=/etc/evia-clamav/freshclam.conf']
     environment:
+      # freshclam is not clamd: the health check of the image (PING) is switched off, as the image does for this role
       CLAMAV_NO_CLAMD: 'true'
-      CLAMAV_NO_MILTERD: 'true'
     tmpfs:
       - /tmp:size=64m,noexec,nosuid,nodev
-      - /run/clamav:size=8m,nosuid,nodev
     volumes:
+      - /etc/evia/runtime/clamav:/etc/evia-clamav:ro
       - clamav-signatures:/var/lib/clamav
 
 networks:

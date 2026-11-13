@@ -66,7 +66,7 @@ variable "work_volume_size" {
 }
 
 variable "clamav_uid_gid" {
-  description = "uid:gid of the user of clamd in the pinned clamav/clamav-debian image (EVM-084 L8): the owner of the scratch space /var/lib/evia/clamav-scan (mode 0700). Read in the IaC session; no default."
+  description = "uid:gid the clamd and freshclam containers run as (EVM-084 L8): the dedicated service user 10006:10006 of compose.infra.yaml (never 1000, the administrator of the VM), the owner of the scratch space /var/lib/evia/clamav-scan (mode 0700). No default."
   type        = string
   validation {
     condition     = can(regex("^[1-9][0-9]{0,5}:[1-9][0-9]{0,5}$", var.clamav_uid_gid))

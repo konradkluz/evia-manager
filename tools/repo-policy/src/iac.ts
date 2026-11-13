@@ -320,8 +320,9 @@ export function iacComposeProblems(document: unknown, raw: string): string[] {
 /**
  * Object Storage (EVM-084 AC2; ADR-0009, ADR-0011; SR-INFRA-02/03/07, SR-PRIV-04; security-engineer P1-P4, architect 1-5).
  * The policies as data: which application key may do what in which bucket. `bucketProblems` compares the HCL text of
- * modules/object-storage with them; the Deny statements (privileged actions, other applications, overwrite of the register)
- * are required by name.
+ * modules/object-storage with them. Scaleway bucket policies (2023-04-17) deny whatever is not explicitly allowed, accept no NotAction
+ * and at most 10 statements, so a policy holds Allow statements only: the privileged actions, other applications and areas are
+ * denied implicitly (bucket-verify.sh proves it against the real API).
  */
 export const BUCKET_POLICIES: Readonly<Record<string, Readonly<Record<string, readonly string[]>>>> = Object.freeze({
   media_allow: {
@@ -369,7 +370,7 @@ export const BUCKET_POLICIES: Readonly<Record<string, Readonly<Record<string, re
     restore_reader: ['s3:GetObject', 's3:GetObjectVersion', 's3:ListBucket', 's3:ListBucketVersions'],
   },
 });
-/** Never allowed to a key that runs on the VM; the policies Deny exactly these for every application. */
+/** Never allowed to a key that runs on the VM: no Allow list may hold one of them (denied implicitly; bucket-verify.sh checks it). */
 export const PRIVILEGED_ACTIONS = Object.freeze([
   's3:PutBucket*',
   's3:DeleteBucket*',
@@ -416,6 +417,31 @@ function hclList(content: string, name: string): string[] {
 const isPrivileged = (action: string): boolean =>
   PRIVILEGED_ACTIONS.some((item) => (item.endsWith('*') ? action.startsWith(item.slice(0, -1)) : item === action));
 
+/** The most statements Scaleway accepts in a bucket policy (`Bucket Policy can have up to 10 statements`). */
+export const MAX_POLICY_STATEMENTS = 10;
+
+/**
+ * The shape the Scaleway API accepts (found in the IaC session of EVM-084): no NotAction/NotPrincipal, an Action in every statement,
+ * at most 10 statements after the `for` expressions over `local.<bucket>_allow` are expanded, and no Deny (useless in 2023-04-17).
+ */
+export function policyShapeProblems(file: string, name: string, policy: string): string[] {
+  const problems: string[] = [];
+  const text = policy.replace(/^\s*#.*$/gm, '');
+  if (/\bNot(?:Action|Principal|Resource)\s*=/.test(text))
+    problems.push(`${file}: ${name}: NotAction/NotPrincipal/NotResource (Scaleway: Missing required field Action)`);
+  if (/Effect\s*=\s*"Deny"/.test(text))
+    problems.push(`${file}: ${name}: Deny (wersja 2023-04-17: odmowa domyślna, Deny jest bezużyteczny)`);
+  const segments = text.split(/\bSid\s*=/).slice(1);
+  if (segments.length === 0) problems.push(`${file}: ${name}: brak instrukcji`);
+  for (const segment of segments) if (!/\bAction\s*=/.test(segment)) problems.push(`${file}: ${name}: instrukcja bez pola Action`);
+  const loops = [...text.matchAll(/for app, actions in local\.(\w+)/g)];
+  const expanded = loops.reduce((sum, loop) => sum + Object.keys(BUCKET_POLICIES[loop[1] ?? ''] ?? {}).length, 0);
+  const filtered = (text.match(/\}\s*if app != "/g) ?? []).length;
+  const count = segments.length - loops.length + expanded - filtered;
+  if (count > MAX_POLICY_STATEMENTS) problems.push(`${file}: ${name}: ${count} instrukcji (limit Scaleway ${MAX_POLICY_STATEMENTS})`);
+  return problems;
+}
+
 /** The buckets, lifecycle, lock, encryption, CORS and policies in modules/object-storage/main.tf. */
 export function bucketProblems(raw: string): string[] {
   const file = 'modules/object-storage';
@@ -440,11 +466,14 @@ export function bucketProblems(raw: string): string[] {
   // the permission matrix as data
   for (const [name, expected] of Object.entries(BUCKET_POLICIES))
     need(JSON.stringify(hclListMap(content, name)) === JSON.stringify(expected), `${name} różni się od BUCKET_POLICIES`);
-  const privileged = hclList(content, 'privileged_actions');
-  for (const action of PRIVILEGED_ACTIONS) need(privileged.includes(action), `Deny dla aplikacji bez ${action}`);
   for (const [name, map] of Object.entries(BUCKET_POLICIES))
     for (const [app, actions] of Object.entries(map))
       for (const action of actions.filter(isPrivileged)) problems.push(`${file}: ${name}.${app} ma uprawnienie administracyjne ${action}`);
+  // the Deny of the privileged actions is gone (implicit deny): it is safe only while no list holds a wildcard that could cover one
+  for (const [name, map] of Object.entries(BUCKET_POLICIES))
+    for (const [app, actions] of Object.entries(map))
+      for (const action of actions.filter((item) => item.includes('*')))
+        problems.push(`${file}: ${name}.${app} ma znak wieloznaczny ${action} (odmowa domyślna uprawnień administracyjnych)`);
 
   // IAM: no key in the state, no broad permission set, the staging project only
   need(!/resource\s+"scaleway_iam_api_key"/.test(content), 'klucze API tworzone ręcznie w sesji IaC, nie w stanie (TM-64)');
@@ -470,11 +499,7 @@ export function bucketProblems(raw: string): string[] {
       /Sid\s*=\s*"AllowIac"[\s\S]*?Principal\s*=\s*\{\s*SCW\s*=\s*local\.iac_principal/.test(policy),
       `${name}: jawne zezwolenie dla aplikacji IaC`,
     );
-    need(
-      /Sid\s*=\s*"DenyPrivilegedForApplications"[\s\S]*?Action\s*=\s*local\.privileged_actions/.test(policy),
-      `${name}: Deny uprawnień administracyjnych`,
-    );
-    need(/Sid\s*=\s*"DenyOtherApplications"/.test(policy), `${name}: Deny dla pozostałych aplikacji`);
+    problems.push(...policyShapeProblems(file, name, policy));
     need(!/SCW\s*=\s*"\*"|Principal\s*=\s*"\*"|AWS\s*=\s*"\*"/.test(policy), `${name}: Principal "*"`);
   }
 
@@ -520,20 +545,12 @@ export function bucketProblems(raw: string): string[] {
     'media_worker: PutObject wyłącznie na media/*/thumbnail.webp, media/*/preview.webp i media/*/preview.mp4 (EVM-046)',
   );
   need(
-    /Sid\s*=\s*"DenyWorkerOverwrite"[\s\S]*?Action\s*=\s*\["s3:PutObject"\][\s\S]*?Null\s*=\s*\{\s*"s3:if-none-match"\s*=\s*"true"/.test(
-      mediaPolicy,
-    ),
-    'media_worker: PutObject tylko z If-None-Match (bez nadpisywania)',
+    /Sid\s*=\s*"AllowWorkerDerivatives"[\s\S]*?Condition\s*=\s*\{\s*Null\s*=\s*\{\s*"s3:if-none-match"\s*=\s*"false"/.test(mediaPolicy),
+    'media_worker: PutObject tylko z If-None-Match (Allow z warunkiem Null = "false", bez nadpisywania)',
   );
   need(
-    /Sid\s*=\s*"DenyWorkerOriginals"[\s\S]*?Action\s*=\s*\["s3:PutObject"\][\s\S]*?Resource\s*=\s*\["\$\{scaleway_object_bucket\.media\.name\}\/media\/\*\/original"\]/.test(
-      mediaPolicy,
-    ),
-    'media_worker: Deny PutObject na oryginałach media/*/original',
-  );
-  need(
-    /NotAction\s*=\s*app == "media_worker" \? concat\(actions, \["s3:PutObject"\]\) : actions/.test(mediaPolicy),
-    'media_worker: PutObject poza ogólnym Deny wyłącznie przez trzy instrukcje powyżej',
+    !/\/original\b/.test(mediaPolicy) && !/DenyWorker/.test(mediaPolicy),
+    'media_worker: oryginały media/*/original poza jakimkolwiek Allow (odmowa domyślna)',
   );
   need(
     /media_worker\s*=\s*\[[^\]]*"ObjectStorageObjectsWrite"/.test(apps),
@@ -557,12 +574,13 @@ export function bucketProblems(raw: string): string[] {
   // a multipart upload sends its parts without If-None-Match: a condition on s3:if-none-match would refuse the builder of the archive
   need(!/s3:if-none-match/.test(policyOf('exports')), 'exports: bez warunku s3:if-none-match (UploadPart go nie wysyła)');
 
-  // the register accepts only a conditional PutObject (no overwrite)
+  // the register accepts only a conditional PutObject (no overwrite): the writer has no unconditional Allow
+  const registerPolicy = policyOf('register');
   need(
-    /Sid\s*=\s*"DenyOverwriteByRegisterWriter"[\s\S]*?Action\s*=\s*\["s3:PutObject"\][\s\S]*?Null\s*=\s*\{\s*"s3:if-none-match"\s*=\s*"true"/.test(
-      policyOf('register'),
-    ),
-    'register: PutObject tylko z If-None-Match',
+    /Sid\s*=\s*"AllowRegisterWriterConditionalPut"[\s\S]*?Action\s*=\s*local\.register_allow\["register_writer"\][\s\S]*?Condition\s*=\s*\{\s*Null\s*=\s*\{\s*"s3:if-none-match"\s*=\s*"false"/.test(
+      registerPolicy,
+    ) && /if app != "register_writer"/.test(registerPolicy),
+    'register: PutObject tylko z If-None-Match (Allow z warunkiem; brak bezwarunkowego Allow dla zapisującego)',
   );
 
   // the restore-test result: its own application, its own prefix, no reach into the repository
@@ -572,10 +590,7 @@ export function bucketProblems(raw: string): string[] {
     /Sid\s*=\s*"AllowRestoreResults"[\s\S]*?Resource\s*=\s*\["\$\{[^}]*\}\/\$\{local\.restore_results_prefix\}\*"\]/.test(dbPolicy),
     'orkiestrator: Put/Get tylko na prefiksie wyników',
   );
-  need(
-    /Sid\s*=\s*"DenyOrchestratorOutsideResults"[\s\S]*?\/pgbackrest\/\*/.test(dbPolicy),
-    'orkiestrator: Deny na repozytorium pgbackrest/',
-  );
+  need(!/pgbackrest/.test(dbPolicy), 'orkiestrator: żaden Allow nie obejmuje repozytorium pgbackrest/ (odmowa domyślna)');
   return problems;
 }
 
@@ -674,7 +689,7 @@ export const MATRIX_OPERATIONS: Readonly<Record<string, string>> = Object.freeze
 });
 const ORCHESTRATOR_RESULTS_ACTIONS = Object.freeze(['s3:PutObject', 's3:GetObject']);
 
-/** Does `key` get through on `operation` in `bucket` at `area` (the policies: Allow list, Deny outside it, Deny for the others)? */
+/** Does `key` get through on `operation` in `bucket` at `area` (the policies: an Allow list per key, everything else denied implicitly)? */
 export function matrixAllows(key: string, bucket: string, area: string, operation: string): boolean {
   const action = MATRIX_OPERATIONS[operation] ?? '';
   if (key === 'restore_orchestrator') return bucket === 'db_backup' && area === 'results' && ORCHESTRATOR_RESULTS_ACTIONS.includes(action);

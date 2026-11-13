@@ -12,6 +12,15 @@ variable "scaleway_project_id" {
   type        = string
 }
 
+variable "scaleway_organization_id" {
+  description = "Scaleway organization of the project evia-staging (IAM applications and policies are organization resources)."
+  type        = string
+  validation {
+    condition     = can(regex("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", var.scaleway_organization_id))
+    error_message = "scaleway_organization_id must be the UUID of the Scaleway organization."
+  }
+}
+
 variable "server_type" {
   description = "Hetzner server type of the staging VM, Arm64 only (Q1, 2026-10-21: cax11 recommended — 2 vCPU, 4 GB; cax21 — 4 vCPU, 8 GB, if ClamAV, PostgreSQL and the API do not fit in 4 GB)."
   type        = string
@@ -22,7 +31,7 @@ variable "server_type" {
 }
 
 variable "clamav_uid_gid" {
-  description = "uid:gid of the user of clamd in the pinned clamav/clamav-debian image (EVM-084 L8; read in the IaC session, see docs/ops/runbooks/media-processor.md)."
+  description = "uid:gid the clamd and freshclam containers run as: 10006:10006, as in compose.infra.yaml (EVM-084 L8; see docs/ops/runbooks/media-processor.md)."
   type        = string
 }
 

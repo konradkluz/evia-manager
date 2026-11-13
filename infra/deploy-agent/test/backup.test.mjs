@@ -193,6 +193,8 @@ async function startS3(/** @type {string} */ broken = '') {
     SCWRREADER001: 'restore_reader',
     SCWORCH000001: 'restore_orchestrator',
   };
+  /** @type {Set<string>} */
+  const publicObjects = new Set();
   const decisions = new Map(MATRIX_ROWS.map((row) => [row.slice(0, 4).join('|'), row[4]]));
   const server = createServer((request, response) => {
     request.resume();
@@ -203,14 +205,32 @@ async function startS3(/** @type {string} */ broken = '') {
       const who = /** @type {Record<string, string>} */ (keyIds)[credential] ?? 'anonymous';
       seen.push(`${method} ${url.pathname}${url.search} ${who}`);
       const admin =
-        ['policy', 'versioning', 'lifecycle', 'retention'].some((name) => url.searchParams.has(name)) || url.searchParams.has('versionId');
+        ['policy', 'versioning', 'lifecycle', 'retention', 'acl', 'cors', 'object-lock', 'legal-hold'].some((name) =>
+          url.searchParams.has(name),
+        ) || url.searchParams.has('versionId');
       const reply = (/** @type {number} */ code, /** @type {Record<string, string>} */ headers = {}) => {
         response.writeHead(code, headers);
         response.end();
       };
-      if (who === 'anonymous') return reply(broken === 'anonymous-open' ? 200 : 403);
+      if (who === 'anonymous') return reply(broken === 'anonymous-open' || publicObjects.has(url.pathname) ? 200 : 403);
       if (admin) return reply(broken === 'admin-allowed' && who === 'media_app' ? 200 : 403);
       const [, bucketName = '', ...rest] = url.pathname.split('/');
+      if (method === 'DELETE' && rest.join('/') === '') return reply(broken === 'bucket-delete' && who === 'media_app' ? 204 : 403);
+      if (request.headers['x-amz-acl'] === 'public-read' && !broken.startsWith('public-acl')) return reply(403);
+      const ifNoneMatch = request.headers['if-none-match'];
+      if (who === 'register_writer' && method === 'PUT' && ifNoneMatch !== undefined && ifNoneMatch !== '*')
+        return reply(broken === 'etag-accepted' ? 200 : 403);
+      // the worker key: thumbnail.webp add-only under media/<id>/ (the policy resource media/*/thumbnail.webp), never `original`
+      if (who === 'media_worker' && bucketName === 'evia-staging-media' && method === 'PUT') {
+        const key = rest.join('/');
+        tuples.add(['media_worker', 'media', 'any', 'put'].join('|'));
+        const thumbnail = /^media\/[^/]+\/thumbnail\.webp$/.test(key);
+        if (!(thumbnail || (broken === 'worker-original' && /^media\/[^/]+\/original$/.test(key))) || ifNoneMatch !== '*')
+          return reply(403);
+        if (existing.has(url.pathname)) return reply(412);
+        existing.add(url.pathname);
+        return reply(200);
+      }
       const bucket = /** @type {Record<string, string>} */ (BUCKET_LOGICAL)[bucketName] ?? 'unknown';
       const objectKey = rest.join('/');
       const isList = objectKey === '';
@@ -229,9 +249,11 @@ async function startS3(/** @type {string} */ broken = '') {
         if (existing.has(url.pathname)) return reply(412);
       }
       if (operation === 'put') existing.add(url.pathname);
+      if (operation === 'put' && request.headers['x-amz-acl'] === 'public-read' && broken === 'public-acl-readable')
+        publicObjects.add(url.pathname);
       if (method === 'HEAD') return reply(200, broken === 'no-sse' ? {} : { 'x-amz-server-side-encryption': 'AES256' });
       if (operation === 'get') return reply(existing.has(url.pathname) ? 200 : 404);
-      return reply(operation === 'delete' ? 204 : 200);
+      return reply(operation === 'delete' ? 204 : 200, operation === 'put' ? { 'x-amz-version-id': `v${existing.size}abc` } : {});
     });
   });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(undefined)));
@@ -310,6 +332,13 @@ describe('EVM-084 AC2: bucket-verify.sh', () => {
       'backup_writer key: DeleteObjectVersion in db_backup is AccessDenied',
       'restore_orchestrator key: PutBucketPolicy in media is AccessDenied',
       'the media object is encrypted (SSE-ONE)',
+      'media_app key: PutBucketAcl in db_backup is AccessDenied',
+      'backup_writer key: PutObjectLockConfiguration in exports is AccessDenied',
+      'restore_reader key: DeleteBucket register is AccessDenied',
+      'register: PUT with If-None-Match of an ETag is not accepted (403)',
+      'media_worker: the second thumbnail.webp with If-None-Match is refused',
+      'media_worker: original with If-None-Match is AccessDenied',
+      'public ACL: backup_writer key in db_backup is AccessDenied',
     ])
       assert.ok(run.stdout.includes(line), line);
     // every row of the matrix was asked, with the key and the expectation of the file
@@ -322,6 +351,23 @@ describe('EVM-084 AC2: bucket-verify.sh', () => {
     assert.ok(s3.seen.every((entry) => !/SYNTHETIC/.test(entry)));
   });
 
+  it('EVM-084 AC2: BUCKET_VERIFY_ONLY=admin runs only the admin probes; version ids are real, object-lock bodies are valid and equal to the bucket', async () => {
+    s3 = await startS3();
+    const run = await exec('bucket-verify.sh', [], { ...env(), BUCKET_VERIFY_ONLY: 'admin' });
+    assert.equal(run.status, 0, run.stdout + run.stderr);
+    assert.doesNotMatch(run.stdout, /FAIL|matrix:|anonymous list/);
+    assert.match(run.stdout, /ok: media_app key: DeleteObjectVersion in media is AccessDenied/);
+    assert.match(run.stdout, /ok: media_app key: PutObjectLockConfiguration in media is AccessDenied/);
+    assert.match(run.stdout, /inconclusive|ok: media_app key: PutObjectLockConfiguration in exports/);
+    assert.ok(s3.seen.some((entry) => /^DELETE \/evia-staging-media\/verify-probes\/[^ ?]+\?versionId=v\d+abc media_app$/.test(entry)));
+    assert.ok(
+      s3.seen.some((entry) => /^DELETE \/evia-staging-db-backup\/pgbackrest\/[^ ?]+\?versionId=v\d+abc backup_writer$/.test(entry)),
+    );
+    assert.ok(!s3.seen.some((entry) => entry.includes('versionId=verify')));
+    assert.ok(!s3.seen.some((entry) => entry.includes('anonymous-probe')));
+    assert.equal((await exec('bucket-verify.sh', [], { ...env(), BUCKET_VERIFY_ONLY: 'bad' })).status, 1);
+  });
+
   it('EVM-084 AC2: every defect is a FAIL line and exit code 1 (public bucket, overwrite or read by the register key, administrative action, no SSE, a key that reaches another bucket, the orchestrator in the repository, a reader that writes)', async () => {
     for (const [defect, expected] of [
       ['anonymous-open', 'anonymous'],
@@ -332,6 +378,10 @@ describe('EVM-084 AC2: bucket-verify.sh', () => {
       ['cross-bucket', 'matrix: media_app × db_backup'],
       ['orchestrator-wide', 'matrix: restore_orchestrator × db_backup \\(area repo\\)'],
       ['reader-writes', 'matrix: restore_reader × '],
+      ['bucket-delete', 'DeleteBucket media'],
+      ['worker-original', 'media_worker: original'],
+      ['etag-accepted', 'PUT with If-None-Match of an ETag'],
+      ['public-acl-readable', 'BLOCKER: public ACL'],
     ]) {
       await s3?.close();
       s3 = await startS3(defect);
