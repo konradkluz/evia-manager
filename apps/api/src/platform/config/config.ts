@@ -12,8 +12,7 @@ import { z } from 'zod';
 import { parseFieldEncryptionKeys, type FieldKey } from '../crypto/field-encryption.ts';
 import { resolveDeletionRegisterSettings, type DeletionRegisterSettings } from '../deletion-register/deletion-register-settings.ts';
 import { parseEmailAddress, type EmailAddress } from '../email/email-address.ts';
-import { parseRecipientMode, type RecipientMode } from '../email/guarded-email-sender.ts';
-import { TEM_SENDER_DOMAIN } from '../email/tem-email-sender.ts';
+import { TEM_SENDER_DOMAIN, parseRecipientMode, type RecipientMode } from '../email/email-settings.ts';
 import { loadMediaConfig, type MediaConfig } from './media-config.ts';
 
 export const LOG_LEVELS = ['fatal', 'error', 'warn', 'info', 'debug', 'trace'] as const;

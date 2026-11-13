@@ -30,8 +30,6 @@ import { GuardedEmailSender, type GuardObserver, type RecipientPolicy } from './
 export const TEM_ENDPOINT = 'https://api.scaleway.com/transactional-email/v1alpha1/regions/fr-par/emails';
 export const TEM_TIMEOUT_MS = 5_000;
 export const TEM_MAX_RESPONSE_BYTES = 64 * 1024;
-/** The domain verified in TEM, the ONLY domain of the sender (the configuration compares it exactly, on a label boundary). */
-export const TEM_SENDER_DOMAIN = 'panel.eviacharge.pl';
 /** The display name of the sender: a constant, never from the data. */
 export const TEM_SENDER_NAME = 'EVia Manager';
 

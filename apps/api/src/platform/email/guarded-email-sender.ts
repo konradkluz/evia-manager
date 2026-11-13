@@ -16,6 +16,7 @@ import type { Logger } from '../logging/logger.ts';
 import type { Counter } from '../metrics/metrics.ts';
 import { parseEmailAddress, type EmailAddress, type OutgoingEmail } from './email-address.ts';
 import { EmailPermanentError } from './email-errors.ts';
+import { RECIPIENT_MODES, parseRecipientMode, type RecipientMode } from './email-settings.ts';
 import type { EmailSendContext, EmailSender } from './email-sender.ts';
 
 const RESERVED_DOMAINS: readonly string[] = ['example.com', 'example.net', 'example.org'];
@@ -28,18 +29,12 @@ export function isReservedRecipient(address: string): boolean {
   return RESERVED_TOP_LEVEL.includes(topLevel) || RESERVED_DOMAINS.some((domain) => host === domain || host.endsWith(`.${domain}`));
 }
 
-export const RECIPIENT_MODES = ['lista', 'otwarty'] as const;
-export type RecipientMode = (typeof RECIPIENT_MODES)[number];
-
 /** The closed list of the reasons of an interception (the value of the only label of the counter). */
 export type InterceptReason = 'reserved_domain' | 'not_on_list';
 
 export const INTERCEPTED_METRIC = 'email_intercepted_total';
 
-/** Fail closed: anything but the exact word `otwarty` (a missing, empty or unknown value) is `lista`. */
-export function parseRecipientMode(raw: string | undefined): RecipientMode {
-  return raw?.trim().toLowerCase() === 'otwarty' ? 'otwarty' : 'lista';
-}
+export { RECIPIENT_MODES, parseRecipientMode, type RecipientMode };
 
 export interface RecipientPolicy {
   readonly mode: RecipientMode;
