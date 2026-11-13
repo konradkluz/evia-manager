@@ -393,6 +393,9 @@ describe('publish checkers detect violations (EVM-007 AC2)', () => {
     expect(releaseDockerfileProblems(dir, dockerfile, ignore.replace(/^\*$/m, '!apps'), packageManager)).not.toEqual([]);
     expect(releaseDockerfileProblems(dir, dockerfile, `${ignore}\n!.env\n!docs/a.md\n!tools/scan`, packageManager)).not.toEqual([]);
     expect(releaseDockerfileProblems(dir, dockerfile, ignore, 'pnpm@12.8.1')).not.toEqual([]);
+    // EVM-066 AC6: only the source of the office guide (docs/user) may enter the context; any other docs/ path stays forbidden
+    expect(releaseDockerfileProblems(dir, dockerfile, `${ignore}\n!docs/user`, packageManager)).toEqual([]);
+    expect(releaseDockerfileProblems(dir, dockerfile, `${ignore}\n!docs/user/x\n!docs`, packageManager)).not.toEqual([]);
   });
 
   it('EVM-007 AC2 (staging incident): the web image must not leave file capabilities on the caddy binary it executes (cap_drop: ALL + no-new-privileges → EPERM)', () => {

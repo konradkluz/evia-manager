@@ -12,6 +12,7 @@ import { NewWorkOrderPage } from './pages/new-work-order-page.tsx';
 import { PaymentsPage } from './pages/payments-page.tsx';
 import { ResetPasswordPage } from './pages/reset-password-page.tsx';
 import { ResetRequestPage } from './pages/reset-request-page.tsx';
+import { GuidePage } from './pages/guide-page.tsx';
 import { PrivacyPage } from './pages/privacy-page.tsx';
 import { UsersPage } from './pages/users-page.tsx';
 import { WorkOrderPage } from './pages/work-order-page.tsx';
@@ -22,6 +23,7 @@ import {
   ACTIVATE_PATH,
   ADMINISTRATION_PATH,
   CUSTOMERS_PATH,
+  GUIDE_PATH,
   LOGIN_PATH,
   LOGIN_RESET_PATH,
   LOGIN_SECOND_STEP_PATH,
@@ -46,7 +48,7 @@ import { SessionGate } from './shell/session-gate.tsx';
  */
 function Root() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  if (pathname === PRIVACY_PATH) return <PrivacyGate />;
+  if (pathname === PRIVACY_PATH || pathname === GUIDE_PATH) return <PrivacyGate />;
   return PUBLIC_PATHS.includes(pathname) ? <Outlet /> : <SessionGate />;
 }
 
@@ -98,6 +100,8 @@ const loginRoute = createRoute({
 });
 /** W-19 (EVM-063): static content for every role and for a visitor without a session. */
 const privacyRoute = createRoute({ getParentRoute: () => rootRoute, path: PRIVACY_PATH, component: PrivacyPage });
+/** "Instrukcja dla biura" (EVM-066): the same openness and layout as W-19. */
+const guideRoute = createRoute({ getParentRoute: () => rootRoute, path: GUIDE_PATH, component: GuidePage });
 /** W-12 (EVM-025): the token of the link is in memory (the fragment was removed before the router); W-01 "Zresetuj hasło" asks for a link. */
 const resetPasswordRoute = createRoute({ getParentRoute: () => rootRoute, path: RESET_PASSWORD_PATH, component: ResetPasswordPage });
 const resetRequestRoute = createRoute({ getParentRoute: () => rootRoute, path: LOGIN_RESET_PATH, component: ResetRequestPage });
@@ -120,6 +124,7 @@ const routeTree = rootRoute.addChildren([
   resetPasswordRoute,
   resetRequestRoute,
   privacyRoute,
+  guideRoute,
 ]);
 
 /**

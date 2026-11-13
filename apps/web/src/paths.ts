@@ -26,6 +26,8 @@ export const LOGIN_PATH = '/login';
 /** W-19 (EVM-063): reachable with and without a session; the anchors are `#pomoc` and `#prywatnosc` (flow 15). */
 export const PRIVACY_PATH = '/privacy';
 export const PRIVACY_ANCHORS: readonly string[] = ['pomoc', 'prywatnosc'];
+/** "Instrukcja dla biura" (EVM-066 AC6): static content built from docs/user, open like W-19 with and without a session; linked from W-19 "Pomoc". */
+export const GUIDE_PATH = '/guide';
 /** W-02: reachable only in the tab that did the first step (the `loginToken` is in memory), otherwise back to W-01. */
 export const LOGIN_SECOND_STEP_PATH = '/login/second-step';
 /** W-01 "Zresetuj hasło" (EVM-025): the request for a link; the mails of reset and of the blocked account point here. */

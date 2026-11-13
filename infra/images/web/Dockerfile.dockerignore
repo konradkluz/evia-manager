@@ -1,5 +1,5 @@
 # Allow-list build context of evia-web (EVM-007 AC2; SR-INFRA-05, CWE-538): only the panel, its workspace dependencies
-# and the internal Caddyfile. Never .env*, .scratch/, .git/, coverage/, docs/, tools/, apps/api or tests.
+# and the internal Caddyfile. Never .env*, .scratch/, .git/, coverage/, docs/ (except docs/user — the source of the office guide, EVM-066 AC6), tools/, apps/api or tests.
 *
 !package.json
 !pnpm-lock.yaml
@@ -14,6 +14,7 @@
 !packages/tokens
 !packages/ui-web
 !design/tokens
+!docs/user
 !apps/web/index.html
 !apps/web/src
 !apps/web/public

@@ -311,7 +311,7 @@ export function releaseDockerfileProblems(name: string, dockerfile: string, igno
     .filter((line) => line !== '' && !line.startsWith('#'));
   if (entries[0] !== '*') problems.push(`${name}.dockerignore: pierwszy wpis * (lista dozwolonych)`);
   for (const entry of entries.filter((item) => item.startsWith('!')))
-    if (/(^|\/)(\.env|\.scratch|\.git|coverage|docs|\.claude|tools\/[^*])/.test(entry.slice(1)) || entry === '!.')
+    if (/(^|\/)(\.env|\.scratch|\.git|coverage|docs(?!\/user$)|\.claude|tools\/[^*])/.test(entry.slice(1)) || entry === '!.')
       problems.push(`${name}.dockerignore: niedozwolony wpis ${entry}`);
   return problems;
 }

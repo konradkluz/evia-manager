@@ -141,14 +141,14 @@ describe('W-19 before logging in (EVM-063 AC1, AC5; SR-AUTHZ-05, TM-10)', () => 
 });
 
 describe('content of W-19 (EVM-063 AC2, AC3, AC6)', () => {
-  it('EVM-063 AC3 "Pomoc" comes first, shows no address while none is configured and no link to the instruction (EVM-066)', async () => {
+  it('EVM-063 AC3 "Pomoc" comes first, shows no address while none is configured and the link to the instruction (EVM-066)', async () => {
     await renderPage();
     const headings = screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent);
     expect(headings).toEqual(['Pomoc', 'Prywatność']);
     expect(screen.getByText('Kontakt z administratorem: zapytaj przełożonego.')).toBeTruthy();
     expect(screen.getByRole('region', { name: 'Zgłaszanie utraty sprzętu' }).textContent).toContain('zgłoś to od razu przełożonemu');
     expect(screen.queryByRole('link', { name: /mailto|@/ })).toBeNull();
-    expect(screen.queryByText(/Instrukcja dla biura/)).toBeNull();
+    expect(screen.getByRole('link', { name: 'Instrukcja dla biura' }).getAttribute('href')).toBe('/guide');
     expect(screen.queryByText(/Problem z logowaniem/)).toBeNull();
     // a notice about lost equipment is content, not an error: nothing is announced
     expect(screen.queryByRole('alert')).toBeNull();
