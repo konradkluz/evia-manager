@@ -10,6 +10,7 @@ export type { BottomNavItem } from './BottomNav';
 export { Button } from './Button';
 export type { ButtonProps, ButtonVariant } from './Button';
 export { EmptyState } from './EmptyState';
+export { Icon } from './Icon';
 export type { EmptyStateProps } from './EmptyState';
 export { FilterChip } from './FilterChip';
 export type { FilterChipProps } from './FilterChip';
@@ -32,6 +33,7 @@ export {
   Check,
   CircleAlert,
   CircleCheck,
+  ChevronRight,
   CirclePause,
   CircleQuestionMark,
   CloudAlert,

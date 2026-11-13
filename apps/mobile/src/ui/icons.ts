@@ -33,3 +33,4 @@ export { default as Search } from 'lucide-react-native/icons/search';
 export { default as ThumbsUp } from 'lucide-react-native/icons/thumbs-up';
 export { default as Wrench } from 'lucide-react-native/icons/wrench';
 export { default as X } from 'lucide-react-native/icons/x';
+export { default as ChevronRight } from 'lucide-react-native/icons/chevron-right';

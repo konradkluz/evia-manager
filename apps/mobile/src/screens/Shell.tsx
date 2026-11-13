@@ -6,6 +6,7 @@ import { BottomNav, ClipboardList, Ellipsis, ListChecks } from '../ui';
 import { color } from '../ui/theme';
 import { AddSheet } from './AddSheet';
 import { MoreScreen, useSignOutFlow } from './MoreScreen';
+import { OrderDetailScreen } from './OrderDetailScreen';
 import { OrdersScreen } from './OrdersScreen';
 import { QueueScreen } from './QueueScreen';
 import { UpdateRequiredScreen } from './UpdateRequiredScreen';
@@ -63,7 +64,14 @@ export function Shell() {
   const { state } = useStartup();
   const [tab, setTab] = useState<Tab>('orders');
   const previous = useRef(state.kind);
+  // The order that is open (EVM-104): the id is the only datum of the navigation; it lives in this state only - never stored, never
+  // restored after the process dies (security K6). The list stays mounted under the details (its query and position are kept).
+  const [openOrderId, setOpenOrderId] = useState<string | null>(null);
+  const closeOrder = useCallback(() => {
+    setOpenOrderId(null);
+  }, []);
   const openQueue = useCallback(() => {
+    setOpenOrderId(null);
     setTab('queue');
   }, []);
   const wipe = useWipeFlow();
@@ -75,6 +83,10 @@ export function Shell() {
   // The system "back" from the queue returns to the orders; from the orders it leaves the app (default behaviour).
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (openOrderId !== null) {
+        setOpenOrderId(null);
+        return true;
+      }
       if (tab !== 'orders') {
         setTab('orders');
         return true;
@@ -84,7 +96,7 @@ export function Shell() {
     return () => {
       subscription.remove();
     };
-  }, [tab]);
+  }, [tab, openOrderId]);
 
   // One polite announcement when the server is reachable again after a problem (styleguide § 5.4, no spam).
   useEffect(() => {
@@ -99,6 +111,7 @@ export function Shell() {
   }
   const dialog = wipe.dialog ?? signOut.dialog;
   const covered = dialog !== null || adding;
+  const detailOpen = openOrderId !== null;
   return (
     <View style={{ flex: 1, backgroundColor: color.bg.canvas }}>
       {/* while the dialog is open the content behind it is hidden from the screen reader and cannot be touched */}
@@ -110,12 +123,28 @@ export function Shell() {
       >
         <View style={{ flex: 1 }}>
           {tab === 'orders' ? (
-            <OrdersScreen
-              onOpenQueue={openQueue}
-              onAdd={() => {
-                setAdding(true);
-              }}
-            />
+            <View style={{ flex: 1 }}>
+              {/* the list stays mounted under the details: its query and position are kept; the screen reader and touch skip it */}
+              <View
+                style={{ flex: 1 }}
+                accessibilityElementsHidden={detailOpen}
+                importantForAccessibility={detailOpen ? 'no-hide-descendants' : 'auto'}
+                pointerEvents={detailOpen ? 'none' : 'auto'}
+              >
+                <OrdersScreen
+                  onOpenQueue={openQueue}
+                  onOpen={setOpenOrderId}
+                  onAdd={() => {
+                    setAdding(true);
+                  }}
+                />
+              </View>
+              {openOrderId !== null ? (
+                <View style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}>
+                  <OrderDetailScreen orderId={openOrderId} onBack={closeOrder} onOpenQueue={openQueue} />
+                </View>
+              ) : null}
+            </View>
           ) : tab === 'queue' ? (
             <QueueScreen onOpenQueue={openQueue} />
           ) : (
@@ -131,6 +160,7 @@ export function Shell() {
               icon: ClipboardList,
               selected: tab === 'orders',
               onPress: () => {
+                setOpenOrderId(null);
                 setTab('orders');
               },
               testID: 'nav-orders',
@@ -149,6 +179,7 @@ export function Shell() {
               icon: Ellipsis,
               selected: tab === 'more',
               onPress: () => {
+                setOpenOrderId(null);
                 setTab('more');
               },
               testID: 'nav-more',
