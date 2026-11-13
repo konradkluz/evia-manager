@@ -50,3 +50,4 @@ Jako **właściciel produktu** chcę, **aby wdrażany manifest pochodził z tej 
 
 ## Dziennik
 - 2026-10-27 — utworzono (product-owner) z follow-upu F2 EVM-007
+- 2026-11-13 — triage wg decyzji „jedno środowisko” (product-owner): zostaje (jedyny kanał wdrożeń prowadzi do środowiska z realnymi danymi; ryzyko „Re-run all jobs” realne), ale **AC4 dotyczący zatwierdzenia `approvals/prod.json` wymaga przeglądu** — osobnego kanału prod nie ma; zakres AC4 ustala `solution-architect` w adnotacji do ADR-0018 (Konrad: zatwierdzanie wdrożeń na jedynym środowisku). Kolejność: po EVM-115, w pierwszych tygodniach użycia; priorytet P1 → bez zmian, `depends_on` bez zmian.

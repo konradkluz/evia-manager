@@ -8,6 +8,8 @@
 - **Decydent:** Konrad (akceptacja) · **Autor:** solution-architect (recenzja: devops-engineer, security-engineer)
 - **Powiązane:** EVM-001, EVM-005 (`rodo.md` — podprocesorzy), EVM-006, EVM-007; ADR-0001, ADR-0003, ADR-0005, ADR-0009, ADR-0010, ADR-0012, ADR-0013
 
+> **Adnotacja 2026-11-13 (decyzja Konrada; RR-91, RR-93; EVM-061, EVM-125):** **jedno środowisko** — obecny staging (`staging.eviacharge.pl`, Hetzner CAX11 + Scaleway `pl-waw`) jest od 2026-11-13 środowiskiem produkcyjnym z prawdziwymi danymi; osobnej produkcji nie budujemy, zmiany testujemy lokalnie i w CI. Przemianowanie nazw i domeny — EVM-125. Start bez kopii do posiedzenia B (termin 2026-12-13, RR-91); dane syntetyczne zostają obok realnych (RR-93). Separacja środowisk z tego ADR przestaje obowiązywać.
+
 ## Kontekst i problem
 Decyzje Konrada (2026-10-02): **budżet infrastruktury MVP do ok. 300 zł/mies.** łącznie (hosting, baza, storage mediów ~500 GB, buildy mobilne), **brak preferencji dostawcy**, warunek: **region UE / zgodność z RODO**. Potrzebujemy: środowisk dev/staging/prod, PostgreSQL z PITR (RPO ≤ 15 min, RTO ≤ 8 h), object storage z SSE (ADR-0009), backupów poza głównym miejscem, skanu AV (8 GB RAM), e-maila transakcyjnego i minimalnego narzutu operacyjnego. Wymagania security-engineer: DPA i lista podprocesorów, jawne ryzyko CLOUD Act, szyfrowanie w spoczynku, separacja środowisk, MFA na konsolach, IAM najmniejszych uprawnień, brak publicznej ekspozycji bazy/kolejki/workerów, TLS 1.2+ i HSTS; **koszty muszą zawierać backup poza głównym miejscem, skan AV i MFA/IdP**.
 

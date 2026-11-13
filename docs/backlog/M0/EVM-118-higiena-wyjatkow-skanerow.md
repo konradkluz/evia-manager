@@ -50,3 +50,4 @@ Jako **właściciel produktu** chcę, **aby wyjątki w `.trivyignore.yaml` i `os
 
 ## Dziennik
 - 2026-10-27 — utworzono (product-owner) z zamknięcia EVM-007
+- 2026-11-13 — triage wg decyzji „jedno środowisko” (product-owner): zostaje, P2 (lekka, narzędzia); zrobić razem z EVM-117 (obie dotyczą wyjątków i obrazów); bez zależności od startu użycia; AC bez zmian.

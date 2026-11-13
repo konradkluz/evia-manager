@@ -51,3 +51,4 @@ Jako **właściciel produktu** chcę, **aby produkcja nie wystartowała bez reko
 ## Dziennik
 - 2026-10-27 — utworzono (product-owner) z zamknięcia EVM-007
 - 2026-10-28 — decyzja Konrada (pytania po nocnej kolejce): bez zależności od EVM-061; rekord CAA Let's Encrypt (RR-40) dopiero przed produkcją.
+- 2026-11-13 — triage wg decyzji „jedno środowisko” (product-owner): „produkcja” = jedyne środowisko (obecny staging), więc **warunek startu realnych danych** (EVM-061 AC2; `depends_on` w EVM-061 dodane mimo decyzji z 2026-10-28, bo osobnej produkcji nie ma); „łagodzenie stagingu” (RR-40/41) przestaje obowiązywać — profil `strict` i CAA/`rua` dotyczą tego środowiska; AC1 (DNS w OVH) robić w tej samej sesji co EVM-089 AC3 (jedna wizyta w OVH); AC2–AC3 czytaj bez rozróżnienia staging/prod; AC bez zmian, do akceptacji Konrada

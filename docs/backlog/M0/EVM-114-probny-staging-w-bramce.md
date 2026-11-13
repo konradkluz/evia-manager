@@ -63,3 +63,4 @@ Jako **właściciel produktu** chcę, **aby przed pushem lokalna próba uruchami
 ## Dziennik
 - 2026-10-27 — utworzono (product-owner) z pozycji po zamknięciu EVM-007
 - 2026-10-28 — decyzja Konrada (pytania po nocnej kolejce): dodać filtr ścieżek (zmiany samej dokumentacji nie uruchamiają próbnego stagingu).
+- 2026-11-13 — triage wg decyzji „jedno środowisko” (product-owner): **nie traci znaczenia, zyskuje** — „próbny staging” to lokalna próba stosu w bramce, nie drugie środowisko; skoro nie ma środowiska pośredniego, a każde scalenie wdraża się na środowisko z realnymi danymi, to właśnie ta próba wyłapuje defekty (#94, #97, #100) przed nim. Kolejność: zaraz po starcie użycia, przed kolejnymi zmianami infrastruktury; AC bez zmian.

@@ -57,3 +57,4 @@ Jako **właściciel produktu** chcę **ściślejszych kontroli w `services/deplo
 
 ## Dziennik
 - 2026-10-27 — utworzono (product-owner) z przeglądu security PR #103
+- 2026-11-13 — triage wg decyzji „jedno środowisko” (product-owner): zostaje (kanał wdrożeń środowiska z realnymi danymi); kolejność: po EVM-120 i EVM-114, przed EVM-122 (122 zależy od 115); AC bez zmian.

@@ -51,7 +51,7 @@ Kolumna „Ekrany”: identyfikatory z [`docs/ux/flows/README.md`](../../ux/flow
 | [EVM-067](EVM-067-logowanie-i-sesje.md) | Logowanie hasłem i kluczem dostępu, wygasanie i rotacja sesji | story | P0 | backend-developer | EVM-016 | W-01, W-02; P-11 |
 | [EVM-029](EVM-029-step-up-i-dziennik-audytu.md) | Ponowne uwierzytelnienie (step-up) i dziennik audytu dla Administratora | story | P1 | backend-developer | EVM-015, EVM-067 | W-04, W-18 |
 | [EVM-024](EVM-024-zaproszenie-uzytkownika.md) | Zaproszenie użytkownika i aktywacja konta | story | P1 | backend-developer | EVM-029 | W-16, W-13, W-03, W-04; e-mail (lokalnie, Mailpit) |
-| [EVM-089](EVM-089-email-na-staging.md) | E-mail transakcyjny na staging — Scaleway TEM, lista dozwolonych adresów, SPF / DKIM / DMARC | enabler | P1 | devops-engineer | EVM-007, EVM-024, EVM-076 | demo zaproszenia na staging; decyzje 1, 2, 15 |
+| [EVM-089](EVM-089-email-na-staging.md) | E-mail transakcyjny na jedynym środowisku — Scaleway TEM, strażnik odbiorców, SPF / DKIM / DMARC | enabler | **P0** | devops-engineer | EVM-007, EVM-024 | **następny obowiązkowy element po EVM-124** (2026-11-13); demo zaproszenia biura; decyzje 1, 2 (15 — zmieniona) |
 | [EVM-023](EVM-023-totp-i-kody-odzyskiwania.md) | Kod z aplikacji (TOTP) i kody odzyskiwania | story | P1 | backend-developer | EVM-024 | W-02, W-03, W-04; P-4 |
 | [EVM-025](EVM-025-reset-hasla.md) | Reset zapomnianego hasła | story | P1 | backend-developer | EVM-024 | W-01, W-12, W-02 |
 | [EVM-026](EVM-026-ochrona-przed-zgadywaniem-hasel.md) | Ochrona przed zgadywaniem haseł i powiadomienia o bezpieczeństwie konta | story | P1 | backend-developer | EVM-024 | W-01, W-02 |
@@ -124,13 +124,16 @@ Kolumna „Ekrany”: identyfikatory z [`docs/ux/flows/README.md`](../../ux/flow
 ### E8 Gotowość produkcyjna
 | ID | Tytuł | Typ | Prio | `owner` | `depends_on` | Ekrany / uwagi |
 |---|---|---|---|---|---|---|
-| [EVM-061](EVM-061-srodowisko-produkcyjne.md) | Środowisko produkcyjne, wdrożenie i monitoring | enabler | P1 | devops-engineer | EVM-006, EVM-007, EVM-084, EVM-085 | decyzja 5 (plan GitHub) |
-| [EVM-062](EVM-062-test-odtworzenia-i-rejestr-usuniec.md) | Test odtworzenia kopii produkcji i rejestr usunięć | enabler | P1 | devops-engineer | EVM-040, EVM-061 | SR-INFRA-07, SR-PRIV-04, RR-20 |
+| [EVM-061](EVM-061-srodowisko-produkcyjne.md) | Start realnych danych na jedynym środowisku — warunki startu (**przepisana 2026-11-13**; zamiast osobnej produkcji) | enabler | **P0** | devops-engineer | EVM-007, EVM-089, EVM-064, EVM-121 | draft do akceptacji Konrada; konta/MFA, e-mail, RODO, start bez kopii (RR) |
+| [EVM-062](EVM-062-test-odtworzenia-i-rejestr-usuniec.md) | Test odtworzenia kopii produkcji i rejestr usunięć — **połączona z EVM-084 (2026-11-13)** | enabler | P1 | devops-engineer | — (przeniesione do EVM-084) | nie realizowana osobno |
+| [EVM-125](EVM-125-przemianowanie-staging-na-produkcje.md) | Przemianowanie staging → produkcja (domena, nazwy, słownictwo) | enabler | P3 | devops-engineer | EVM-061, EVM-084 | draft; nie blokuje startu |
 | [EVM-063](EVM-063-prywatnosc-i-pomoc.md) | Prywatność i pomoc w panelu — klauzule informacyjne | story | P1 | web-developer | EVM-067, EVM-071 | W-19, W-01 |
 | [EVM-064](EVM-064-rodo-przed-startem.md) | RODO przed startem — umowy powierzenia, rejestr czynności, ćwiczenie naruszeń i runbooki | enabler | P1 | security-engineer | EVM-061 | SR-PRIV-06, SR-PRIV-07; transfery do USA, DPIA |
 | [EVM-066](EVM-066-instrukcja-dla-biura.md) | Krótka instrukcja dla biura | story | P1 | product-owner | EVM-025, EVM-026, EVM-027, EVM-028, EVM-033, EVM-034, EVM-035, EVM-036, EVM-041, EVM-046, EVM-048, EVM-049, EVM-050, EVM-051, EVM-063, EVM-072 | instrukcja w panelu (odnośnik z W-19); zasady pracy na telefonie; zmiana polityki dokumentów |
 | [EVM-065](EVM-065-pentest-i-sign-off-pilota.md) | Pentest i security sign-off pilota — **połączona z EVM-070 (2026-11-12)** | enabler | P1 | security-engineer | — (zależności przeniesione do EVM-070) | nie realizowana osobno |
-| [EVM-070](EVM-070-security-sign-off-1-0.md) | Security sign-off wydania 1.0 z zawężonym pentestem (uwierzytelnianie/MFA, IDOR, upload) | enabler | P1 | security-engineer | EVM-055, EVM-056, EVM-057, EVM-058, EVM-062, EVM-063, EVM-064, EVM-066 | RR-10 (zakup za zgodą); po E7 |
+| [EVM-070](EVM-070-security-sign-off-1-0.md) | Wewnętrzny przegląd bezpieczeństwa i sign-off wydania 1.0 (**bez pentestu zewnętrznego**, 2026-11-13) | enabler | P1 | security-engineer | EVM-055, EVM-056, EVM-057, EVM-058, EVM-084, EVM-063, EVM-064, EVM-066, EVM-061 | RR-10 (brak niezależnego testu — decyzja Konrada); po starcie realnych danych |
+
+> **Decyzje Konrada 2026-11-13 — jedno środowisko:** obecny staging (`staging.eviacharge.pl`) jest jedynym środowiskiem i od startu obsługuje realne dane (Konrad i biuro); osobnej produkcji nie ma (EVM-061 przepisana na warunki startu; przemianowanie — EVM-125); bez zewnętrznego pentestu (EVM-070 = przegląd wewnętrzny; EVM-065 nadal wycofana); start **bez kopii zapasowych** — kopie i test odtworzenia w EVM-084 (połączona z EVM-062) zaraz po EVM-124, bez bycia warunkiem startu; dane syntetyczne zostają; e-mail (EVM-089) — następny obowiązkowy element; panel web najpierw, M2 równolegle. Opisy „Punkt pilota”, pilot A/B, bramki EVM-065 i wdrożeń prod poniżej — **historyczne**: czytaj jako start realnych danych wg EVM-061 (bez pilota próbnego na osobnym stagingu i bez osobnej produkcji). Historyjki twardnienia kanału (EVM-114–EVM-122) — kolejność w roadmapie.
 
 > **Uproszczenia 2026-11-12:** bez Sentry (EVM-061, EVM-064, EVM-076, EVM-085); EVM-065 połączona z EVM-070 (jeden sign-off, pentest 2–3 dni; bez bramki wdrożeń w trakcie pilota i bez osobnego retestu płatności); EVM-064 AC3 — jedno spotkanie z checklistą. Opisy „Punkt pilota”, decyzji i ryzyk poniżej odnoszące się do EVM-065 (AC4, AC5, AC7) czytaj jako EVM-070 AC8 / bez bramki AC7; realne dane po sign-off EVM-070 (do potwierdzenia przez Konrada). Pozostałe wzmianki o Sentry w historyjkach M1 (EVM-008, 016, 024, 025, 071) — historyczne, do sprzątnięcia przy ich realizacji.
 
@@ -148,8 +151,8 @@ Fazy są sekwencyjne dla historyjek z kodem (jedna naraz — `CLAUDE.md`); prace
 | **2 — konta i bezpieczeństwo dostępu (E1)** | EVM-029 → EVM-024 → EVM-023 → EVM-025 → EVM-026 → EVM-027 → EVM-028; EVM-089 po EVM-007 i EVM-024 (równolegle) | zespół biura ma konta |
 | **3 — prowadzenie zlecenia (E3, E4, E5, E2)** | EVM-072 → EVM-030 → EVM-031 → EVM-032 → EVM-033 → EVM-037 → EVM-038 → EVM-034 → EVM-035 → EVM-036 → EVM-039 → EVM-040 → EVM-041 | → **pilot próbny (A)** |
 | **4 — dokumenty i media (E6)** | EVM-044 → EVM-068 → EVM-045 → EVM-047 → EVM-048 → EVM-049 → EVM-050 → EVM-051 → EVM-046 | zdjęcia, filmy, dokumenty |
-| **5 — gotowość do realnych danych (E8)** | EVM-061 → EVM-062; EVM-063 → EVM-066; EVM-064 (koncepcyjnie od fazy 4); na końcu EVM-065 | → **pilot realny (B)** |
-| **6 — płatności (E7) i wydanie 1.0** | EVM-053 → EVM-054 → EVM-055 → EVM-056 → EVM-057 → EVM-058 → EVM-070 | → **wydanie 1.0**; EVM-053 i EVM-054 na prod w jednym wydaniu ([Punkt pilota](#punkt-pilota)) |
+| **5 — gotowość do realnych danych (E8)** — _stan 2026-11-13: tylko pozycje operacyjne_ | EVM-124 → **EVM-089** → EVM-121 (DNS w jednej sesji z 089) → EVM-064 → **EVM-061** (warunki startu) → **start realnych danych**; potem EVM-084 (z EVM-062), EVM-066 | → **biuro pracuje w systemie** |
+| **6 — płatności (E7) i wydanie 1.0** — _E7 `done`_ | EVM-053 … EVM-058 `done`; zostaje **EVM-070** (przegląd wewnętrzny) | → **wydanie 1.0** po EVM-070 i EVM-084 |
 | **7 — P2 i P3** (po P1, jeśli nie opóźnia 1.0) | EVM-042, EVM-043, EVM-052, EVM-059, EVM-060; EVM-073 (P3) | dodatki; EVM-052 i EVM-060 na prod najwcześniej z sign-off EVM-070 albo po osobnym przeglądzie security ([Punkt pilota](#punkt-pilota)); EVM-073 — dług narzędzia dokumentacji, wymaga Node 26 lokalnie albo w chmurze; **wstrzymany decyzją Konrada 2026-10-05** (EVM-075), wznowienie tylko jego decyzją; planowana historyjka P3 „Porządki walidatora dokumentacji” nie powstaje |
 
 Graf zależności (strzałka: od zależności do historyjki zależnej; M0 — EVM-002, EVM-004, EVM-006, EVM-007, EVM-008, EVM-011, EVM-013):
@@ -900,6 +903,7 @@ Każda pozycja: pytanie, rekomendacja, konsekwencja wyboru, historyjki i termin.
 **15. Adresy e-mail na staging (lista dozwolonych)**
 - Rekomendacja: **wyłącznie aliasy skrzynki Konrada albo firmowej skrzynki testowej**; nigdy adresy klientów; pozostałe e-maile przechwytywane lokalnie.
 - Konsekwencja braku listy: demo zaproszeń i resetu hasła tylko lokalnie (Mailpit).
+- **Zmiana 2026-11-13:** jedno środowisko z realnymi użytkownikami — sama lista adresów blokowałaby biuro; EVM-089 AC2 wprowadza tryb `lista` (jak wyżej) albo `otwarty` (dowolny poprawny adres poza `example.com` / `.test`); wybór trybu — pytanie 2 w EVM-089 (rekomendacja: `otwarty`).
 - Historyjki: EVM-089, pilot A.
 
 ### Przed EVM-044
@@ -967,6 +971,7 @@ Plan wstępny: historyjka EVM-010 → „Plan techniczny” → „Proponowany p
 | EVM-016 zależy od EVM-015 | ekran W-13 dla linku aktywacyjnego |
 | EVM-051 P2 → P1, rozszerzona o trwałe usunięcie pliku i uzgadnianie storage'u (SR-FILE-11) | konsultacja `security-engineer` pkt 6f i 7 |
 | zależności od EVM-038 (zdarzenia dziennika) w E6 i E7; od EVM-040 (rejestr usunięć) w EVM-041, EVM-051, EVM-062; od EVM-024 (e-mail) w EVM-023, EVM-025–EVM-028, EVM-049, EVM-052; od EVM-011 w EVM-044, EVM-068 i EVM-046 | konsultacja `solution-architect` W3, W4 i `security-engineer` pkt 4 |
+| 2026-11-13 (decyzja Konrada — jedno środowisko): EVM-061 przepisana na warunki startu (zamiast osobnej produkcji), EVM-062 połączona z EVM-084, EVM-070 bez zewnętrznego pentestu, EVM-089 → P0 (tryb `lista`/`otwarty`), nowa EVM-125 (przemianowanie staging → produkcja), EVM-064 bez zależności od EVM-061 | start użycia możliwie szybko, minimalny koszt; kopie po EVM-124 |
 | przeglądy EVM-010 (runda 1): EVM-044 zależy od EVM-071 (makieta W-09 w telefonie), EVM-066 zależy od EVM-063 i publikuje instrukcję w panelu (odnośnik z W-19 przeniesiony z EVM-063); nowe AC: EVM-044 AC4, EVM-046 AC8, EVM-052 AC7, EVM-064 AC8, EVM-065 AC7, EVM-066 AC6, EVM-071 AC5; zasada tokenów w linkach; decyzje 18 i 19 | przeglądy `ux-designer` i `security-engineer` |
 | przegląd EVM-010 (runda 1): uczestnik przejść `payments` przeniesiony z EVM-058 do EVM-053 (warunek rozliczenia, skutek anulowania — AC6), blokada anulowania zlecenia z transzą „Wystawiona” — EVM-054 AC6; EVM-058 zostaje z dialogami z podsumowaniem i spójnością UI (`owner` → web-developer); EVM-053 i EVM-054 na prod w jednym wydaniu | przegląd `solution-architect` — w pilocie B faza 6 idzie na prod etapami, a stan „zlecenie zamknięte z nieopłaconą fakturą” byłby osiągalny przed EVM-058 |
 
