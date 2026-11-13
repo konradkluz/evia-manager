@@ -2,9 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AccessibilityInfo, BackHandler, View } from 'react-native';
 import { useStartup } from '../startup';
-import { BottomNav, ClipboardList, Ellipsis, ListChecks } from '../ui';
+import { BottomNav, ClipboardList, Ellipsis, ListChecks, Toast } from '../ui';
 import { color } from '../ui/theme';
 import { AddSheet } from './AddSheet';
+import { EntryFormScreen } from './EntryFormScreen';
+import { EntryTargetPicker } from './EntryTargetPicker';
 import { MoreScreen, useSignOutFlow } from './MoreScreen';
 import { OrderDetailScreen } from './OrderDetailScreen';
 import { OrdersScreen } from './OrdersScreen';
@@ -14,6 +16,9 @@ import { WipeDialog } from './WipeDialogs';
 import { useGuard, useSession } from './session-context';
 
 type Tab = 'orders' | 'queue' | 'more';
+
+/** The entry form (EVM-105): the picker of the order, or the form of one order. The only datum is the id of the order (never the text). */
+type Entry = { readonly stage: 'pick' } | { readonly stage: 'form'; readonly orderId: string };
 
 /** "Wyczyść dane firmowe" (EVM-101 AC4): the number of unsent items is read when the dialog opens; the wipe runs after the confirmation. */
 function useWipeFlow() {
@@ -79,10 +84,35 @@ export function Shell() {
   const session = useSession();
   const guard = useGuard();
   const [adding, setAdding] = useState(false);
+  // The entry form (EVM-105): the text lives in the state of the form only, so closing this state drops it (no draft, nothing stored)
+  const [entry, setEntry] = useState<Entry | null>(null);
+  const [saved, setSaved] = useState(false);
+  const hidden = guard.hidden !== null;
+  const closeEntry = useCallback(() => {
+    setEntry(null);
+  }, []);
+  const dismissSaved = useCallback(() => {
+    setSaved(false);
+  }, []);
+  const entrySaved = useCallback(() => {
+    setEntry(null);
+    setSaved(true);
+    // a fixed text: no content of the entry and no number of the order (security plan, check 1)
+    AccessibilityInfo.announceForAccessibility(t('entryForm.saved'));
+  }, [t]);
+  // the hidden-data mode closes the form and the picker and so drops the typed text (AC4); the render below does not draw them in the
+  // same pass either (fail-closed)
+  useEffect(() => {
+    if (hidden) setEntry(null);
+  }, [hidden]);
 
   // The system "back" from the queue returns to the orders; from the orders it leaves the app (default behaviour).
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (entry !== null) {
+        setEntry(null);
+        return true;
+      }
       if (openOrderId !== null) {
         setOpenOrderId(null);
         return true;
@@ -96,7 +126,7 @@ export function Shell() {
     return () => {
       subscription.remove();
     };
-  }, [tab, openOrderId]);
+  }, [tab, openOrderId, entry]);
 
   // One polite announcement when the server is reachable again after a problem (styleguide § 5.4, no spam).
   useEffect(() => {
@@ -110,7 +140,8 @@ export function Shell() {
     return <UpdateRequiredScreen currentVersion={state.currentVersion} requiredVersion={state.requiredVersion} />;
   }
   const dialog = wipe.dialog ?? signOut.dialog;
-  const covered = dialog !== null || adding;
+  const shownEntry = hidden ? null : entry;
+  const covered = dialog !== null || adding || shownEntry !== null;
   const detailOpen = openOrderId !== null;
   return (
     <View style={{ flex: 1, backgroundColor: color.bg.canvas }}>
@@ -141,7 +172,14 @@ export function Shell() {
               </View>
               {openOrderId !== null ? (
                 <View style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}>
-                  <OrderDetailScreen orderId={openOrderId} onBack={closeOrder} onOpenQueue={openQueue} />
+                  <OrderDetailScreen
+                    orderId={openOrderId}
+                    onBack={closeOrder}
+                    onOpenQueue={openQueue}
+                    onAddEntry={() => {
+                      setEntry({ stage: 'form', orderId: openOrderId });
+                    }}
+                  />
                 </View>
               ) : null}
             </View>
@@ -151,6 +189,12 @@ export function Shell() {
             <MoreScreen onOpenQueue={openQueue} onSignOut={signOut.ask} onWipe={wipe.ask} />
           )}
         </View>
+        {/* the toast sits right above the navigation: a zero-height anchor, the toast grows upwards from it */}
+        {saved ? (
+          <View style={{ height: 0 }} pointerEvents="none">
+            <Toast message={t('entryForm.saved')} onDismiss={dismissSaved} testID="entry-toast" />
+          </View>
+        ) : null}
         <BottomNav
           accessibilityLabel={t('shell.nav.label')}
           items={[
@@ -187,13 +231,27 @@ export function Shell() {
           ]}
         />
       </View>
+      {shownEntry?.stage === 'form' ? (
+        <View style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}>
+          <EntryFormScreen orderId={shownEntry.orderId} onClose={closeEntry} onSaved={entrySaved} />
+        </View>
+      ) : null}
+      {shownEntry?.stage === 'pick' ? (
+        <EntryTargetPicker
+          onPick={(orderId) => {
+            setEntry({ stage: 'form', orderId });
+          }}
+          onCancel={closeEntry}
+        />
+      ) : null}
       {dialog}
       {adding ? (
         <AddSheet
           hidden={guard.hidden !== null}
           onPick={(target) => {
             setAdding(false);
-            session.openAddTarget(target);
+            if (target === 'entry') setEntry({ stage: 'pick' });
+            else session.openAddTarget(target);
           }}
           onClose={() => {
             setAdding(false);

@@ -30,10 +30,21 @@ function DetailHeader({ detail }: { detail: OrderDetail }) {
  * M-03 "Szczegóły zlecenia", the phone version (EVM-104 AC1-AC6): read only, built from the local replica and the queue - never
  * from the server. The only datum in the navigation is the id of the order (held in the state of the shell, never stored).
  * - Hidden-data mode and sign-out: the hook returns `hidden` in the same render and nothing personal is rendered (AC6).
+ * - "Dodaj wpis" (EVM-105) opens the entry form of this order; the shell holds the id only.
  * - Unavailable (outside the scope, deleted; also while the screen is open): the fixed message and "Wróć do listy"; the queue items
  *   of the order stay where they are (AC5).
  */
-export function OrderDetailScreen({ orderId, onBack, onOpenQueue }: { orderId: string; onBack: () => void; onOpenQueue: () => void }) {
+export function OrderDetailScreen({
+  orderId,
+  onBack,
+  onOpenQueue,
+  onAddEntry,
+}: {
+  orderId: string;
+  onBack: () => void;
+  onOpenQueue: () => void;
+  onAddEntry: () => void;
+}) {
   const { t } = useTranslation();
   const session = useSession();
   const { state, retry } = useOrderDetail(orderId);
@@ -81,7 +92,12 @@ export function OrderDetailScreen({ orderId, onBack, onOpenQueue }: { orderId: s
             ListHeaderComponent={
               <View style={{ rowGap: space.stack.sm, paddingBottom: space.stack.sm }}>
                 <DetailHeader detail={state.detail} />
-                <SectionHeading title={t('orderDetail.journal')} testID="order-detail-journal-heading" />
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', columnGap: space.inline.md }}>
+                  <View style={{ flexShrink: 1 }}>
+                    <SectionHeading title={t('orderDetail.journal')} testID="order-detail-journal-heading" />
+                  </View>
+                  <Button label={t('orderDetail.addEntry')} onPress={onAddEntry} testID="order-detail-add-entry" />
+                </View>
               </View>
             }
             ListEmptyComponent={

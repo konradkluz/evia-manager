@@ -17,7 +17,10 @@ jest.mock('../src/storage', () => {
     pendingWipeConfirmation: jest.fn(() => Promise.resolve(null)),
     clearWipeConfirmation: jest.fn(() => Promise.resolve()),
   };
-  return { localData: () => host };
+  return {
+    localData: () => host,
+    randomSource: () => ({ getRandomValues: (bytes: Uint8Array) => crypto.getRandomValues(bytes as Uint8Array<ArrayBuffer>) }),
+  };
 });
 
 const config = { apiBaseUrl: 'https://manager.example.test', platform: 'android', appVersion: '0.4.0', buildVariant: 'release' } as const;
@@ -33,6 +36,17 @@ describe('composition of the session (EVM-100; architect 6)', () => {
     ports.openForgotPassword();
     await Promise.resolve();
     open.mockRestore();
+  });
+
+  it('EVM-105 AC1: every entry gets a new UUIDv7 from the session generator (random bits from the storage CSPRNG, not Math.random)', () => {
+    const random = jest.spyOn(Math, 'random');
+    const ports = createSessionPorts(config);
+    const first = ports.newId();
+    const second = ports.newId();
+    expect(first).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(second).not.toBe(first);
+    expect(random).not.toHaveBeenCalled();
+    random.mockRestore();
   });
 
   it('EVM-100 AC1: without a valid API address the sign-in answers "unavailable" and opens nothing', async () => {

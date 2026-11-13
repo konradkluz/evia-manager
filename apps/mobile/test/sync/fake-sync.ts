@@ -75,8 +75,13 @@ export class FakeSync implements SyncRuntime {
   trigger(): void {
     this.calls.push('trigger');
   }
+  /** What was passed to `enqueue`, in order (EVM-105); `enqueueHook` lets a test hold or fail the call. */
+  readonly enqueued: EnqueueInput[] = [];
+  enqueueHook: ((input: EnqueueInput) => Promise<AttentionResult>) | undefined;
   enqueue(input: EnqueueInput): Promise<AttentionResult> {
     this.calls.push(`enqueue:${input.type}`);
+    this.enqueued.push(input);
+    if (this.enqueueHook !== undefined) return this.enqueueHook(input);
     return Promise.resolve(this.result);
   }
   queueView(withLabels: boolean): Promise<QueueView> {
