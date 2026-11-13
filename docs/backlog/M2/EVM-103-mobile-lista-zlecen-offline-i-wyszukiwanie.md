@@ -4,7 +4,7 @@ title: "Aplikacja: lista zleceń offline i wyszukiwanie"
 type: story
 milestone: M2
 epic: E10 Zlecenia offline
-status: ready
+status: in-progress
 priority: P1
 path: pelna             # dane osobowe na urządzeniu (lista, indeks wyszukiwania), synchronizacja offline, tryb ukrytych danych
 owner: mobile-developer
@@ -80,3 +80,4 @@ Jako **technik** chcę **widzieć listę zleceń i szukać po numerze, kliencie,
 - 2026-11-12 — refinement do DoR: 7 AC (dodano zakres/uprawnienia, szybkość, rozdzielono stany i tryb ukrytych danych), ścieżka `lekka` → `pelna`, reviewers + security-engineer, rozgraniczenie z EVM-101/107/104; status `draft` do akceptacji (product-owner)
 - 2026-11-12 — naniesiono konsultacje: architekt (wyszukiwanie w pamięci, bez FTS i migracji, sortowanie), security (AC2, AC5, AC6), UX (AC2, AC3, dostępność) (product-owner)
 - 2026-11-12 — akceptacja Konrada (DoR): kolejność wg daty utworzenia malejąco, chipy „Wszystkie / Niewysłane (n)” (odstępstwo M2 wpisane w styleguide'zie), bez pluginu IME (ryzyko rezydualne zaakceptowane), Tylko odczyt tylko w panelu; ścieżka `pelna` zatwierdzona z delegacji; status `ready` (Tech Lead)
+- 2026-11-13 — start realizacji (`/deliver`, ścieżka `pelna`, równolegle z EVM-124 za zgodą Konrada; EVM-084/085 zostają `in-progress` — posiedzenia B/C, bez kodu w toku) (Tech Lead)
