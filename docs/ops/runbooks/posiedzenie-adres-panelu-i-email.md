@@ -7,7 +7,7 @@
 Skutki zmiany adresu, o których trzeba wiedzieć z góry: (a) zmienia się RP ID WebAuthn — **dotychczasowy klucz dostępu (passkey) Konrada przestaje działać** i trzeba go zarejestrować ponownie; (b) ciasteczka `__Host-` są przypięte do hosta, więc sesje na starym adresie się kończą, a Konrad dostanie alert „nowa przeglądarka” (oczekiwany); (c) `staging.eviacharge.pl` tylko przekierowuje (308) na panel i **nie obsługuje już API**; (d) aplikacja mobilna musi dostać nowy adres API.
 
 ## Kolejność
-Pliki sekretów i rekordy DNS muszą istnieć **przed** wdrożeniem workera z `tem` (manifest odmawia startu bez plików, kanał cofa wdrożenie).
+Pliki sekretów, rekordy DNS i pliki krawędzi/kanału (krok 3b) muszą istnieć **przed** wdrożeniem workera z `tem` (manifest odmawia startu bez plików, kanał cofa wdrożenie).
 
 ### 1. Przed scaleniem — OpenTofu (sesja IaC, `compose.iac.yaml`)
 1. W `staging.tfvars` (poza repozytorium) Konrad zmienia `panel_origin` na `https://panel.eviacharge.pl` (jedna wartość, bez gwiazdki i bez starego hosta: CORS bucketu mediów).
@@ -22,8 +22,17 @@ Tabela rekordów i ich kolejność: [`kolejka-e-mail.md`](kolejka-e-mail.md) →
 2. Jako root w `/etc/evia/secrets/` (0600 root, katalog 0700), bez wklejania wartości do czatu: `tem-api-key` (klucz), `tem-project-id` (identyfikator projektu), `email-recipient-mode` z tekstem `lista`, `email-allowed-recipients` z **jednym** adresem Konrada. Sprawdzenie bez wartości: `evia-init-secrets --check` (rozmiar, tryb, właściciel; brak = `MISSING`).
 3. Przejrzyj W-16 **przed** wdrożeniem: zaległe „oczekujące” zaproszenia (przy `EMAIL_TRANSPORT=none` nigdy nie wyszły). Worker i tak oznaczy `pending` starsze niż 24 h jako `failed` przy starcie z `tem`, ale decyzja, kto ma dostać zaproszenie, należy do Administratora.
 
+### 3b. Przed scaleniem — pliki krawędzi i kanału (sesja IaC, ręcznie; kanał ich NIE wdraża)
+Kanał czyta z commita wyłącznie `compose.staging.yaml`. Caddyfile, `deploy.sh`, `secrets.sh`, `init-secrets.sh` i `secrets.manifest.json` instaluje się ręcznie z **gałęzi EVM-089** (po przeglądzie `security-engineer`; wg `wdrozenie-staging.md` → „Zmiany weryfikatora, skryptów i infrastruktury”). Bez tego po scaleniu nowy compose wejdzie sam, a na VM zostaną: stary manifest (worker bez `/run/secrets/tem-*`, start z `tem` odmówiony, kanał cofa wdrożenie), stary Caddyfile (brak bloku `panel`, a API już pod `PANEL_ORIGIN` = panel) i stary `deploy.sh` z `DOMAIN` = staging. Kolejność:
+1. **Skopiuj** poprzednie wersje jako kopie rollbacku (np. `/root/evia-rollback-089/`: `/usr/local/sbin/evia-deploy`, `evia-secrets`, `evia-init-secrets`, manifest z `/etc/evia/deploy-agent/`, Caddyfile z `/etc/evia/caddy/`).
+2. Pliki z kroku 3 (sekrety TEM) już istnieją. Zainstaluj `init-secrets.sh` → `/usr/local/sbin/evia-init-secrets`; `sudo evia-init-secrets --check` bez braków (sprawdza pliki z zainstalowanego manifestu; cztery pliki TEM z kroku 3 sprawdź też ręcznie po nazwach). Dopiero potem `secrets.manifest.json` → `/etc/evia/deploy-agent/`, `secrets.sh` → `/usr/local/sbin/evia-secrets`, `systemctl restart evia-secrets.service`.
+3. Zainstaluj nowy Caddyfile (`/etc/evia/caddy/`, kopia w `/etc/evia/runtime/`) i wykonaj przeładowanie Caddy (`docker compose --project-name evia-infra … exec caddy caddy reload`). **Zaczekaj na certyfikat** dla panelu: `curl -sI https://panel.eviacharge.pl` zwraca odpowiedź TLS (bez błędu certyfikatu) — dopiero potem krok 4.
+4. Zainstaluj `deploy.sh` → `/usr/local/sbin/evia-deploy` (nowa stała `DOMAIN` = panel) **po** kroku 3; odwrotna kolejność kończy się wycofaniem (`curl --fail` na `staging…/version` dostaje 308 bez treści, jq nie zgadza się z commitem).
+5. **Okno przejściowe:** po przeładowaniu Caddy `staging.eviacharge.pl` przekierowuje na panel, a panel obsługuje jeszcze stary release z dawnym RP ID (logowanie passkey do czasu kroku 4 i 6 niedostępne; skróć okno, scalaj bezpośrednio po kroku 3b).
+6. **Rollback instalacji:** przywróć kopie z kroku 1 (Caddyfile + `caddy reload`, `evia-deploy`, `evia-secrets`, manifest), `systemctl restart evia-secrets.service`; sekrety TEM mogą zostać.
+
 ### 4. Scalenie i wdrożenie kanałem
-Konrad scala PR EVM-089 (D2). Kanał wdraża: Caddy dostaje blok `panel.eviacharge.pl` (certyfikat Let's Encrypt wystawia po pierwszym żądaniu; DNS jest gotowy) i przekierowanie `staging.eviacharge.pl` → panel; API i worker startują z `PANEL_ORIGIN` / `WEBAUTHN_RP_ID` = panel; worker wygasza stare `pending` przed przekaźnikiem. W razie błędu: [`rollback-staging.md`](rollback-staging.md) (plik z listą sekretów workera zostaje — nie przeszkadza w rollbacku).
+Konrad scala PR EVM-089 (D2). Kanał wdraża wyłącznie `compose.staging.yaml` (Caddy, `deploy.sh` i manifest sekretów są już zainstalowane w kroku 3b); API i worker startują z `PANEL_ORIGIN` / `WEBAUTHN_RP_ID` = panel; worker wygasza stare `pending` przed przekaźnikiem. W razie błędu: [`rollback-staging.md`](rollback-staging.md) (plik z listą sekretów workera zostaje — nie przeszkadza w rollbacku).
 Sprawdź: `curl -sI https://panel.eviacharge.pl/version`, `curl -sI https://staging.eviacharge.pl/` (308, `Location` = stały adres panelu, HSTS), `node tools/staging-verify/cli.mjs checks` (nie loguje się, czyta tylko nagłówki i DNS).
 
 ### 5. Wiadomość testowa i nagłówki (AC3)
