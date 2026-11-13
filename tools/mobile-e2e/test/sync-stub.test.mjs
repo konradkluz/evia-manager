@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { zGetClientConfigResponse, zSyncChangesResponse, zSyncMutationsResponse } from '@evia/contracts/zod';
 import { startStubApi } from '../src/stub-api.mjs';
-import { changesAnswer, createSyncStub, snapshotPage, SYNC_CLIENT_CONFIG } from '../src/sync-stub.mjs';
+import { changesAnswer, createSyncStub, DELETED_ORDER_ID, snapshotPage, SYNC_CLIENT_CONFIG } from '../src/sync-stub.mjs';
 
 const A = '0194c2a0-0000-7000-8000-000000000001';
 const B = '0194c2a0-0000-7000-8000-000000000002';
@@ -43,6 +43,44 @@ describe('sync part of the scenario server (EVM-107 AC6)', () => {
     assert.doesNotMatch(JSON.stringify(changes), /@|https?:/);
   });
 
+  it('EVM-105 AC6: a note or comment for the deleted order is rejected with target_unavailable (valid against the contract), counted apart and rejected again on a repeat', () => {
+    const stub = createSyncStub();
+    /** @param {string} mutationId @param {string} type @param {string} workOrderId */
+    const one = (mutationId, type, workOrderId) => ({
+      mutations: [{ mutationId, type, commandVersion: 1, payload: { workOrderId } }],
+      pendingItems: 1,
+    });
+    const first = post(stub, one(A, 'CreateNote', DELETED_ORDER_ID));
+    assert.equal(zSyncMutationsResponse.safeParse(first?.body).success, true);
+    const firstBody = /** @type {{ results: unknown[] }} */ (first?.body);
+    assert.deepEqual(firstBody.results, [{ mutationId: A, outcome: 'rejected', code: 'target_unavailable' }]);
+    const comment = /** @type {{ results: { outcome: string, code?: string }[] }} */ (
+      post(stub, one(B, 'CreateComment', DELETED_ORDER_ID))?.body
+    );
+    assert.deepEqual(
+      comment.results.map((r) => [r.outcome, r.code]),
+      [['rejected', 'target_unavailable']],
+    );
+    // a repeat is the same answer, never a duplicate and never a second acceptance
+    const again = /** @type {{ results: { outcome: string }[] }} */ (post(stub, one(A, 'CreateNote', DELETED_ORDER_ID))?.body);
+    assert.deepEqual(
+      again.results.map((r) => r.outcome),
+      ['rejected'],
+    );
+    assert.deepEqual(stub.report(), { unique: 0, duplicates: 0, rejected: 2, received: 3, requests: 3, lastPendingItems: 1 });
+    // another order and a quick work order are accepted as before
+    const other = /** @type {{ results: { outcome: string }[] }} */ (
+      post(stub, one('0194c2a0-0000-7000-8000-000000000003', 'CreateNote', '30000000-0000-4000-8000-000000000001'))?.body
+    );
+    assert.deepEqual(
+      other.results.map((r) => r.outcome),
+      ['applied'],
+    );
+    assert.equal(stub.report().unique, 1);
+    stub.reset();
+    assert.equal(stub.report().rejected, 0);
+  });
+
   it('EVM-107 AC6: the first appearance of a mutation is "applied"; a repeat is "duplicate" (the saved result), counted separately', () => {
     const stub = createSyncStub();
     const first = /** @type {{ results: { outcome: string }[] }} */ (post(stub, mutations(A, B))?.body);
@@ -55,9 +93,9 @@ describe('sync part of the scenario server (EVM-107 AC6)', () => {
       again.results.map((r) => r.outcome),
       ['duplicate', 'duplicate'],
     );
-    assert.deepEqual(stub.report(), { unique: 2, duplicates: 2, received: 4, requests: 2, lastPendingItems: 2 });
+    assert.deepEqual(stub.report(), { unique: 2, duplicates: 2, rejected: 0, received: 4, requests: 2, lastPendingItems: 2 });
     stub.reset();
-    assert.deepEqual(stub.report(), { unique: 0, duplicates: 0, received: 0, requests: 0, lastPendingItems: null });
+    assert.deepEqual(stub.report(), { unique: 0, duplicates: 0, rejected: 0, received: 0, requests: 0, lastPendingItems: null });
   });
 
   it('EVM-107 AC6: invalid batches are refused with the contract problem and change nothing', () => {
@@ -118,7 +156,7 @@ describe('sync part of the scenario server (EVM-107 AC6)', () => {
       assert.equal((await call('/api/v1/sync/mutations', { method: 'POST', headers, body })).status, 200);
       assert.equal((await call('/api/v1/sync/mutations', { method: 'POST', headers, body })).status, 200);
       assert.equal((await call('/api/v1/sync/mutations', { method: 'POST', headers, body: '{bad' })).status, 400);
-      assert.deepEqual(stub.syncReport(), { unique: 2, duplicates: 2, received: 4, requests: 5, lastPendingItems: 2 });
+      assert.deepEqual(stub.syncReport(), { unique: 2, duplicates: 2, rejected: 0, received: 4, requests: 5, lastPendingItems: 2 });
       stub.syncReset();
       assert.equal(stub.syncReport().unique, 0);
       stub.setMode('down');

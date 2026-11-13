@@ -11,7 +11,7 @@
  *   background?: boolean,
  *   before?: import('./device.mjs').DeviceAction[],
  *   after?: import('./device.mjs').DeviceAction[],
- *   expectSync?: { unique: number, duplicates: number },
+ *   expectSync?: { unique: number, duplicates: number, rejected?: number },
  * }} Step
  * `before` runs ahead of the flow (a failure skips it), `after` once the flow passed (EVM-093 device steps, src/device.mjs).
  * `auth` is the sign-in mode of the scenario server for the step (EVM-100; default `ok`).
@@ -180,6 +180,26 @@ export const SCENARIOS = [
     steps: [
       { flow: '41-order-details-sign-in.yaml', server: 'ok', airplane: false },
       { flow: '41-order-details-offline.yaml', server: 'ok', airplane: true },
+    ],
+  },
+  // EVM-105 AC1, AC2, AC5: a note and a comment written offline survive the kill and are sent once after the return of the network
+  // (2 unique, 0 duplicates, 0 rejected at the scenario server). AC6: a note for an order the server no longer has (work order 2) is
+  // "Wymaga uwagi"; "Dodaj do innego zlecenia" moves it and the server takes it once (the counters of the scenario add up: 3 unique, 1 rejected).
+  {
+    name: 'entries-offline',
+    ac: 'EVM-105 AC1 AC2 AC5 AC6',
+    steps: [
+      { flow: '42-entry-sign-in.yaml', server: 'ok', airplane: false },
+      { flow: '42-entry-offline.yaml', server: 'ok', airplane: true, after: ['force-stop'] },
+      { flow: '42-entry-restart.yaml', server: 'ok', airplane: true },
+      {
+        flow: '42-entry-return.yaml',
+        server: 'ok',
+        airplane: false,
+        background: true,
+        expectSync: { unique: 2, duplicates: 0, rejected: 0 },
+      },
+      { flow: '42-entry-rejected.yaml', server: 'ok', airplane: false, expectSync: { unique: 3, duplicates: 0, rejected: 1 } },
     ],
   },
   // Last: the held request keeps the app in its loading state (skeleton), and the first-flow retry of the runner is not affected.

@@ -1,0 +1,24 @@
+# EVM-105 AC5, EVM-107 AC3: after the kill the two entries are still in the queue ("Offline · 2"), the journal of the work order still shows
+# them as waiting, and nothing was sent.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible: 'Offline · 2'
+    timeout: 45000
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- tapOn:
+    id: 'order-row-30000000-0000-4000-8000-000000000001'
+- extendedWaitUntil:
+    visible: 'Zlecenie testowe 1'
+    timeout: 10000
+- scrollUntilVisible:
+    element: 'Czeka na wysłanie'
+    direction: DOWN
+- scrollUntilVisible:
+    element: 'Komentarz testowy z telefonu'
+    direction: DOWN
+- takeScreenshot: m03-journal-waiting-after-kill

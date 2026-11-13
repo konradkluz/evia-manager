@@ -1,0 +1,64 @@
+# EVM-105 AC1, AC2: in airplane mode (set by tools/mobile-e2e) the technician writes a note (category "Spotkanie") and a comment into the
+# work order 1 from "Dodaj wpis" in M-03. Each save is confirmed by the toast only after the entry is in the durable queue; the journal
+# shows both as "Czeka na wysłanie". tools/mobile-e2e kills the app right after this flow (AC5). Synthetic text only.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible: 'Brak zasięgu.*'
+    timeout: 30000
+# the emulator image is older than 12 months: the security banner of EVM-100 pushes the list down - acknowledge it if shown
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- tapOn:
+    id: 'order-row-30000000-0000-4000-8000-000000000001'
+- extendedWaitUntil:
+    visible: 'Zlecenie testowe 1'
+    timeout: 10000
+# AC1: the note
+- tapOn:
+    id: 'order-detail-add-entry'
+- extendedWaitUntil:
+    visible: 'Nowy wpis'
+    timeout: 10000
+- assertVisible: 'Nie wpisuj PESEL, numerów dokumentów ani kodów do bram i alarmów\.'
+- tapOn:
+    id: 'entry-category-meeting'
+- tapOn:
+    id: 'entry-body'
+- inputText: 'Wpis testowy z telefonu bez zasiegu'
+- hideKeyboard
+- takeScreenshot: m04-entry-form-filled
+- tapOn:
+    id: 'entry-save'
+- extendedWaitUntil:
+    visible: 'Zapisano w telefonie\. Wyślemy, gdy wróci zasięg\.'
+    timeout: 10000
+- takeScreenshot: m04-entry-saved-toast
+# AC2: the comment
+- tapOn:
+    id: 'order-detail-add-entry'
+- extendedWaitUntil:
+    visible: 'Nowy wpis'
+    timeout: 10000
+- tapOn:
+    id: 'entry-kind-comment'
+- tapOn:
+    id: 'entry-body'
+- inputText: 'Komentarz testowy z telefonu'
+- hideKeyboard
+- tapOn:
+    id: 'entry-save'
+- extendedWaitUntil:
+    visible: 'Zapisano w telefonie\. Wyślemy, gdy wróci zasięg\.'
+    timeout: 10000
+# the journal below the fold shows both entries as waiting
+- scrollUntilVisible:
+    element: 'Czeka na wysłanie'
+    direction: DOWN
+- scrollUntilVisible:
+    element: 'Wpis testowy z telefonu bez zasiegu'
+    direction: DOWN
+- takeScreenshot: m03-journal-waiting

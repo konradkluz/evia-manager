@@ -15,7 +15,7 @@ describe('Maestro flows and scenarios agree (EVM-009 AC4)', () => {
     for (const flow of referenced) {
       const text = readFileSync(join(FLOWS, flow), 'utf8');
       assert.match(text, new RegExp(`^appId: ${APPLICATION_ID.replaceAll('.', String.raw`\.`)}$`, 'm'), flow);
-      assert.match(text, /^# EVM-(009|093|100|103|104|107) AC\d/m, flow);
+      assert.match(text, /^# EVM-(009|093|100|103|104|105|107) AC\d/m, flow);
     }
   });
 
@@ -91,6 +91,14 @@ describe('Maestro flows and scenarios agree (EVM-009 AC4)', () => {
         // EVM-104: the details of a work order (M-03)
         'm03-details-offline',
         'm03-details-journal',
+        // EVM-105: the entry form (M-04), the journal with waiting entries (M-03) and the rejected entry (M-07)
+        'm04-entry-form-filled',
+        'm04-entry-saved-toast',
+        'm03-journal-waiting',
+        'm03-journal-waiting-after-kill',
+        'm04-entries-sent',
+        'm07-entry-needs-attention',
+        'm07-entry-moved',
       ].sort(),
     );
   });
@@ -125,6 +133,45 @@ describe('Maestro flows and scenarios agree (EVM-009 AC4)', () => {
     assert.match(flow, /text: 'Rozumiem'/);
     assert.match(flow, /optional: true/);
     assert.match(flow, /scrollUntilVisible/);
+  });
+
+  it('EVM-105 AC1, AC2, AC5: the entry scenario writes a note and a comment in airplane mode, kills the app, restarts it offline and expects 2 unique, 0 duplicates and 0 rejected after the return of the network', () => {
+    const scenario = SCENARIOS.find((candidate) => candidate.name === 'entries-offline');
+    assert.ok(scenario !== undefined);
+    assert.deepEqual(
+      scenario.steps.slice(0, 4).map((step) => [step.flow, step.airplane]),
+      [
+        ['42-entry-sign-in.yaml', false],
+        ['42-entry-offline.yaml', true],
+        ['42-entry-restart.yaml', true],
+        ['42-entry-return.yaml', false],
+      ],
+    );
+    assert.deepEqual(scenario.steps[1]?.after, ['force-stop']);
+    assert.equal(scenario.steps[3]?.background, true);
+    assert.deepEqual(scenario.steps[3].expectSync, { unique: 2, duplicates: 0, rejected: 0 });
+    const offline = readFileSync(join(FLOWS, '42-entry-offline.yaml'), 'utf8');
+    // robust against the security banner of the emulator, the keyboard and text below the fold
+    assert.match(offline, /text: 'Rozumiem'\s+optional: true/);
+    assert.match(offline, /hideKeyboard/);
+    assert.match(offline, /scrollUntilVisible/);
+    assert.match(offline, /Zapisano w telefonie/);
+    assert.match(readFileSync(join(FLOWS, '42-entry-restart.yaml'), 'utf8'), /visible: 'Offline · 2'/);
+  });
+
+  it('EVM-105 AC6: the same scenario then writes into the order the server no longer has, finds the entry in "Wymaga uwagi" with its three actions, and moves it', () => {
+    const scenario = SCENARIOS.find((candidate) => candidate.name === 'entries-offline');
+    assert.ok(scenario !== undefined);
+    const step = scenario.steps[4];
+    assert.equal(step?.flow, '42-entry-rejected.yaml');
+    assert.equal(step.airplane, false);
+    // the counters of the scenario add up: 2 entries of the earlier steps + the moved one; the rejected one is counted apart
+    assert.deepEqual(step.expectSync, { unique: 3, duplicates: 0, rejected: 1 });
+    const flow = readFileSync(join(FLOWS, '42-entry-rejected.yaml'), 'utf8');
+    assert.match(flow, /Zlecenie zostało usunięte albo nie masz do niego dostępu/);
+    for (const action of ['Kopiuj treść', 'Dodaj do innego zlecenia', 'Usuń z telefonu']) assert.ok(flow.includes(action), action);
+    assert.match(flow, /optional: true/);
+    assert.match(flow, /hideKeyboard/);
   });
 
   it('EVM-107 AC6: the offline recovery adds the notes in airplane mode, kills the app, restarts it offline and expects 5 unique and 0 duplicates after the return of the network', () => {

@@ -1,0 +1,57 @@
+# EVM-105 AC6: online, the technician writes a note into the work order 2, which the scenario server answers `rejected` /
+# `target_unavailable` (an order deleted in the office, tools/mobile-e2e/src/sync-stub.mjs). The note lands in "Wymaga uwagi" with the
+# plain reason, the text and the three actions; "Kopiuj treść" copies it, "Dodaj do innego zlecenia" moves it to the work order 1, where
+# the server accepts it (1 unique, 1 rejected after this flow).
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible: 'ZL-E2E-2'
+    timeout: 60000
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- tapOn:
+    id: 'order-row-30000000-0000-4000-8000-000000000002'
+- extendedWaitUntil:
+    visible: 'Zlecenie testowe 2'
+    timeout: 10000
+- tapOn:
+    id: 'order-detail-add-entry'
+- extendedWaitUntil:
+    visible: 'Nowy wpis'
+    timeout: 10000
+- tapOn:
+    id: 'entry-body'
+- inputText: 'Wpis testowy do usunietego zlecenia'
+- hideKeyboard
+- tapOn:
+    id: 'entry-save'
+- extendedWaitUntil:
+    visible: 'Zapisano w telefonie\. Wyślemy, gdy wróci zasięg\.'
+    timeout: 10000
+# the server rejects it on the next cycle: the queue shows it as "Wymaga uwagi"
+- tapOn:
+    id: 'nav-queue'
+- extendedWaitUntil:
+    visible: 'Zlecenie zostało usunięte albo nie masz do niego dostępu\.'
+    timeout: 60000
+- assertVisible: 'Wpis testowy do usunietego zlecenia'
+- assertVisible: 'Kopiuj treść'
+- assertVisible: 'Dodaj do innego zlecenia'
+- assertVisible: 'Usuń z telefonu'
+- takeScreenshot: m07-entry-needs-attention
+- tapOn: 'Kopiuj treść'
+- extendedWaitUntil:
+    visible: 'Skopiowano\.'
+    timeout: 10000
+- tapOn: 'Dodaj do innego zlecenia'
+- tapOn:
+    id: 'retarget-30000000-0000-4000-8000-000000000001'
+# moved to the work order 1, sent once, the queue empties
+- extendedWaitUntil:
+    visible: '0 elementów w kolejce'
+    timeout: 60000
+- assertNotVisible: 'Wymaga uwagi.*'
+- takeScreenshot: m07-entry-moved

@@ -29,7 +29,7 @@ export async function startStubInWorker(port, workerUrl = new URL('./stub-worker
   /** the latest counters of the sync part of the server and the reset they belong to */
   let epoch = 0;
   /** @type {import('./sync-stub.mjs').SyncReport} */
-  let lastSync = { unique: 0, duplicates: 0, received: 0, requests: 0, lastPendingItems: null };
+  let lastSync = { unique: 0, duplicates: 0, rejected: 0, received: 0, requests: 0, lastPendingItems: null };
   const drain = () => {
     for (let next = receiveMessageOnPort(port1); next !== undefined; next = receiveMessageOnPort(port1)) {
       // the thread boundary is untyped; the shape is fixed by stub-worker.mjs
@@ -75,7 +75,7 @@ export async function startStubInWorker(port, workerUrl = new URL('./stub-worker
     },
     syncReset: () => {
       epoch += 1;
-      lastSync = { unique: 0, duplicates: 0, received: 0, requests: 0, lastPendingItems: null };
+      lastSync = { unique: 0, duplicates: 0, rejected: 0, received: 0, requests: 0, lastPendingItems: null };
       if (!exited) worker.postMessage({ syncReset: epoch });
     },
     close: () =>

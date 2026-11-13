@@ -17,6 +17,14 @@ const SERVER_TIME = () => new Date().toISOString();
 /** The marker of the encryption checks (EVM-093; src/device.mjs): the customer 2 carries it so that the list search can be proven (EVM-103 AC6). */
 const SENTINEL = ['EVM093', 'SENTINEL'].join('-');
 
+/**
+ * The work order 2 (ZL-E2E-2) stands for an order that was deleted in the office before the send (EVM-105 AC6): a note or a comment
+ * for it is answered `rejected` / `target_unavailable` (the shape of the contract), the same on every repeat; it is counted as
+ * rejected, never as unique. The server is the scenario stand-in of the EVM-107 server (ADR-0015) and is never part of a release build.
+ */
+export const DELETED_ORDER_ID = '30000000-0000-4000-8000-000000000002';
+const REJECTED_TYPES = ['CreateNote', 'CreateComment'];
+
 /** The cursor of the snapshot and of the changes phase (opaque to the client; the shape of SyncCursor). */
 const CURSOR_AFTER_SNAPSHOT = 'e2e-cursor-after-snapshot-0001';
 const CURSOR_CHANGES = 'e2e-cursor-changes-000000002';
@@ -170,13 +178,15 @@ export function changesAnswer(cursor) {
 }
 
 /**
- * @typedef {{ unique: number, duplicates: number, received: number, requests: number, lastPendingItems: number | null }} SyncReport
+ * @typedef {{ unique: number, duplicates: number, rejected: number, received: number, requests: number, lastPendingItems: number | null }} SyncReport
  * @typedef {{ status: number, type: string, body: unknown }} Answer
  */
 
 export function createSyncStub() {
   /** @type {Map<string, { outcome: string }>} */
   let saved = new Map();
+  /** @type {Set<string>} */
+  let rejectedIds = new Set();
   let duplicates = 0;
   let received = 0;
   let requests = 0;
@@ -196,9 +206,10 @@ export function createSyncStub() {
 
   return {
     /** @returns {SyncReport} */
-    report: () => ({ unique: saved.size, duplicates, received, requests, lastPendingItems }),
+    report: () => ({ unique: saved.size, duplicates, rejected: rejectedIds.size, received, requests, lastPendingItems }),
     reset: () => {
       saved = new Map();
+      rejectedIds = new Set();
       duplicates = 0;
       received = 0;
       requests = 0;
@@ -232,7 +243,7 @@ export function createSyncStub() {
       const pendingItems = fields['pendingItems'];
       if (!Array.isArray(list) || list.length === 0 || list.length > 50) return problem(400, 'validation_failed');
       if (typeof pendingItems !== 'number' || !Number.isInteger(pendingItems) || pendingItems < 0) return problem(400, 'validation_failed');
-      /** @type {string[]} */
+      /** @type {{ mutationId: string, rejected: boolean }[]} */
       const ids = [];
       for (const item of list) {
         // a parsed JSON body is untyped; every field is checked below
@@ -242,11 +253,18 @@ export function createSyncStub() {
         const type = m['type'];
         if (typeof mutationId !== 'string' || !UUIDV7.test(mutationId)) return problem(400, 'validation_failed');
         if (typeof type !== 'string' || !MUTATION_TYPES.includes(type)) return problem(400, 'validation_failed');
-        ids.push(mutationId);
+        const payload = m['payload'];
+        const target =
+          typeof payload === 'object' && payload !== null ? /** @type {Record<string, unknown>} */ (payload)['workOrderId'] : undefined;
+        ids.push({ mutationId, rejected: target === DELETED_ORDER_ID && REJECTED_TYPES.includes(type) });
       }
       lastPendingItems = pendingItems;
-      const results = ids.map((mutationId) => {
+      const results = ids.map(({ mutationId, rejected }) => {
         received += 1;
+        if (rejected || rejectedIds.has(mutationId)) {
+          rejectedIds.add(mutationId);
+          return { mutationId, outcome: 'rejected', code: 'target_unavailable' };
+        }
         if (saved.has(mutationId)) {
           duplicates += 1;
           return { mutationId, outcome: 'duplicate' };
