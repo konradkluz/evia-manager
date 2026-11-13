@@ -94,6 +94,14 @@ Najczęstsze sytuacje i szablony:
 | C. Garaż w budynku wielorodzinnym — pełny proces | „Garaż — pełny proces” |
 | D. Garaż — najpierw sama instalacja; gdy klient zamówi ładowarkę, drugie zlecenie w tej samej lokalizacji | „Garaż — sama instalacja”, potem „Garaż — montaż ładowarki” |
 
+Każdy scenariusz zaczyna się tak samo: kroki 1–2 z listy powyżej („Nowe zlecenie”, „1. Klient”). Dalej:
+
+- **A.** „2. Lokalizacja” → „Nowa lokalizacja” (dom klienta; zapisz: „Zapisz lokalizację”). „3. Szablon” → „Dom — sam montaż”. „4. Zlecenie” → tytuł, opiekun → „Utwórz zlecenie”.
+- **B.** To samo co w A, ale w „3. Szablon” wybierz „Dom — pełny pakiet”. Jeśli sprawa wymaga OSD, dodaj stronę (rodzaj OSD) przyciskiem „Dodaj stronę”.
+- **C.** „2. Lokalizacja” → „Nowa lokalizacja” (garaż w budynku wielorodzinnym). „3. Szablon” → „Garaż — pełny proces”. „4. Zlecenie” → „Utwórz zlecenie”. Potem w zleceniu przejdź procesy formalne etap po etapie (rozdział 5).
+- **D, pierwsze zlecenie.** Jak w C, ale w „3. Szablon” wybierz „Garaż — sama instalacja”.
+- **D, drugie zlecenie (klient zamówił ładowarkę).** „Nowe zlecenie” → w „1. Klient” wybierz tego samego klienta z listy → w „2. Lokalizacja” wybierz „Istniejąca lokalizacja” i wyszukaj ją po adresie (wpisz co najmniej 3 znaki) → w „3. Szablon” wybierz „Garaż — montaż ładowarki” → „4. Zlecenie” → „Utwórz zlecenie”. Dane klienta i lokalizacji nie wymagają ponownego wpisywania. Inne zlecenia w tej lokalizacji zobaczysz w szczegółach zlecenia, w karcie „Lokalizacja”: „Inne zlecenia w tej lokalizacji”.
+
 Przy zleceniu w garażu (C, D) pamiętaj o formalnościach: zgoda administracji budynku, ekspertyza techniczna, opinia ppoż., projekt i warunki od OSD — każdy z nich to osobny proces z etapami. W scenariuszu D szczegóły zlecenia pokazują inne zlecenia w tej samej lokalizacji (bez danych innych klientów).
 
 Płatności i faktury w tej instrukcji pomijamy — opiszemy je osobno.
@@ -163,4 +171,4 @@ Po pracy wybierz „Wyloguj” w menu konta (w prawym górnym rogu, „Konto: �
 - Panel nie wczytuje się albo pokazuje „Brak połączenia”: sprawdź internet i odśwież stronę. Wpisane dane zwykle zostają w karcie.
 - Komunikat z kodem błędu („kod: …”): zgłoś go Administratorowi razem z kodem.
 - Zgubiony telefon lub laptop, podejrzenie, że ktoś zna hasło: od razu do Administratora.
-- Pozostałe pytania: do Administratora (kontakt w sekcji „Pomoc”).
+- Pozostałe pytania: do Administratora (kontakt w sekcji „Pomoc”). Gdy w „Pomoc” zobaczysz „Kontakt z administratorem: zapytaj przełożonego.”, kontaktu jeszcze tam nie ma — zapytaj przełożonego, kto jest Administratorem w firmie.

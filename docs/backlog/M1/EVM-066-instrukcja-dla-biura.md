@@ -107,6 +107,7 @@ _—_
 - 2026-11-13 — decyzja Konrada: przegląd tylko `ux-designer` (ścieżka `lekka`); w nocnej kolejce `/noc-2026-11-13` (tor B po EVM-126) (Tech Lead)
 - 2026-11-14 — start realizacji w kolejce nocnej `/noc-2026-11-13` (Tech Lead): status `in-progress`, gałąź `feature/EVM-126-066-testy-i-instrukcja`
 - 2026-11-14 — treść instrukcji napisana (product-owner): `docs/user/instrukcja-dla-biura.md`, nazwy z kodu panelu; bez zrzutów ekranu; strona w panelu, odnośnik W-19, reguła walidatora i testy — web-developer / devops-engineer
+- 2026-11-14 — poprawki treści po przeglądzie UX: kroki scenariuszy A–D, kontakt w Pomocy (product-owner)
 - 2026-11-14 — strona `/guide` w panelu budowana z `docs/user/instrukcja-dla-biura.md` (`?raw` + własny czytnik podzbioru Markdown, bez nowej zależności), odnośnik w W-19 → „Pomoc”, testy `EVM-066 AC6`, minimalna reguła walidatora `docs/user/**/*.md` (żywy), `!docs/user` w kontekście obrazu web, CHANGELOG (web-developer); reguła i testy narzędzi do dopracowania przez devops-engineer
 
 - 2026-11-14 — bramka lokalna zielona (gate, test:tools, docs:check 0 błędów); zrzutów ekranu brak (do uzupełnienia po demo); do sprawdzenia w CI: e2e-web i gate:deploy (kontekst obrazu web z docs/user)
