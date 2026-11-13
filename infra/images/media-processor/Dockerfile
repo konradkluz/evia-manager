@@ -7,8 +7,9 @@
 # (EVM-046, SR-SUPPLY-06: the build fails without FFMPEG_VERSION); non-root; the process runs `src/main.ts` with type stripping, no build step.
 # EVM-046 departs from the distroless runtime of EVM-068: ffprobe and ffmpeg are programs with many shared libraries, which the distroless image does not have.
 # The container stays closed by its configuration, not by the image alone (no network, read-only root, no capabilities - compose.media.yaml). The build of
-# ffmpeg in Debian is GPL (libx264); the image is not redistributed (server tool, scan 4 in docs/security/requirements.md lists ffmpeg). It is an OS package, so the library licence scan
-# (`--pkg-types library`) does not see it and no `.trivyignore.yaml` entry is needed; exception noted 2026-10-31 (SR-SUPPLY-06, as libvips in EVM-068).
+# ffmpeg in Debian is GPL (libx264); the image is public (GHCR, ADR-0022 point 3), so the licence notice and the written source offer are in infra/images/README.md
+# (the image points to it with the documentation label). It is an OS package, so the library licence scan (`--pkg-types library`) does not see it and no
+# `.trivyignore.yaml` entry is needed; exception noted 2026-10-31 (SR-SUPPLY-06, as libvips in EVM-068).
 FROM --platform=$BUILDPLATFORM node:26.13.1-trixie-slim@sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc AS pnpm
 
 # renovate: datasource=npm depName=pnpm
@@ -64,6 +65,7 @@ RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack 
 
 # Metadata only (no RUN): links the GHCR package to the repository.
 LABEL org.opencontainers.image.source="https://github.com/konradkluz/evia-manager"
+LABEL org.opencontainers.image.documentation="https://github.com/konradkluz/evia-manager/blob/main/infra/images/README.md"
 
 ENV NODE_ENV=production
 

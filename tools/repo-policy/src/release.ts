@@ -101,7 +101,7 @@ export function publishProblems(document: unknown): string[] {
     problems.push(`${where}: skan obrazów (bramka 6) przed logowaniem do GHCR i wypchnięciem`);
   if (!script.includes('--severity HIGH,CRITICAL --ignore-unfixed --exit-code 1'))
     problems.push(`${where}: bramka 6 — Critical/High z poprawką = czerwony`);
-  problems.push(...secretScanProblems(script, where));
+  problems.push(...secretScanProblems(script, where), ...secretReportUploadProblems(job, where));
   // docker save writes 0600 archives; the unprivileged scanner (65534) must be able to read them before the first scan.
   const readable = script.indexOf('chmod a+r .scratch/scans/*.tar');
   if (readable < 0 || readable < script.lastIndexOf('docker save ') || readable > scan)
@@ -318,6 +318,8 @@ export function releaseDockerfileProblems(name: string, dockerfile: string, igno
 
 /** The repository the published images are linked to (org.opencontainers.image.source; GHCR connects the package to it). */
 export const RELEASE_SOURCE = 'https://github.com/konradkluz/evia-manager';
+/** The licence notice and source offer of the public images (org.opencontainers.image.documentation; ADR-0022 pt 3). */
+export const RELEASE_DOCUMENTATION = `${RELEASE_SOURCE}/blob/main/infra/images/README.md`;
 
 /**
  * A published Dockerfile (api, web) carries exactly one source label equal to the repository URL, in the last stage
@@ -333,7 +335,46 @@ export function releaseLabelProblems(name: string, dockerfile: string): string[]
   if (all.length !== 1 || all[0] !== `${key}="${RELEASE_SOURCE}"`)
     problems.push(`${name}: dokładnie jedna etykieta ${key}="${RELEASE_SOURCE}"`);
   if (inLast !== 1) problems.push(`${name}: etykieta ${key} w ostatnim etapie`);
+  const docKey = 'org.opencontainers.image.documentation';
+  const docs = code.match(/org\.opencontainers\.image\.documentation=("[^"]*"|\S+)/g) ?? [];
+  const inLastDocs = [...lastStage.matchAll(/org\.opencontainers\.image\.documentation=/g)].length;
+  if (docs.length !== 1 || docs[0] !== `${docKey}="${RELEASE_DOCUMENTATION}"`)
+    problems.push(`${name}: dokładnie jedna etykieta ${docKey}="${RELEASE_DOCUMENTATION}"`);
+  if (inLastDocs !== 1) problems.push(`${name}: etykieta ${docKey} w ostatnim etapie`);
   return problems;
+}
+
+/** A path glob (`*` within a segment, `**` across segments) as a regular expression source. */
+function globSource(path: string): string {
+  return path
+    .split('**')
+    .map((part) =>
+      part
+        .split('*')
+        .map((piece) => piece.replace(/[.+^${}()|[\]\\]/g, '\\$&'))
+        .join('[^/]*'),
+    )
+    .join('.*');
+}
+
+/**
+ * No upload-artifact step of a job may carry a secret scan report (trivy-secret-*.json): the report lists where a secret sits in an
+ * image, so it stays in the log of the failing job only. A path matches when it names the report, a glob that matches it, or the
+ * whole directory of the scans.
+ */
+export function secretReportUploadProblems(job: Record<string, unknown>, where: string): string[] {
+  const sample = '.scratch/scans/trivy-secret-evia-api.json';
+  return steps(job)
+    .filter((step) => text(step['uses']).startsWith('actions/upload-artifact@'))
+    .flatMap((step) => text(record(step['with'])['path']).split('\n'))
+    .map((path) => path.trim())
+    .filter((path) => path !== '')
+    .filter((path) => {
+      if (path.includes('trivy-secret')) return true;
+      const glob = new RegExp(`^${globSource(path)}$`);
+      return glob.test(sample) || path.replace(/\/$/, '') === '.scratch/scans' || path.replace(/\/$/, '') === '.scratch';
+    })
+    .map((path) => `${where}: artefakt z raportem skanu sekretów (${path}) — raport trivy-secret-* nie jest przesyłany`);
 }
 
 /**
@@ -445,7 +486,7 @@ export function publishInfraProblems(document: unknown): string[] {
   if (!script.includes('infra/images/$image/Dockerfile')) problems.push(`${where}: Dockerfile z infra/images/$image/Dockerfile`);
   if (!script.includes('--severity HIGH,CRITICAL --ignore-unfixed --exit-code 1'))
     problems.push(`${where}: bramka — Critical/High z poprawką = czerwony (HIGH,CRITICAL, --ignore-unfixed, --exit-code 1)`);
-  problems.push(...secretScanProblems(script, where));
+  problems.push(...secretScanProblems(script, where), ...secretReportUploadProblems(job, where));
   if (!script.includes('--show-suppressed') || !script.includes('ExperimentalModifiedFindings'))
     problems.push(`${where}: skan z --show-suppressed; wyciszone znaleziska procesora = czerwony (P2)`);
   if (!script.includes('--ignorefile "$ignore"') || !script.includes('/out/trivyignore-none.yaml'))

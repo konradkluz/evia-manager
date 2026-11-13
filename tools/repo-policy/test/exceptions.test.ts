@@ -17,6 +17,12 @@ describe('scanner exceptions (EVM-006 AC4)', () => {
     expect(trivyExceptionProblems(yaml('.trivyignore.yaml'), TODAY)).toEqual([]);
   });
 
+  it('EVM-124 AC2: a secrets section in .trivyignore.yaml is rejected - there are no exceptions for secrets', () => {
+    const entry = { id: 'aws-access-key-id', statement: 'x · owner: security-engineer · EVM-124', expired_at: '2999-01-01' };
+    expect(trivyExceptionProblems({ secrets: [entry] }, TODAY)).toEqual([expect.stringContaining('secrets')]);
+    expect(trivyExceptionProblems({ secrets: [] }, TODAY)).toHaveLength(1);
+  });
+
   it('EVM-006 AC5 (A3): gitleaks exceptions are fingerprints of false positives with reason, owner and review date', () => {
     expect(gitleaksIgnoreProblems(read('.gitleaksignore'), TODAY)).toEqual([]);
   });

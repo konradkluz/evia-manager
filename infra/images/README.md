@@ -31,7 +31,7 @@ Wszystkie komponenty są **niezmodyfikowane**. ffmpeg i ffprobe działają jako 
 
 ## Oferta źródeł
 
-Na prośbę dowolnej osoby, przez co najmniej 3 lata od ostatniej publikacji danej wersji obrazu, przekazujemy komplet źródeł komponentów GPL i LGPL tej wersji, bezpłatnie (GPL-2.0 §3(b), GPL-3.0 §6, LGPL). Zgłoszenia (z nazwą obrazu i digestem): **adres do uzupełnienia — decyzja Konrada; warunek pierwszej publikacji `evia-media-processor`**.
+Na prośbę dowolnej osoby, przez co najmniej 3 lata od ostatniej publikacji danej wersji obrazu, przekazujemy komplet źródeł komponentów GPL i LGPL tej wersji, bezpłatnie (GPL-2.0 §3(b), GPL-3.0 §6, LGPL). Zgłoszenia (z nazwą obrazu i digestem): **kontakt@eviacharge.pl**.
 
 Realizacja (rzadka, ok. 1–2 h, właściciel `devops-engineer`): z obrazu pod podanym digestem odczytaj wersje pakietów (ścieżki wyżej), pobierz pakiety źródłowe z https://snapshot.debian.org/ albo z aports i distfiles Alpine oraz źródła sharp-libvips i bibliotek upstream dla wersji z `versions.json`, spakuj i udostępnij odbiorcy (link do pobrania). Usunięcie wersji obrazu z GHCR (retencja) nie skraca 3 lat dla wersji już opublikowanych.
 
