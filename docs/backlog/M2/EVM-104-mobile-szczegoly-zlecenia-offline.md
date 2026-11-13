@@ -4,7 +4,7 @@ title: "Aplikacja: szczegóły zlecenia offline"
 type: story
 milestone: M2
 epic: E10 Zlecenia offline
-status: ready
+status: in-progress
 priority: P1
 path: pelna             # dane osobowe na urządzeniu (klient, adres, telefon), tryb ukrytych danych (zmiana z lekka — 2026-11-13)
 owner: mobile-developer
@@ -71,3 +71,4 @@ Jako **technik** chcę **otworzyć zlecenie bez zasięgu i zobaczyć klienta, ad
 - 2026-10-27 — naniesiono konsultację security (product-owner)
 - 2026-11-13 — refinement do DoR: 6 AC (dodano zlecenie niedostępne w trakcie oglądania, prywatność i TalkBack, rozgraniczenie z EVM-105/106), ścieżka `lekka` → `pelna` (dane osobowe na urządzeniu), reviewers + security-engineer; status `draft` do akceptacji (product-owner)
 - 2026-11-13 — akceptacja Konrada (DoR) do nocnej kolejki `/noc-2026-11-13`: kolejność toru A 104 → 105 → 127 → 106 (tor B: 126 → 066), autokorekta zostaje w długich tekstach (wyłączona w polach klienta, telefonu, adresu; autofill wszędzie wyłączony), bez szkiców i „ostatnio otwieranych” w M2, EVM-126 — budowa panelu bez adresu kończy się błędem; status `ready` (Tech Lead)
+- 2026-11-14 — start realizacji w kolejce nocnej `/noc-2026-11-13` (Tech Lead): status `in-progress`, gałąź `feature/queue-2026-11-13-mobile`
