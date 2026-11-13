@@ -16,6 +16,14 @@ import {
   type SweepRule,
   type WriteOutcome,
 } from '@evia/sync-core';
+import type {
+  DetailEntrySource,
+  DetailParty,
+  DetailScopeItem,
+  DetailStageSource,
+  DetailUser,
+  OrderDetailSource,
+} from '../orders/order-detail-model';
 import type { OrderListSource, SourceCustomer, SourceOrder, SourceSite, SourceStage } from '../orders/order-list-model';
 import { MAX_PARAMS, chunk, type DbAccess, type Tx } from './database';
 import { nextGeneration, startFreshActiveGeneration } from './schema';
@@ -405,6 +413,154 @@ export class SqlReplicaStore implements ReplicaStore {
         status: text(row['status']),
       }));
       return { orders, customers, sites, stages };
+    });
+  }
+
+  /**
+   * The source of the work order details (EVM-104 AC1-AC5; security K1, K5, K10): ONE transaction on the active generation, a fixed
+   * number of statements whatever the size of the order (no N+1; ids in chunks only for a very long list). The id of the work order is
+   * always a bound parameter. It never selects the whole `fields` document - only allow-listed keys through `json_extract` - so e-mail,
+   * tax id, PPE, the notes and the apartment of the site, the description of the order, the contact data of parties and the payments
+   * never leave the database. Children are selected by the column `work_order_id`; parties and users only those the order refers to.
+   * `null` = the work order is not in the active generation (outside the scope or deleted).
+   */
+  async readOrderDetailSource(workOrderId: string): Promise<OrderDetailSource | null> {
+    const active = "JOIN replica_generations g ON g.generation = e.generation AND g.role = 'active'";
+    const text = (value: unknown): string => (typeof value === 'string' ? value : '');
+    const nullable = (value: unknown): string | null => (typeof value === 'string' ? value : null);
+    const time = (value: unknown): number | null => {
+      const at = typeof value === 'string' ? Date.parse(value) : NaN;
+      return Number.isFinite(at) ? at : null;
+    };
+    const num = (value: unknown): number | null => (typeof value === 'number' && Number.isFinite(value) ? value : null);
+    return this.#db.read(async (tx) => {
+      const orderRow = await tx.get(
+        `SELECT e.id AS id, json_extract(e.fields, '$.number') AS number, json_extract(e.fields, '$.title') AS title, json_extract(e.fields, '$.status') AS status, json_extract(e.fields, '$.customerId') AS customer_id, json_extract(e.fields, '$.siteId') AS site_id FROM replica_entities e ${active} WHERE e.type = 'work_order' AND e.id = ?`,
+        [workOrderId],
+      );
+      if (orderRow === undefined) return null;
+      const customerId = nullable(orderRow['customer_id']);
+      const siteId = nullable(orderRow['site_id']);
+      const customerRow =
+        customerId === null
+          ? undefined
+          : await tx.get(
+              `SELECT e.id AS id, json_extract(e.fields, '$.displayName') AS display_name, json_extract(e.fields, '$.phone') AS phone FROM replica_entities e ${active} WHERE e.type = 'customer' AND e.id = ?`,
+              [customerId],
+            );
+      const siteRow =
+        siteId === null
+          ? undefined
+          : await tx.get(
+              `SELECT e.id AS id, json_extract(e.fields, '$.street') AS street, json_extract(e.fields, '$.buildingNumber') AS building_number, json_extract(e.fields, '$.postalCode') AS postal_code, json_extract(e.fields, '$.city') AS city, json_extract(e.fields, '$.parkingSpotNumber') AS parking_spot, json_extract(e.fields, '$.garageLevel') AS garage_level, json_extract(e.fields, '$.connectionPowerKw') AS power_kw, json_extract(e.fields, '$.managerPartyId') AS manager_party_id, json_extract(e.fields, '$.distributionSystemOperatorPartyId') AS operator_party_id FROM replica_entities e ${active} WHERE e.type = 'site' AND e.id = ?`,
+              [siteId],
+            );
+      const scopeItems: DetailScopeItem[] = (
+        await tx.all(
+          `SELECT e.id AS id, json_extract(e.fields, '$.position') AS position, json_extract(e.fields, '$.name') AS name, json_extract(e.fields, '$.quantity') AS quantity FROM replica_entities e ${active} WHERE e.type = 'scope_item' AND e.work_order_id = ? ORDER BY e.id`,
+          [workOrderId],
+        )
+      ).map((row) => ({
+        id: String(row['id']),
+        position: num(row['position']) ?? 0,
+        name: text(row['name']),
+        quantity: num(row['quantity']),
+      }));
+      const stages: DetailStageSource[] = (
+        await tx.all(
+          `SELECT e.id AS id, json_extract(e.fields, '$.procedureId') AS procedure_id, json_extract(e.fields, '$.procedureName') AS procedure_name, json_extract(e.fields, '$.name') AS name, json_extract(e.fields, '$.position') AS position, json_extract(e.fields, '$.status') AS status, json_extract(e.fields, '$.waitingOn') AS waiting_on, json_extract(e.fields, '$.waitingPartyId') AS waiting_party_id FROM replica_entities e ${active} WHERE e.type = 'procedure_stage' AND e.work_order_id = ? ORDER BY e.id`,
+          [workOrderId],
+        )
+      ).map((row) => ({
+        id: String(row['id']),
+        procedureId: nullable(row['procedure_id']) ?? String(row['id']),
+        procedureName: text(row['procedure_name']),
+        name: text(row['name']),
+        position: num(row['position']) ?? 0,
+        status: text(row['status']),
+        waitingOn: nullable(row['waiting_on']),
+        waitingPartyId: nullable(row['waiting_party_id']),
+      }));
+      const entries: DetailEntrySource[] = (
+        await tx.all(
+          `SELECT e.id AS id, json_extract(e.fields, '$.kind') AS kind, json_extract(e.fields, '$.noteCategory') AS note_category, json_extract(e.fields, '$.body') AS body, json_extract(e.fields, '$.authorUserId') AS author_user_id, json_extract(e.fields, '$.createdAt') AS created_at, json_extract(e.fields, '$.capturedAt') AS captured_at, json_extract(e.fields, '$.redactedAt') AS redacted_at FROM replica_entities e ${active} WHERE e.type = 'timeline_entry' AND e.work_order_id = ? ORDER BY e.id`,
+          [workOrderId],
+        )
+      ).map((row) => ({
+        id: String(row['id']),
+        kind: text(row['kind']),
+        noteCategory: nullable(row['note_category']),
+        body: nullable(row['body']),
+        authorUserId: nullable(row['author_user_id']),
+        createdAt: time(row['created_at']) ?? 0,
+        capturedAt: time(row['captured_at']),
+        // a redaction mark that is present but unreadable still counts as a redaction (the model then drops the body)
+        redactedAt: row['redacted_at'] === null || row['redacted_at'] === undefined ? null : (time(row['redacted_at']) ?? 0),
+      }));
+      const site =
+        siteRow === undefined
+          ? null
+          : {
+              id: String(siteRow['id']),
+              street: text(siteRow['street']),
+              buildingNumber: text(siteRow['building_number']),
+              postalCode: text(siteRow['postal_code']),
+              city: text(siteRow['city']),
+              parkingSpot: text(siteRow['parking_spot']),
+              garageLevel: text(siteRow['garage_level']),
+              connectionPowerKw: num(siteRow['power_kw']),
+              managerPartyId: nullable(siteRow['manager_party_id']),
+              operatorPartyId: nullable(siteRow['operator_party_id']),
+            };
+      const partyIds = [
+        ...new Set(
+          [site?.managerPartyId, site?.operatorPartyId, ...stages.map((stage) => stage.waitingPartyId)].filter(
+            (id): id is string => typeof id === 'string',
+          ),
+        ),
+      ];
+      const authorIds = [...new Set(entries.map((entry) => entry.authorUserId).filter((id): id is string => id !== null))];
+      const byIds = async (type: 'party' | 'user', ids: readonly string[]): Promise<SqlRow[]> => {
+        const rows: SqlRow[] = [];
+        for (const part of chunk(ids, MAX_PARAMS - 1)) {
+          rows.push(
+            ...(await tx.all(
+              `SELECT e.id AS id, json_extract(e.fields, '$.displayName') AS display_name, json_extract(e.fields, '$.kind') AS kind FROM replica_entities e ${active} WHERE e.type = '${type}' AND e.id IN (${part.map(() => '?').join(', ')})`,
+              part,
+            )),
+          );
+        }
+        return rows;
+      };
+      const parties: DetailParty[] = (await byIds('party', partyIds)).map((row) => ({
+        id: String(row['id']),
+        kind: text(row['kind']),
+        displayName: text(row['display_name']),
+      }));
+      const users: DetailUser[] = (await byIds('user', authorIds)).map((row) => ({
+        id: String(row['id']),
+        displayName: text(row['display_name']),
+      }));
+      return {
+        order: {
+          id: String(orderRow['id']),
+          number: nullable(orderRow['number']),
+          title: text(orderRow['title']),
+          status: text(orderRow['status']),
+          customerId,
+          siteId,
+        },
+        customer:
+          customerRow === undefined
+            ? null
+            : { id: String(customerRow['id']), displayName: text(customerRow['display_name']), phone: text(customerRow['phone']) },
+        site,
+        parties,
+        scopeItems,
+        stages,
+        entries,
+        users,
+      };
     });
   }
 

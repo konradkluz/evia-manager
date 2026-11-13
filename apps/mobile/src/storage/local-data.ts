@@ -1,4 +1,5 @@
 import type { QueueStore, ReplicaStore, SettledInfo } from '@evia/sync-core';
+import type { OrderDetailSource } from '../orders/order-detail-model';
 import type { OrderListSource } from '../orders/order-list-model';
 import { Database } from './database';
 import { StorageError, toStorageError, type StorageErrorCode } from './errors';
@@ -51,6 +52,8 @@ export interface UnlockedStore {
     listWorkOrders(limit?: number): Promise<{ id: string; number: string; title: string }[]>;
     /** The source of "Moje zlecenia" (EVM-103): allow-listed keys only; no customer, place or stage without `withData`. */
     readOrderListSource(withData: boolean): Promise<OrderListSource>;
+    /** The source of the work order details (EVM-104): allow-listed keys of one order; null = not in the active generation. */
+    readOrderDetailSource(workOrderId: string): Promise<OrderDetailSource | null>;
   };
   /** Results of settled mutations for their consumer (EVM-107); taken = removed. */
   takeSettled(): Promise<{ mutationId: string; info: SettledInfo }[]>;
@@ -375,6 +378,7 @@ export class LocalDataHost {
         writeLastSuccess: (at) => replica.writeLastSuccess(at),
         listWorkOrders: (limit) => replica.listWorkOrders(limit),
         readOrderListSource: (withData) => replica.readOrderListSource(withData),
+        readOrderDetailSource: (workOrderId) => replica.readOrderDetailSource(workOrderId),
       },
       takeSettled: () => queue.takeSettled(),
       unsentItemCount: async () => {
