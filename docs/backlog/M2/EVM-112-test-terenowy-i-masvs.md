@@ -51,3 +51,4 @@ Jako **Konrad** chcę **potwierdzić w prawdziwych warunkach, że aplikacja nie 
 - 2026-10-27 — utworzono (product-owner)
 - 2026-10-27 — naniesiono konsultację security (product-owner)
 - 2026-11-12 — AC2: MASVS L2 → checklista L1 w security sign-offie wydania 1.1; usunięto zależność od EVM-102; test w garażu bez zmian (decyzja Konrada 2026-11-12 / Tech Lead z delegacji Konrada „tanio, szybko, bezpiecznie”)
+- 2026-11-13 — dopisane przy teście terenowym: pomiar AC7 EVM-103 (wyszukiwanie na liście, 300 syntetycznych zleceń, p95 ≤ 300 ms na referencyjnym średnim Androidzie, kompilacja wydania) — decyzja Konrada 2026-11-13 (Tech Lead)

@@ -31,6 +31,7 @@ import {
   type SyncOptions,
   type Transport,
 } from '@evia/sync-core';
+import { buildOrderList, queueFact, type OrderListSource, type OrderRow } from '../orders/order-list-model';
 import { classifySqlError } from '../storage/errors';
 import {
   EMPTY_COUNTS,
@@ -64,6 +65,7 @@ export interface SyncServiceStore {
     readLastSuccess(): Promise<number | null>;
     writeLastSuccess(at: number): Promise<void>;
     listWorkOrders(limit?: number): Promise<{ id: string; number: string; title: string }[]>;
+    readOrderListSource(withData: boolean): Promise<OrderListSource>;
   };
   takeSettled(): Promise<{ mutationId: string; info: SettledInfo }[]>;
 }
@@ -507,6 +509,19 @@ export class SyncService implements SyncControl {
         };
       });
     return { items, sent: [...this.#sent] };
+  }
+
+  /**
+   * "Moje zlecenia" (EVM-103): the replica and the queue read once each, joined in memory; no request to the server. The queue is read
+   * through `#records()` only (valid entries of the owner; security K2). Without `withData` (the hidden-data mode) no name, address or
+   * place is read from either side.
+   */
+  async orderList(withData: boolean): Promise<readonly OrderRow[]> {
+    const [source, records] = await Promise.all([this.#deps.store.replicaExtras.readOrderListSource(withData), this.#records()]);
+    return buildOrderList(
+      source,
+      records.map((record) => queueFact(record, withData)),
+    );
   }
 
   async dependentsOf(id: string): Promise<number> {

@@ -2,7 +2,21 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 import { AccessibilityInfo, StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import type { ReactElement } from 'react';
-import { AppBar, BottomNav, Button, ClipboardList, EmptyState, InlineAlert, ListChecks, Skeleton, SyncIndicator } from '../src/ui';
+import {
+  AppBar,
+  BottomNav,
+  Button,
+  Calculator,
+  ClipboardList,
+  EmptyState,
+  FilterChip,
+  InlineAlert,
+  ListChecks,
+  Skeleton,
+  StatusBadge,
+  SyncIndicator,
+  TextField,
+} from '../src/ui';
 import { color, radius, size, text } from '../src/ui/theme';
 
 const metrics = { frame: { x: 0, y: 0, width: 360, height: 760 }, insets: { top: 24, left: 0, right: 0, bottom: 16 } };
@@ -176,5 +190,87 @@ describe('mobile UI library (EVM-009 AC1; styleguide § 3, § 5)', () => {
     await render(<Skeleton accessibilityLabel="Ładowanie" />);
     expect(screen.getByLabelText('Ładowanie')).toBeBusy();
     reduced.mockRestore();
+  });
+});
+
+describe('list controls (EVM-103; styleguide § 3.7, § 3.9)', () => {
+  it('EVM-103 AC3: FilterChip is a toggle with a state - the selected chip has the selected colours and a check; every chip is at least 48 dp; focus shows the ring', async () => {
+    const onPress = jest.fn();
+    await render(
+      <>
+        <FilterChip label="Wszystkie" accessibilityLabel="Wszystkie, wybrane" selected onPress={onPress} testID="chip-a" />
+        <FilterChip label="Niewysłane (0)" accessibilityLabel="Niewysłane, 0 zleceń" selected={false} onPress={onPress} testID="chip-b" />
+      </>,
+    );
+    const a = screen.getByTestId('chip-a');
+    const b = screen.getByTestId('chip-b');
+    expect(a.props.accessibilityState).toMatchObject({ selected: true });
+    expect(b.props.accessibilityState).toMatchObject({ selected: false });
+    expect(flat(a)).toMatchObject({ backgroundColor: color.bg.selected, borderColor: color.border.selected, borderRadius: radius.pill });
+    expect(flat(b)).toMatchObject({ backgroundColor: color.bg.surface, borderColor: color.border.strong });
+    expect(flat(a).minHeight).toBeGreaterThanOrEqual(48);
+    expect(flat(b).minHeight).toBeGreaterThanOrEqual(48);
+    await fireEvent(b, 'focus');
+    expect(flat(screen.getByTestId('chip-b')).borderColor).toBe(color.focus.ring);
+    await fireEvent(b, 'blur');
+    expect(flat(screen.getByTestId('chip-b')).borderColor).toBe(color.border.strong);
+    await fireEvent.press(b);
+    expect(onPress).toHaveBeenCalledTimes(1);
+  });
+
+  it('EVM-103 AC1: StatusBadge shows the icon and the label on the tone of the group', async () => {
+    await render(<StatusBadge icon={Calculator} label="Wycena" tone={color.status.order.quoting} testID="badge" />);
+    expect(screen.getByText('Wycena')).toBeOnTheScreen();
+    expect(flat(screen.getByTestId('badge')).backgroundColor).toBe(color.status.order.quoting.bg);
+  });
+
+  it('EVM-103 AC6: the search variant of TextField turns off every learning property, limits the length and offers a 48 dp clear button only for a filled field', async () => {
+    const onClear = jest.fn();
+    const view = await render(
+      <TextField
+        label="Szukaj zlecenia"
+        value=""
+        onChangeText={() => undefined}
+        search={{ clearLabel: 'Wyczyść', onClear }}
+        maxLength={100}
+        testID="s"
+      />,
+    );
+    expect(screen.queryByRole('button', { name: 'Wyczyść' })).toBeNull();
+    const input = screen.getByLabelText('Szukaj zlecenia');
+    expect(input.props).toMatchObject({
+      autoCorrect: false,
+      spellCheck: false,
+      autoComplete: 'off',
+      importantForAutofill: 'no',
+      textContentType: 'none',
+      autoCapitalize: 'none',
+      returnKeyType: 'search',
+      maxLength: 100,
+    });
+    await view.rerender(
+      <TextField
+        label="Szukaj zlecenia"
+        value="x"
+        onChangeText={() => undefined}
+        search={{ clearLabel: 'Wyczyść', onClear }}
+        maxLength={100}
+        testID="s"
+      />,
+    );
+    const clear = screen.getByRole('button', { name: 'Wyczyść' });
+    expect(flat(clear).minHeight).toBeGreaterThanOrEqual(48);
+    expect(flat(clear).minWidth).toBeGreaterThanOrEqual(48);
+    await fireEvent.press(clear);
+    expect(onClear).toHaveBeenCalledTimes(1);
+  });
+
+  it('EVM-009 AC1: a normal TextField keeps password-manager friendly autofill (only the search variant switches it off)', async () => {
+    await render(<TextField label="Email" value="" onChangeText={() => undefined} autoComplete="email" textContentType="emailAddress" />);
+    expect(screen.getByLabelText('Email').props).toMatchObject({
+      importantForAutofill: 'yes',
+      autoComplete: 'email',
+      textContentType: 'emailAddress',
+    });
   });
 });

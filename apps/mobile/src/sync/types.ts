@@ -2,6 +2,7 @@
  * Types of the synchronization that screens may import (EVM-107): no runtime dependency on the transport, the service or the store
  * (dependency-cruiser `mobile-screens-without-adapters`). The screens read `SyncSnapshot` and call `SyncControl`.
  */
+import type { OrderRow } from '../orders/order-list-model';
 import type { AttentionAction, AttentionReason, EnqueueInput, MutationType } from '@evia/sync-core';
 
 export type { AttentionAction, AttentionReason };
@@ -102,6 +103,11 @@ export interface SyncControl {
   enqueue(input: EnqueueInput): Promise<AttentionResult>;
   /** The queue as the "Kolejka" list shows it; contents are read only with `withLabels`. */
   queueView(withLabels: boolean): Promise<QueueView>;
+  /**
+   * The rows of "Moje zlecenia" (EVM-103): the local replica and the queue only, never the server. `withData = false` in the
+   * hidden-data mode: no name, address or place is read at all.
+   */
+  orderList(withData: boolean): Promise<readonly OrderRow[]>;
   /** Entries that depend on this one, for the confirmation dialog. */
   dependentsOf(id: string): Promise<number>;
   discard(id: string): Promise<AttentionResult>;

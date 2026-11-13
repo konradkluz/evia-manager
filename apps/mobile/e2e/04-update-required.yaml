@@ -12,7 +12,7 @@ appId: pl.eviacharge.manager
 - assertVisible: 'Poproś administratora o nową wersję aplikacji.'
 - assertVisible: 'Twoja wersja: 0.1.0 · Wymagana: 99.0.0'
 - assertNotVisible: 'Moje zlecenia'
-- assertNotVisible: 'Brak zleceń'
+- assertNotVisible: 'ZL-E2E-1'
 - assertNotVisible:
     id: 'nav-queue'
 - assertNotVisible:

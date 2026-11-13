@@ -8,7 +8,7 @@ appId: pl.eviacharge.manager
     visible: 'Brak zasięgu.*'
     timeout: 30000
 - assertVisible: 'Offline. Otwórz kolejkę'
-- assertVisible: 'Brak zleceń'
+- assertVisible: 'ZL-E2E-1'
 - assertNotVisible: 'Brak połączenia z serwerem'
 - assertNotVisible: 'Zaktualizuj aplikację'
 # review screenshots (EVM-009 UX review): S-01 and the queue in airplane mode

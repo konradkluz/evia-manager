@@ -162,6 +162,17 @@ export const SCENARIOS = [
       { flow: '30-sync-return.yaml', server: 'ok', airplane: false, background: true, expectSync: { unique: 5, duplicates: 0 } },
     ],
   },
+  // EVM-103 AC1, AC2, AC4, AC6: the list and the search from the local database in airplane mode; the query never reaches a file or a log
+  // (the marker of the encryption checks is in a customer name and typed as the query), and after a kill the field starts empty.
+  {
+    name: 'orders-list-and-search',
+    ac: 'EVM-103 AC1 AC2 AC4 AC6',
+    steps: [
+      { flow: '40-orders-sign-in.yaml', server: 'ok', airplane: false },
+      { flow: '40-orders-offline-search.yaml', server: 'ok', airplane: true, after: ['kill-9'] },
+      { flow: '40-orders-after-kill.yaml', server: 'ok', airplane: true, after: ['check-encrypted'] },
+    ],
+  },
   // Last: the held request keeps the app in its loading state (skeleton), and the first-flow retry of the runner is not affected.
   {
     name: 'loading',

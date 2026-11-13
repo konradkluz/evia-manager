@@ -8,6 +8,6 @@ appId: pl.eviacharge.manager
     visible: '(Połączono|Zsynchronizowano o).*Otwórz kolejkę'
     timeout: 30000
 - assertNotVisible: 'Brak połączenia z serwerem'
-- assertVisible: 'Brak zleceń'
+- assertVisible: 'ZL-E2E-1'
 # review screenshot (EVM-009 UX review): S-01 after the retry
 - takeScreenshot: s01-server-back

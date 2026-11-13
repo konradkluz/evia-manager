@@ -1,12 +1,12 @@
 # EVM-107 AC1, AC6 (preparation): a fresh install signs in against the scenario server; the first download (M-12) runs through the
-# sync part of the server and ends on the list - the empty placeholder of S-01 until the list screens (EVM-103) exist.
+# sync part of the server and ends on the list of the two synthetic work orders (EVM-103).
 appId: pl.eviacharge.manager
 ---
 - launchApp:
     clearState: true
 - runFlow: common/sign-in.yaml
 - extendedWaitUntil:
-    visible: 'Brak zleceń'
+    visible: 'ZL-E2E-1'
     timeout: 60000
 - assertNotVisible: 'Przygotowujemy dane'
 - takeScreenshot: s01-after-first-download

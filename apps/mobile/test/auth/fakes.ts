@@ -143,6 +143,7 @@ export class FakeHost {
         readLastSuccess: () => Promise.resolve(null),
         writeLastSuccess: () => Promise.resolve(),
         listWorkOrders: () => Promise.resolve([]),
+        readOrderListSource: () => Promise.resolve({ orders: [], customers: [], sites: [], stages: [] }),
       },
       takeSettled: () => Promise.resolve([]),
       unsentItemCount: async () => {

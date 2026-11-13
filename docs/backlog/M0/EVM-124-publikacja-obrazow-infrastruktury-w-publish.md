@@ -4,7 +4,7 @@ title: Publikacja obrazów infrastruktury (pgbackrest, media-processor) w CI —
 type: enabler
 milestone: M0
 epic: E00 Fundamenty
-status: in-review
+status: done
 priority: P1
 path: pelna
 owner: devops-engineer
@@ -81,3 +81,4 @@ Jako **właściciel produktu** chcę, **aby obrazy infrastruktury budowane dziś
 - 2026-11-13 (decyzja Konrada, poprawki, runda 3): pakiety GHCR `evia-api` i `evia-web` zostają publiczne, nowe pakiety infrastruktury także mogą być publiczne (obrazy zawierają tylko kod z publicznego repozytorium); zamiast prywatności — **skan sekretów obrazów przed publikacją**. Zmiany: `ci.yml` — w `publish` (api, web, obrazy infrastruktury) i `publish-infra` osobny przebieg Trivy `--scanners secret --exit-code 1` (bez `--severity`: każdy poziom ważności = czerwony; bez wpisów rejestru wyjątków; raport nie jest przesyłany, w logu tylko reguła, poziom, plik i linia), przed logowaniem do GHCR i pushem; usunięte: strażnik prywatności przed pierwszym pushem i krok „Anonymous access check” (pakiety powstają przy pierwszym pushu z CI, bez ręcznych kroków Konrada); `tools/repo-policy` — `secretScanProblems` dla obu jobów, testy zamiast testów prywatności; ADR-0022 pkt 3 i `docs/ops/github-i-ci.md`, runbooki — spójne. Dowód jednorazowy (Trivy 0.74.0 przypięty, `--scanners secret`, wszystkie poziomy, linux/arm64, przebieg `publish` 43430373672, commit 315275623088576c86b09d69cafcd0ce0d22f664): `evia-api@sha256:d2734bc6…` 0 sekretów, `evia-web@sha256:e55dac11…` 0 sekretów (zapis w `.scratch/EVM-124/`).
 - 2026-11-13 — weryfikacja orkiestratora: `pnpm run gate` zielona (pokrycie zmienionego kodu 99,6% linii / 95,3% gałęzi), `pnpm run gate:deploy` zielona, `docs:check` 0 błędów; QA PASS AC1–AC6 (AC1–AC3 dowód końcowy z przebiegu `publish-infra` na `main` po scaleniu); przeglądy: code-reviewer akceptacja, security-engineer akceptacja po 4 rundach (decyzja Konrada: pakiety publiczne + skan sekretów + informacja licencyjna, adres zgłoszeń `kontakt@eviacharge.pl`); status `in-review` (Tech Lead)
 - 2026-11-13 — Koszt: ok. 1,5 mln tokenów agentów (workflow 14 agentów + 3 poprawki poza workflow), 4 rundy przeglądu security — powyżej celu ścieżki `pelna` z powodu decyzji o widoczności pakietów i licencjach wykrytych w trakcie (Tech Lead)
+- 2026-11-13 — pierwszy `publish-infra` na `main` zielony (dowód AC1–AC3: przebieg 43455907481, #132 scalony, Konrad zaakceptował); `publish` czerwony na kluczu zaślepce `ssl-cert-snakeoil.key` w pobranym obrazie upstream `postgres:18.6-trixie` (`HIGH private-key`, tylko skan, nie publikujemy go) — skan sekretów w `publish` zawężony do obrazów publikowanych (`evia-api`, `evia-web`), skan podatności dla wszystkich archiwów bez zmian, bez wpisów wyjątków; status `done` (Tech Lead)

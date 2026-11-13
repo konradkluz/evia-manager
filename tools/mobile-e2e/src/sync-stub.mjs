@@ -14,6 +14,8 @@
 const UUIDV7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const MUTATION_TYPES = ['CreateNote', 'CreateComment', 'CreateQuickWorkOrder'];
 const SERVER_TIME = () => new Date().toISOString();
+/** The marker of the encryption checks (EVM-093; src/device.mjs): the customer 2 carries it so that the list search can be proven (EVM-103 AC6). */
+const SENTINEL = ['EVM093', 'SENTINEL'].join('-');
 
 /** The cursor of the snapshot and of the changes phase (opaque to the client; the shape of SyncCursor). */
 const CURSOR_AFTER_SNAPSHOT = 'e2e-cursor-after-snapshot-0001';
@@ -46,7 +48,7 @@ export function snapshotPage() {
         id: id(n, '1'),
         version: 1,
         kind: 'person',
-        displayName: `Klient Testowy ${String(n)}`,
+        displayName: n === 2 ? `Klient Testowy 2 ${SENTINEL}` : `Klient Testowy ${String(n)}`,
         phone: '+48000000000',
       },
     },

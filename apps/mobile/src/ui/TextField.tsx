@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import type { ComponentProps } from 'react';
 import { Platform, Pressable, Text, TextInput, View } from 'react-native';
+import { Icon } from './Icon';
+import { Search, X } from './icons';
 import { borderWidth, color, radius, size, space, text } from './theme';
 
 type InputProps = ComponentProps<typeof TextInput>;
@@ -17,6 +19,12 @@ export interface SecureToggle {
   readonly hideName: string;
 }
 
+export interface SearchOptions {
+  /** Accessible name of the clear button ("Wyczyść wyszukiwanie"). */
+  readonly clearLabel: string;
+  readonly onClear: () => void;
+}
+
 export interface TextFieldProps {
   label: string;
   value: string;
@@ -29,6 +37,14 @@ export interface TextFieldProps {
   numeric?: boolean;
   /** The field sits on `color.bg.brand` (M-01): label and hint in `color.text.on-brand`, the inverse focus ring. */
   inverse?: boolean;
+  /**
+   * Search variant (styleguide § 3.2, § 3.7): a search icon, a clear button (`size.touch-target.min`) and the keyboard that does not
+   * learn what is typed as far as the standard properties go - autocorrect, spell check, autofill and suggestions off (EVM-103 AC6).
+   */
+  search?: SearchOptions;
+  /** Maximum length of the value (protects the work budget of a search). */
+  maxLength?: number;
+  placeholder?: string;
   editable?: boolean;
   keyboardType?: InputProps['keyboardType'];
   autoComplete?: InputProps['autoComplete'];
@@ -52,6 +68,9 @@ export function TextField({
   secure,
   numeric = false,
   inverse = false,
+  search,
+  maxLength,
+  placeholder,
   editable = true,
   keyboardType,
   autoComplete,
@@ -62,6 +81,7 @@ export function TextField({
 }: TextFieldProps) {
   const [focused, setFocused] = useState(false);
   const masked = secure !== undefined && !secure.shown;
+  const priv = search !== undefined;
   const keyboard = numeric
     ? 'number-pad'
     : secure?.shown === true
@@ -92,6 +112,11 @@ export function TextField({
             borderColor: invalid ? color.border.error : focused ? color.border.selected : color.border.strong,
           }}
         >
+          {search === undefined ? null : (
+            <View style={{ paddingLeft: space.inset.md }}>
+              <Icon icon={Search} color={color.icon.secondary} />
+            </View>
+          )}
           <TextInput
             accessibilityLabel={label}
             accessibilityHint={hint}
@@ -101,13 +126,15 @@ export function TextField({
             editable={editable}
             secureTextEntry={masked}
             keyboardType={keyboard}
-            autoComplete={autoComplete}
-            textContentType={textContentType}
+            autoComplete={priv ? 'off' : autoComplete}
+            textContentType={priv ? 'none' : textContentType}
             autoCorrect={false}
             spellCheck={false}
             autoCapitalize="none"
-            importantForAutofill="yes"
-            returnKeyType={returnKeyType}
+            importantForAutofill={priv ? 'no' : 'yes'}
+            maxLength={maxLength}
+            placeholder={placeholder}
+            returnKeyType={priv ? 'search' : returnKeyType}
             onSubmitEditing={onSubmitEditing}
             onFocus={() => {
               setFocused(true);
@@ -125,6 +152,24 @@ export function TextField({
               minHeight: size.control.height.mobile.md,
             }}
           />
+          {search === undefined || value === '' ? null : (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={search.clearLabel}
+              onPress={search.onClear}
+              testID={testID === undefined ? undefined : `${testID}-clear`}
+              style={({ pressed }) => ({
+                minHeight: size.touchTarget.min,
+                minWidth: size.touchTarget.min,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: pressed ? color.action.tertiary.bgPressed : 'transparent',
+                borderRadius: radius.control,
+              })}
+            >
+              <Icon icon={X} color={color.icon.primary} />
+            </Pressable>
+          )}
           {secure === undefined ? null : (
             <Pressable
               accessibilityRole="switch"

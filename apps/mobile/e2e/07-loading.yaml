@@ -1,18 +1,17 @@
-# EVM-009 AC1: a signed-in phone (07-sign-in.yaml); the first check of the API does not finish (the scenario server holds the request) — the shell is there at once and
-# the list area shows the skeleton; after 5 s it adds "Ładowanie trwa dłużej niż zwykle…". Nothing blocks the navigation.
+# EVM-009 AC1, AC2 / EVM-103 AC1, AC4: the server holds the health request, so the first check never ends. The list comes from the
+# local database at once (offline-first: nothing waits for the network); only the note "takes longer than usual" is added above it.
+# (Without local rows the skeleton of S-01 shows instead - covered by the component tests.)
 appId: pl.eviacharge.manager
 ---
 - launchApp:
     stopApp: true
 - extendedWaitUntil:
-    visible:
-      id: 'orders-skeleton'
+    visible: 'ZL-E2E-1'
     timeout: 30000
 - assertVisible: 'Moje zlecenia'
-- assertNotVisible: 'Brak zleceń'
-# review screenshot (EVM-009 UX review): S-01 while loading
 - takeScreenshot: s01-loading
 - extendedWaitUntil:
     visible: 'Ładowanie trwa dłużej niż zwykle…'
     timeout: 15000
+- assertVisible: 'ZL-E2E-1'
 - takeScreenshot: s01-loading-slow
