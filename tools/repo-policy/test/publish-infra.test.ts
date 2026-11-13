@@ -165,6 +165,21 @@ describe('publish-infra checkers detect violations (EVM-124)', () => {
     ).not.toEqual([]);
   });
 
+  it('EVM-124 AC1 (SR-INFRA-09; ADR-0022 pt 3): the packages must be private - an anonymous manifest request after the push and before the attestation, red unless 401, 403 or 404', () => {
+    const anonymousIndex = indexOfRun(infra, 'anonymous access denied');
+    expect(anonymousIndex).toBeGreaterThan(indexOfRun(infra, 'docker push'));
+    expect(anonymousIndex).toBeLessThan(indexOfRun(infra, 'actions/attest-build-provenance@'));
+    // the check moved after the attestation, removed, accepting a 200, or authenticated is a violation
+    expect(problems(swap('anonymous access denied', 'actions/attest-build-provenance@'))).not.toEqual([]);
+    expect(
+      problems((job) => ({ ...job, steps: steps(job).filter((step) => !text(step['run']).includes('anonymous access denied')) })),
+    ).not.toEqual([]);
+    expect(problems(replaceRun('401|403|404)', '200|401|403|404)'))).not.toEqual([]);
+    expect(problems(replaceRun('exit 1 ;;', 'true ;;'))).not.toEqual([]);
+    expect(problems(replaceRun('--max-time 20 --write-out', '--max-time 20 --user "$GHCR_USER:$GHCR_TOKEN" --write-out'))).not.toEqual([]);
+    expect(problems(replaceRun('/manifests/$digest"', '/manifests/latest"'))).not.toEqual([]);
+  });
+
   it('EVM-124 AC2 (architect 4; K2): all or nothing — a push before the scan or the platform check, a login before the scan, a push step that may be skipped or fail open', () => {
     expect(problems(swap('scan-trivy-image image', 'docker push'))).not.toEqual([]);
     expect(problems(swap('not linux/arm64', 'scan-trivy-image image'))).not.toEqual([]);

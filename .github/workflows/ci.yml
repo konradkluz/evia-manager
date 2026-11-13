@@ -706,6 +706,22 @@ jobs:
             echo "$digest" > ".scratch/scans/$name.digest"
             echo "digest-$image=$digest" >> "$GITHUB_OUTPUT"
           done
+      - name: Anonymous access check - the packages must be private (red before the attestation when anyone can read the manifest)
+        shell: bash
+        run: |
+          # A package first created by GITHUB_TOKEN from a public repository can be public (ADR-0022 pt 3). The packages are created private
+          # beforehand (docs/ops/github-i-ci.md); this step fails closed if that did not hold. Anonymous = no registry login, no credential of ours (only the anonymous pull token of the registry):
+          # only a 401, 403 or 404 for the manifest of the pushed digest passes (a 200, a network error or anything else is red).
+          for image in postgres-pgbackrest media-processor; do
+            name="evia-$image"
+            digest="$(cat ".scratch/scans/$name.digest")"
+            token="$(curl --silent --show-error --max-time 20 "https://ghcr.io/token?service=ghcr.io&scope=repository:konradkluz/$name:pull" | jq -r '.token // empty')"
+            status="$(curl --silent --output /dev/null --max-time 20 --write-out '%{http_code}' ${token:+--header "Authorization: Bearer $token"}               --header 'Accept: application/vnd.oci.image.manifest.v1+json' "https://ghcr.io/v2/konradkluz/$name/manifests/$digest")"
+            case "$status" in
+              401|403|404) echo "$name: anonymous access denied ($status) - the package is private" ;;
+              *) echo "::error::package $name is public or unverifiable (anonymous manifest request: HTTP $status) - set it to private and delete the version" >&2; exit 1 ;;
+            esac
+          done
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-name: ghcr.io/konradkluz/evia-postgres-pgbackrest

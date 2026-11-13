@@ -436,11 +436,30 @@ export function publishInfraProblems(document: unknown): string[] {
   const scan = firstStep(job, 'scan-trivy-image image');
   const push = firstStep(job, 'docker push');
   const login = firstStep(job, 'docker login');
+  const anonymous = firstStep(job, 'anonymous access denied');
   const attest = firstStep(job, 'actions/attest-build-provenance@');
   const lastAttest = lastStep(job, 'actions/attest-build-provenance@');
   const recorded = firstStep(job, 'infra-images-record.json');
-  if (!(build >= 0 && build < platform && platform < scan && scan < push && push < attest && lastAttest < recorded))
-    problems.push(`${where}: kolejność kroków: budowy, platforma, skan, push, atestacja, rekord`);
+  if (!(
+    build >= 0 &&
+    build < platform &&
+    platform < scan &&
+    scan < push &&
+    push < anonymous &&
+    anonymous < attest &&
+    lastAttest < recorded
+  ))
+    problems.push(`${where}: kolejność kroków: budowy, platforma, skan, push, kontrola anonimowa, atestacja, rekord`);
+  const anonymousRun = text(steps(job)[anonymous]?.['run']);
+  if (
+    !anonymousRun.includes('https://ghcr.io/v2/konradkluz/$name/manifests/$digest') ||
+    !/case "\$status" in\s+401\|403\|404\) /.test(anonymousRun) ||
+    !anonymousRun.includes('exit 1') ||
+    /docker login|GHCR_TOKEN|github\.token|--user/.test(anonymousRun)
+  )
+    problems.push(
+      `${where}: kontrola anonimowa pakietów (manifest po digeście bez logowania; tylko 401, 403, 404 przechodzi, inaczej czerwony)`,
+    );
   if (login !== push) problems.push(`${where}: docker login dopiero po skanie, w kroku push`);
   const platformRun = text(steps(job)[platform]?.['run']);
   if (!/\[ "\$platform" != linux\/arm64 \]/.test(platformRun) || !platformRun.includes('is $platform, not linux/arm64'))

@@ -1,8 +1,8 @@
 // @ts-check
 /**
  * GHCR retention (EVM-007 AC2; ADR-0018 "Publikacja hermetyczna" n2; security-engineer A5; architect 20).
- * - Only the packages evia-api and evia-web (never the verifier image or any other package).
- * - Protected: the digests of the release manifests of the last 30 `push` runs of ci.yml on main — a branch can push
+ * - Only the packages evia-api, evia-web and (EVM-124) evia-postgres-pgbackrest, evia-media-processor (never the verifier image or any other package).
+ * - Protected: the digests of the release manifests and of the infra-images-record of the last 30 `push` runs of ci.yml on main — a branch can push
  *   versions too, and 20 junk versions must never push out a digest verified on staging (rollback, prod approval).
  * - Kept besides: the 20 newest versions of each package.
  * - Fail-closed: if the manifest of any of those runs cannot be read (a missing, expired or unreadable artifact of a
@@ -12,7 +12,12 @@
  */
 import { inflateRawSync } from 'node:zlib';
 
-export const PACKAGES = Object.freeze(['evia-api', 'evia-web']);
+export const PACKAGES = Object.freeze(['evia-api', 'evia-web', 'evia-postgres-pgbackrest', 'evia-media-processor']);
+/** Artifacts whose digests are protected: the entry inside the ZIP per artifact name (release-manifest of publish, infra-images-record of publish-infra). */
+export const PROTECTED_ARTIFACTS = Object.freeze({
+  'release-manifest': 'release-manifest.json',
+  'infra-images-record': 'infra-images-record.json',
+});
 export const KEEP_NEWEST = 20;
 export const PROTECTED_RUNS = 30;
 const DIGEST = /^sha256:[0-9a-f]{64}$/;
@@ -21,10 +26,10 @@ const LIMIT = 1024 * 1024;
 export class RetentionError extends Error {}
 
 /**
- * The bytes of release-manifest.json from the artifact ZIP: exactly one entry with that name, store or deflate, at most
- * 1 MiB once inflated. @param {Uint8Array} archive @returns {Uint8Array}
+ * The bytes of the one expected entry (release-manifest.json by default) from the artifact ZIP: exactly one entry with that name,
+ * store or deflate, at most 1 MiB once inflated. @param {Uint8Array} archive @param {string} entry @returns {Uint8Array}
  */
-export function manifestFromZip(archive) {
+export function manifestFromZip(archive, entry = 'release-manifest.json') {
   const view = new DataView(archive.buffer, archive.byteOffset, archive.byteLength);
   const end = archive.byteLength - 22;
   if (end < 0 || view.getUint32(end, true) !== 0x06054b50 || view.getUint16(end + 10, true) !== 1)
@@ -36,7 +41,7 @@ export function manifestFromZip(archive) {
   const nameLength = view.getUint16(central + 28, true);
   const local = view.getUint32(central + 42, true);
   const name = new TextDecoder().decode(archive.subarray(central + 46, central + 46 + nameLength));
-  if (name !== 'release-manifest.json' || (method !== 0 && method !== 8)) throw new RetentionError('artifact: unexpected entry');
+  if (name !== entry || (method !== 0 && method !== 8)) throw new RetentionError('artifact: unexpected entry');
   if (local + 30 > central || view.getUint32(local, true) !== 0x04034b50) throw new RetentionError('artifact: local header');
   const start = local + 30 + view.getUint16(local + 26, true) + view.getUint16(local + 28, true);
   if (start + compressed > central) throw new RetentionError('artifact: data out of bounds');
@@ -48,7 +53,7 @@ export function manifestFromZip(archive) {
   }
 }
 
-/** The image digests of a manifest (repositories of the allowed packages only). @param {Uint8Array} bytes @param {string} owner */
+/** The image digests of a manifest or an infra record (`images` values: a reference string or an object with `ref`; allowed repositories only). @param {Uint8Array} bytes @param {string} owner */
 export function digestsOf(bytes, owner) {
   /** @type {unknown} */
   let document;
@@ -59,8 +64,9 @@ export function digestsOf(bytes, owner) {
   }
   const images = typeof document === 'object' && document !== null ? /** @type {Record<string, unknown>} */ (document)['images'] : null;
   if (typeof images !== 'object' || images === null) throw new RetentionError('manifest: no images');
-  return Object.values(images).map((reference) => {
-    const [repository = '', digest = ''] = String(reference).split('@');
+  return Object.values(/** @type {Record<string, unknown>} */ (images)).map((/** @type {unknown} */ reference) => {
+    const ref = typeof reference === 'object' && reference !== null ? /** @type {Record<string, unknown>} */ (reference)['ref'] : reference;
+    const [repository = '', digest = ''] = String(ref).split('@');
     if (!PACKAGES.some((name) => repository === `ghcr.io/${owner}/${name}`) || !DIGEST.test(digest))
       throw new RetentionError('manifest: image');
     return digest;
@@ -85,15 +91,18 @@ export async function protectedDigests(api, repository) {
   /** @type {Set<string>} */
   const digests = new Set();
   for (const run of runs) {
-    const listing = /** @type {{ artifacts?: Array<Record<string, unknown>> }} */ (
-      await api.get(`/repos/${repository}/actions/runs/${String(run['id'])}/artifacts?name=release-manifest&per_page=100`)
-    );
-    if (!Array.isArray(listing.artifacts)) throw new RetentionError('artifacts: unexpected answer');
-    const artifacts = listing.artifacts.filter((artifact) => artifact['name'] === 'release-manifest');
-    if (artifacts.some((artifact) => artifact['expired'] !== false)) throw new RetentionError(`run ${String(run['id'])}: expired manifest`);
-    for (const artifact of artifacts)
-      for (const digest of digestsOf(manifestFromZip(await api.artifact(String(artifact['archive_download_url']))), owner))
-        digests.add(digest);
+    for (const [artifactName, entry] of Object.entries(PROTECTED_ARTIFACTS)) {
+      const listing = /** @type {{ artifacts?: Array<Record<string, unknown>> }} */ (
+        await api.get(`/repos/${repository}/actions/runs/${String(run['id'])}/artifacts?name=${artifactName}&per_page=100`)
+      );
+      if (!Array.isArray(listing.artifacts)) throw new RetentionError('artifacts: unexpected answer');
+      const artifacts = listing.artifacts.filter((artifact) => artifact['name'] === artifactName);
+      if (artifacts.some((artifact) => artifact['expired'] !== false))
+        throw new RetentionError(`run ${String(run['id'])}: expired ${artifactName}`);
+      for (const artifact of artifacts)
+        for (const digest of digestsOf(manifestFromZip(await api.artifact(String(artifact['archive_download_url'])), entry), owner))
+          digests.add(digest);
+    }
   }
   return digests;
 }
