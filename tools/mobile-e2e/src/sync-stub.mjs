@@ -91,10 +91,72 @@ export function snapshotPage() {
       },
     },
   ];
+  /**
+   * The details of the work order 1 (EVM-104): one scope item, one process with two stages and two entries of the journal - all
+   * invented text, so a screenshot of the scenario can be attached as evidence without review.
+   */
+  const details = () => {
+    const workOrderId = id(1);
+    const procedureId = id(1, '6');
+    /** @param {string} type @param {number} n @param {Record<string, unknown>} fields */
+    const entity = (type, n, fields) => ({ op: 'upsert', entity: { type, id: id(n, '5'), version: 1, workOrderId, ...fields } });
+    const stage = {
+      procedureId,
+      procedureCode: 'osd',
+      procedureName: 'Proces testowy OSD',
+      dueDate: null,
+      responsibleUserId: null,
+      waitingOn: null,
+      waitingPartyId: null,
+      waitingSince: null,
+      blockedReason: null,
+      startedAt: null,
+      completedOn: null,
+    };
+    return [
+      entity('scope_item', 1, {
+        position: 1,
+        code: 'WALLBOX',
+        name: 'Wallbox testowy 11 kW',
+        parameterSetCode: null,
+        parameters: {},
+        quantity: 2,
+        notes: null,
+      }),
+      entity('procedure_stage', 1, { ...stage, code: 'wniosek', name: 'Wniosek testowy', position: 1, status: 'done' }),
+      entity('procedure_stage', 2, { ...stage, code: 'umowa', name: 'Umowa testowa', position: 2, status: 'todo' }),
+      entity('timeline_entry', 1, {
+        kind: 'note',
+        noteCategory: 'phone_call',
+        body: 'Wpis testowy: rozmowa fikcyjna.',
+        procedureStageId: null,
+        authorUserId: null,
+        createdAt: at,
+        origin: 'web',
+        capturedAt: null,
+        supersedesEntryId: null,
+        supersededByEntryId: null,
+        redactedAt: null,
+      }),
+      entity('timeline_entry', 2, {
+        kind: 'event',
+        noteCategory: null,
+        body: 'Zdarzenie testowe: zmiana etapu.',
+        procedureStageId: null,
+        authorUserId: null,
+        createdAt: at,
+        origin: 'system',
+        capturedAt: null,
+        supersedesEntryId: null,
+        supersededByEntryId: null,
+        redactedAt: null,
+      }),
+    ];
+  };
   return {
     result: 'changes',
     phase: 'snapshot',
-    changes: [...aggregate(1), ...aggregate(2)],
+    changes: [...aggregate(1), ...aggregate(2), ...details()],
     cursor: CURSOR_AFTER_SNAPSHOT,
     hasMore: false,
     serverTime: SERVER_TIME(),

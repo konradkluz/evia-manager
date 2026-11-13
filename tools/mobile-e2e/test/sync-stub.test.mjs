@@ -29,6 +29,18 @@ describe('sync part of the scenario server (EVM-107 AC6)', () => {
     assert.equal(zSyncMutationsResponse.safeParse(post(stub, mutations(A, B))?.body).success, true);
   });
 
+  it('EVM-104 AC1: the snapshot carries the details of the work order 1 (scope, stages, journal) in invented text only', () => {
+    const changes = snapshotPage().changes.map((change) => change.entity);
+    const types = (type) => changes.filter((entity) => entity.type === type);
+    assert.equal(types('scope_item').length, 1);
+    assert.equal(types('procedure_stage').length, 2);
+    assert.equal(types('timeline_entry').length, 2);
+    for (const entity of [...types('scope_item'), ...types('procedure_stage'), ...types('timeline_entry')]) {
+      assert.equal(entity.workOrderId, '30000000-0000-4000-8000-000000000001');
+    }
+    assert.doesNotMatch(JSON.stringify(changes), /@|https?:/);
+  });
+
   it('EVM-107 AC6: the first appearance of a mutation is "applied"; a repeat is "duplicate" (the saved result), counted separately', () => {
     const stub = createSyncStub();
     const first = /** @type {{ results: { outcome: string }[] }} */ (post(stub, mutations(A, B))?.body);

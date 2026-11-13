@@ -479,7 +479,10 @@ describe('smoke test run (EVM-009 AC4; ADR-0015)', () => {
     assert.ok(machine.maestroFlows().includes('04-update-required.yaml'));
     // the failed offline flow skips its return step: the next scenario switches airplane mode off, the later ones toggle as planned
     // EVM-103 adds the scenario "orders-list-and-search": one more offline stretch (two flows in airplane mode), switched off before "loading"
+    // EVM-104 adds "order-details-offline": one more offline stretch
     assert.deepEqual(machine.airplane(), [
+      'enable',
+      'disable',
       'enable',
       'disable',
       'enable',

@@ -173,6 +173,15 @@ export const SCENARIOS = [
       { flow: '40-orders-after-kill.yaml', server: 'ok', airplane: true, after: ['check-encrypted'] },
     ],
   },
+  // EVM-104 AC1, AC2, AC3, AC4: the details of a work order from the local database in airplane mode (after the first sync of the list).
+  {
+    name: 'order-details-offline',
+    ac: 'EVM-104 AC1 AC2 AC3 AC4',
+    steps: [
+      { flow: '41-order-details-sign-in.yaml', server: 'ok', airplane: false },
+      { flow: '41-order-details-offline.yaml', server: 'ok', airplane: true },
+    ],
+  },
   // Last: the held request keeps the app in its loading state (skeleton), and the first-flow retry of the runner is not affected.
   {
     name: 'loading',
