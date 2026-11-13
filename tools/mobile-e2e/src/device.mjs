@@ -108,13 +108,18 @@ export function judgeGrep(outcome, where) {
   return { ok: false, detail: `grep over ${where} failed (exit ${String(outcome.status)})` };
 }
 
+/** A logcat line of the Maestro test driver (`brief`: `I/Maestro ( 6458):`; `threadtime`: `… 6458  6470 I Maestro : …`). */
+const MAESTRO_LINE = /(?:^|\s)[VDIWEF][/ ]\s*Maestro\s*(?:\(\s*\d+\))?\s*:/;
+
 /**
  * @param {Outcome} logcat
  * @returns {{ ok: boolean, detail: string }}
  */
 export function judgeLogcat(logcat) {
   if (logcat.status !== 0) return { ok: false, detail: 'logcat could not be read' };
-  const lines = logcat.stdout.split(/\r?\n/).filter((line) => line.includes(SENTINEL)).length;
+  // EVM-103 AC6: the test driver itself (tag `Maestro`, the instrumentation that reads the screen) prints the texts of the views it
+  // skips; those lines are the harness, not the device. Every other process stays in scope (the app, the keyboard, the system).
+  const lines = logcat.stdout.split(/\r?\n/).filter((line) => line.includes(SENTINEL) && !MAESTRO_LINE.test(line)).length;
   return lines === 0
     ? { ok: true, detail: 'no logcat line carries the sentinel' }
     : { ok: false, detail: `${String(lines)} logcat line(s) carry the sentinel` };

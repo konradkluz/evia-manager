@@ -115,6 +115,39 @@ describe('device steps of the local-store scenarios (EVM-093 AC1, AC3–AC7)', (
     assert.equal(judgeGrep(out(1, 'noise'), 'x').ok, false);
   });
 
+  it('EVM-103 AC6: lines of the Maestro test driver are ignored, any other process with the sentinel still fails', () => {
+    const driver = `11-13 15:24:40.203 I/Maestro ( 6458): Skipping invisible child: text ${SENTINEL}`;
+    const driverThreadtime = `11-13 15:24:40.203  6458  6470 I Maestro : Skipping invisible child: text ${SENTINEL}`;
+    assert.deepEqual(
+      judgeLogcat(
+        out(
+          0,
+          `${driver}
+${driverThreadtime}
+I/y: ok
+`,
+        ),
+      ),
+      { ok: true, detail: 'no logcat line carries the sentinel' },
+    );
+    const app = `11-13 15:24:40.300  7001  7001 I ReactNativeJS: query ${SENTINEL}`;
+    const ime = `11-13 15:24:40.300 D/LatinIME( 900): learned ${SENTINEL}`;
+    const lookalike = `11-13 15:24:40.300 I/MaestroLike( 901): ${SENTINEL}`;
+    assert.deepEqual(
+      judgeLogcat(
+        out(
+          0,
+          `${driver}
+${app}
+${ime}
+${lookalike}
+`,
+        ),
+      ),
+      { ok: false, detail: '3 logcat line(s) carry the sentinel' },
+    );
+  });
+
   it('EVM-093 AC1: logcat must not carry the sentinel (the count only) and must be readable', () => {
     assert.equal(judgeLogcat(out(0, 'I/app: started\n')).ok, true);
     assert.deepEqual(judgeLogcat(out(0, `I/x: ${SENTINEL} 1\nI/y: ok\n`)), { ok: false, detail: '1 logcat line(s) carry the sentinel' });

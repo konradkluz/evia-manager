@@ -15,7 +15,7 @@ describe('Maestro flows and scenarios agree (EVM-009 AC4)', () => {
     for (const flow of referenced) {
       const text = readFileSync(join(FLOWS, flow), 'utf8');
       assert.match(text, new RegExp(`^appId: ${APPLICATION_ID.replaceAll('.', String.raw`\.`)}$`, 'm'), flow);
-      assert.match(text, /^# EVM-(009|093|100|107) AC\d/m, flow);
+      assert.match(text, /^# EVM-(009|093|100|103|107) AC\d/m, flow);
     }
   });
 
@@ -81,8 +81,31 @@ describe('Maestro flows and scenarios agree (EVM-009 AC4)', () => {
         'm02-signed-out',
         'm09-more',
         'm09-logout-dialog',
+        // EVM-103: the list and the search (M-05)
+        'm05-list-online',
+        'm05-list-offline',
+        'm05-search-number',
+        'm05-search-no-match-offline',
+        'm05-search-marker',
+        'm05-after-kill-empty-field',
       ].sort(),
     );
+  });
+
+  it('EVM-103 AC6: the list scenario searches offline, kills the app and proves that the typed marker is in no file and no log, and the field starts empty', () => {
+    const scenario = SCENARIOS.find((candidate) => candidate.name === 'orders-list-and-search');
+    assert.ok(scenario !== undefined);
+    assert.deepEqual(
+      scenario.steps.map((step) => [step.flow, step.airplane, step.after ?? []]),
+      [
+        ['40-orders-sign-in.yaml', false, []],
+        ['40-orders-offline-search.yaml', true, ['kill-9']],
+        ['40-orders-after-kill.yaml', true, ['check-encrypted']],
+      ],
+    );
+    const search = readFileSync(join(FLOWS, '40-orders-offline-search.yaml'), 'utf8');
+    assert.match(search, /inputText: 'EVM093-SENTINEL'/);
+    assert.match(readFileSync(join(FLOWS, '40-orders-after-kill.yaml'), 'utf8'), /assertNotVisible: 'EVM093-SENTINEL'/);
   });
 
   it('EVM-107 AC6: the offline recovery adds the notes in airplane mode, kills the app, restarts it offline and expects 5 unique and 0 duplicates after the return of the network', () => {

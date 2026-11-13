@@ -86,9 +86,11 @@ describe('synchronization host (EVM-107 AC2, AC5; security S2, S3)', () => {
     });
     expect(await host.copyText('x')).toBeNull();
     expect(await host.retargetOptions(null)).toEqual([]);
+    expect(await host.orderList(true)).toEqual([]);
     host.setOnline(true);
     host.startSession();
     await settle();
+    expect((await host.orderList(true)).map((row) => row.number)).toEqual(['ZL-1']);
     phone.clockNow += 5_000;
     phone.online = false;
     host.setOnline(false);

@@ -11,30 +11,47 @@ export { Button } from './Button';
 export type { ButtonProps, ButtonVariant } from './Button';
 export { EmptyState } from './EmptyState';
 export type { EmptyStateProps } from './EmptyState';
+export { FilterChip } from './FilterChip';
+export type { FilterChipProps } from './FilterChip';
 export { InlineAlert } from './InlineAlert';
 export type { AlertTone, InlineAlertProps } from './InlineAlert';
 export { ProgressBar } from './ProgressBar';
 export type { ProgressBarProps, ProgressTone } from './ProgressBar';
 export { Skeleton } from './Skeleton';
+export { StatusBadge } from './StatusBadge';
+export type { BadgeTone, StatusBadgeProps } from './StatusBadge';
 export { SyncIndicator } from './SyncIndicator';
 export { TextField } from './TextField';
-export type { SecureToggle, TextFieldProps } from './TextField';
+export type { SearchOptions, SecureToggle, TextFieldProps } from './TextField';
 export type { SyncIndicatorProps, SyncState } from './SyncIndicator';
 export {
   Ban,
+  Banknote,
+  Calculator,
   Camera,
+  Check,
   CircleAlert,
+  CircleCheck,
+  CirclePause,
+  CircleQuestionMark,
   CloudAlert,
   CloudCheck,
   ClipboardList,
+  Clock,
   Download,
   Ellipsis,
+  Inbox,
   KeyRound,
   ListChecks,
   Lock,
   LogOut,
   Plus,
   RefreshCw,
+  Search,
   ShieldOff,
   Smartphone,
+  ThumbsUp,
+  WifiOff,
+  Wrench,
+  X,
 } from './icons';

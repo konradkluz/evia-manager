@@ -45,8 +45,8 @@ describe('app shell (EVM-009 AC1)', () => {
 
   it('EVM-009 AC1: the literal texts of the story are exactly what the technician sees', () => {
     expect(pl.shell.orders.title).toBe('Moje zlecenia');
-    expect(pl.shell.orders.emptyTitle).toBe('Brak zleceń');
-    expect(pl.shell.orders.emptyBody).toBe('Zlecenia pojawią się tu po zalogowaniu i synchronizacji.');
+    expect(pl.shell.orders.emptyTitle).toBe('Nie masz zleceń w telefonie');
+    expect(pl.shell.orders.emptyBody).toBe('Zlecenia pojawią się po synchronizacji.');
     expect(pl.shell.queue.title).toBe('Kolejka');
     expect(pl.shell.queue.emptyTitle).toBe('Nic nie czeka na wysłanie.');
     expect(pl.shell.serverUnavailable.title).toBe('Brak połączenia z serwerem');

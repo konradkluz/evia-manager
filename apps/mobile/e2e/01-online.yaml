@@ -1,4 +1,4 @@
-# EVM-009 AC1, AC2: the app starts with the network and a healthy API — the shell, the empty list, the "connected" capsule.
+# EVM-009 AC1, AC2: the app starts with the network and a healthy API — the shell, the list of the synthetic work orders, the "connected" capsule.
 # The scenario server (tools/mobile-e2e) answers GET /api/health with a minimum version below the app version.
 appId: pl.eviacharge.manager
 ---
@@ -7,10 +7,10 @@ appId: pl.eviacharge.manager
 # EVM-100: the shell needs a session — the sign-in of the synthetic account first
 - runFlow: common/sign-in.yaml
 - extendedWaitUntil:
-    visible: 'Brak zleceń'
+    visible: 'ZL-E2E-1'
     timeout: 30000
 - assertVisible: 'Moje zlecenia'
-- assertVisible: 'Zlecenia pojawią się tu po zalogowaniu i synchronizacji.'
+- assertVisible: 'Klient Testowy 1'
 - assertVisible: '(Połączono|Zsynchronizowano o).*Otwórz kolejkę'
 - assertNotVisible: 'Brak zasięgu.*'
 - assertNotVisible: 'Brak połączenia z serwerem'
@@ -24,7 +24,7 @@ appId: pl.eviacharge.manager
 - takeScreenshot: kolejka-empty
 - tapOn:
     id: 'nav-orders'
-- assertVisible: 'Brak zleceń'
+- assertVisible: 'ZL-E2E-1'
 # the active capsule of the bottom navigation keeps its rounded corners after every change (review screenshots)
 - takeScreenshot: nav-orders-active
 - tapOn:
