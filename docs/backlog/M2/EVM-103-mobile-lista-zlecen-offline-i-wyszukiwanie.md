@@ -4,7 +4,7 @@ title: "Aplikacja: lista zleceń offline i wyszukiwanie"
 type: story
 milestone: M2
 epic: E10 Zlecenia offline
-status: in-review
+status: done
 priority: P1
 path: pelna             # dane osobowe na urządzeniu (lista, indeks wyszukiwania), synchronizacja offline, tryb ukrytych danych
 owner: mobile-developer
@@ -87,3 +87,4 @@ Jako **technik** chcę **widzieć listę zleceń i szukać po numerze, kliencie,
 - 2026-11-13 — weryfikacja orkiestratora: `pnpm run gate` zielona (pokrycie zmienionego kodu 99,5% linii / 97,2% gałęzi); E2E na emulatorze z krótkiego klonu `C:\e`: 45/45 przepływów zielonych (przebieg 4), AC6 `check-encrypted` ok (0 trafień znacznika w plikach, logcat i pamięci zewnętrznej) — po poprawkach scenariusza (baner EVM-100, klawiatura, przewinięcie) i kontroli logcat (linie sterownika Maestro); QA PASS AC1–AC6, AC7 — pomiar ręczny do decyzji Konrada; przeglądy code/security/UX: akceptacja; status `in-review` (Tech Lead)
 - 2026-11-13 — Koszt: ok. 0,9 mln tokenów agentów (10 agentów, 2 rundy) + 4 przebiegi E2E orkiestratora — w granicach ścieżki `pelna` (Tech Lead)
 - 2026-11-13 — akceptacja Konrada (demo); AC7 — pomiar ręczny na prawdziwym telefonie przesunięty do testu terenowego EVM-112 (decyzja Konrada 2026-11-13; test CI budżetu filtra zielony) (Tech Lead)
+- 2026-11-13 — scalone (#135), wdrożone kanałem (`875f85ec`); **status `done`** (Tech Lead)
