@@ -329,13 +329,17 @@ export const BUCKET_POLICIES: Readonly<Record<string, Readonly<Record<string, re
     media_app: [
       's3:PutObject',
       's3:GetObject',
+      // the signed links of the API pin the version of the original (VersionId), which needs GetObjectVersion
+      's3:GetObjectVersion',
       's3:DeleteObject',
       's3:AbortMultipartUpload',
       's3:ListMultipartUploadParts',
       's3:ListBucket',
     ],
     // RR-42: the worker reads originals for the scan (GetObject, HeadObject) and removes the expired ones (DeleteObject); it never writes.
-    media_worker: ['s3:GetObject', 's3:DeleteObject', 's3:ListBucket'],
+    // The scan, the processing of photos and films and the export builder read ONE pinned version (VersionId + If-Match): GetObjectVersion (read only; the
+    // versions cannot be deleted: DeleteObjectVersion stays outside every Allow).
+    media_worker: ['s3:GetObject', 's3:GetObjectVersion', 's3:DeleteObject', 's3:ListBucket'],
     media_backup_reader: ['s3:ListBucket', 's3:GetObject'],
   },
   register_allow: {
@@ -684,6 +688,7 @@ export const MATRIX_AREAS: Readonly<Record<string, string>> = Object.freeze({
 export const MATRIX_OPERATIONS: Readonly<Record<string, string>> = Object.freeze({
   list: 's3:ListBucket',
   get: 's3:GetObject',
+  getversion: 's3:GetObjectVersion',
   put: 's3:PutObject',
   delete: 's3:DeleteObject',
 });
@@ -707,8 +712,9 @@ export function bucketMatrixRows(): string[][] {
       const anyArea = areasOf(bucket)[0] ?? 'any';
       rows.push([key, bucket, '-', 'list', matrixAllows(key, bucket, anyArea, 'list') ? 'allow' : 'deny']);
       for (const area of areasOf(bucket))
-        for (const operation of ['put', 'get', 'delete'])
-          rows.push([key, bucket, area, operation, matrixAllows(key, bucket, area, operation) ? 'allow' : 'deny']);
+        for (const operation of ['put', 'get', 'getversion', 'delete'])
+          if (operation !== 'getversion' || area === anyArea)
+            rows.push([key, bucket, area, operation, matrixAllows(key, bucket, area, operation) ? 'allow' : 'deny']);
     }
   return rows;
 }

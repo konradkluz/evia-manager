@@ -731,7 +731,7 @@ describe('EVM-084 AC2: the matrix key × bucket (one source of truth for bucket-
     expect(file).toBe(bucketMatrixFile());
   });
 
-  it('EVM-084 AC2: every key of every bucket is covered for list, get, put and delete; the cells follow BUCKET_POLICIES', () => {
+  it('EVM-084 AC2: every key of every bucket is covered for list, get, versioned get, put and delete; the cells follow BUCKET_POLICIES', () => {
     const rows = bucketMatrixRows();
     expect(Object.keys(APPLICATION_KEYS).sort()).toEqual([
       'backup_writer',
@@ -742,7 +742,8 @@ describe('EVM-084 AC2: the matrix key × bucket (one source of truth for bucket-
       'restore_orchestrator',
       'restore_reader',
     ]);
-    expect(rows).toHaveLength(7 * (4 * 4 + 3));
+    // per key: three single-area buckets (list + put, get, delete + a versioned get) and the database bucket (list + two areas × three + a versioned get)
+    expect(rows).toHaveLength(7 * (3 * 5 + 8));
     for (const key of Object.keys(APPLICATION_KEYS))
       for (const bucket of Object.keys(MATRIX_BUCKETS))
         for (const operation of Object.keys(MATRIX_OPERATIONS))
@@ -763,6 +764,13 @@ describe('EVM-084 AC2: the matrix key × bucket (one source of truth for bucket-
         if (!(key in map))
           for (const operation of Object.keys(MATRIX_OPERATIONS))
             expect(matrixAllows(key, policy.replace('_allow', ''), 'any', operation), `${policy} ${key} ${operation}`).toBe(false);
+    // EVM-084 (A12): the scan, the processing, the export builder and the signed links read ONE pinned version (VersionId + If-Match): GetObjectVersion for the
+    // two media keys and for nobody else of the media bucket (DeleteObjectVersion stays in no Allow)
+    for (const key of Object.keys(APPLICATION_KEYS))
+      expect(matrixAllows(key, 'media', 'any', 'getversion'), key).toBe(key === 'media_app' || key === 'media_worker');
+    expect(BUCKET_POLICIES['media_allow']?.['media_worker']).toContain('s3:GetObjectVersion');
+    expect(BUCKET_POLICIES['media_allow']?.['media_app']).toContain('s3:GetObjectVersion');
+    expect(read('infra/deploy-agent/restore/bucket-verify.sh')).toContain('getversion) got=');
     // the orchestrator: put and get under restore-results/, nothing else anywhere
     expect(matrixAllows('restore_orchestrator', 'db_backup', 'results', 'put')).toBe(true);
     expect(matrixAllows('restore_orchestrator', 'db_backup', 'results', 'get')).toBe(true);
