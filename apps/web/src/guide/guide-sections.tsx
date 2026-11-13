@@ -11,18 +11,16 @@ const HEADING_IDS = new Set(HEADINGS.map((heading) => heading.id));
 const SECTION_HEADING = 'scroll-mt-app-bar-height-web focus-visible:focus-ring';
 
 /**
- * A link of the table of contents moves focus to the section (WCAG 2.4.3) without a change of the address; the identifier
- * must be in the whitelist built from the source, anything else is left to the browser.
+ * A link of the table of contents moves focus to the section (WCAG 2.4.3) without a change of the address; the
+ * identifier is a positional one of this page (the links are built from the headings of the source).
  */
 const SectionLink: LinkComponent = ({ href, children, ...rest }) => (
   <a
     href={href}
     {...rest}
     onClick={(event) => {
-      const target = HEADING_IDS.has(href.slice(1)) ? document.getElementById(href.slice(1)) : null;
-      if (target === null) return;
       event.preventDefault();
-      target.focus();
+      document.getElementById(href.slice(1))?.focus();
     }}
   >
     {children}

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { axeViolations } from './a11y.ts';
 import { ACTIVE_SESSION, createFakeApi, json, problem, SESSION_ROUTE } from './api-fake.ts';
@@ -75,6 +75,14 @@ describe('"Instrukcja dla biura" opened from W-19 (EVM-066 AC6)', () => {
     await user.click(within(screen.getByRole('navigation', { name: 'Spis treści' })).getByRole('link', { name: last }));
     const heading = await screen.findByRole('heading', { level: 2, name: last });
     expect(document.activeElement).toBe(heading);
+  });
+
+  it('EVM-066 AC6 an address with the fragment of a section moves focus to that section, not to the title', async () => {
+    await renderPanel('/guide#guide-18', unauthenticated());
+    const section = await screen.findByRole('heading', { level: 2, name: SECTIONS[6] ?? '' });
+    await waitFor(() => {
+      expect(document.activeElement).toBe(section);
+    });
   });
 
   it('EVM-066 AC6 the page has no accessibility violations', async () => {

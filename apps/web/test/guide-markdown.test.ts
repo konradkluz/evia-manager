@@ -54,6 +54,30 @@ describe('reader of the guide source (EVM-066 AC6)', () => {
     expect(inline('<script>x</script>')).toEqual([{ text: '<script>x</script>', bold: false }]);
   });
 
+  it('EVM-066 AC6 bold at the start and at the end of the text, and plain text without bold', () => {
+    expect(inline('**a** b **c**')).toEqual([
+      { text: 'a', bold: true },
+      { text: ' b ', bold: false },
+      { text: 'c', bold: true },
+    ]);
+    expect(inline('b')).toEqual([{ text: 'b', bold: false }]);
+    expect(inline('')).toEqual([]);
+  });
+
+  it('EVM-066 AC6 nested items: several under one parent, and an indented first item is a normal item', () => {
+    const guide = parseGuide(['- a', '  - b', '  - c', '', '  - d', '* e'].join('\n'));
+    const first = guide.blocks[0];
+    expect(first?.kind === 'list' && first.items[0]?.children?.items.map((item) => item.parts[0]?.text)).toEqual(['b', 'c']);
+    const lone = parseGuide('  - x');
+    expect(lone.blocks[0]?.kind === 'list' && lone.blocks[0].items.map((item) => item.parts[0]?.text)).toEqual(['x']);
+  });
+
+  it('EVM-066 AC6 a table without a closing pipe and a heading deeper than h3 become plain content', () => {
+    const guide = parseGuide(['| A | B', '|---|---', '| 1 | 2', '', '#### Za głęboko'].join('\n'));
+    expect(guide.blocks[0]).toEqual({ kind: 'table', header: ['A', 'B'], rows: [['1', '2']] });
+    expect(guide.blocks[1]?.kind).toBe('paragraph');
+  });
+
   it('EVM-066 AC6 a list of another kind ends the current one', () => {
     const guide = parseGuide(['1. a', '- b'].join('\n'));
     expect(guide.blocks.map((block) => block.kind)).toEqual(['list', 'list']);
