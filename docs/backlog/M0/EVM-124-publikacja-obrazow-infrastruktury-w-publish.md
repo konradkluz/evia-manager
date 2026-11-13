@@ -4,7 +4,7 @@ title: Publikacja obrazów infrastruktury (pgbackrest, media-processor) w CI —
 type: enabler
 milestone: M0
 epic: E00 Fundamenty
-status: ready
+status: in-progress
 priority: P1
 path: pelna
 owner: devops-engineer
@@ -72,3 +72,4 @@ Jako **właściciel produktu** chcę, **aby obrazy infrastruktury budowane dziś
 - 2026-11-12 — utworzono (product-owner) po decyzji Konrada o wyjątku jednorazowym RR-78
 - 2026-11-12 — zakres zawężony (Tech Lead z delegacji Konrada „tanio, szybko, bezpiecznie”): natywny arm64 bez QEMU, skan z rejestrem EVM-118, SBOM, atestacja pochodzenia, rekord jako artefakt, pakiety prywatne; AC4 (pomijanie budowy) i AC5 (repo-policy) odłożone do „Poza zakresem”; 6 AC
 - 2026-11-12 — draft → ready: akceptacja Konrada z delegacji 2026-11-12 (path pelna, owner devops-engineer, reviewers security-engineer + code-reviewer, model sonnet)
+- 2026-11-13 — start realizacji (`/deliver`, ścieżka `pelna`, równolegle z EVM-103 za zgodą Konrada). `depends_on: EVM-084`: potrzebny kod posiedzenia 0 jest na `main` (#126, #129, #130); EVM-084 zostaje `in-progress` tylko z powodu posiedzeń B/C, które z kolei czekają na tę historyjkę. Kontekst z posiedzenia A: build procesora na VM dał Trivy 11 × High z bazy `node:26.10.0-trixie-slim` (npm: brace-expansion, undici; Debian: pcre2, apt, openssl), a VM nie ma wyjścia na port 80 (Tech Lead)
