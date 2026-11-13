@@ -148,11 +148,9 @@ const MIN_DIGITS = 5;
  */
 export function dialNumber(phone: string): string | null {
   const compact = phone.replace(/[ \-.()]/g, '');
-  const match = /^(\+?)([0-9]+)$/.exec(compact);
-  if (match === null) return null;
-  const digits = match[2] ?? '';
-  if (digits.length < MIN_DIGITS || digits.length > MAX_DIGITS) return null;
-  return `${match[1] ?? ''}${digits}`;
+  const sign = compact.startsWith('+') ? '+' : '';
+  const digits = compact.slice(sign.length);
+  return /^[0-9]+$/.test(digits) && digits.length >= MIN_DIGITS && digits.length <= MAX_DIGITS ? `${sign}${digits}` : null;
 }
 
 const blank = (value: string): string | null => (value.trim() === '' ? null : value.trim());
@@ -253,7 +251,7 @@ export function buildOrderDetail(
       body: blank(asText(record.payload['body']) ?? ''),
       redacted: false,
     }));
-  const newestFirst = (a: JournalItem, b: JournalItem): number => b.at - a.at || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  const newestFirst = (a: JournalItem, b: JournalItem): number => b.at - a.at || a.id.localeCompare(b.id);
 
   return {
     id: source.order.id,

@@ -9,7 +9,7 @@ import { OrderStatusBadge } from './OrderCard';
 import { CustomerCard, JournalEntry, LocationCard, ProcessesSection, ScopeSection, SectionHeading } from './OrderDetailSections';
 import { SyncCapsule } from './SyncCapsule';
 import { useOrderDetail } from './order-detail-hooks';
-import { useGuard, useSession } from './session-context';
+import { useSession } from './session-context';
 
 function DetailHeader({ detail }: { detail: OrderDetail }) {
   return (
@@ -36,7 +36,6 @@ function DetailHeader({ detail }: { detail: OrderDetail }) {
 export function OrderDetailScreen({ orderId, onBack, onOpenQueue }: { orderId: string; onBack: () => void; onOpenQueue: () => void }) {
   const { t } = useTranslation();
   const session = useSession();
-  const guard = useGuard();
   const { state, retry } = useOrderDetail(orderId);
 
   const content = () => {
@@ -44,10 +43,10 @@ export function OrderDetailScreen({ orderId, onBack, onOpenQueue }: { orderId: s
       case 'hidden':
         return (
           <HiddenDataNotice
-            reason={guard.hidden ?? 'checking'}
+            reason={state.reason}
             queueCount={null}
             onAction={() => {
-              if (guard.hidden === 'screen_lock_off') void session.recheckDevice();
+              if (state.reason === 'screen_lock_off') void session.recheckDevice();
               else void session.reSignIn();
             }}
           />

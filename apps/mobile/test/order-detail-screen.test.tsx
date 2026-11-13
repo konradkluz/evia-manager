@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
-import { Linking } from 'react-native';
+import { act, fireEvent, render, screen, userEvent, within } from '@testing-library/react-native';
+import { BackHandler, Linking } from 'react-native';
 import { App } from '../src/App';
 import { pl } from '../src/i18n/pl';
 import type { JournalItem, OrderDetail } from '../src/orders/order-detail-model';
@@ -231,6 +231,89 @@ describe('open and header (EVM-104 AC1)', () => {
     await openDetail(rig);
     expect(screen.getByTestId('order-detail-skeleton')).toBeOnTheScreen();
     expect(detailTree()).not.toMatch(NAMES);
+  });
+});
+
+describe('edges of the screen (EVM-104 AC1, AC2, AC4, AC6)', () => {
+  it('EVM-104 AC1: a status the app does not know is only the "Nieznany status" badge, and an order without a number has the neutral title', async () => {
+    await openDetail(rigWith({ ...DETAIL, status: 'brand_new_status', number: null }));
+    expect(within(screen.getByTestId('order-detail-status')).getByText(pl.shell.orders.unknownStatus)).toBeOnTheScreen();
+    expect(within(screen.getByTestId('order-detail')).getAllByText(pl.orderDetail.titleFallback).length).toBeGreaterThan(0);
+  });
+
+  it('EVM-104 AC1: the pressed state of the row is a visual effect only (the press opens the details)', async () => {
+    await open(rigWith());
+    const user = userEvent.setup();
+    await user.press(screen.getByTestId('order-row-o1'));
+    await settle();
+    expect(screen.getByTestId('order-detail')).toBeOnTheScreen();
+  });
+
+  it('EVM-104 AC1: the system "back" closes the details first, and a second one leaves the list as before', async () => {
+    const handlers: Parameters<typeof BackHandler.addEventListener>[1][] = [];
+    const spy = jest.spyOn(BackHandler, 'addEventListener').mockImplementation((_event, handler) => {
+      handlers.push(handler);
+      return {
+        remove: () => {
+          handlers.splice(handlers.indexOf(handler), 1);
+        },
+      };
+    });
+    try {
+      await openDetail(rigWith());
+      let handled = false;
+      await act(() => {
+        handled = handlers.at(-1)?.(undefined as never) ?? false;
+      });
+      expect(handled).toBe(true);
+      await settle();
+      expect(screen.queryByTestId('order-detail')).toBeNull();
+      expect(screen.getByTestId('orders-list')).toBeOnTheScreen();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('EVM-104 AC1: a failed refresh keeps the details that are already shown (no flicker to an error)', async () => {
+    const rig = rigWith();
+    await openDetail(rig);
+    rig.sync.orderDetailHook = () => Promise.reject(new Error('read failed (synthetic)'));
+    await act(() => {
+      rig.sync.set({ lastSuccessAt: 321 });
+    });
+    await settle();
+    expect(screen.queryByTestId('order-detail-error')).toBeNull();
+    expect(screen.getByTestId('order-detail-customer')).toBeOnTheScreen();
+  });
+
+  it('EVM-104 AC2: a place with only a spot shows the spot and no address; a note without an author and an entry without text show no empty parts', async () => {
+    const detail: OrderDetail = {
+      ...DETAIL,
+      location: { street: null, city: null, spot: '15', level: null, powerKw: null, operator: null, manager: null },
+      journal: [item({ id: 'j-anon', author: null, body: null })],
+    };
+    await openDetail(rigWith(detail));
+    const location = screen.getByTestId('order-detail-location');
+    expect(within(location).queryByText(pl.orderDetail.address)).toBeNull();
+    expect(within(location).getByText(pl.orderDetail.spot)).toBeOnTheScreen();
+    const entry = screen.getByTestId('order-detail-entry-j-anon');
+    expect(within(entry).getByText(/^Wpis · /)).toBeOnTheScreen();
+    expect(within(entry).queryByText(pl.orderDetail.system)).toBeNull();
+  });
+
+  it('EVM-104 AC6: when the contact window elapses while the details are open, the action of EVM-101 signs in again and the details are not drawn', async () => {
+    const rig = rigWith();
+    await openDetail(rig);
+    rig.device.facts.contact = { status: { visible: false, reason: 'window_elapsed', elapsedMs: 8 * DAY }, windowDays: 7 };
+    await act(async () => {
+      await rig.device.guard.refresh();
+    });
+    await settle();
+    expect(screen.getByTestId('hidden-contact_expired')).toBeOnTheScreen();
+    expect(detailTree()).not.toMatch(NAMES);
+    await fireEvent.press(screen.getByTestId('hidden-action'));
+    await settle();
+    expect(rig.owner.calls).toContain('signOut:online');
   });
 });
 

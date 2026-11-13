@@ -20,13 +20,13 @@ const STAGE: Readonly<Record<string, { icon: LucideIcon; tone: BadgeTone; label:
   not_applicable: { icon: Ban, tone: color.status.stage.notApplicable, label: 'orderDetail.stageStatus.not_applicable' },
 };
 
-const CATEGORY: Readonly<Record<string, string>> = {
-  phone_call: 'orderDetail.category.phone_call',
-  meeting: 'orderDetail.category.meeting',
-  arrangement: 'orderDetail.category.arrangement',
-  site_visit: 'orderDetail.category.site_visit',
-  other: 'orderDetail.category.other',
-};
+const CATEGORY: ReadonlyMap<string, string> = new Map([
+  ['phone_call', 'orderDetail.category.phone_call'],
+  ['meeting', 'orderDetail.category.meeting'],
+  ['arrangement', 'orderDetail.category.arrangement'],
+  ['site_visit', 'orderDetail.category.site_visit'],
+  ['other', 'orderDetail.category.other'],
+]);
 const KIND: Readonly<Record<JournalItem['kind'], string>> = {
   note: 'orderDetail.kind.note',
   comment: 'orderDetail.kind.comment',
@@ -201,7 +201,8 @@ export function JournalEntry({ item, onOpenQueue }: { item: JournalItem; onOpenQ
     if (item.source !== 'synced') author = t('orderDetail.you');
     else if (item.kind === 'event') author = t('orderDetail.system');
   }
-  const category = item.category !== null && Object.hasOwn(CATEGORY, item.category) ? t(CATEGORY[item.category] ?? '') : null;
+  const categoryKey = CATEGORY.get(String(item.category));
+  const category = categoryKey === undefined ? null : t(categoryKey);
   const meta = [t(KIND[item.kind]), category, author, formatDateTime(item.at)].filter(
     (part): part is string => part !== null && part !== '',
   );

@@ -122,6 +122,15 @@ describe('SyncService.orderDetail (EVM-104)', () => {
     expect(NOW).toBeGreaterThan(0);
   });
 
+  it('EVM-104 AC4: without a known user (no session identity) the queue is empty and the replica part is still shown', async () => {
+    const { service } = await loaded();
+    await service.enqueue({ type: 'CreateNote', commandVersion: 1, payload: notePayload(1, ORDER_1) });
+    const anonymous = phone.service(new ScriptedServer(), {}, null);
+    const detail = must(await anonymous.orderDetail(ORDER_1));
+    expect(detail.number).toBe('ZL-1');
+    expect(detail.journal).toEqual([]);
+  });
+
   it('EVM-104 AC5: an order that was never in the replica is unavailable', async () => {
     const { service } = await loaded();
     expect(await service.orderDetail('3f000000-0000-4000-8000-0000000000ff')).toBeNull();

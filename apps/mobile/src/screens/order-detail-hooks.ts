@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
+import type { HiddenReason } from '../device-guard/hidden-mode';
 import type { OrderDetail } from '../orders/order-detail-model';
 import { useGuard, useSession, useSyncSnapshot } from './session-context';
 
 export type OrderDetailState =
-  | { readonly kind: 'hidden' }
+  | { readonly kind: 'hidden'; readonly reason: HiddenReason }
   | { readonly kind: 'loading' }
   | { readonly kind: 'error' }
   | { readonly kind: 'unavailable' }
@@ -27,7 +28,8 @@ type Model =
  */
 export function useOrderDetail(orderId: string): { state: OrderDetailState; retry: () => void } {
   const { sync } = useSession();
-  const hidden = useGuard().hidden !== null;
+  const reason = useGuard().hidden;
+  const hidden = reason !== null;
   const snapshot = useSyncSnapshot();
   const [model, setModel] = useState<Model | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -64,11 +66,11 @@ export function useOrderDetail(orderId: string): { state: OrderDetailState; retr
     snapshot.initialLoad,
   ]);
   const retry = useCallback(() => {
-    setModel((current) => (current?.kind === 'error' ? null : current));
+    setModel(null);
     setAttempt((value) => value + 1);
   }, []);
   let state: OrderDetailState;
-  if (hidden) state = { kind: 'hidden' };
+  if (reason !== null) state = { kind: 'hidden', reason };
   else if (model === null || model.id !== orderId) state = { kind: 'loading' };
   else state = model;
   return { state, retry };

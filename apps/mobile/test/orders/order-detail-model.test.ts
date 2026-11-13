@@ -367,3 +367,67 @@ describe('an order that is not available (EVM-104 AC5)', () => {
     expect(buildOrderDetail(null, [record({ mutationId: 'm1' })], 'u1')).toBeNull();
   });
 });
+
+describe('edges of the model (EVM-104 AC2, AC3, AC4)', () => {
+  const stage = (id: string, over: Partial<OrderDetailSource['stages'][number]>): OrderDetailSource['stages'][number] => ({
+    id,
+    procedureId: 'pr9',
+    procedureName: 'Proces',
+    name: id,
+    position: 1,
+    status: 'waiting',
+    waitingOn: null,
+    waitingPartyId: null,
+    ...over,
+  });
+
+  it('EVM-104 AC2: a party that is not in the replica (or has an empty name) is no label - the operator and the manager are simply absent', () => {
+    const source = baseSource();
+    const detail = must(buildOrderDetail({ ...source, parties: [{ id: 'p-mgr', kind: 'x', displayName: '  ' }] }, [], 'u1'));
+    expect(detail.location).toMatchObject({ operator: null, manager: null });
+  });
+
+  it('EVM-104 AC3: "Czekamy na…" names the party only when the data say whom - an unknown party, a missing id or no target give no name', () => {
+    const source = baseSource();
+    const stages = [
+      stage('s-unknown', { position: 1, waitingOn: 'party', waitingPartyId: 'p-missing' }),
+      stage('s-noid', { position: 2, waitingOn: 'party', waitingPartyId: null }),
+      stage('s-none', { position: 3, waitingOn: null }),
+      stage('s-other', { position: 4, waitingOn: 'something-new', waitingPartyId: 'p-dso' }),
+    ];
+    const detail = must(buildOrderDetail({ ...source, stages }, [], 'u1'));
+    expect(detail.processes[0]?.stages.map((s) => s.waitingFor)).toEqual([null, null, null, null]);
+  });
+
+  it('EVM-104 AC4: an unknown kind is read as an event, an entry without text has no body, and entries of the same time are ordered by id', () => {
+    const source = baseSource();
+    const first = must(source.entries[0]);
+    const same = { ...first, createdAt: T0, capturedAt: null, redactedAt: null };
+    const detail = must(
+      buildOrderDetail(
+        {
+          ...source,
+          entries: [
+            { ...same, id: 'b', kind: 'brand-new', body: null },
+            { ...same, id: 'a', kind: 'note', body: 'x' },
+          ],
+        },
+        [],
+        'u1',
+      ),
+    );
+    expect(detail.journal.map((j) => [j.id, j.kind, j.body])).toEqual([
+      ['a', 'note', 'x'],
+      ['b', 'event', null],
+    ]);
+  });
+
+  it('EVM-104 AC2 (security K7): the dial number keeps one leading "+" and 5 to 15 digits only', () => {
+    expect(dialNumber('+48600000001')).toBe('+48600000001');
+    expect(dialNumber('1234')).toBeNull();
+    expect(dialNumber('1234567890123456')).toBeNull();
+    expect(dialNumber('12+3456')).toBeNull();
+    expect(dialNumber('++4860000')).toBeNull();
+    expect(dialNumber('')).toBeNull();
+  });
+});
