@@ -4,7 +4,7 @@ title: "Aplikacja: lista zleceń offline i wyszukiwanie"
 type: story
 milestone: M2
 epic: E10 Zlecenia offline
-status: in-progress
+status: in-review
 priority: P1
 path: pelna             # dane osobowe na urządzeniu (lista, indeks wyszukiwania), synchronizacja offline, tryb ukrytych danych
 owner: mobile-developer
@@ -71,6 +71,7 @@ Jako **technik** chcę **widzieć listę zleceń i szukać po numerze, kliencie,
 - Bezpieczeństwo i prywatność: zapytanie i wyniki nie trafiają do logów, diagnostyki ani historii (AC6). Ryzyko rezydualne zaakceptowane przez Konrada 2026-11-12: bez flagi IME klawiatura na prywatnym telefonie (np. Gboard) może zapamiętać nazwy klientów i adresy wpisane w wyszukiwarkę i podpowiadać je w innych aplikacjach (słownik klawiatury leży poza katalogiem aplikacji); dane w trybie ukrytym zostają w bazie (EVM-101, TM-03).
 
 ## Notatki
+- Uwagi nieblokujące 2026-11-13: (security, Low) opcjonalnie `keyboardType="visible-password"` w polu wyszukiwania na Androidzie ogranicza naukę słów przez popularne klawiatury bez kodu natywnego — do decyzji przy kolejnej zmianie ekranu (UX: układ klawiatury); (QA, nit) brak osobnego testu powrotu z tła w trybie ukrytym (pokryte przejściem `guard.hidden`); na małym ekranie z banerem i klawiaturą stan „Brak zleceń dla…” jest pod zgięciem — „Brak wyników” widać przy polu.
 - Low: `PRAGMA secure_delete=ON`; wiersze listy bez `selectable`; jedna funkcja normalizacji po obu stronach.
 - Kolejność listy i wygląd stanów Kolejki pozostają zgodne z EVM-107 (bez duplikowania wskaźnika).
 
@@ -83,3 +84,5 @@ Jako **technik** chcę **widzieć listę zleceń i szukać po numerze, kliencie,
 - 2026-11-13 — start realizacji (`/deliver`, ścieżka `pelna`, równolegle z EVM-124 za zgodą Konrada; EVM-084/085 zostają `in-progress` — posiedzenia B/C, bez kodu w toku) (Tech Lead)
 - 2026-11-13 — plan gotowy (mobile-developer)
 - 2026-11-13 — implementacja gotowa (ścieżka `pelna`): model i wyszukiwanie w pamięci (bez FTS i migracji), odczyt repliki z listą kluczy `json_extract`, ekran M-05 z chipami i stanami, tryb ukrytych danych, scenariusz Maestro offline, dowody w `docs/qa/EVM-103/` (wyniki emulatora i pomiaru AC7 czekają na przebieg orkiestratora i telefon referencyjny) (mobile-developer)
+- 2026-11-13 — weryfikacja orkiestratora: `pnpm run gate` zielona (pokrycie zmienionego kodu 99,5% linii / 97,2% gałęzi); E2E na emulatorze z krótkiego klonu `C:\e`: 45/45 przepływów zielonych (przebieg 4), AC6 `check-encrypted` ok (0 trafień znacznika w plikach, logcat i pamięci zewnętrznej) — po poprawkach scenariusza (baner EVM-100, klawiatura, przewinięcie) i kontroli logcat (linie sterownika Maestro); QA PASS AC1–AC6, AC7 — pomiar ręczny do decyzji Konrada; przeglądy code/security/UX: akceptacja; status `in-review` (Tech Lead)
+- 2026-11-13 — Koszt: ok. 0,9 mln tokenów agentów (10 agentów, 2 rundy) + 4 przebiegi E2E orkiestratora — w granicach ścieżki `pelna` (Tech Lead)

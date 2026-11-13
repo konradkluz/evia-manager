@@ -18,11 +18,11 @@ Przebieg: `pnpm --filter @evia/mobile run e2e` (emulator Androida na Windows; po
 
 | Przepływ | Co sprawdza | Wynik |
 |---|---|---|
-| `40-orders-sign-in` | pierwsze pobranie kończy się listą dwóch zleceń | _do uzupełnienia_ |
-| `40-orders-offline-search` | tryb samolotowy: lista z lokalnej bazy, wyszukiwanie (fragment numeru, znak `%`, znacznik w nazwie klienta), „Wyczyść wyszukiwanie”, „Wymaga połączenia” | _do uzupełnienia_ |
-| `40-orders-after-kill` | po `kill -9` pole wyszukiwania puste, lista wraca offline; `check-encrypted`: 0 trafień znacznika w plikach i logcat | _do uzupełnienia_ |
+| `40-orders-sign-in` | pierwsze pobranie kończy się listą dwóch zleceń | PASS (2026-11-13, 45,6 s) |
+| `40-orders-offline-search` | tryb samolotowy: lista z lokalnej bazy, wyszukiwanie (fragment numeru, znak `%`, znacznik w nazwie klienta), „Wyczyść wyszukiwanie”, „Wymaga połączenia” | PASS (2026-11-13, 60,0 s) |
+| `40-orders-after-kill` | po `kill -9` pole wyszukiwania puste, lista wraca offline; `check-encrypted`: 0 trafień znacznika w plikach i logcat | PASS (2026-11-13, 20,0 s); `check-encrypted`: ok — 0 plików w katalogu aplikacji, 0 linii logcat, 0 plików w pamięci zewnętrznej |
 
-Ryzyko do sprawdzenia przy pierwszym przebiegu: sterownik Maestro może zapisywać wpisywany tekst w logcat — wtedy trafienie w logcat pochodzi od narzędzia testowego, nie od aplikacji (do rozstrzygnięcia na podstawie linii logu).
+Rozstrzygnięte 2026-11-13: sterownik Maestro (tag `Maestro`) wypisuje w logcat teksty pomijanych widoków, w tym wpisane zapytanie — trzeci przebieg dał 3 takie linie, wszystkie z procesu Maestro, żadnej z aplikacji. Kontrola `judgeLogcat` pomija od tej pory wyłącznie linie sterownika (commit d93bec4d, test `EVM-103 AC6`); każdy inny proces (aplikacja, klawiatura, system) zostaje w zakresie. Przebieg końcowy (czwarty): 45/45 przepływów zielonych (jeden ponowiony: `09-durability-reboot`, niezwiązany z EVM-103), wynik `check-encrypted` jak w tabeli. Dwie wcześniejsze poprawki scenariusza (bez zmian w aplikacji): potwierdzenie banera bezpieczeństwa EVM-100 („Rozumiem”, obraz emulatora starszy niż 12 miesięcy), schowanie klawiatury i przewinięcie do „Wymaga połączenia” (stan pusty ciągnie się pod zgięciem ekranu).
 
 „Nie zachowuj aktywności” (opcja programisty): proces zabijany w scenariuszu (`kill -9`) jest warunkiem ostrzejszym niż zniszczenie aktywności; stan pola to wyłącznie `useState` ekranu, bez `onSaveInstanceState` i bez parametrów nawigacji. Ręczna kontrola (opcjonalnie, Konrad): włącz opcję, wpisz zapytanie, przejdź na ekran główny, wróć — pole jest puste.
 
