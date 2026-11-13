@@ -36,6 +36,13 @@ Jako **właściciel produktu** chcę **widzieć szkielet z EVM-008 działający 
 - Wtedy test dymny potwierdza: brak tokenu w logach Caddy i Alloy, alert bezpieczeństwa dociera do kanału alertów, API używa roli `evia_app`, a `TRUSTED_PROXIES` zgadza się z proxy.
 - Oraz test dymny potwierdza dostarczenie alertu logowania z EVM-026: syntetyczne konto zostaje zablokowane (zdarzenie `alertCode` blokady) i alert dociera do kanału alertów, bez danych osobowych w treści (dane tylko syntetyczne).
 
+## Ocena stanu (2026-11-13, product-owner — propozycja do akceptacji Konrada)
+Jedno środowisko (decyzja 2026-11-13) jest teraz jedynym miejscem pracy firmy, więc kanał wdrożeń już działa: EVM-007 `done`, staging działa od 2026-10-27, a po scaleniu do `main` wdrażają się kolejne wersje (aplikacja jest znacznie dalej niż „szkielet”).
+- **AC1 — spełnione w praktyce** (wdrożenie po scaleniu działa; zostaje drobna sprawa: adres środowiska w README — do dopisania przy okazji EVM-125 albo od razu).
+- **AC2 — zostaje, w zmienionej formie:** po wdrożeniu **tylko odczytowy** test dymny (panel się otwiera, strona logowania, `/healthz` i `/version` przez Caddy) bez zapisów — środowisko ma realne dane, więc test E2E z zapisem odpada. Sprawdzić, czy to nie dubluje `staging-verify` / `/healthz`; jeśli tak — AC2 uznać za spełnione i zamknąć.
+- **AC3 — zostaje:** asercje alertu bezpieczeństwa i blokady syntetycznego konta wymagają EVM-085 (`in-progress`); wykonywać wyłącznie na koncie syntetycznym `.test` (EVM-089 AC2 — bez poczty).
+- **Rekomendacja:** nie traktować EVM-076 jako warunku startu użycia; po EVM-085 zamknąć w jednej sesji (zakres: AC2 odczytowy + AC3), albo — jeśli Konrad woli — oznaczyć `done` z adnotacją, że AC2 i AC3 przejęła EVM-085. Status zostaje `ready` do decyzji.
+
 ## Poza zakresem
 - Logowanie, dane zleceń (M1); zmiany samego staging (EVM-007).
 
@@ -52,3 +59,4 @@ Jako **właściciel produktu** chcę **widzieć szkielet z EVM-008 działający 
 - 2026-10-13 — podział EVM-007 wg ADR-0018: AC1–AC2 zależą od EVM-007 (007a); AC3 wymaga też EVM-085 (007c: Alloy, Sentry, kanał alertów) — decyzja Konrada 2026-10-13: `depends_on` + EVM-085 (product-owner)
 - 2026-10-20 — dopisano do AC3 test dostarczenia alertu logowania z EVM-026 — na polecenie Konrada przy refine EVM-026 (orkiestrator)
 - 2026-11-12 — zmiana AC3 (decyzja Konrada 2026-11-12, bez Sentry): z testu dymnego usunięto asercję o Sentry
+- 2026-11-13 — ocena wg decyzji „jedno środowisko” (product-owner): AC1 spełnione w praktyce, AC2 do zawężenia do testu odczytowego, AC3 po EVM-085; propozycja w sekcji „Ocena stanu”, AC bez zmian do akceptacji Konrada

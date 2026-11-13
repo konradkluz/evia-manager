@@ -34,8 +34,8 @@ Agenci nie widzą tej rozmowy — przy delegowaniu podawaj: ID i ścieżkę hist
 - Nigdy nie czytaj, nie wypisuj i nie commituj sekretów (`.env`, klucze, certyfikaty, tokeny). Konfiguracja przykładowa: `.env.example`.
 - Bez wyraźnej zgody użytkownika: żadnego `git push`, merge do `main`, wdrożeń produkcyjnych, zmian we współdzielonej infrastrukturze, zakupów / płatnych usług, wysyłania danych do zewnętrznych serwisów.
 - Żadnych destrukcyjnych operacji (usuwanie danych, `git reset --hard`, force-push) bez potwierdzenia.
-- Nie używaj prawdziwych danych klientów w testach, fixture'ach ani przykładach — tylko dane syntetyczne.
-- Pliki robocze (notatki, szkice, wyniki pośrednie) zapisuj wyłącznie w `.scratch/` (ignorowany przez git) albo w scratchpadzie sesji — nigdy w części repozytorium śledzonej przez git; także w nich bez sekretów i prawdziwych danych osobowych.
+- Tylko dane syntetyczne w testach i przykładach. `staging.eviacharge.pl` ma prawdziwe dane (RR-93): nie loguj się tam, nie czytaj bazy ani logów; na VM tylko polecenia infrastruktury.
+- Pliki robocze tylko w `.scratch/` (ignorowany przez git) albo w scratchpadzie sesji — nigdy w śledzonej części repo; bez sekretów i danych osobowych.
 - Dokumentów istniejących na `main` nie usuwamy, nie przenosimy i nie obniżamy ich klasy bez decyzji Konrada — wyłącznie w kroku „Sprzątanie dokumentacji” w `/milestone close` albo w zaakceptowanej historyjce.
 
 ## Konwencje (skrót — pełne: `docs/process/conventions.md`)

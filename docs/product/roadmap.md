@@ -57,7 +57,8 @@ flowchart LR
 | EVM-013 | Walidator dokumentacji jako bramka CI | devops-engineer | 006, 012 |
 | EVM-074 | Model i effort agentów, model realizacji historyjki | devops-engineer | — |
 | EVM-075 | Lżejszy proces: ścieżki lekka i pełna, krótki szablon, pomiar kosztu | devops-engineer | — |
-| EVM-076 | Szkielet na staging: wdrożenie i test dymny (wydzielone z EVM-008) | devops-engineer | 007, 008, 085 |
+| EVM-076 | Szkielet na staging: wdrożenie i test dymny (wydzielone z EVM-008) — 2026-11-13: AC1 spełnione w praktyce, AC2 (test odczytowy) i AC3 po EVM-085; nie warunek startu | devops-engineer | 007, 008, 085 |
+| EVM-114–EVM-120 | Utwardzanie kanału i obrazów po EVM-007 (próbny staging w bramce, weryfikator, Renovate, wyjątki skanerów, RR-37/38) — kolejność w M1 („Kolejność do startu”) | devops-engineer | 007 |
 
 **Kryteria wyjścia:** ADR-y stacku i hostingu zaakceptowane; styleguide v1 zaakceptowany; model zagrożeń i wymagania bezpieczeństwa opisane; CI z bramkami (lint, typy, testy, pokrycie, skany) blokuje merge; szkielet web + API wdrożony automatycznie na staging; szkielet mobile instalowalny na telefonach testowych z Androidem; spike potwierdza wykonalność uploadu w tle na Androidzie (iOS odłożony — ADR-0015); historyjki M1 w statusie `ready`.
 
@@ -85,14 +86,14 @@ flowchart LR
 3. prowadzenie zlecenia (E3, E4, E5, E2) → **pilot próbny**;
 4. dokumenty i media (E6);
 5. gotowość do realnych danych (E8: produkcja, test odtworzenia, RODO z DPIA, instrukcja w panelu);
-6. płatności (E7) i jeden security sign-off z zawężonym pentestem (EVM-070; EVM-065 połączona z EVM-070 2026-11-12) → **pilot realny i wydanie 1.0**;
+6. płatności (E7 — `done`) i jeden wewnętrzny przegląd bezpieczeństwa (EVM-070, bez pentestu zewnętrznego od 2026-11-13; EVM-065 połączona z EVM-070 2026-11-12) → **wydanie 1.0**; realne dane startują wcześniej — wg EVM-061 (decyzje 2026-11-13);
 7. pozycje P2 i P3 (jeśli nie opóźniają 1.0).
 
 > **Uproszczenia 2026-11-12:** jeden sign-off 1.0 (EVM-070) zamiast dwóch; w poniższym opisie pilota realnego bramka pentestu/sign-off pilota i bramka wdrożeń w trakcie pilota (dawne EVM-065) nie obowiązują — realne dane po sign-off EVM-070, czyli po E7 (do potwierdzenia przez Konrada).
 
-**Pilot wewnętrzny** (rekomendacja — decyzja 4 w planie): **pilot próbny** po E1–E5 na staging, wyłącznie na danych syntetycznych (zakaz wpisywania realnych zleceń); **pilot realny** na produkcji po E6 i części E8 z zewnętrznym pentestem i security sign-off (RR-10) — wybrane zlecenia, równolegle z dotychczasowymi narzędziami; płatności (E7) dochodzą w trakcie pilota, a zlecenia założone przed nimi dostają transze ręcznie; każde wdrożenie prod w trakcie pilota przechodzi bramkę bezpieczeństwa i wymaga zatwierdzenia wersji przez Konrada; telefon to panel w przeglądarce (zdjęcia z galerii, zasady pracy na prywatnym telefonie w instrukcji — decyzje 18 i 19 w planie).
+**Pilot wewnętrzny** (_historyczne — zastąpione decyzjami z 2026-11-13 poniżej; bez osobnego pilota próbnego i produkcji_; rekomendacja — decyzja 4 w planie): **pilot próbny** po E1–E5 na staging, wyłącznie na danych syntetycznych (zakaz wpisywania realnych zleceń); **pilot realny** na produkcji po E6 i części E8 z zewnętrznym pentestem i security sign-off (RR-10) — wybrane zlecenia, równolegle z dotychczasowymi narzędziami; płatności (E7) dochodzą w trakcie pilota, a zlecenia założone przed nimi dostają transze ręcznie; każde wdrożenie prod w trakcie pilota przechodzi bramkę bezpieczeństwa i wymaga zatwierdzenia wersji przez Konrada; telefon to panel w przeglądarce (zdjęcia z galerii, zasady pracy na prywatnym telefonie w instrukcji — decyzje 18 i 19 w planie).
 
-**Uwagi do E8** (decyzje w planie): plan GitHub (Pro albo Free z kontrolami kompensującymi — decyzja przed planem EVM-007, wpływa na wdrożenia staging i prod oraz test odtworzenia); pentest zewnętrzny (zawężony: uwierzytelnianie/MFA, IDOR, upload; 2–3 dni, w EVM-070) przed realnymi danymi — zakup za osobną zgodą; uproszczona DPIA i ocena transferów do USA przed pilotem realnym; import danych z CSV / Excel — rekomendacja: nie w M1 (świadome przesunięcie).
+**Uwagi do E8** (decyzje w planie): plan GitHub (Pro albo Free z kontrolami kompensującymi — decyzja przed planem EVM-007, wpływa na wdrożenia staging i prod oraz test odtworzenia); ~~pentest zewnętrzny (zawężony, w EVM-070) przed realnymi danymi~~ — **zrezygnowano 2026-11-13** (wewnętrzny przegląd w EVM-070); uproszczona DPIA i ocena transferów do USA przed pilotem realnym; import danych z CSV / Excel — rekomendacja: nie w M1 (świadome przesunięcie).
 **Uproszczenia 2026-11-12** (Konrad i Tech Lead z delegacji „tanio, szybko, bezpiecznie”) — dotyczą M0/M1:
 - **Bez Sentry:** błędy API to logi `unhandled error` w Grafanie z alertem e-mail (EVM-085); Sentry usunięty z listy podmiotów przetwarzających (EVM-064) i z kont dostawców (EVM-061).
 - **Ochrona `main` rulesetem GitHuba** zamiast kontroli K6 `main-integrity` (ADR-0022); EVM-088 wycofana, EVM-123 usunięta (numer niewykorzystywany ponownie).
@@ -100,7 +101,15 @@ flowchart LR
 - **RODO w wersji prostej (EVM-064):** ćwiczenie naruszeń = jedno spotkanie z checklistą; DPIA uproszczona albo uzasadnienie zbędności.
 - **EVM-124 w M0 (ready):** obrazy infrastruktury budowane w CI na natywnym arm64 z skanem, SBOM i atestacją; pomijanie budowy i polityka w `repo-policy` odłożone. Bez zmian: test odtworzenia backupu (EVM-084), Synthetic Monitoring i TEM (EVM-085, EVM-089).
 
-**Kryteria wyjścia:** historyjki P1 `done`; UAT — Konrad (i min. 1 osoba z biura) prowadzi w systemie po jednym realnym zleceniu ze scenariuszy A–D (`domain.md`) bez obejść; security sign-off (brak otwartych Critical/High/Medium, MFA, czysty DAST baseline); backup odtworzony testowo; progi pokrycia spełnione; E2E dla kluczowych ścieżek.
+**Decyzje Konrada 2026-11-13 — M1/1.0 = start realnego użycia na obecnym środowisku:**
+- **Jedno środowisko:** dotychczasowy staging (`staging.eviacharge.pl`) staje się produkcją; realne dane firmy od startu; osobnej produkcji nie ma (EVM-061 przepisana na krótką listę warunków startu); przemianowanie nazw i domeny — później, osobna mała historyjka EVM-125.
+- **Bez zewnętrznego pentestu:** EVM-070 = wewnętrzny przegląd i sign-off (`security-engineer`); brak niezależnego testu to ryzyko rezydualne RR-10 do akceptacji; EVM-065 nadal wycofana.
+- **Start bez kopii zapasowych:** kopie i test odtworzenia (EVM-084, połączona z EVM-062) zaraz po EVM-124 — najwyższy priorytet, ale nie warunek użycia (ryzyko zapisane w EVM-061 AC5). Dane syntetyczne zostają.
+- **Użytkownicy od pierwszego dnia (Konrad i biuro):** e-mail Scaleway TEM (EVM-089, P0) to następny obowiązkowy element — zaproszenia idą wyłącznie e-mailem. Najpierw panel web; M2 (EVM-103 w toku) rozwijany równolegle. Opisy pilota A/B i bramek EVM-065 w tym dokumencie i w README M1 są historyczne.
+
+**Kolejność do startu („biuro pracuje w systemie”):** EVM-124 (w toku) → **EVM-089** (TEM, DNS w OVH raz, klucz na VM) → EVM-121 (CAA, `rua`, profil `strict` — ta sama sesja w OVH) → EVM-064 (RODO w wersji prostej) → **EVM-061** (konta/MFA, zgoda na start) → **start**. Zaraz potem: EVM-084 (kopie + test odtworzenia, sesja IaC B), EVM-120 (termin RR-37/38: 2026-11-20 — wcześniej), EVM-114, EVM-117 + EVM-118, EVM-115 → EVM-122, EVM-116, EVM-119, EVM-085/EVM-076, EVM-066, EVM-070, EVM-125.
+
+**Kryteria wyjścia:** historyjki P1 `done`; UAT — Konrad (i min. 1 osoba z biura) prowadzi w systemie po jednym realnym zleceniu ze scenariuszy A–D (`domain.md`) bez obejść; wewnętrzny przegląd bezpieczeństwa EVM-070 (brak otwartych Critical/High/Medium, MFA, czysty DAST baseline); backup odtworzony testowo (EVM-084); progi pokrycia spełnione; E2E dla kluczowych ścieżek.
 
 ## M2 — MVP „Teren”: aplikacja mobilna (wydanie 1.1)
 **Cel:** technik dokumentuje zlecenie zdjęciami, filmami i wpisami także bez zasięgu; wszystko trafia automatycznie do archiwum zlecenia. Start równolegle z drugą połową M1, gdy API zleceń i mediów (E3, E6) jest stabilne.
@@ -151,7 +160,16 @@ flowchart LR
 7. System fakturowy (pod przyszłą integrację) i wymagany okres przechowywania dokumentacji.
 8. Czy w przyszłości dostęp mają mieć klienci lub partnerzy zewnętrzni (wpływa na model uprawnień).
 
+### Od Ciebie do startu użycia (stan 2026-11-13)
+1. Jednorazowo w OVH: rekordy SPF, DKIM, DMARC, CAA, `rua` (lista w runbooku EVM-089; jedna wizyta, ok. 30 min).
+2. Kolejna sesja na VM: klucz TEM jako plik sekretu (razem z sesją IaC B / EVM-084).
+3. Odpowiedzi na 3 pytania w EVM-089 (domena nadawcy, tryb wysyłki, skrzynka `rua`) oraz akceptacja przepisanych EVM-061 i EVM-089.
+4. Drugie konto Administratora albo konto awaryjne, MFA na kontach dostawców (EVM-061 AC1); dane rejestrowe firmy do RODO (EVM-064; decyzja 9).
+5. Zgoda na start realnych danych (EVM-061 AC6) i akceptacja ryzyka „start bez kopii” (AC5).
+
 ## Plan działań — najbliższe kroki
+> **Aktualizacja 2026-11-13:** punkty 1–7 niżej to historia M0/M1; aktualny plan do startu użycia — „Kolejność do startu” w sekcji M1.
+
 1. Przegląd tego planu, agentów i workflow; poprawki przez rozmowę z orkiestratorem.
 2. Restart Claude Code (załadowanie agentów), potem `/progress`.
 3. Równolegle (prace koncepcyjne): `/deliver EVM-001` (stack) i `/deliver EVM-003` (styleguide).

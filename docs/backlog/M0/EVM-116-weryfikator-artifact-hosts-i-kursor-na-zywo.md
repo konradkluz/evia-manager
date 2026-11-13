@@ -50,3 +50,4 @@ Jako **właściciel produktu** chcę **zawęzić listę dozwolonych hostów pobr
 
 ## Dziennik
 - 2026-10-27 — utworzono (product-owner) z przeglądu PR #103 i RR-34
+- 2026-11-13 — triage wg decyzji „jedno środowisko” (product-owner): zostaje, P2; część wymagająca żywego środowiska łączyć z sesją IaC (B albo kolejną) — bez osobnej wizyty; po EVM-115; AC bez zmian.

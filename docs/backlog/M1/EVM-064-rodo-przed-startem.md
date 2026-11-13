@@ -9,7 +9,7 @@ priority: P1
 owner: security-engineer
 contributors: [product-owner, devops-engineer]
 reviewers: [solution-architect]
-depends_on: [EVM-061]
+depends_on: []
 ---
 
 # EVM-064: RODO przed startem — umowy powierzenia, rejestr czynności, ćwiczenie naruszeń i runbooki
@@ -95,3 +95,4 @@ _—_
 - 2026-10-03 — poprawki z przeglądu EVM-010, runda 2 (security-engineer): AC8 — w zakresie DPIA kopie zdjęć w galerii i ryzyko automatycznej kopii w prywatnej chmurze (decyzja 18)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-11-12 — zmiana AC (Tech Lead z delegacji Konrada „tanio, szybko, bezpiecznie”; decyzja Konrada o rezygnacji z Sentry): AC1 i AC7 bez Sentry; AC3 — jedno spotkanie z checklistą zamiast ćwiczenia tabletop; DPIA (AC8) bez zmian — uproszczona albo uzasadnienie zbędności
+- 2026-11-13 — decyzja Konrada „jedno środowisko, realne dane od startu”: `depends_on` bez EVM-061 (przepisanej na warunki startu); „przed startem” = przed wpisaniem pierwszych realnych danych klientów na jedynym środowisku (warunek AC3 w EVM-061); „przećwiczona na staging” czytaj: na jedynym środowisku na danych syntetycznych; AC bez zmian (product-owner)

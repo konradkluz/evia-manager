@@ -51,3 +51,5 @@ Jako **właściciel produktu** chcę **usunąć u źródła podatności w obrazi
 ## Dziennik
 - 2026-10-27 — utworzono (product-owner) z RR-37/RR-38
 - 2026-10-28 — decyzja Konrada (pytania po nocnej kolejce): wariant B robimy teraz; `distroless` zostaje warunkiem wejścia na produkcję.
+- 2026-11-13 — triage wg decyzji „jedno środowisko” (product-owner): twardy termin 2026-11-20 (RR-37/RR-38) dotyczy teraz środowiska z realnymi danymi — **pierwsza w kolejności pozycja utwardzająca** (wariant B przed terminem); „warunek wejścia na produkcję” (`distroless`, wariant A) = start realnych danych albo świadome odroczenie z terminem zapisane przez Konrada; AC bez zmian.
+- 2026-11-13 — korekta triage (Tech Lead): AC2–AC4 zrealizowane w #128 (Caddy 2.11.9 w `evia-web` i na brzegu, wyjątki RR-37/RR-38 usunięte i zamknięte w modelu zagrożeń, `publish` zielony na `linux/arm64`); termin 2026-11-20 nieaktualny. Zostaje AC1 „zero wyjątków”: wpis RR-89(a) (`golang.org/x/net` 0.60.0 w Caddy) do pierwszego wydania Caddy z x/net ≥ 0.62.0, najpóźniej 2026-12-10 — wtedy historyjka do zamknięcia bez osobnej pracy.
