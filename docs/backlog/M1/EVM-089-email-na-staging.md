@@ -4,7 +4,7 @@ title: E-mail transakcyjny na jedynym środowisku — Scaleway TEM, strażnik od
 type: enabler
 milestone: M1
 epic: E1 Dostęp i użytkownicy
-status: ready
+status: in-progress
 priority: P0
 path: pelna            # wysyłka do realnych adresów (dane osobowe, przepływy uwierzytelniania), infrastruktura, DNS
 owner: devops-engineer
@@ -79,3 +79,4 @@ Jako **właściciel produktu** chcę **żeby zaproszenia, reset hasła i e-maile
 - 2026-11-13 — refinement wg decyzji Konrada „jedno środowisko, realni użytkownicy od startu” (product-owner): tytuł i cel (jedyne środowisko, prawdziwe adresy biura), P1 → P0, AC2 (tryb `lista` / `otwarty`, strażnik dla danych syntetycznych), AC3 (DNS jednorazowo przez Konrada, `p=reject` po sprawdzeniu nagłówków), AC1/AC4 (klucz jako plik sekretu, nieudana wysyłka nie gubi zaproszenia), `depends_on` bez EVM-076, `path: pelna`, reviewers + code-reviewer; 3 otwarte pytania; status `draft` do akceptacji Konrada (6 AC)
 - 2026-11-13 — akceptacja Konrada (DoR): nadawca `powiadomienia@staging.eviacharge.pl` (nowe rekordy przy EVM-125), tryb `otwarty` z blokadą `example.com` i `.test` (security-engineer: akceptowalne, RR-93), raporty DMARC i odbicia na alias w skrzynce Konrada; status `ready` (Tech Lead)
 - 2026-11-13 — zmiana decyzji Konrada: docelowy adres panelu **`panel.eviacharge.pl`** ustalony już teraz (zamiast późniejszego przemianowania): nadawca e-mail z domeny `panel.eviacharge.pl` (SPF/DKIM/DMARC dla niej), `PANEL_ORIGIN` i `WEBAUTHN_RP_ID` = `panel.eviacharge.pl`, CORS bucketu mediów, Caddy i `staging-verify` na nowy adres — w tym samym posiedzeniu co klucz TEM; `staging.eviacharge.pl` przekierowuje na nowy adres. Konrad rejestruje swój klucz dostępu ponownie (RP ID się zmienia) przed zaproszeniem biura (Tech Lead)
+- 2026-11-13 — start realizacji (`/deliver`, ścieżka `pelna`; równolegle z EVM-103 i EVM-124 za zgodą Konrada; klon `C:\Users\Konrad\evia-manager-c`). Zakres obejmuje decyzję Konrada z 2026-11-13: adres `panel.eviacharge.pl` (DNS A/AAAA/CAA już dodane przez Konrada) (Tech Lead)
