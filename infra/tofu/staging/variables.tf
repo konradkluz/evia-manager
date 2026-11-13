@@ -12,6 +12,15 @@ variable "scaleway_project_id" {
   type        = string
 }
 
+variable "scaleway_organization_id" {
+  description = "Scaleway organization of the project evia-staging (IAM applications and policies are organization resources)."
+  type        = string
+  validation {
+    condition     = can(regex("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", var.scaleway_organization_id))
+    error_message = "scaleway_organization_id must be the UUID of the Scaleway organization."
+  }
+}
+
 variable "server_type" {
   description = "Hetzner server type of the staging VM, Arm64 only (Q1, 2026-10-21: cax11 recommended — 2 vCPU, 4 GB; cax21 — 4 vCPU, 8 GB, if ClamAV, PostgreSQL and the API do not fit in 4 GB)."
   type        = string
