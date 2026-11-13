@@ -27,3 +27,10 @@ export function formatDateTime(at: number): string {
   const p = parts(at, { day: '2-digit', month: '2-digit', year: 'numeric', hour: 'numeric', minute: '2-digit' });
   return `${p['day'] ?? ''}.${p['month'] ?? ''}.${p['year'] ?? ''}, ${String(Number(p['hour']))}:${p['minute'] ?? '00'}`;
 }
+
+/** True when both instants fall on the same calendar day of the business zone. */
+export function sameDay(a: number, b: number): boolean {
+  const pa = parts(a, { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const pb = parts(b, { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return pa['day'] === pb['day'] && pa['month'] === pb['month'] && pa['year'] === pb['year'];
+}

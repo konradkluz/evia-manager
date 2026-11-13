@@ -1,3 +1,4 @@
+import type { LucideIcon } from 'lucide-react-native';
 import type { ReactNode } from 'react';
 import { Text, View } from 'react-native';
 import { Icon } from './Icon';
@@ -13,6 +14,8 @@ export interface InlineAlertProps {
   /** Secondary line, e.g. "Kod: …" (styleguide § 6.4). */
   code?: string;
   action?: ReactNode;
+  /** Overrides the tone icon (e.g. a refresh icon for a background refresh). */
+  icon?: LucideIcon;
   testID?: string;
 }
 
@@ -20,7 +23,7 @@ export interface InlineAlertProps {
  * Alert / banner (styleguide § 3.19): tone colours, tone icon, a left bar. Only errors are `role="alert"`; other tones are polite
  * live regions (announced once when they appear, no spam).
  */
-export function InlineAlert({ tone, title, body, code, action, testID }: InlineAlertProps) {
+export function InlineAlert({ tone, title, body, code, action, icon, testID }: InlineAlertProps) {
   const tokens = color.feedback[tone];
   return (
     <View
@@ -37,7 +40,7 @@ export function InlineAlert({ tone, title, body, code, action, testID }: InlineA
         borderRadius: radius.control,
       }}
     >
-      <Icon icon={tone === 'error' ? CircleAlert : WifiOff} color={tokens.icon} />
+      <Icon icon={icon ?? (tone === 'error' ? CircleAlert : WifiOff)} color={tokens.icon} />
       <View style={{ flex: 1, rowGap: space.stack.xs }}>
         {title === undefined ? null : <Text style={{ ...text.heading4, color: tokens.text }}>{title}</Text>}
         <Text style={{ ...text.body, color: color.text.primary }}>{body}</Text>
