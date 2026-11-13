@@ -4,7 +4,7 @@ title: E-mail transakcyjny na jedynym środowisku — Scaleway TEM, strażnik od
 type: enabler
 milestone: M1
 epic: E1 Dostęp i użytkownicy
-status: in-progress
+status: in-review
 priority: P0
 path: pelna            # wysyłka do realnych adresów (dane osobowe, przepływy uwierzytelniania), infrastruktura, DNS
 owner: devops-engineer
@@ -64,6 +64,7 @@ Jako **właściciel produktu** chcę **żeby zaproszenia, reset hasła i e-maile
 - Bezpieczeństwo: SR-API-13, SR-INFRA-12, SR-INPUT-07 (kodowanie nagłówków); brak danych klientów w e-mailach; klucz TEM to sekret (SEK); tryb `otwarty` potwierdzony przez `security-engineer` 2026-11-13 (RR-93) (pytanie 2).
 
 ## Notatki
+- Uwagi nieblokujące z przeglądów 2026-11-13 (do sprzątania po posiedzeniu): wygaszanie starych `pending` obejmuje wszystkie rodzaje e-maili (runbook do ujednolicenia); stara domena TEM `staging.eviacharge.pl` zostaje zweryfikowana — usunąć po przełączeniu; w runbooku nazwać minimalny zestaw uprawnień IAM dla klucza TEM; stare APK po przekierowaniu 308 tracą nagłówek `Authorization` (aplikacja mobilna jeszcze nieużywana — nowy APK z nowym adresem); fixture z domeną `biuro-firma.pl` → domena zarezerwowana.
 - Jeśli subdomena nadawcy istnieje wcześniej, EVM-007a ustawia na niej `v=spf1 -all` i DMARC `p=reject`/`p=none` z raportami — AC3 zmienia to na właściwe wartości; sprawdzić stan rekordów i weryfikacji domeny w TEM przed sesją (część mogła zostać zrobiona w EVM-007).
 - Test dymny po wdrożeniu (EVM-076) nie jest warunkiem tej historyjki.
 
@@ -83,3 +84,5 @@ Jako **właściciel produktu** chcę **żeby zaproszenia, reset hasła i e-maile
 - 2026-11-13 — plan gotowy (devops-engineer)
 - 2026-11-13 — implementacja (devops-engineer): adapter TEM za strażnikiem (tryby `lista` / `otwarty`, przechwytywanie zamiast odrzucenia; 401 / 403 przejściowe z ponowieniami wg AC4), wygaszanie starych `pending`, adres `panel.eviacharge.pl` (compose, Caddy z 308 ze starego adresu, deploy.sh, staging-verify, monitoring, ZAP, OpenTofu `tem_panel`), runbooki `kolejka-e-mail.md` i `posiedzenie-adres-panelu-i-email.md`; kroki AC3 i AC5 „wykonano na środowisku” zostają do posiedzenia z Konradem
 - 2026-11-13 — wznowienie implementacji (backend-developer): weryfikacja celowana i lokalna bramka natywna; kroki AC3/AC5 „na środowisku” i demo AC6 po scaleniu, w posiedzeniu z Konradem
+- 2026-11-13 — weryfikacja orkiestratora: `pnpm run gate` zielona (pokrycie zmienionego kodu 100% linii / 98,0% gałęzi), `pnpm run gate:deploy` i `iac-check` zielone, `docs:check` 0 błędów; QA PASS AC1–AC5, AC6 (demo) po posiedzeniu; przeglądy security-engineer i code-reviewer: akceptacja (2 rundy). **Scalenie dopiero w posiedzeniu, po krokach 1–3b runbooka `posiedzenie-adres-panelu-i-email.md`** (inaczej kanał wdroży konfigurację bez plików sekretów TEM i krawędzi); status `in-review` (Tech Lead)
+- 2026-11-13 — Koszt: ok. 0,95 mln tokenów agentów (10 agentów, 2 rundy, w tym wznowienie po przerwie sieci) — w granicach ścieżki `pelna` (Tech Lead)
