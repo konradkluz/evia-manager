@@ -1088,6 +1088,7 @@ Każde ryzyko: opis, źródło, ryzyko po mitygacjach, rekomendacja (akceptacja 
 - **Rekomendacja:** akceptuj.
 - **Właściciel:** `devops-engineer`.
 - **Decyzja Konrada:** **przyjęte warunkowo — do potwierdzenia przez Konrada**.
+- **Stan 2026-11-13 (EVM-084, commit 5cc40c89; `security-engineer`):** `clamd` i `freshclam` jako `1000:1000` bez entrypointu `/init` obrazu (`cap_drop: ALL`, `read_only`, `no-new-privileges`); `TCPSocket 3310` bez `TCPAddr` słucha na wszystkich interfejsach kontenera, czyli tylko `lo` i `evia-scan` — ocena bez zmian (P1 × W1 = 1 Low). Uwaga (minor/major): uid 1000 = `evia-admin` (sudo `NOPASSWD`) na hoście — ucieczka z kontenera zachowująca uid daje root (P1 × W2 = 2 Low staging, P1 × W3 = 3 Medium prod); przed prod osobny uid z puli 100xx (`clamav_uid_gid`) albo akceptacja Konrada; brak `mem_limit` i `pids_limit` dla `clamd` (wariant A: tylko `oom_score_adj` 300) — Low.
 
 ### RR-48 — CSP `connect-src` obrazu `evia-web` bez originu bucketu (EVM-044; dawniej RR-NOC-T1-7)
 - **Opis:** `apps/web/security-headers.ts` dopuszcza dokładnie jeden origin z `MEDIA_BUCKET_ORIGIN`, ale statyczny `infra/images/web/Caddyfile` ma `connect-src 'self'`. Dopóki obraz `evia-web` nie dostanie originu bucketu, przeglądarka na stagingu zablokuje `PUT` części i upload zakończy się „Nie wysłano” (fail-closed, bez wpływu na poufność).
