@@ -66,8 +66,8 @@ locals {
   iac_principal  = "application_id:${var.iac_application_id}"
 
   media_allow = {
-    media_app           = ["s3:PutObject", "s3:GetObject", "s3:DeleteObject", "s3:AbortMultipartUpload", "s3:ListMultipartUploadParts", "s3:ListBucket"]
-    media_worker        = ["s3:GetObject", "s3:DeleteObject", "s3:ListBucket"]
+    media_app           = ["s3:PutObject", "s3:GetObject", "s3:GetObjectVersion", "s3:DeleteObject", "s3:AbortMultipartUpload", "s3:ListMultipartUploadParts", "s3:ListBucket"]
+    media_worker        = ["s3:GetObject", "s3:GetObjectVersion", "s3:DeleteObject", "s3:ListBucket"]
     media_backup_reader = ["s3:ListBucket", "s3:GetObject"]
   }
   # EVM-068 (TM-76): the key of the worker may PutObject ONLY the two names of the derivatives (the originals are `.../original`), and only conditionally

@@ -14,10 +14,10 @@ Powody (`--reason`, zamknięta lista; nie ma wolnego tekstu — dziennik audytu 
 ## Jak uruchomić
 1. Połącz się z serwerem przez SSH i uruchom polecenie **wyłącznie przez `docker exec -it`**:
    ```
-   docker exec -it <kontener-api> node dist/src/cli/bootstrap-admin.js
-   docker exec -it <kontener-api> node dist/src/cli/bootstrap-admin.js --emergency --reason lost_device
+   docker exec -it <kontener-api> /nodejs/bin/node dist/src/cli/bootstrap-admin.js
+   docker exec -it <kontener-api> /nodejs/bin/node dist/src/cli/bootstrap-admin.js --emergency --reason lost_device
    ```
-   Nie używaj `docker run` ani `docker compose run`: wyjście jednorazowego kontenera trafia do `docker logs`, a stamtąd do kolektora logów (Alloy) — link wyciekłby do logów. Polecenie samo odmawia, gdy nie ma terminala interaktywnego na wejściu i wyjściu, gdy jest głównym procesem kontenera (`pid 1`) albo jego bezpośrednim potomkiem (`ppid 1`) i nie łączy się wtedy z bazą.
+   Obraz API jest distroless: `node` nie ma w `PATH`, stąd pełna ścieżka `/nodejs/bin/node` (z `sudo` przed `docker`, gdy konto administratora nie jest w grupie `docker`). Nie używaj `docker run` ani `docker compose run`: wyjście jednorazowego kontenera trafia do `docker logs`, a stamtąd do kolektora logów (Alloy) — link wyciekłby do logów. Polecenie samo odmawia, gdy nie ma terminala interaktywnego na wejściu i wyjściu, gdy jest głównym procesem kontenera (`pid 1`) albo jego bezpośrednim potomkiem (`ppid 1`) i nie łączy się wtedy z bazą.
 2. **Adres e-mail wpisujesz w terminalu**, na pytanie polecenia — nie w argumentach (argumenty widać w `ps` i w historii powłoki). Polecenie nie przyjmuje hasła ani tokenu w żadnej formie (`--password…` jest odrzucane) i nie wysyła e-maili.
 3. Tryb awaryjny prosi o **ponowne wpisanie adresu** konta jako potwierdzenie. Odmowy nie ujawniają, czy adres istnieje: nieznany adres, inna rola, konto nieaktywne i brak aktywnego Administratora dają ten sam komunikat.
 4. Polecenie wypisuje link `https://<panel>/activate#<token>` — tylko na terminalu. Adres panelu pochodzi z konfiguracji (`PANEL_ORIGIN`), nigdy z nagłówków. Link jest ważny 72 godziny (zegar rzeczywisty, nie „3 dni kalendarzowe” — przy zmianie czasu 25.10.2026 nie wydłuża się ani nie skraca).

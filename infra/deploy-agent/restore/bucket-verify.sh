@@ -206,6 +206,9 @@ matrix_row() { # KEY BUCKET AREA OPERATION EXPECTED
   [ "$area" != - ] || path="/$bucket/?list-type=2"
   case "$operation" in
     list | get) got="$(code "$who" GET "$path")" ;;
+    # a read pinned to a version (what the scan, the processing, the export builder and the signed links of the API do): s3:GetObjectVersion, on the real probe
+    # object and its real version id written above (a made-up id would be a 400 or 404 before the authorization is shown)
+    getversion) got="$(code "$who" GET "/$bucket/${VERSION_PATH[$name]}?versionId=${VERSION_ID[$name]}")" ;;
     put)
       if [ "$name" = register ]; then got="$(code "$who" PUT "$path" -H 'If-None-Match: *' --data-binary "@$body")"; else got="$(code "$who" PUT "$path" --data-binary "@$body")"; fi
       ;;
