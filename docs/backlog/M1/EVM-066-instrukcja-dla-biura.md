@@ -6,9 +6,11 @@ milestone: M1
 epic: E8 Gotowość produkcyjna
 status: ready
 priority: P1
+path: lekka
 owner: product-owner
-contributors: [web-developer, ux-designer, devops-engineer]
-reviewers: [code-reviewer, ux-designer, security-engineer]
+contributors: [web-developer, devops-engineer]
+reviewers: [ux-designer]
+model: sonnet
 depends_on: [EVM-025, EVM-026, EVM-027, EVM-028, EVM-033, EVM-034, EVM-035, EVM-036, EVM-041, EVM-046, EVM-048, EVM-049, EVM-050, EVM-051, EVM-063, EVM-072]
 ---
 
@@ -19,7 +21,8 @@ Jako **pracownik biura** chcę **krótkiej instrukcji krok po kroku z zasadami b
 
 ## Kontekst
 - Zakres roadmapy E8: „krótka instrukcja”. SR-PRIV-10 (nie fotografujemy dokumentów tożsamości, osób ani tablic rejestracyjnych bez potrzeby; zgłaszamy utratę telefonu od razu), P3 (wyłączenie lokalizacji w aparacie telefonu przy zdjęciach z przeglądarki), P7.
-- Instrukcja obejmuje zakres pilota realnego (fazy 1–4); rozdział o płatnościach dopisują historyjki E7 (punkt w ich DoD).
+- **Stan 2026-11-13:** jedno środowisko pod `https://panel.eviacharge.pl` (rzeczywiste dane; biuro zapraszane e-mailem; zasady kluczy dostępu i MFA jak w AC1). Instrukcja opisuje tylko to środowisko — bez podziału staging / produkcja i bez odniesień do pilota; adres panelu podajemy w niej wprost (z konfiguracji, nie z localhost).
+- Instrukcja obejmuje zakres użycia realnego (fazy 1–4); rozdział o płatnościach dopisują historyjki E7 (punkt w ich DoD).
 - **Telefon w pilocie B (BYOD):** technicy (rola Edytor) używają pełnego panelu w przeglądarce prywatnych telefonów. Kontrole aplikacji (SQLCipher, blokada ekranu, limit offline — P7, TM-01) w przeglądarce nie działają, więc zasady pracy na telefonie są w instrukcji (AC2) do czasu aplikacji M2 (przegląd `security-engineer` EVM-010; decyzje 18 i 19 w README M1).
 - **Publikacja dla użytkowników:** repozytorium jest prywatne, a biuro nie ma do niego dostępu, więc instrukcja jest publikowana w panelu, a repozytorium pozostaje jej źródłem (przegląd `ux-designer` EVM-010; pomoc w stałym miejscu — WCAG 3.2.6). Odnośnik z W-19 dodaje ta historyjka (EVM-063 przygotowuje sekcję „Pomoc”).
 - **Nowa lokalizacja dokumentu:** dokumentacja dla użytkowników nie ma dziś reguły w `docs/process/document-lifecycle.md` — ta historyjka dodaje regułę (np. `docs/user/**/*.md`, klasa „żywy”) razem z konfiguracją walidatora (`devops-engineer`); zmiana polityki do akceptacji Konrada.
@@ -27,7 +30,7 @@ Jako **pracownik biura** chcę **krótkiej instrukcji krok po kroku z zasadami b
 ## Kryteria akceptacji
 **AC1 — Zakres instrukcji**
 - Gdy pracownik biura czyta instrukcję
-- Wtedy znajduje w niej: logowanie z kluczem dostępu albo kodem z aplikacji i kody odzyskiwania, nowe zlecenie z szablonu, statusy zlecenia i etapów oraz „Czekamy na…”, dziennik, zdjęcia (także z przeglądarki w telefonie), filmy i dokumenty z klasą poufności, klientów, wylogowanie — z przejściem scenariuszy A–D krok po kroku (bez płatności do E7).
+- Wtedy znajduje w niej: adres panelu i pierwsze wejście z zaproszenia e-mail, logowanie z kluczem dostępu albo kodem z aplikacji i kody odzyskiwania, nowe zlecenie z szablonu, statusy zlecenia i etapów oraz „Czekamy na…”, dziennik, zdjęcia (także z przeglądarki w telefonie), filmy i dokumenty z klasą poufności, klientów, wylogowanie — z przejściem scenariuszy A–D krok po kroku (bez płatności do E7).
 
 **AC2 — Zasady bezpiecznej pracy (SR-PRIV-10, P3, P7)**
 - Wtedy instrukcja mówi: nie fotografujemy dokumentów tożsamości, twarzy ani tablic rejestracyjnych, gdy nie jest to potrzebne; przed zdjęciami z przeglądarki w telefonie wyłączamy lokalizację w aparacie; omyłkowe zdjęcie zgłaszamy Administratorowi (trwałe usunięcie — EVM-051); utratę telefonu lub laptopa zgłaszamy od razu; nie wpisujemy PESEL, numerów dokumentów ani kodów do bram
@@ -38,7 +41,7 @@ Jako **pracownik biura** chcę **krótkiej instrukcji krok po kroku z zasadami b
   - przy odejściu z firmy potwierdzamy Administratorowi usunięcie zdjęć i filmów z pracy z telefonu, kosza galerii i chmury.
 
 **AC3 — Dane syntetyczne**
-- Wtedy zrzuty ekranu i przykłady zawierają wyłącznie dane syntetyczne (Jan Przykładowy, `example.com`, `ZL-2026-…`, `FV/TEST/…`).
+- Wtedy zrzuty ekranu i przykłady zawierają wyłącznie dane syntetyczne (Jan Przykładowy, `example.com`, `ZL-2026-…`, `FV/TEST/…`), wykonane wyłącznie w lokalnym środowisku deweloperskim — agenci nie logują się do rzeczywistego środowiska (RR-93).
 
 **AC4 — Język i spójność**
 - Wtedy instrukcja jest napisana prostym językiem, nazwy przycisków i komunikatów są zgodne z panelem (mikrocopy ze styleguide'u), a treść ma przegląd `ux-designer`.
@@ -97,3 +100,5 @@ _—_
 - 2026-10-03 — poprawki z przeglądu EVM-010 (ux-designer, security-engineer): AC6 — instrukcja opublikowana w panelu z odnośnikiem z W-19 (przeniesiony z EVM-063 AC3), zależność od EVM-063; AC2 — zasady pracy na telefonie (BYOD); `web-developer` i `code-reviewer` w zespole historyjki
 - 2026-10-03 — poprawki z przeglądu EVM-010, runda 2 (security-engineer): AC2 — wyłączenie automatycznej kopii zdjęć w chmurze, opróżnianie kosza galerii, potwierdzenie usunięcia przy odejściu z firmy (warunek rekomendacji „galeria” w decyzji 18)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-11-13 — dostosowanie do jednego środowiska `panel.eviacharge.pl` (product-owner): `path: lekka`, jeden recenzent `ux-designer`, `model: sonnet`; AC1 — adres i zaproszenie e-mail; AC3 — zrzuty tylko z lokalnego środowiska (RR-93). Recenzje `code-reviewer` i `security-engineer` zdjęte (treść bez kodu; wyjątek: zmiana polityki dokumentów w AC5 zatwierdza Konrad)
+- 2026-11-13 — decyzja Konrada: przegląd tylko `ux-designer` (ścieżka `lekka`); w nocnej kolejce `/noc-2026-11-13` (tor B po EVM-126) (Tech Lead)
