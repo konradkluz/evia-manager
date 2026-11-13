@@ -65,19 +65,6 @@ locals {
   app_principals = { for name, app in scaleway_iam_application.app : name => "application_id:${app.id}" }
   iac_principal  = "application_id:${var.iac_application_id}"
 
-  # Never granted to a key that runs on the VM (security-engineer P4, architect 4).
-  privileged_actions = [
-    "s3:PutBucket*",
-    "s3:DeleteBucket*",
-    "s3:PutLifecycleConfiguration",
-    "s3:PutObjectLockConfiguration",
-    "s3:PutObjectRetention",
-    "s3:PutObjectLegalHold",
-    "s3:PutObjectAcl",
-    "s3:BypassGovernanceRetention",
-    "s3:DeleteObjectVersion",
-  ]
-
   media_allow = {
     media_app           = ["s3:PutObject", "s3:GetObject", "s3:DeleteObject", "s3:AbortMultipartUpload", "s3:ListMultipartUploadParts", "s3:ListBucket"]
     media_worker        = ["s3:GetObject", "s3:DeleteObject", "s3:ListBucket"]
@@ -354,8 +341,18 @@ resource "scaleway_object_bucket_acl" "db_backup" {
 }
 
 # --- Bucket policies -----------------------------------------------------------------------------------------------
-# Per bucket: Allow the IaC application; Allow each principal of <bucket>_allow; Deny the privileged actions for every
-# application; Deny everything outside its list for each listed application; Deny everything for the other applications.
+# Scaleway semantics (Version 2023-04-17; https://www.scaleway.com/en/docs/object-storage/api-cli/bucket-policy/ and
+# .../combining-iam-and-object-storage/): a principal needs an IAM permission AND, once a bucket has a policy, an explicit Allow in
+# that policy; every action not explicitly allowed is denied and "Deny statements are therefore useless". Elements: Version, Id,
+# Statement, Sid, Principal, Action, Effect, Resource, Condition - NO NotAction/NotPrincipal (the API answers `Missing required field
+# Action`), and at most 10 statements per policy (`Bucket Policy can have up to 10 statements`).
+# So each policy holds only Allow statements: the IaC application (s3:*, so the session is never locked out) and each principal of
+# <bucket>_allow with exactly its list. The former Deny statements (privileged actions, outside the list, other applications, the
+# restore orchestrator in pgbackrest/, the originals for the worker) are implicit: no list holds a privileged action, no application
+# outside the lists or prefixes is allowed. ASSUMPTION confirmed by bucket-verify.sh (step A6): implicit deny holds even though the IAM
+# permission sets of the project are broader (every cell of bucket-matrix.tsv, the administrative actions and anonymous access -> 403).
+# Conditional writes (add-only) are written as an Allow with the documented condition `Null` on `s3:if-none-match` = "false" (header
+# present), https://www.scaleway.com/en/docs/object-storage/api-cli/using-conditional-writes/ .
 # No Allow for "*" and no public ACL (the buckets are acl = "private").
 
 resource "scaleway_object_bucket_policy" "media" {
@@ -379,51 +376,15 @@ resource "scaleway_object_bucket_policy" "media" {
         Action    = actions
         Resource  = [scaleway_object_bucket.media.name, "${scaleway_object_bucket.media.name}/*"]
       }],
-      [for app, actions in local.media_allow : {
-        Sid       = "DenyOutsideList-${app}"
-        Effect    = "Deny"
-        Principal = { SCW = local.app_principals[app] }
-        # the worker's PutObject is decided by the three statements below, not blanket-denied here
-        NotAction = app == "media_worker" ? concat(actions, ["s3:PutObject"]) : actions
-        Resource  = [scaleway_object_bucket.media.name, "${scaleway_object_bucket.media.name}/*"]
-      }],
-      # EVM-068: the derivatives. Allow on the two names only; Deny without If-None-Match (add-only: an object that exists is never replaced); Deny on the
-      # originals whatever the header says (the pattern of restore_results_prefix: narrow Allow + Deny of the protected area).
+      # EVM-068: the derivatives. The ONLY PutObject of the worker: the two/three names, and only with If-None-Match (add-only: an object that exists is
+      # never replaced). The originals (`.../original`) match no Allow, so they stay denied (the former DenyWorkerOriginals is implicit).
       [{
         Sid       = "AllowWorkerDerivatives"
         Effect    = "Allow"
         Principal = { SCW = local.app_principals["media_worker"] }
         Action    = ["s3:PutObject"]
         Resource  = [for name in local.derivative_object_names : "${scaleway_object_bucket.media.name}/media/*/${name}"]
-      }],
-      [{
-        Sid       = "DenyWorkerOverwrite"
-        Effect    = "Deny"
-        Principal = { SCW = local.app_principals["media_worker"] }
-        Action    = ["s3:PutObject"]
-        Resource  = ["${scaleway_object_bucket.media.name}/*"]
-        Condition = { Null = { "s3:if-none-match" = "true" } }
-      }],
-      [{
-        Sid       = "DenyWorkerOriginals"
-        Effect    = "Deny"
-        Principal = { SCW = local.app_principals["media_worker"] }
-        Action    = ["s3:PutObject"]
-        Resource  = ["${scaleway_object_bucket.media.name}/media/*/original"]
-      }],
-      [{
-        Sid       = "DenyPrivilegedForApplications"
-        Effect    = "Deny"
-        Principal = { SCW = values(local.app_principals) }
-        Action    = local.privileged_actions
-        Resource  = [scaleway_object_bucket.media.name, "${scaleway_object_bucket.media.name}/*"]
-      }],
-      [{
-        Sid       = "DenyOtherApplications"
-        Effect    = "Deny"
-        Principal = { SCW = [for app in setsubtract(keys(local.apps), keys(local.media_allow)) : local.app_principals[app]] }
-        Action    = ["s3:*"]
-        Resource  = [scaleway_object_bucket.media.name, "${scaleway_object_bucket.media.name}/*"]
+        Condition = { Null = { "s3:if-none-match" = "false" } }
       }],
     )
   })
@@ -443,43 +404,22 @@ resource "scaleway_object_bucket_policy" "register" {
         Action    = ["s3:*"]
         Resource  = [scaleway_object_bucket.register.name, "${scaleway_object_bucket.register.name}/*"]
       }],
+      # Add-only: the writer's PutObject is allowed only with If-None-Match (a PutObject without it would overwrite an entry).
+      [{
+        Sid       = "AllowRegisterWriterConditionalPut"
+        Effect    = "Allow"
+        Principal = { SCW = local.app_principals["register_writer"] }
+        Action    = local.register_allow["register_writer"]
+        Resource  = ["${scaleway_object_bucket.register.name}/*"]
+        Condition = { Null = { "s3:if-none-match" = "false" } }
+      }],
       [for app, actions in local.register_allow : {
         Sid       = "Allow-${app}"
         Effect    = "Allow"
         Principal = { SCW = local.app_principals[app] }
         Action    = actions
         Resource  = [scaleway_object_bucket.register.name, "${scaleway_object_bucket.register.name}/*"]
-      }],
-      [for app, actions in local.register_allow : {
-        Sid       = "DenyOutsideList-${app}"
-        Effect    = "Deny"
-        Principal = { SCW = local.app_principals[app] }
-        NotAction = actions
-        Resource  = [scaleway_object_bucket.register.name, "${scaleway_object_bucket.register.name}/*"]
-      }],
-      # Add-only: a PutObject without If-None-Match would overwrite an entry (the IAM permission set alone allows it).
-      [{
-        Sid       = "DenyOverwriteByRegisterWriter"
-        Effect    = "Deny"
-        Principal = { SCW = local.app_principals["register_writer"] }
-        Action    = ["s3:PutObject"]
-        Resource  = ["${scaleway_object_bucket.register.name}/*"]
-        Condition = { Null = { "s3:if-none-match" = "true" } }
-      }],
-      [{
-        Sid       = "DenyPrivilegedForApplications"
-        Effect    = "Deny"
-        Principal = { SCW = values(local.app_principals) }
-        Action    = local.privileged_actions
-        Resource  = [scaleway_object_bucket.register.name, "${scaleway_object_bucket.register.name}/*"]
-      }],
-      [{
-        Sid       = "DenyOtherApplications"
-        Effect    = "Deny"
-        Principal = { SCW = [for app in setsubtract(keys(local.apps), keys(local.register_allow)) : local.app_principals[app]] }
-        Action    = ["s3:*"]
-        Resource  = [scaleway_object_bucket.register.name, "${scaleway_object_bucket.register.name}/*"]
-      }],
+      } if app != "register_writer"],
     )
   })
 }
@@ -505,40 +445,13 @@ resource "scaleway_object_bucket_policy" "db_backup" {
         Action    = actions
         Resource  = [scaleway_object_bucket.db_backup.name, "${scaleway_object_bucket.db_backup.name}/*"]
       }],
-      [for app, actions in local.db_backup_allow : {
-        Sid       = "DenyOutsideList-${app}"
-        Effect    = "Deny"
-        Principal = { SCW = local.app_principals[app] }
-        NotAction = actions
-        Resource  = [scaleway_object_bucket.db_backup.name, "${scaleway_object_bucket.db_backup.name}/*"]
-      }],
+      # The orchestrator reaches only its own prefix; the repository (pgbackrest/) matches no Allow for it (the former Deny is implicit).
       [{
         Sid       = "AllowRestoreResults"
         Effect    = "Allow"
         Principal = { SCW = local.app_principals["restore_orchestrator"] }
         Action    = local.restore_results_actions
         Resource  = ["${scaleway_object_bucket.db_backup.name}/${local.restore_results_prefix}*"]
-      }],
-      [{
-        Sid       = "DenyOrchestratorOutsideResults"
-        Effect    = "Deny"
-        Principal = { SCW = local.app_principals["restore_orchestrator"] }
-        Action    = ["s3:*"]
-        Resource  = [scaleway_object_bucket.db_backup.name, "${scaleway_object_bucket.db_backup.name}/pgbackrest/*"]
-      }],
-      [{
-        Sid       = "DenyPrivilegedForApplications"
-        Effect    = "Deny"
-        Principal = { SCW = values(local.app_principals) }
-        Action    = local.privileged_actions
-        Resource  = [scaleway_object_bucket.db_backup.name, "${scaleway_object_bucket.db_backup.name}/*"]
-      }],
-      [{
-        Sid       = "DenyOtherApplications"
-        Effect    = "Deny"
-        Principal = { SCW = [for app in setsubtract(keys(local.apps), concat(keys(local.db_backup_allow), ["restore_orchestrator"])) : local.app_principals[app]] }
-        Action    = ["s3:*"]
-        Resource  = [scaleway_object_bucket.db_backup.name, "${scaleway_object_bucket.db_backup.name}/*"]
       }],
     )
   })
@@ -563,27 +476,6 @@ resource "scaleway_object_bucket_policy" "exports" {
         Effect    = "Allow"
         Principal = { SCW = local.app_principals[app] }
         Action    = actions
-        Resource  = [scaleway_object_bucket.exports.name, "${scaleway_object_bucket.exports.name}/*"]
-      }],
-      [for app, actions in local.exports_allow : {
-        Sid       = "DenyOutsideList-${app}"
-        Effect    = "Deny"
-        Principal = { SCW = local.app_principals[app] }
-        NotAction = actions
-        Resource  = [scaleway_object_bucket.exports.name, "${scaleway_object_bucket.exports.name}/*"]
-      }],
-      [{
-        Sid       = "DenyPrivilegedForApplications"
-        Effect    = "Deny"
-        Principal = { SCW = values(local.app_principals) }
-        Action    = local.privileged_actions
-        Resource  = [scaleway_object_bucket.exports.name, "${scaleway_object_bucket.exports.name}/*"]
-      }],
-      [{
-        Sid       = "DenyOtherApplications"
-        Effect    = "Deny"
-        Principal = { SCW = [for app in setsubtract(keys(local.apps), keys(local.exports_allow)) : local.app_principals[app]] }
-        Action    = ["s3:*"]
         Resource  = [scaleway_object_bucket.exports.name, "${scaleway_object_bucket.exports.name}/*"]
       }],
     )

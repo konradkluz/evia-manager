@@ -7,7 +7,7 @@
 #   - every key: PutBucketPolicy, PutBucketVersioning, PutLifecycleConfiguration, PutObjectRetention, DeleteObjectVersion -> 403
 #   - the whole matrix key × bucket × area × {list, GET, PUT, DELETE} from bucket-matrix.tsv (generated from BUCKET_POLICIES in
 #     tools/repo-policy): `allow` = any answer but 403, `deny` = exactly 403 — this proves that the constructs of the bucket policies
-#     (NotAction, the wildcard s3:PutBucket*, the condition on s3:if-none-match, the prefix of the orchestrator) mean at Scaleway
+#     (implicit deny without any Deny statement, the condition Null on s3:if-none-match, the prefix of the orchestrator) mean at Scaleway
 #     what the module assumes and that the project-wide permission sets do not open another bucket
 #   - an object written by the media key carries x-amz-server-side-encryption (SSE-ONE)
 # Requests are signed by curl (--aws-sigv4); the secret goes to curl on stdin, never into argv. The probes are objects under
