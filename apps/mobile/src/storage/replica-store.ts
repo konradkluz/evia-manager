@@ -483,7 +483,7 @@ export class SqlReplicaStore implements ReplicaStore {
       }));
       const entries: DetailEntrySource[] = (
         await tx.all(
-          `SELECT e.id AS id, json_extract(e.fields, '$.kind') AS kind, json_extract(e.fields, '$.noteCategory') AS note_category, json_extract(e.fields, '$.body') AS body, json_extract(e.fields, '$.authorUserId') AS author_user_id, json_extract(e.fields, '$.createdAt') AS created_at, json_extract(e.fields, '$.capturedAt') AS captured_at, json_extract(e.fields, '$.redactedAt') AS redacted_at FROM replica_entities e ${active} WHERE e.type = 'timeline_entry' AND e.work_order_id = ? ORDER BY e.id`,
+          `SELECT e.id AS id, json_extract(e.fields, '$.kind') AS kind, json_extract(e.fields, '$.noteCategory') AS note_category, json_extract(e.fields, '$.body') AS body, json_extract(e.fields, '$.authorUserId') AS author_user_id, json_extract(e.fields, '$.createdAt') AS created_at, json_extract(e.fields, '$.capturedAt') AS captured_at, json_extract(e.fields, '$.redactedAt') AS redacted_at, json_extract(e.fields, '$.supersedesEntryId') AS supersedes_entry_id, json_extract(e.fields, '$.supersededByEntryId') AS superseded_by_entry_id FROM replica_entities e ${active} WHERE e.type = 'timeline_entry' AND e.work_order_id = ? ORDER BY e.id`,
           [workOrderId],
         )
       ).map((row) => ({
@@ -496,6 +496,8 @@ export class SqlReplicaStore implements ReplicaStore {
         capturedAt: time(row['captured_at']),
         // a redaction mark that is present but unreadable still counts as a redaction (the model then drops the body)
         redactedAt: row['redacted_at'] === null || row['redacted_at'] === undefined ? null : (time(row['redacted_at']) ?? 0),
+        supersedesEntryId: nullable(row['supersedes_entry_id']),
+        supersededByEntryId: nullable(row['superseded_by_entry_id']),
       }));
       const site =
         siteRow === undefined

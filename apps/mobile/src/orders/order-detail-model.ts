@@ -65,6 +65,10 @@ export interface DetailEntrySource {
   readonly createdAt: number;
   readonly capturedAt: number | null;
   readonly redactedAt: number | null;
+  /** The id of the entry this one corrects (this entry is a correction). */
+  readonly supersedesEntryId: string | null;
+  /** The id of the entry that corrects this one (this entry is superseded). */
+  readonly supersededByEntryId: string | null;
 }
 export interface DetailUser {
   readonly id: string;
@@ -125,6 +129,10 @@ export interface JournalItem {
   /** `null` when redacted or when there is no text. */
   readonly body: string | null;
   readonly redacted: boolean;
+  /** Replaced by a correction: the old text is never shown (the screen says "Zastąpiony poprawką"). */
+  readonly superseded: boolean;
+  /** Corrects an earlier entry. */
+  readonly correction: boolean;
 }
 export interface OrderDetail {
   readonly id: string;
@@ -221,6 +229,7 @@ export function buildOrderDetail(
 
   const synced: JournalItem[] = source.entries.map((entry) => {
     const redacted = entry.redactedAt !== null;
+    const superseded = entry.supersededByEntryId !== null;
     return {
       id: entry.id,
       source: 'synced',
@@ -228,8 +237,10 @@ export function buildOrderDetail(
       category: entry.noteCategory,
       author: entry.authorUserId === null ? null : (users.get(entry.authorUserId) ?? null),
       at: entry.capturedAt ?? entry.createdAt,
-      body: redacted ? null : blank(entry.body ?? ''),
+      body: redacted || superseded ? null : blank(entry.body ?? ''),
       redacted,
+      superseded,
+      correction: entry.supersedesEntryId !== null,
     };
   });
   const known = new Set(synced.map((item) => item.id));
@@ -250,6 +261,8 @@ export function buildOrderDetail(
       at: record.createdAt,
       body: blank(asText(record.payload['body']) ?? ''),
       redacted: false,
+      superseded: false,
+      correction: false,
     }));
   const newestFirst = (a: JournalItem, b: JournalItem): number => b.at - a.at || a.id.localeCompare(b.id);
 

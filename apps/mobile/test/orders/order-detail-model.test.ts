@@ -71,6 +71,8 @@ const baseSource = (): OrderDetailSource => ({
       createdAt: T0 - 2 * DAY,
       capturedAt: null,
       redactedAt: null,
+      supersedesEntryId: null,
+      supersededByEntryId: null,
     },
     {
       id: 'e-new',
@@ -81,6 +83,8 @@ const baseSource = (): OrderDetailSource => ({
       createdAt: T0 - DAY,
       capturedAt: null,
       redactedAt: null,
+      supersedesEntryId: null,
+      supersededByEntryId: null,
     },
     {
       id: 'e-ev',
@@ -91,6 +95,8 @@ const baseSource = (): OrderDetailSource => ({
       createdAt: T0 - 3 * DAY,
       capturedAt: null,
       redactedAt: null,
+      supersedesEntryId: null,
+      supersededByEntryId: null,
     },
     {
       id: 'e-red',
@@ -101,6 +107,8 @@ const baseSource = (): OrderDetailSource => ({
       createdAt: T0 - 4 * DAY,
       capturedAt: null,
       redactedAt: T0 - DAY,
+      supersedesEntryId: null,
+      supersededByEntryId: null,
     },
   ],
   users: [
@@ -359,6 +367,34 @@ describe('journal and pending items (EVM-104 AC4, AC5; security K5, K9)', () => 
     const red = must(source.entries[3]);
     const detail = must(buildOrderDetail({ ...source, entries: [{ ...red, body: 'SYNTHETIC-LEFTOVER' }] }, [], 'u1'));
     expect(detail.journal[0]).toMatchObject({ redacted: true, body: null });
+  });
+
+  it('EVM-104 AC4: a superseded entry is flagged and carries no text; the correction is flagged and keeps its text', () => {
+    const source = baseSource();
+    const old = must(source.entries[0]);
+    const fix = must(source.entries[1]);
+    const detail = must(
+      buildOrderDetail(
+        {
+          ...source,
+          entries: [
+            { ...old, body: 'SYNTHETIC-WRONG-TEXT', supersededByEntryId: fix.id },
+            { ...fix, supersedesEntryId: old.id },
+          ],
+        },
+        [],
+        'u1',
+      ),
+    );
+    const byId = (id: string) => detail.journal.find((j) => j.id === id);
+    expect(byId(old.id)).toMatchObject({ superseded: true, correction: false, body: null });
+    expect(byId(fix.id)).toMatchObject({ superseded: false, correction: true, body: 'nowszy' });
+    expect(JSON.stringify(detail)).not.toContain('SYNTHETIC-WRONG-TEXT');
+  });
+
+  it('EVM-104 AC4: queue items are never flagged as superseded or correction', () => {
+    const detail = must(buildOrderDetail(baseSource(), [record({ mutationId: 'm1', objectId: 'q-1' })], 'u1'));
+    expect(detail.journal[0]).toMatchObject({ source: 'pending', superseded: false, correction: false });
   });
 });
 

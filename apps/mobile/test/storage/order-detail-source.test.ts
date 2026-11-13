@@ -180,6 +180,8 @@ describe('readOrderDetailSource (EVM-104)', () => {
         createdAt: Date.parse('2026-11-01T08:00:00.000Z'),
         capturedAt: Date.parse('2026-11-01T07:00:00.000Z'),
         redactedAt: null,
+        supersedesEntryId: null,
+        supersededByEntryId: null,
       },
     ]);
     expect(source?.users).toEqual([{ id: 'u-a', displayName: 'Anna Testowa' }]);
@@ -249,6 +251,8 @@ describe('readOrderDetailSource (EVM-104)', () => {
       'kind',
       'noteCategory',
       'redactedAt',
+      'supersededByEntryId',
+      'supersedesEntryId',
     ]);
   });
 
@@ -335,7 +339,31 @@ describe('readOrderDetailSource (EVM-104)', () => {
       createdAt: 0,
       capturedAt: null,
       redactedAt: 0,
+      supersedesEntryId: null,
+      supersededByEntryId: null,
     });
+  });
+
+  it('EVM-104 AC4: the links between an entry and its correction arrive with the entry (for both directions)', async () => {
+    await apply([
+      upsert('timeline_entry', 'e-wrong', {
+        workOrderId: 'o1',
+        kind: 'note',
+        body: 'x',
+        createdAt: '2026-11-03T08:00:00.000Z',
+        supersededByEntryId: 'e-fix',
+      }),
+      upsert('timeline_entry', 'e-fix', {
+        workOrderId: 'o1',
+        kind: 'note',
+        body: 'y',
+        createdAt: '2026-11-03T09:00:00.000Z',
+        supersedesEntryId: 'e-wrong',
+      }),
+    ]);
+    const entries = (await store.readOrderDetailSource('o1'))?.entries ?? [];
+    expect(entries.find((e) => e.id === 'e-wrong')).toMatchObject({ supersededByEntryId: 'e-fix', supersedesEntryId: null });
+    expect(entries.find((e) => e.id === 'e-fix')).toMatchObject({ supersedesEntryId: 'e-wrong', supersededByEntryId: null });
   });
 
   it('EVM-104 AC4: a redacted entry arrives with its time of redaction (the model drops the body)', async () => {

@@ -83,6 +83,8 @@ const item = (patch: Partial<JournalItem> & { id: string }): JournalItem => ({
   at: T0,
   body: 'Synthetic body',
   redacted: false,
+  superseded: false,
+  correction: false,
   ...patch,
 });
 const DETAIL: OrderDetail = {
@@ -431,6 +433,21 @@ describe('journal and queue items (EVM-104 AC4)', () => {
     expect(within(screen.getByTestId('order-detail-entry-j-3')).getByText(pl.orderDetail.redacted)).toBeOnTheScreen();
     const ids = screen.getAllByTestId(/^order-detail-entry-j-/).map((node) => (node.props as { testID: string }).testID);
     expect(ids).toEqual(['j-pending', 'j-attention', 'j-1', 'j-2', 'j-3'].map((id) => `order-detail-entry-${id}`));
+  });
+
+  it('EVM-104 AC4: a superseded entry says "Zastąpiony poprawką" without text; the correction says "Poprawka wpisu"', async () => {
+    const journal = [
+      item({ id: 'j-fix', correction: true, body: 'Poprawiona treść', at: T0 }),
+      item({ id: 'j-old', superseded: true, body: null, at: T0 - 60_000 }),
+    ];
+    await openDetail(rigWith({ ...DETAIL, journal }));
+    const old = screen.getByTestId('order-detail-entry-j-old');
+    expect(within(old).getByText(pl.orderDetail.superseded)).toBeOnTheScreen();
+    expect(within(old).queryByText(pl.orderDetail.correction)).toBeNull();
+    const fix = screen.getByTestId('order-detail-entry-j-fix');
+    expect(within(fix).getByText(pl.orderDetail.correction)).toBeOnTheScreen();
+    expect(within(fix).getByText('Poprawiona treść')).toBeOnTheScreen();
+    expect(within(fix).queryByText(pl.orderDetail.superseded)).toBeNull();
   });
 
   it('EVM-104 AC4: a rejected item shows "Wymaga uwagi" and "Przejdź do kolejki", which opens the queue', async () => {

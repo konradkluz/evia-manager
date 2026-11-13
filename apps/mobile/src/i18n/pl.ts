@@ -117,6 +117,8 @@ export const pl = {
     system: 'System',
     you: 'Ty',
     redacted: 'Treść usunięta przez administratora.',
+    superseded: 'Zastąpiony poprawką',
+    correction: 'Poprawka wpisu',
     pending: 'Czeka na wysłanie',
     attention: 'Wymaga uwagi',
     goToQueue: 'Przejdź do kolejki',
