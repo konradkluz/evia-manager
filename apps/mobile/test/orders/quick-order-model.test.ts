@@ -425,6 +425,33 @@ describe('draftFromQuickPayload (EVM-128)', () => {
     expect(unknownSite.street).toBe('ul. X');
   });
 
+  it('EVM-128 AC1: Polish letters in the name, place and note survive the round trip into the form unchanged', () => {
+    const draft = draftFromQuickPayload(
+      {
+        title: 'Ładowarka — Żółć',
+        newCustomer: { id: 'c', kind: 'person', displayName: 'Łukasz Żółć-Ćwiąkała', phone: '600 000 009' },
+        newSite: {
+          id: 's',
+          siteType: 'multi_family_garage',
+          street: 'ul. Świętokrzyska',
+          city: 'Łódź',
+          postalCode: '90-001',
+          buildingNumber: '1',
+        },
+        note: 'Źle zaparkowane auto, pięć ćwiartek',
+      },
+      { templateUnavailable: false },
+    );
+    expect(draft).toMatchObject({
+      firstName: 'Łukasz',
+      lastName: 'Żółć-Ćwiąkała',
+      street: 'ul. Świętokrzyska',
+      city: 'Łódź',
+      note: 'Źle zaparkowane auto, pięć ćwiartek',
+      title: 'Ładowarka — Żółć',
+    });
+  });
+
   it('EVM-128 AC3: the draft of the old command, built again, gives the SAME data under NEW ids', () => {
     const draft = draftFromQuickPayload(personPayload, { templateUnavailable: false });
     let n = 0;
