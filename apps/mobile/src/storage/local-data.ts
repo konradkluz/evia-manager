@@ -1,6 +1,8 @@
 import type { QueueStore, ReplicaStore, SettledInfo } from '@evia/sync-core';
 import type { OrderDetailSource } from '../orders/order-detail-model';
 import type { OrderListSource } from '../orders/order-list-model';
+import type { QuickOrderSource } from '../orders/quick-order-model';
+import type { TemplateSet } from '../orders/templates';
 import { Database } from './database';
 import { StorageError, toStorageError, type StorageErrorCode } from './errors';
 import { InstallationProof } from './installation-proof';
@@ -54,6 +56,11 @@ export interface UnlockedStore {
     readOrderListSource(withData: boolean): Promise<OrderListSource>;
     /** The source of the work order details (EVM-104): allow-listed keys of one order; null = not in the active generation. */
     readOrderDetailSource(workOrderId: string): Promise<OrderDetailSource | null>;
+    /** The templates of work orders (EVM-106): the stored document as it is (`unknown`; the reader validates it) and its atomic replacement. */
+    readTemplates(): Promise<unknown>;
+    writeTemplates(set: TemplateSet): Promise<void>;
+    /** The customers and places of the active generation for the form of a quick work order (EVM-106); never called in the hidden-data mode. */
+    readQuickOrderSource(): Promise<QuickOrderSource>;
   };
   /** Results of settled mutations for their consumer (EVM-107); taken = removed. */
   takeSettled(): Promise<{ mutationId: string; info: SettledInfo }[]>;
@@ -379,6 +386,9 @@ export class LocalDataHost {
         listWorkOrders: (limit) => replica.listWorkOrders(limit),
         readOrderListSource: (withData) => replica.readOrderListSource(withData),
         readOrderDetailSource: (workOrderId) => replica.readOrderDetailSource(workOrderId),
+        readTemplates: () => replica.readTemplates(),
+        writeTemplates: (set) => replica.writeTemplates(set),
+        readQuickOrderSource: () => replica.readQuickOrderSource(),
       },
       takeSettled: () => queue.takeSettled(),
       unsentItemCount: async () => {

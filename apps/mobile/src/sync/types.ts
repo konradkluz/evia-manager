@@ -4,9 +4,16 @@
  */
 import type { OrderDetail } from '../orders/order-detail-model';
 import type { OrderRow } from '../orders/order-list-model';
-import type { AttentionAction, AttentionReason, EnqueueInput, MutationType } from '@evia/sync-core';
+import type { AttentionAction, AttentionReason, EnqueueInput, MutationType, TransportResponse } from '@evia/sync-core';
+import type { QuickOrderSource } from '../orders/quick-order-model';
+import type { TemplateSet } from '../orders/templates';
 
 export type { AttentionAction, AttentionReason };
+
+/** The one call of the catalogue the phone makes besides the synchronization (EVM-106 AC1; `listWorkOrderTemplates` of the contract). */
+export interface TemplateTransport {
+  listWorkOrderTemplates(): Promise<TransportResponse>;
+}
 
 export type FirstPullFailure = 'network' | 'rate_limited' | 'disk_full' | 'storage' | 'server';
 export type SyncFailureKind = 'push' | 'pull' | 'rate_limited';
@@ -114,6 +121,16 @@ export interface SyncControl {
    * the scope of the phone or deleted). Never called in the hidden-data mode.
    */
   orderDetail(workOrderId: string): Promise<OrderDetail | null>;
+  /**
+   * The templates of work orders stored on the phone (EVM-106 AC1) - the replica only, never the server; `null` = none downloaded yet.
+   * Not personal data, so also readable in the hidden-data mode (the form itself is not).
+   */
+  templates(): Promise<TemplateSet | null>;
+  /**
+   * The customers and places of the phone for the quick order form (EVM-106 AC2, AC3) - the replica only. Never called in the
+   * hidden-data mode; the caller keeps the result in memory only for as long as the form is open.
+   */
+  quickOrderSource(): Promise<QuickOrderSource>;
   /** Entries that depend on this one, for the confirmation dialog. */
   dependentsOf(id: string): Promise<number>;
   discard(id: string): Promise<AttentionResult>;

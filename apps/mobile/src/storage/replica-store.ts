@@ -25,6 +25,8 @@ import type {
   OrderDetailSource,
 } from '../orders/order-detail-model';
 import type { OrderListSource, SourceCustomer, SourceOrder, SourceSite, SourceStage } from '../orders/order-list-model';
+import type { QuickOrderSource } from '../orders/quick-order-model';
+import type { TemplateSet } from '../orders/templates';
 import { MAX_PARAMS, chunk, type DbAccess, type Tx } from './database';
 import { nextGeneration, startFreshActiveGeneration } from './schema';
 import type { SqlRow, SqlValue } from './sql';
@@ -339,6 +341,59 @@ export class SqlReplicaStore implements ReplicaStore {
     await this.#db.transaction((tx) => SqlReplicaStore.#setMeta(tx, 'last_success_at', Math.trunc(at)));
   }
 
+  /**
+   * The templates of work orders (EVM-106 AC1; security K2-K4): ONE document in `replica_meta` (the encrypted database), replaced in one
+   * upsert - a failed write leaves the old set. Not part of a generation, so a resync does not touch it; `wipeReplica` removes it.
+   * Returned as stored (`unknown`): the reader validates it again.
+   */
+  async readTemplates(): Promise<unknown> {
+    return this.#db.read(async (tx) => {
+      const row = await tx.get("SELECT value FROM replica_meta WHERE key = 'templates'");
+      return parse(row?.['value']);
+    });
+  }
+
+  async writeTemplates(set: TemplateSet): Promise<void> {
+    await this.#db.transaction((tx) => SqlReplicaStore.#setMeta(tx, 'templates', set));
+  }
+
+  /**
+   * The customers and places of the active generation for the form of a quick work order (EVM-106 AC2, AC3; security K4, K7): allow-listed
+   * keys through `json_extract` only (name, phone, address; never e-mail, tax id, notes of the place or its manager). Called only while the data
+   * are visible.
+   */
+  async readQuickOrderSource(): Promise<QuickOrderSource> {
+    const active = "JOIN replica_generations g ON g.generation = e.generation AND g.role = 'active'";
+    const text = (value: unknown): string => (typeof value === 'string' ? value : '');
+    return this.#db.read(async (tx) => {
+      const customers = (
+        await tx.all(
+          `SELECT e.id AS id, json_extract(e.fields, '$.kind') AS kind, json_extract(e.fields, '$.displayName') AS display_name, json_extract(e.fields, '$.phone') AS phone FROM replica_entities e ${active} WHERE e.type = 'customer' ORDER BY e.id LIMIT 2000`,
+        )
+      ).map((row) => ({
+        id: String(row['id']),
+        kind: text(row['kind']),
+        displayName: text(row['display_name']),
+        phone: text(row['phone']),
+      }));
+      const sites = (
+        await tx.all(
+          `SELECT e.id AS id, json_extract(e.fields, '$.siteType') AS site_type, json_extract(e.fields, '$.street') AS street, json_extract(e.fields, '$.buildingNumber') AS building_number, json_extract(e.fields, '$.apartmentNumber') AS apartment_number, json_extract(e.fields, '$.postalCode') AS postal_code, json_extract(e.fields, '$.city') AS city, json_extract(e.fields, '$.parkingSpotNumber') AS parking_spot FROM replica_entities e ${active} WHERE e.type = 'site' ORDER BY e.id LIMIT 2000`,
+        )
+      ).map((row) => ({
+        id: String(row['id']),
+        siteType: text(row['site_type']),
+        street: text(row['street']),
+        buildingNumber: text(row['building_number']),
+        apartmentNumber: text(row['apartment_number']),
+        postalCode: text(row['postal_code']),
+        city: text(row['city']),
+        parkingSpotNumber: text(row['parking_spot']),
+      }));
+      return { customers, sites };
+    });
+  }
+
   /** Work orders of the active generation (the target list of "Dodaj do innego zlecenia"); only what the list shows. */
   async listWorkOrders(limit = 200): Promise<{ id: string; number: string; title: string }[]> {
     return this.#db.read(async (tx) => {
@@ -570,7 +625,7 @@ export class SqlReplicaStore implements ReplicaStore {
     await this.#db.transaction(async (tx) => {
       for (const table of ['replica_entities', 'replica_tombstones', 'replica_hydration', 'replica_generations'])
         await tx.run(`DELETE FROM ${table}`);
-      await tx.run("DELETE FROM replica_meta WHERE key IN ('owner', 'pending_resync', 'last_success_at')");
+      await tx.run("DELETE FROM replica_meta WHERE key IN ('owner', 'pending_resync', 'last_success_at', 'templates')");
       await startFreshActiveGeneration(tx);
     });
   }

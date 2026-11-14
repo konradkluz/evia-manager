@@ -89,6 +89,9 @@ export class ScriptedServer implements Transport, PullTransport {
   readonly order: string[] = [];
   pendingSeen: number[] = [];
   config: TransportResponse = { kind: 'ok', body: CONFIG_BODY };
+  /** What the template list answers and how many times it was asked (EVM-106). */
+  templates: Reply = { kind: 'ok', body: { items: [] } };
+  templateCalls = 0;
   down = false;
 
   async sendBatch(request: SyncRequest): Promise<TransportResponse> {
@@ -119,6 +122,12 @@ export class ScriptedServer implements Transport, PullTransport {
 
   getClientConfig(): Promise<TransportResponse> {
     return Promise.resolve(this.config);
+  }
+
+  async listWorkOrderTemplates(): Promise<TransportResponse> {
+    this.order.push('templates');
+    this.templateCalls += 1;
+    return typeof this.templates === 'function' ? this.templates() : this.templates;
   }
 }
 
@@ -185,6 +194,9 @@ export class Phone {
         listWorkOrders: (limit) => this.replica.listWorkOrders(limit),
         readOrderListSource: (withData) => this.replica.readOrderListSource(withData),
         readOrderDetailSource: (id) => this.replica.readOrderDetailSource(id),
+        readTemplates: () => this.replica.readTemplates(),
+        writeTemplates: (set) => this.replica.writeTemplates(set),
+        readQuickOrderSource: () => this.replica.readQuickOrderSource(),
       },
       takeSettled: () => this.queue.takeSettled(),
     };
@@ -206,6 +218,7 @@ export class Phone {
         },
         getWorkOrderSnapshot: () => server.getWorkOrderSnapshot(),
         getClientConfig: () => server.getClientConfig(),
+        listWorkOrderTemplates: () => server.listWorkOrderTemplates(),
       }),
       clock: { now: () => this.clockNow },
       monotonic: { monotonicNow: () => this.clockNow, bootId: () => 'boot-1' },

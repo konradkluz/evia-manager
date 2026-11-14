@@ -2,6 +2,8 @@
 import type { EnqueueInput } from '@evia/sync-core';
 import type { OrderDetail } from '../../src/orders/order-detail-model';
 import { redactRows, type OrderRow } from '../../src/orders/order-list-model';
+import type { QuickOrderSource } from '../../src/orders/quick-order-model';
+import type { TemplateSet } from '../../src/orders/templates';
 import {
   EMPTY_COUNTS,
   INITIAL_FIRST_PULL,
@@ -109,6 +111,17 @@ export class FakeSync implements SyncRuntime {
     this.detailRequests.push(id);
     if (this.orderDetailHook !== undefined) return this.orderDetailHook(id);
     return Promise.resolve(this.details.get(id) ?? null);
+  }
+  /** The templates and the customers the fake answers (set by the test; EVM-106). */
+  templateSet: TemplateSet | null = null;
+  quickSource: QuickOrderSource = { customers: [], sites: [] };
+  readonly quickSourceRequests: number[] = [];
+  templates(): Promise<TemplateSet | null> {
+    return Promise.resolve(this.templateSet);
+  }
+  quickOrderSource(): Promise<QuickOrderSource> {
+    this.quickSourceRequests.push(this.quickSourceRequests.length);
+    return Promise.resolve(this.quickSource);
   }
   dependentsOf(id: string): Promise<number> {
     this.calls.push(`dependentsOf:${id}`);

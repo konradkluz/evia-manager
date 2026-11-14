@@ -70,6 +70,11 @@ export interface SyncCore {
   readonly queue: MutationQueue;
   readonly engine: SyncEngine;
   readonly pull?: PullEngine;
+  /**
+   * The session gate shared by push and pull. A further call of the phone (EVM-106: the template list) reports its HTTP failures to it, so
+   * 401, 403 and 426 end in the same pause and the same screens as for a push or a pull.
+   */
+  readonly gate: SessionGate;
   /** One whole cycle, single-flight: push (flush) first, then pull. A pause from either side stops both. */
   sync(options?: SyncOptions): Promise<CycleResult>;
   /** Resumes the shared session pause and, when that succeeded, the pull-only hold. */
@@ -172,5 +177,5 @@ export function createSyncCore(deps: SyncCoreDeps): SyncCore {
     if (ok) pull?.resume();
     return ok;
   };
-  return { queue, engine, attention, ...(pull === undefined ? {} : { pull }), sync, resume };
+  return { queue, engine, attention, gate, ...(pull === undefined ? {} : { pull }), sync, resume };
 }

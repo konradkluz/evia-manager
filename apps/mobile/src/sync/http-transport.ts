@@ -1,6 +1,6 @@
 /**
- * HTTP transport of the synchronization (EVM-107 AC1, AC2, AC5, AC8): maps the four calls of the contract (`pushSyncMutations`,
- * `getSyncChanges`, `getSyncWorkOrder`, `getClientConfig`) to the `TransportResponse` of sync-core and nothing else.
+ * HTTP transport of the synchronization (EVM-107 AC1, AC2, AC5, AC8): maps the calls of the contract (`pushSyncMutations`,
+ * `getSyncChanges`, `getSyncWorkOrder`, `getClientConfig`, and for EVM-106 `listWorkOrderTemplates`) to the `TransportResponse` of sync-core and nothing else.
  *
  * - The access token is added only by the injected `fetch` (`MobileSessionOwner.authorizedFetch`), and only to the origin of `baseUrl`,
  *   which comes from the build configuration and never from an answer (security S10).
@@ -10,6 +10,7 @@
  * - `pendingItems` of a push comes from the engine; for a pull the provider supplies the same number (the transport does not count).
  */
 import type { PullTransport, SyncRequest, Transport, TransportResponse } from '@evia/sync-core';
+import type { TemplateTransport } from './types';
 
 /** The shape of `MobileSessionOwner.authorizedFetch`: `null` = no session (nothing was sent). */
 export type FetchLike = (url: string, init?: RequestInit) => Promise<Response | null>;
@@ -36,7 +37,7 @@ const NETWORK: TransportResponse = { kind: 'network' };
 
 const safeCount = (value: number): number => (Number.isSafeInteger(value) && value >= 0 ? Math.min(value, 1_000_000) : 0);
 
-export function createHttpSyncTransport(options: HttpSyncTransportOptions): Transport & PullTransport {
+export function createHttpSyncTransport(options: HttpSyncTransportOptions): Transport & PullTransport & TemplateTransport {
   const { baseUrl, fetch: fetchLike, timeoutMs = DEFAULT_SYNC_TIMEOUT_MS } = options;
   const secureOrigin = baseUrl.startsWith('https://') || (options.allowLocalHttp === true && baseUrl.startsWith('http://'));
 
@@ -90,6 +91,7 @@ export function createHttpSyncTransport(options: HttpSyncTransportOptions): Tran
     getWorkOrderSnapshot: (workOrderId) =>
       UUID.test(workOrderId) ? call('GET', `/api/v1/sync/work-orders/${encodeURIComponent(workOrderId)}`) : Promise.resolve(NETWORK),
     getClientConfig: () => call('GET', '/api/v1/meta/client-config'),
+    listWorkOrderTemplates: () => call('GET', '/api/v1/catalog/work-order-templates'),
   };
 }
 

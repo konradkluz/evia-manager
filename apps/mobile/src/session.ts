@@ -56,6 +56,7 @@ const NO_SYNC_TRANSPORT = {
   getChanges: () => Promise.resolve({ kind: 'network' as const }),
   getWorkOrderSnapshot: () => Promise.resolve({ kind: 'network' as const }),
   getClientConfig: () => Promise.resolve({ kind: 'network' as const }),
+  listWorkOrderTemplates: () => Promise.resolve({ kind: 'network' as const }),
 };
 
 let makeId: (() => string) | undefined;
