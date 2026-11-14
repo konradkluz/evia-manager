@@ -66,6 +66,16 @@ export const principalOf = (request: Request): Principal | null => authenticatio
 export const bearerAuthenticationOf = (request: Request): Authentication => resolvedBearer.get(request) ?? ANONYMOUS;
 export const bearerPrincipalOf = (request: Request): Principal | null => bearerAuthenticationOf(request).principal;
 
+/**
+ * The principal of an operation open to BOTH channels (EVM-131; the guard has decided which credential counts, `authenticationFor`): the session of the panel when the cookie holds one
+ * (only a `web` session is a credential of the panel), else the session of the Bearer token. A handler of such an operation reads THIS - never `principalOf` alone, which does not
+ * see the token. Its `channel` and `deviceId` say where the caller came from; a handler never takes either from the request.
+ */
+export function dualChannelPrincipalOf(request: Request): Principal | null {
+  const cookie = principalOf(request);
+  return cookie !== null && cookie.channel === 'web' ? cookie : bearerPrincipalOf(request);
+}
+
 export function resolveAuthentication(resolver: SessionResolver, logger: Logger): RequestHandler {
   return (request: Request, _response: Response, next: NextFunction): void => {
     // Both credentials are resolved on their own and fail closed on their own; which one counts is decided by the channel of the operation (the guard).

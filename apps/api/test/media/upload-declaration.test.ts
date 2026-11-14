@@ -29,7 +29,7 @@ describe('the declaration of a file in the upload session of a medium of the pho
       photo({ declaredSize: 52_428_801 }),
       photo({ declaredSize: 0 }),
       photo({ fileName: '../' }),
-      photo({ fileName: '‮\u0000' }),
+      photo({ fileName: `${String.fromCodePoint(0x202e)}${String.fromCodePoint(0)}` }),
     ]) {
       expect(checkSessionDeclaration(bad, 'photo').ok, JSON.stringify(bad)).toBe(false);
       expect(checkDeclaration(bad).ok, JSON.stringify(bad)).toBe(false);
