@@ -4,8 +4,9 @@ title: RODO przed startem — umowy powierzenia, rejestr czynności, ćwiczenie 
 type: enabler
 milestone: M1
 epic: E8 Gotowość produkcyjna
-status: ready
+status: in-progress
 priority: P1
+path: pelna            # dane osobowe (RODO), 8 AC — decyzja Konrada 2026-11-14
 owner: security-engineer
 contributors: [product-owner, devops-engineer]
 reviewers: [solution-architect]
@@ -78,7 +79,9 @@ Nie dotyczy.
 _Uzupełnia wykonawca przed implementacją._
 
 ## Decyzje
-_—_
+- 2026-11-14 — Konrad: ścieżka `pelna`, recenzent `solution-architect` (pytanie `/deliver`).
+- 2026-11-14 — Konrad: bez konsultacji z prawnikiem ani IOD. Punkty `[PRAWNIK/IOD]` potrzebne w tej historyjce (10 — transfery do USA, 11 — potrzeba DPIA) agenci przygotowują jako rekomendacje, a Konrad zatwierdza je na demo; zapis jako świadoma decyzja administratora bez porady prawnej.
+- 2026-11-14 — Tech Lead (RR-93): agenci nie logują się na jedyne środowisko, nie czytają jego bazy ani logów i nie zakładają kont u dostawców. Czynności ręczne — zawarcie i sprawdzenie umów na kontach dostawców (AC1), rejestr poza repozytorium (AC2), spotkanie z checklistą (AC3), próby procedur na środowisku na danych syntetycznych (AC4, AC5), przegląd próbek logów (AC7), zatwierdzenie DPIA (AC8) — wykonuje Konrad wg przygotowanych checklist i protokołów; do tego czasu historyjka zostaje w `in-review`.
 
 ## Uwagi do rozważenia
 _—_
@@ -96,3 +99,6 @@ _—_
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-11-12 — zmiana AC (Tech Lead z delegacji Konrada „tanio, szybko, bezpiecznie”; decyzja Konrada o rezygnacji z Sentry): AC1 i AC7 bez Sentry; AC3 — jedno spotkanie z checklistą zamiast ćwiczenia tabletop; DPIA (AC8) bez zmian — uproszczona albo uzasadnienie zbędności
 - 2026-11-13 — decyzja Konrada „jedno środowisko, realne dane od startu”: `depends_on` bez EVM-061 (przepisanej na warunki startu); „przed startem” = przed wpisaniem pierwszych realnych danych klientów na jedynym środowisku (warunek AC3 w EVM-061); „przećwiczona na staging” czytaj: na jedynym środowisku na danych syntetycznych; AC bez zmian (product-owner)
+- 2026-11-14 — start realizacji (`/deliver`): status `in-progress`, gałąź `feature/EVM-064-rodo-przed-startem`, ścieżka `pelna` (Tech Lead)
+- 2026-11-14 — plan gotowy (security-engineer)
+- 2026-11-14 — implementacja dokumentów (security-engineer): `dpia.md`, `checklista-wydania.md`, runbooki `prawa-osob.md`, `naruszenie-danych.md`, `retencja.md`, procedura awaryjnego resetu MFA, `rodo.md` (dostawcy ze źródeł publicznych, pkt 10 i 11 jako rekomendacje), RR-95, protokoły `docs/qa/EVM-064/protokoly.md`; AC1–AC5, AC7, AC8 czekają na czynności Konrada (`manual`), AC6 — dwa pytania o retencję
