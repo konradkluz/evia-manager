@@ -60,6 +60,17 @@ sealed interface ArmResult {
     data object Failed : ArmResult
 }
 
+/** The name of the answer for the app (JavaScript). */
+fun ArmResult.wire(): String =
+    when (this) {
+        is ArmResult.Armed -> if (userInitiated) "armed_user_initiated" else "armed"
+        ArmResult.AlreadyArmed -> "already_armed"
+        ArmResult.MissingOriginal -> "missing_original"
+        ArmResult.Invalid -> "invalid"
+        ArmResult.WipeActive -> "wipe_active"
+        ArmResult.Failed -> "failed"
+    }
+
 /**
  * Arming of a job after the server applied `CreateMediaAsset` (architect 7, EVM-130 AC1): idempotent - the job file and the system id
  * (the same after every restart) are kept, a job the system already has is not replaced (that would stop a running one). The kind of the
@@ -106,6 +117,16 @@ class JobArming(
             }
         if (!force && system.isPending(id)) return ArmResult.AlreadyArmed
         return submit(JobRequest(id, item.assetId, SchedulePolicy.decide(apiLevel, appVisible(), false, wifiOnly), size), wifiOnly)
+    }
+
+    /** The explicit retry ("Ponów"): the same job, owner and work order as armed before, handed to the system again even if it waits. */
+    fun retry(
+        assetId: String,
+        wifiOnly: Boolean = false,
+    ): ArmResult {
+        if (!UploadFiles.isAssetId(assetId)) return ArmResult.Invalid
+        val job = jobs.read(assetId) ?: return ArmResult.Invalid
+        return arm(Item(job.assetId, job.workOrderId, job.userId, job.deviceId), wifiOnly, force = true)
     }
 
     /** Arms every file of the list (start of the app, return to the foreground, after a sign-in); the result of each. */

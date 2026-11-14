@@ -2,6 +2,7 @@ package pl.eviacharge.upload
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -10,6 +11,7 @@ import pl.eviacharge.upload.files.JobFileCodec
 import pl.eviacharge.upload.http.HttpConfig
 import pl.eviacharge.upload.notification.NotificationText
 import pl.eviacharge.upload.session.AppAccess
+import pl.eviacharge.upload.session.LoginInput
 import pl.eviacharge.upload.session.LogoutAnswer
 import pl.eviacharge.upload.session.MemoryVault
 import pl.eviacharge.upload.session.RefreshAnswer
@@ -80,6 +82,33 @@ class GluePortsTest {
         assertFalse(JobFileCodec.isIdentifier("a:b"))
         assertFalse(JobFileCodec.isIdentifier("../x"))
         assertFalse(JobFileCodec.isIdentifier("x".repeat(65)))
+    }
+
+    @Test
+    fun `EVM-130 AC3 what the app hands over at a sign-in is checked before it is stored - ids of the server shape, readable tokens`() {
+        assertEquals("user-1:device-1", LoginInput.ownerOf("user-1", "device-1", "refresh", "access", 900_000L))
+        val ok = Triple("user-1", "device-1", "refresh")
+
+        fun owner(
+            user: String = ok.first,
+            device: String = ok.second,
+            refresh: String = ok.third,
+            access: String = "access",
+            valid: Long = 1L,
+        ) = LoginInput.ownerOf(user, device, refresh, access, valid)
+        assertEquals("user-1:device-1", owner())
+        assertNull(owner(user = ""))
+        assertNull(owner(user = "a:b"))
+        assertNull(owner(device = "../x"))
+        assertNull(owner(refresh = ""))
+        assertNull(owner(access = ""))
+        assertNull(owner(refresh = "x".repeat(LoginInput.MAX_TOKEN_CHARS + 1)))
+        assertEquals("user-1:device-1", owner(refresh = "x".repeat(LoginInput.MAX_TOKEN_CHARS)))
+        assertNull(owner(access = "ab"))
+        assertNull(owner(valid = 0L))
+        assertNull(owner(valid = -5L))
+        assertNull(owner(valid = LoginInput.MAX_ACCESS_VALID_MS + 1))
+        assertEquals("user-1:device-1", owner(valid = LoginInput.MAX_ACCESS_VALID_MS))
     }
 
     @Test

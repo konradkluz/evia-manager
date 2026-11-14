@@ -186,6 +186,34 @@ class JobArmingTest {
     }
 
     @Test
+    fun `EVM-130 AC1 the retry hands the same job to the system again even if it waits, and knows no file never armed`() {
+        original()
+        assertEquals(ArmResult.Invalid, arming().retry(ASSET))
+        assertEquals(ArmResult.Invalid, arming().retry("not-an-asset"))
+        arming().arm(item())
+        assertEquals(ArmResult.Armed(true), arming().retry(ASSET))
+        assertEquals(2, system.requests.size)
+        assertEquals(ArmResult.Armed(false), arming().apply { visible = false }.retry(ASSET, wifiOnly = true))
+        assertEquals(
+            NetworkRequirement.UNMETERED,
+            system.requests
+                .last()
+                .spec.network,
+        )
+    }
+
+    @Test
+    fun `EVM-130 AC1 every answer of arming has a name for the app`() {
+        assertEquals("armed_user_initiated", ArmResult.Armed(true).wire())
+        assertEquals("armed", ArmResult.Armed(false).wire())
+        assertEquals("already_armed", ArmResult.AlreadyArmed.wire())
+        assertEquals("missing_original", ArmResult.MissingOriginal.wire())
+        assertEquals("invalid", ArmResult.Invalid.wire())
+        assertEquals("wipe_active", ArmResult.WipeActive.wire())
+        assertEquals("failed", ArmResult.Failed.wire())
+    }
+
+    @Test
     fun `EVM-130 AC4 the digest of the original is computed natively as a stream, none without a file`() {
         assertNull(lifecycle().digest(ASSET))
         lifecycle().originalFile(ASSET)

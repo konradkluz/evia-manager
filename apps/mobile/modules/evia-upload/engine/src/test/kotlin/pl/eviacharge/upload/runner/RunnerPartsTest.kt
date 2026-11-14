@@ -14,6 +14,7 @@ import pl.eviacharge.upload.JobState
 import pl.eviacharge.upload.JobStore
 import pl.eviacharge.upload.UploadCancelledException
 import pl.eviacharge.upload.files.JobFileData
+import pl.eviacharge.upload.notification.JobNotification
 import pl.eviacharge.upload.notification.Notice
 import pl.eviacharge.upload.notification.NotificationPlanner
 import pl.eviacharge.upload.notification.NotificationText
@@ -207,6 +208,17 @@ class RunnerPartsTest {
         assertEquals(Notice("Wysłano 12 plików", false), NotificationPlanner.plan(12, 12, 0, paused = false, running = false))
         assertNull(NotificationPlanner.plan(12, 3, 0, paused = false, running = false))
         assertNull(NotificationPlanner.plan(0, 0, 0, paused = false, running = false))
+    }
+
+    @Test
+    fun `EVM-130 AC6 a user-initiated job always has a notice, a closing state stays after the job, a regular job withdraws its own`() {
+        val progress = Notice("Wysyłanie 1 z 2 plików", true)
+        val closing = Notice("Wysłano 2 pliki", false)
+        assertEquals(JobNotification(progress, keepAfterJob = false, withdraw = false), NotificationPlanner.forJob(progress, true))
+        assertEquals(JobNotification(closing, keepAfterJob = true, withdraw = false), NotificationPlanner.forJob(closing, false))
+        val fallback = Notice(NotificationText.progress(0, 1), true)
+        assertEquals(JobNotification(fallback, keepAfterJob = false, withdraw = false), NotificationPlanner.forJob(null, true))
+        assertEquals(JobNotification(fallback, keepAfterJob = false, withdraw = true), NotificationPlanner.forJob(null, false))
     }
 
     @Test

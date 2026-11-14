@@ -224,6 +224,8 @@ class UploadWorkerTest {
         begin(w)
         assertEquals(JobResult.NeedsAttention(AttentionReason.ID_CONFLICT), w.worker.execute(ASSET))
         assertEquals(Notice("Nie wysłano 1 pliku — otwórz aplikację", false), w.worker.notice())
+        w.worker.forget(ASSET)
+        assertNull(w.worker.notice())
         broken = false
         begin(w)
         assertEquals(JobResult.Finished, w.worker.execute(ASSET))
@@ -264,6 +266,17 @@ class UploadWorkerTest {
         begin(w)
         assertEquals(JobResult.NeedsAttention(AttentionReason.UNKNOWN), worker.execute(ASSET))
         assertEquals("report_failed error=IllegalStateException", lines.last())
+    }
+
+    @Test
+    fun `EVM-130 AC1 a thread that could not be started is taken off the list of running jobs`() {
+        val w = wiring(storageServer(mutableMapOf()))
+        arm(w)
+        val thread = Thread { }
+        w.worker.begin(ASSET, thread)
+        assertTrue(running.isRunning(ASSET))
+        w.worker.abandon(ASSET, thread)
+        assertFalse(running.isRunning(ASSET))
     }
 
     @Test

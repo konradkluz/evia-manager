@@ -46,6 +46,12 @@ class UploadWorker(
         thread: Thread,
     ): CancelHandle = running.begin(assetId, thread)
 
+    /** The thread of a job could not be started: its registration goes. */
+    fun abandon(
+        assetId: String,
+        thread: Thread,
+    ) = running.end(assetId, thread)
+
     /** Runs the job on the current thread (the one given to [begin]); never throws. */
     fun execute(assetId: String): JobResult {
         val thread = Thread.currentThread()
@@ -75,6 +81,13 @@ class UploadWorker(
     fun onStop(assetId: String): Boolean {
         running.stop(assetId)
         return !marker.isStopped()
+    }
+
+    /** The file left the queue (cancelled by the user, confirmed by the server): it no longer counts as failed or paused. */
+    @Synchronized
+    fun forget(assetId: String) {
+        failed.remove(assetId)
+        paused.remove(assetId)
     }
 
     /** The notification for now; `null` = none. Counts come from the job files and the tally of this process. */
