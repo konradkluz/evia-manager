@@ -333,6 +333,39 @@ describe('creating offline (EVM-106 AC2)', () => {
     expect(screen.queryByTestId(`quick-template-${T_HOUSE}`)).toBeNull();
   });
 
+  it('EVM-106 AC3: a chosen template that the new type of the place filters out is dropped; saving asks for a template again; the typed title stays', async () => {
+    const rig = rigWith();
+    await openForm(rig);
+    await fillNewHouse();
+    await type('quick-title', 'Mój tytuł');
+    await fireEvent.press(screen.getByTestId('quick-site-type'));
+    await fireEvent.press(screen.getByTestId('quick-site-type-multi_family_garage'));
+    await settle();
+    expect(screen.queryByTestId(`quick-template-${T_HOUSE}`)).toBeNull();
+    expect(screen.getByTestId(`quick-template-${T_GARAGE}`).props.accessibilityState).toMatchObject({ checked: false });
+    expect(screen.getByTestId('quick-title').props.value).toBe('Mój tytuł');
+    await save();
+    expect(rig.sync.enqueued).toHaveLength(0);
+    expect(screen.getByTestId('quick-template-error')).toHaveTextContent(pl.quickOrder.errors.template.required);
+  });
+
+  it('EVM-106 AC3: the title that was only the default of the dropped template goes with it; "Pokaż wszystkie" keeps a chosen template', async () => {
+    const rig = rigWith();
+    await openForm(rig);
+    await fireEvent.press(screen.getByTestId('quick-site-type'));
+    await fireEvent.press(screen.getByTestId('quick-site-type-single_family_house'));
+    await fireEvent.press(screen.getByTestId(`quick-template-${T_HOUSE}`));
+    expect(screen.getByTestId('quick-title').props.value).toBe('Dom — sam montaż');
+    await fireEvent.press(screen.getByTestId('quick-template-show-all'));
+    await fireEvent.press(screen.getByTestId('quick-site-type'));
+    await fireEvent.press(screen.getByTestId('quick-site-type-multi_family_garage'));
+    await settle();
+    expect(screen.getByTestId(`quick-template-${T_HOUSE}`).props.accessibilityState).toMatchObject({ checked: true });
+    await fireEvent.press(screen.getByTestId('quick-template-show-all'));
+    await settle();
+    expect(screen.getByTestId('quick-title').props.value).toBe('');
+  });
+
   it('EVM-106 AC2: the number of the parking spot exists for a garage only and goes into the new place; the default title does not overwrite a typed one', async () => {
     const rig = rigWith();
     await openForm(rig);

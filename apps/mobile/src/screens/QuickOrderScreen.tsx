@@ -139,6 +139,25 @@ export function QuickOrderScreen({ onClose, onSaved }: { onClose: () => void; on
     if (summary.current !== null) AccessibilityInfo.sendAccessibilityEvent(summary.current, 'focus');
   }, [focusTick]);
 
+  // a chosen template that the current type of the place filters out (and "Pokaż wszystkie" is off) is dropped: it would be invisible
+  // but still saved. The title goes with it only while it is still the untouched default taken from that template.
+  const chosenTemplate = draft?.templateId ?? null;
+  const loadedTemplates = load.kind === 'ready' ? load.templates : null;
+  const chosenFilteredOut =
+    !hidden && !showAll && draft !== null && chosenTemplate !== null && loadedTemplates !== null && load.kind === 'ready'
+      ? !templatesFor(loadedTemplates.items, draftSiteType(draft, load.source), false).some((template) => template.id === chosenTemplate)
+      : false;
+  useEffect(() => {
+    if (!chosenFilteredOut) return;
+    const dropped = loadedTemplates?.items.find((template) => template.id === chosenTemplate);
+    setProblem(null);
+    setDraft((current) => {
+      if (current === null || current.templateId !== chosenTemplate) return current;
+      const isDefaultTitle = !titleEdited.current && dropped !== undefined && current.title === dropped.name.slice(0, MAX_TITLE_LENGTH);
+      return { ...current, templateId: null, ...(isDefaultTitle ? { title: '' } : {}) };
+    });
+  }, [chosenFilteredOut, chosenTemplate, loadedTemplates]);
+
   const set = useCallback((patch: Patch) => {
     setProblem(null);
     if (SIMILARITY_KEYS.some((key) => key in patch)) setSimilarAsk(false);

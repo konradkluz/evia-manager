@@ -276,6 +276,8 @@ export function Shell() {
           hidden={guard.hidden !== null}
           onPick={(target) => {
             setAdding(false);
+            // defence in depth: the sheet already disables these in the hidden-data mode; no form state is set here either
+            if (guard.hidden !== null && (target === 'entry' || target === 'newOrder')) return;
             if (target === 'entry') setEntry({ stage: 'pick' });
             else if (target === 'newOrder') setEntry({ stage: 'quick' });
             else session.openAddTarget(target);

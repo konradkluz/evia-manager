@@ -394,7 +394,8 @@ export class SyncService implements SyncControl {
       this.#rerun ??= 'queue';
     } else {
       if (retryAt !== null && this.#deps.isOnline()) this.#armTimer(retryAt);
-      await this.#refreshTemplates();
+      // only after a cycle that ended well (AC1): a 429, 5xx or network error is not followed by one more request
+      if (failure === null) await this.#refreshTemplates();
     }
   }
 

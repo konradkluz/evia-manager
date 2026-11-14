@@ -75,3 +75,4 @@ Jako **technik** chcę **założyć zlecenie na miejscu (klient + adres + szablo
 - 2026-11-14 — start realizacji w kolejce nocnej `/noc-2026-11-13` (Tech Lead): status `in-progress`, gałąź `feature/queue-2026-11-13-mobile` (EVM-104, EVM-105, EVM-127 `in-review` na tej gałęzi)
 - 2026-11-14 — plan gotowy (mobile-developer)
 - 2026-11-14 — implementacja (mobile-developer): szablony w SQLCipher przez bramę sesji, formularz M-10, szczegóły zlecenia z kolejki, grupa odrzucenia, przepływy Maestro 43-*; podpowiedź „podobny klient” w całości (bez linii cięcia)
+- 2026-11-14 — poprawki po przeglądach (mobile-developer): szablony pobierane tylko po udanym cyklu, zerowanie niepasującego szablonu po zmianie typu obiektu, obrona onPick w trybie ukrytych danych

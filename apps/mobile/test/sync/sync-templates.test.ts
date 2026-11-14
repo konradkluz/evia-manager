@@ -85,6 +85,34 @@ describe('templates after a cycle (EVM-106 AC1)', () => {
     expect(last).not.toBeNull();
   });
 
+  it('EVM-106 AC1: a cycle that ends with 429 on pull or push does not ask for the templates (a successful cycle does: the tests above)', async () => {
+    const server = new ScriptedServer();
+    server.templates = ok(['Stary']);
+    const service = await started(server);
+    const calls = server.templateCalls;
+    server.changes.push({ kind: 'http', status: 429, code: 'rate_limited', retryAfter: '30' });
+    await again(service);
+    expect(service.getSnapshot().failure).toBe('rate_limited');
+    server.pushScript.push({ kind: 'http', status: 429, retryAfter: '30' });
+    await service.enqueue({ type: 'CreateNote', commandVersion: 1, payload: notePayload(1) });
+    await settle();
+    expect(server.templateCalls).toBe(calls);
+  });
+
+  it('EVM-106 AC1: a cycle that ends with a network or 5xx error on pull does not ask for the templates', async () => {
+    const server = new ScriptedServer();
+    server.templates = ok(['Stary']);
+    const service = await started(server);
+    const calls = server.templateCalls;
+    server.changes.push({ kind: 'network' });
+    await again(service);
+    expect(service.getSnapshot().failure).toBe('pull');
+    server.changes.push({ kind: 'http', status: 503 });
+    await again(service);
+    expect(service.getSnapshot().failure).toBe('pull');
+    expect(server.templateCalls).toBe(calls);
+  });
+
   it('EVM-106 AC1: a thrown transport error keeps the old set quietly', async () => {
     const server = new ScriptedServer();
     server.templates = ok(['Stary']);
