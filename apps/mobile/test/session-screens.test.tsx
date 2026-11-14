@@ -307,7 +307,9 @@ describe('M-02 before a session (EVM-100 AC3)', () => {
     expect(screen.getByRole('button', { name: primary })).toBeOnTheScreen();
     expect(flat(screen.getByRole('button', { name: primary })).minHeight).toBe(size.touchTarget.field);
     await fireEvent.press(screen.getByRole('button', { name: pl.deviceState.help }));
-    expect(rig.opened).toEqual(['help']);
+    // EVM-102 AC2: "Pomoc" of M-02 opens M-11 as an overlay (no router), before any session
+    expect(screen.getByTestId('privacy-help')).toBeOnTheScreen();
+    expect(rig.opened).toEqual([]);
     expect(screen.queryByRole('tablist')).toBeNull();
     expect(rig.owner.calls).not.toContain('completeSignIn');
     expect(focus).toHaveBeenCalledWith(expect.anything(), 'focus');
@@ -507,11 +509,14 @@ describe('sign-out (EVM-100 AC7; M-09)', () => {
     expect(screen.getByText(pl.more.accountNote)).toBeOnTheScreen();
     expect(screen.getByText('Wersja 0.4.0')).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('button', { name: pl.more.help }));
+    expect(screen.getByTestId('privacy-help')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByTestId('privacy-help-back'));
+    expect(screen.queryByTestId('privacy-help')).toBeNull();
     await fireEvent.press(screen.getByRole('button', { name: pl.more.wipe }));
     await settle();
     // EVM-101 AC4: the wipe asks first (dialog with the number of unsent items), it is not started by the button itself
     expect(screen.getByTestId('wipe-dialog')).toBeOnTheScreen();
-    expect(rig.opened).toEqual(['help']);
+    expect(rig.opened).toEqual([]);
   });
 
   it('EVM-100 AC7: with unsent items the warning shows their number, "Najpierw wyślij" and "Wyczyść dane firmowe"; confirming signs out online', async () => {

@@ -63,7 +63,6 @@ describe('composition of the session (EVM-100; architect 6)', () => {
     const ports = createSessionPorts(config);
     expect(await ports.unsentBeforeSignIn()).toBe(3);
     expect(ports.appVersion).toBe('0.4.0');
-    ports.openHelp();
     ports.openAddTarget('media');
     ports.wipe.wipeRequired();
     expect(await ports.owner.restore()).toBeDefined();

@@ -45,3 +45,9 @@ export function readRuntimeConfig(rawBaseUrl: string | undefined = buildApiBaseU
     buildVariant: variant,
   };
 }
+
+/** The build number of the installed package (shown in M-11, EVM-102); `null` when the platform gives none (Expo Go, tests). */
+export function readBuildNumber(): string | null {
+  const build = Application.nativeBuildVersion;
+  return typeof build === 'string' && build !== '' ? build : null;
+}

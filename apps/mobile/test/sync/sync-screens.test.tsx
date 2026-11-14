@@ -95,7 +95,7 @@ describe('first download gate (EVM-107 AC1)', () => {
     });
     expect(screen.getByTestId('first-pull-error')).toHaveTextContent(contains(pl.firstPull.errors.network));
     await fireEvent.press(screen.getByTestId('first-pull-help'));
-    expect(rig.opened).toContain('help');
+    expect(screen.getByTestId('privacy-help')).toBeOnTheScreen();
   });
 
   it('EVM-107 AC1: every failure kind has its own copy', async () => {
