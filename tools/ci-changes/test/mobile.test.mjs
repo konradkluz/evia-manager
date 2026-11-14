@@ -14,6 +14,10 @@ describe('EVM-009 AC5: the output `mobile` (mobile-apk) is a positive list', () 
       'apps/mobile/package.json',
       'packages/tokens/src/build.ts',
       'packages/contracts/openapi/openapi.yaml',
+      // EVM-109 AC4: a changed conformance vector (or the model) must run the Kotlin engine tests
+      'packages/sync-core/conformance/upload/resume.json',
+      'packages/sync-core/src/upload/engine.ts',
+      'apps/mobile/modules/evia-upload/engine/src/main/kotlin/pl/eviacharge/upload/UploadEngine.kt',
       'design/tokens/color.json',
       'tools/mobile-apk/src/verify.mjs',
       '.nvmrc',

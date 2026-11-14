@@ -120,7 +120,7 @@ describe('ci.yml (EVM-006 AC4; A2, W3c, W6)', () => {
   });
 
   it('EVM-006 AC3 (W3c), EVM-008: changed-code coverage merges every report (quality, container, integration) with the full history', () => {
-    expect(job('coverage')['needs']).toEqual(['changes', 'quality', 'backend', 'backend-integration']);
+    expect(job('coverage')['needs']).toEqual(['changes', 'quality', 'backend', 'backend-integration', 'mobile-apk']);
     const downloads = list(job('coverage')['steps'])
       .map(record)
       .filter((step) => text(step['uses']).startsWith('actions/download-artifact@'))
@@ -129,6 +129,8 @@ describe('ci.yml (EVM-006 AC4; A2, W3c, W6)', () => {
       { name: 'lcov-quality', path: '.' },
       { name: 'lcov-backend', path: 'coverage/backend-tests' },
       { name: 'lcov-integration', path: 'coverage/backend-tests/integration' },
+      // EVM-109 AC5: the Kotlin engine report from mobile-apk
+      { name: 'lcov-mobile-kotlin', path: 'coverage/mobile-kotlin' },
     ]);
     expect(runs('coverage')).toEqual(['node tools/diff-coverage/cli.mjs']);
     const checkout = list(job('coverage')['steps'])
@@ -278,6 +280,11 @@ describe('EVM-086 AC1, AC3, AC4: filters of the heavy jobs', () => {
       .map(record)
       .find((step) => record(step['with'])['name'] === 'lcov-integration');
     expect(download?.['if']).toBe("needs.changes.outputs.integration == 'true'");
+    // EVM-109 AC5: the Kotlin report is downloaded exactly when mobile-apk ran; a skipped mobile-apk does not block coverage (no implicit success())
+    const kotlin = list(job('coverage')['steps'])
+      .map(record)
+      .find((step) => record(step['with'])['name'] === 'lcov-mobile-kotlin');
+    expect(kotlin?.['if']).toBe("needs.changes.outputs.mobile == 'true'");
     expect(job('e2e-web')['if']).toBe("needs.changes.outputs.e2e == 'true'");
     expect(job('backend-integration')['if']).toBe("needs.changes.outputs.integration == 'true'");
   });

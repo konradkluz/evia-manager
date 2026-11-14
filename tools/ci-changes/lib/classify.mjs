@@ -25,11 +25,15 @@ export const E2E_NOT_RELEVANT_PREFIXES = Object.freeze(['apps/api/', 'apps/mobil
 /** Not relevant to the API integration tests besides documentation (EVM-086 AC1). */
 export const INTEGRATION_NOT_RELEVANT_PREFIXES = Object.freeze(['apps/web/', 'apps/mobile/', 'packages/sync-core/', GUIDE_SOURCE_PREFIX]);
 
-/** Paths that can change the Android package (EVM-009; architect: the app, the tokens and the contract client, the lockfile, the job itself). */
+/**
+ * Paths that can change the Android package (EVM-009; architect: the app, the tokens and the contract client, the lockfile, the job itself).
+ * EVM-109: `packages/sync-core/` too - its conformance vectors are read by the Kotlin engine tests, so a changed vector must run them.
+ */
 export const MOBILE_RELEVANT_PREFIXES = Object.freeze([
   'apps/mobile/',
   'packages/tokens/',
   'packages/contracts/',
+  'packages/sync-core/',
   'design/tokens/',
   'tools/mobile-apk/',
   'patches/',
