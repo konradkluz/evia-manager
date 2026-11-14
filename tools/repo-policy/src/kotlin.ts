@@ -92,6 +92,20 @@ export function propertiesProblems(properties: string): string[] {
     : ['gradle.properties: brak org.gradle.java.installations.auto-download=false'];
 }
 
+/**
+ * Gradle build cache off (local and remote): the mitigation of CVE-2026-53914 / GHSA-r937-wjx7-w2jp (unsafe deserialization in the Kotlin
+ * build cache; the fix is in Kotlin 2.4.20-Beta1, the engine stays on 2.2.21 for Expo 58). Without a build cache nothing is deserialized from it.
+ */
+export function buildCacheProblems(properties: string, scripts: Record<string, string>): string[] {
+  const problems: string[] = [];
+  if (!/^org\.gradle\.caching=false$/m.test(properties)) problems.push('gradle.properties: brak org.gradle.caching=false');
+  for (const [file, script] of Object.entries(scripts)) {
+    if (/\bbuildCache\s*\{/.test(withoutComments(script)))
+      problems.push(`${file}: konfiguracja buildCache (lokalna lub zdalna) jest zabroniona`);
+  }
+  return problems;
+}
+
 /** The wrapper: distribution over HTTPS from services.gradle.org with its SHA-256 and `validateDistributionUrl`, jar equal to the official one. */
 export function wrapperProblems(properties: string, jarSha256: string): string[] {
   const problems: string[] = [];

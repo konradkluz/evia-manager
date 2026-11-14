@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { exists, filesBelow, json, read, record, ROOT } from '../src/files.ts';
 import {
   binaryLibraryProblems,
+  buildCacheProblems,
   denylistProblems,
   enginePurityProblems,
   junitScopeProblems,
@@ -43,6 +44,12 @@ describe('EVM-109 AC6: Gradle supply chain on the real files', () => {
   it('EVM-109 AC6: repositories are Maven Central only, no project-level repositories, no automatic JDK download', () => {
     expect(repositoryProblems(SETTINGS, { 'build.gradle.kts': BUILD })).toEqual([]);
     expect(propertiesProblems(read(`${ENGINE}/gradle.properties`))).toEqual([]);
+  });
+
+  it('EVM-109 AC6: the real engine project has the build cache off (CVE-2026-53914 mitigation)', () => {
+    expect(buildCacheProblems(read(`${ENGINE}/gradle.properties`), { 'settings.gradle.kts': SETTINGS, 'build.gradle.kts': BUILD })).toEqual(
+      [],
+    );
   });
 
   it('EVM-109 AC6: no ML Kit, Firebase, GMS, datatransport, analytics or error-reporting library in any Gradle file', () => {
@@ -162,6 +169,15 @@ describe('EVM-109 AC6: the checkers reject bad examples', () => {
     expect(denylistProblems({ f: '// com.google.firebase is forbidden here\nimplementation("a:b:1")' })).toEqual([]);
     expect(junitScopeProblems('b', 'implementation("org.junit.jupiter:junit-jupiter:6.1.3")')).toHaveLength(1);
     expect(junitScopeProblems('b', '    testImplementation("org.junit.jupiter:junit-jupiter:6.1.3")\n// junit note')).toEqual([]);
+  });
+
+  it('EVM-109 AC6: the Gradle build cache is off and not configured (mitigation of CVE-2026-53914)', () => {
+    expect(buildCacheProblems('org.gradle.caching=false\n', {})).toEqual([]);
+    expect(buildCacheProblems('org.gradle.jvmargs=-Xmx1g', {})).toHaveLength(1);
+    expect(buildCacheProblems('org.gradle.caching=true', {})).toHaveLength(1);
+    const remote = 'buildCache {\n  remote<HttpBuildCache> { url = uri("https://cache.invalid") }\n}';
+    expect(buildCacheProblems('org.gradle.caching=false', { 's.kts': remote })).toHaveLength(1);
+    expect(buildCacheProblems('org.gradle.caching=false', { 's.kts': '// buildCache { local }' })).toEqual([]);
   });
 
   it('EVM-109 AC6: missing gradle properties are found', () => {

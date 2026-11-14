@@ -3,6 +3,16 @@ import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
 
 // Upload engine (EVM-109): pure Kotlin/JVM. The sources are compiled into the Android module by EVM-130 as a source set (no second
 // Kotlin Gradle plugin in the APK build); language level 2.2 = Kotlin of React Native 0.88 / Expo 58.
+buildscript {
+    // Build-tool classpath (Kover's coverage reporter pulls FreeMarker, used only for the HTML report): the patched version replaces
+    // the one declared transitively (GHSA-27j2-h3m2-8237). Exact version, Maven Central, SHA-256 in gradle/verification-metadata.xml.
+    configurations.classpath {
+        resolutionStrategy.eachDependency {
+            if (requested.group == "org.freemarker" && requested.name == "freemarker") useVersion("2.3.35")
+        }
+    }
+}
+
 plugins {
     kotlin("jvm") version "2.2.21"
     id("org.jetbrains.kotlinx.kover") version "0.9.11"
@@ -33,6 +43,17 @@ kotlin {
 }
 
 val ktlint: Configuration = configurations.create("ktlint")
+
+// Build tooling that Kotlin Gradle Plugin 2.2.21 declares with vulnerable transitive versions (Bouncy Castle for publishing validation,
+// OpenTelemetry for the Swift export worker; neither ends up in the APK or the runtime classpath). Patched exact versions replace them
+// in every project configuration so that the dependency report and the checksums list no known-vulnerable artifact.
+val patchedBuildToolVersions = mapOf("org.bouncycastle" to "1.87", "io.opentelemetry" to "1.68.0")
+
+configurations.configureEach {
+    resolutionStrategy.eachDependency {
+        patchedBuildToolVersions[requested.group]?.let { useVersion(it) }
+    }
+}
 
 dependencies {
     // JUnit is EPL-2.0: test scope only, never in the runtime classpath (checkProductionDependencies).

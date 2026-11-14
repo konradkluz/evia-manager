@@ -35,12 +35,30 @@ Odpowiednik w TypeScript (model referencyjny) i wspólne wektory zgodności: `pa
 ## Zależności i łańcuch dostaw (AC6)
 Wersje dokładne, wyłącznie Maven Central (bez Google, JitPack i Plugin Portal; `RepositoriesMode.FAIL_ON_PROJECT_REPOS`), sumy SHA-256 wszystkich artefaktów w `gradle/verification-metadata.xml` (`verify-metadata=true`, bez `<trust>`), dystrybucja Gradle i `gradle-wrapper.jar` z oficjalnymi sumami (sprawdza `tools/repo-policy`).
 
-| Narzędzie | Wersja | Licencja | Zakres |
-|---|---|---|---|
-| Gradle (wrapper) | 9.9.1 | Apache-2.0 | narzędzie budowania |
-| Kotlin (wtyczka JVM, `kotlin-stdlib`) | 2.2.21 (poziom języka 2.2 = Kotlin React Native 0.88 / Expo 58) | Apache-2.0 | produkcja (`kotlin-stdlib`, `org.jetbrains:annotations`) |
-| Kover | 0.9.11 | Apache-2.0 | pokrycie (raport XML → lcov własnym konwerterem) |
-| ktlint (`ktlint-cli`, jeden artefakt `all`) | 1.8.0 | MIT | format i lint |
-| JUnit Jupiter + `junit-platform-launcher` | 6.1.3 | EPL-2.0 | **wyłącznie testy** (wyjątek zaakceptowany przez Konrada 2026-11-14) |
+Stan znanych CVE: **2026-11-14, źródło OSV** (api.osv.dev, zapytanie `querybatch`, ekosystem Maven, wszystkie 77 komponentów z `gradle/verification-metadata.xml`). Data wydania = data publikacji w Maven Central (nagłówek `Last-Modified`).
+
+| Narzędzie | Wersja | Licencja | Zakres | Opiekun | Data wydania | Znane CVE (OSV, 2026-11-14) |
+|---|---|---|---|---|---|---|
+| Gradle (wrapper) | 9.9.1 | Apache-2.0 | narzędzie budowania | Gradle Inc. | nie ustalono (sumy z gradle.org pilnuje `tools/repo-policy`) | nie sprawdzono w OSV (Gradle nie jest pakietem Maven) |
+| Kotlin (wtyczka JVM, `kotlin-stdlib`) | 2.2.21 (poziom języka 2.2 = Kotlin React Native 0.88 / Expo 58) | Apache-2.0 | produkcja (`kotlin-stdlib`, `org.jetbrains:annotations` 13.0) | JetBrains | 2025-10-23 (annotations 13.0: 2013-12-17) | `kotlin-stdlib`, `annotations`: brak. Wtyczka `kotlin-gradle-plugin`: GHSA-r937-wjx7-w2jp (CVE-2026-53914, build cache) — środek łagodzący niżej |
+| Kover | 0.9.11 (najnowsza w Maven Central) | Apache-2.0 | pokrycie (raport XML → lcov własnym konwerterem) | JetBrains | 2026-09-29 | brak |
+| ktlint (`ktlint-cli`, jeden artefakt `all`) | 1.8.0 (najnowsza w Maven Central) | MIT | format i lint | Pinterest / społeczność ktlint | 2025-11-14 | brak |
+| JUnit Jupiter + `junit-platform-launcher` | 6.1.3 | EPL-2.0 | **wyłącznie testy** (wyjątek zaakceptowany przez Konrada 2026-11-14) | zespół JUnit | 2026-08-07 | brak |
+| Zależności przechodnie tylko przy budowaniu — nie trafiają do APK ani do ścieżki uruchomieniowej | `bcprov/bcpkix/bcpg/bcutil-jdk18on` 1.87, `freemarker` 2.3.35, `opentelemetry-api/-context/-common` 1.68.0 (wymuszone w `build.gradle.kts`) | MIT / Apache-2.0 / BSD-3 | konfiguracje `kotlinBouncyCastleConfiguration` (publikacja bibliotek), `swiftExportClasspathResolvable` (Swift export), classpath wtyczek (FreeMarker z Kovera, używany tylko do raportu HTML, którego nie generujemy). Dwie pierwsze konfiguracje Gradle rozwiązuje tylko zadanie `dependencies`/zapis sum, nie `check` | Bouncy Castle, FreeMarker, OpenTelemetry | 2026-11-11 / 2026-08-23 / 2026-11-06 | po poprawce brak. Zostaje jedno: `kotlin-gradle-plugin` 2.2.21 — GHSA-r937-wjx7-w2jp |
+
+**Ryzyko rezydualne (do akceptacji Konrada):** wtyczka Kotlin 2.2.21 ma GHSA-r937-wjx7-w2jp (CVE-2026-53914, niebezpieczna deserializacja w pamięci podręcznej budowania Kotlin, poprawka od 2.4.20-Beta1). Wersja zostaje, bo źródła kompiluje też aplikacja z Kotlinem Expo 58 (EVM-130). Środek łagodzący: `org.gradle.caching=false`, brak konfiguracji `buildCache` (lokalnej i zdalnej) — pilnuje tego `tools/repo-policy` (`buildCacheProblems`). Wykorzystanie wymagałoby podstawienia złośliwego wpisu w pamięci podręcznej, której projekt nie czyta ani nie zapisuje; atakujący musiałby więc już mieć zapis w repozytorium albo w katalogu `.gradle` maszyny budującej. To narzędzie budowania, nie trafia do APK.
+
+Poprawione wersje przechodnie wymusza `resolutionStrategy.eachDependency` w `build.gradle.kts` (dokładne wersje, Maven Central, sumy SHA-256 w `gradle/verification-metadata.xml`, sumy porównane z `.sha256` w Maven Central). Przy podnoszeniu Kotlina, Kovera lub ktlint sprawdź, czy wymuszenia są jeszcze potrzebne, i usuń je, gdy nowe wersje niosą poprawione biblioteki.
 
 Zadanie `checkProductionDependencies` pilnuje, że ścieżka uruchomieniowa zawiera tylko `kotlin-stdlib` i `org.jetbrains:annotations`.
+
+## Aktualizacja zależności
+Zmiana wersji dowolnej zależności (też wymuszonej w `resolutionStrategy`) przechodzi przez te kroki:
+1. Wersje dokładne, tylko Maven Central; w `build.gradle.kts` zmień jedną rzecz naraz.
+2. Zregeneruj sumy od zera (stary plik usuń, żeby nie zostały sumy wersji, których już nie ma), w tym katalogu:
+   `./gradlew --no-daemon --write-verification-metadata sha256 buildEnvironment dependencies ktlintCheck test koverXmlReport koverVerify checkProductionDependencies`
+   (`JAVA_HOME` = JDK 17; po pracy `./gradlew --stop`). `dependencies` i `buildEnvironment` wciągają konfiguracje, których `check` nie rozwiązuje.
+3. Przejrzyj diff `gradle/verification-metadata.xml`: zmieniają się tylko sumy zmienionych komponentów, zero `<trust>` i wersji dynamicznych. Dla nowych artefaktów porównaj SHA-256 z `.sha256` opublikowanym w Maven Central (gdy brak: `.sha512` albo `.sha1` policzone z pobranego pliku).
+4. Wrapper: nowa wersja Gradle wymaga sum z gradle.org/release-checksums w `OFFICIAL_GRADLE_CHECKSUMS` (`tools/repo-policy/src/kotlin.ts`), `distributionSha256Sum` i `gradle-wrapper.jar` zgodnych z oficjalnymi; `tools/repo-policy` czerwieni się przy rozbieżności.
+5. Sprawdź w OSV wszystkie komponenty z nowego pliku sum (POST `https://api.osv.dev/v1/querybatch`, ekosystem `Maven`, nazwa `group:artifact`, wersja; wysyłamy wyłącznie nazwy i wersje) i zaktualizuj kolumny „Data wydania” oraz „Znane CVE” w tabeli powyżej z datą sprawdzenia.
+6. `pnpm run gate:kotlin` i testy `tools/repo-policy` muszą być zielone.
