@@ -4,7 +4,7 @@ title: "Aplikacja: szybkie zlecenie z telefonu"
 type: story
 milestone: M2
 epic: E13 Nowe zlecenie z telefonu
-status: in-progress
+status: in-review
 priority: P1
 path: pelna             # synchronizacja offline, dane osobowe (nowy klient i adres)
 owner: mobile-developer
@@ -76,3 +76,4 @@ Jako **technik** chcę **założyć zlecenie na miejscu (klient + adres + szablo
 - 2026-11-14 — plan gotowy (mobile-developer)
 - 2026-11-14 — implementacja (mobile-developer): szablony w SQLCipher przez bramę sesji, formularz M-10, szczegóły zlecenia z kolejki, grupa odrzucenia, przepływy Maestro 43-*; podpowiedź „podobny klient” w całości (bez linii cięcia)
 - 2026-11-14 — poprawki po przeglądach (mobile-developer): szablony pobierane tylko po udanym cyklu, zerowanie niepasującego szablonu po zmianie typu obiektu, obrona onPick w trybie ukrytych danych
+- 2026-11-14 — workflow `deliver-story` (pelna) `passed` po 2 rundach (wznowiony po awarii sesji): QA pass (AC1–AC6, całość — bez linii cięcia), code-reviewer i security-engineer approve w rundzie 1, ux-designer approve w rundzie 2 (podsumowanie formularza ogłasza pytanie o podobnego klienta). Po przeglądach trzy poprawki (`a4aefaac`). Bramka orkiestratora `pnpm run gate` zielona — pokrycie zmienionego kodu gałęzi 97,8% linii, 94,5% gałęzi. E2E Maestro (przepływy 43-*) — końcowy przebieg toru A z klonu `C:`. Do decyzji Konrada: ograniczenie pobierania szablonów do raz na 10–15 min (dziś po każdym udanym cyklu, wg AC1). Koszt: 11 agentów, ok. 957 tys. tokenów, ok. 50 min po wznowieniu. Status `in-review` (Tech Lead, kolejka nocna)
