@@ -4,7 +4,9 @@
 > - [`threat-model.md`](threat-model.md) — model zagrożeń: STRIDE dla C4, przypadki nadużyć, ryzyka rezydualne;
 > - [`requirements.md`](requirements.md) — wymagania `SR-…` (ASVS 5.0 L2, MASVS 2.1) per moduł i epik, bramki bezpieczeństwa CI;
 > - [`policies.md`](policies.md) — polityki P1–P12 do decyzji (m.in. MFA, sesje, EXIF/GPS, retencja, skan plików, rola Tylko odczyt, BYOD);
-> - [`rodo.md`](rodo.md) — szkic operacyjny RODO: inwentaryzacja, podstawy, retencja, podmioty przetwarzające, prawa osób, naruszenia (72 h), rejestr czynności.
+> - [`rodo.md`](rodo.md) — szkic operacyjny RODO: inwentaryzacja, podstawy, retencja, podmioty przetwarzające, prawa osób, naruszenia (72 h), rejestr czynności;
+> - [`dpia.md`](dpia.md) — uproszczona ocena skutków dla ochrony danych (EVM-064);
+> - [`checklista-wydania.md`](checklista-wydania.md) — sign-off wydania z przeglądem próbek logów (EVM-064).
 
 ## Standardy
 - **OWASP ASVS 5.0, poziom 2** — web i API.
