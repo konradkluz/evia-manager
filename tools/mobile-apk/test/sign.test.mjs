@@ -58,6 +58,7 @@ function world(config = {}) {
     gitInPath: true,
     gitError: '',
     bundle: /** @type {string | undefined} */ (undefined),
+    appConfig: /** @type {string | undefined} */ (undefined),
     ignored: false,
     alias: /** @type {Record<string, string>} */ ({}),
     signedAlready: false,
@@ -134,7 +135,7 @@ function world(config = {}) {
       }
       const target = args.at(-1) ?? '';
       if (cfg.analyzerFails.includes(P(target))) return { status: 1, stdout: '', stderr: '' };
-      const stdout = analyzerAnswers(args, target, cfg.bundle);
+      const stdout = analyzerAnswers(args, target, cfg.bundle, cfg.appConfig);
       return stdout === undefined ? { status: 1, stdout: '', stderr: '' } : { status: 0, stdout, stderr: '' };
     },
   };
@@ -412,6 +413,32 @@ describe('local signing of the package (EVM-009 AC5; security-engineer K-A)', ()
     assert.equal(signApk(options({ allowPlaceholderApi: true }), allowed.host), 0, allowed.logs.join('\n'));
     const real = world({ bundle: 'var url="https://api.evia.example.test"' });
     assert.equal(signApk(options(), real.host), 0, real.logs.join('\n'));
+  });
+
+  it('EVM-102 AC6: a package with the clauses in the state of a draft or with markers is refused with a readable message; nothing is signed', () => {
+    /** @type {[string, RegExp][]} */
+    const states = [
+      ['"draft":true,"markers":false', /privacy clauses are a draft/],
+      ['"draft":false,"markers":true', /still contain markers/],
+      ['"draft":true,"markers":true', /draft[\s\S]*markers/],
+    ];
+    for (const [state, expected] of states) {
+      const refused = world({ appConfig: `{"extra":{"privacyClauses":{${state}}}}` });
+      assert.equal(signApk(options({ allowPlaceholderApi: true }), refused.host), 1);
+      assert.match(refused.logs.join('\n'), expected);
+      assert.match(refused.logs.join('\n'), /privacy clauses in the package are not final/);
+      assert.ok(!refused.runs.some((run) => run.args[2] === 'sign'));
+    }
+  });
+
+  it('EVM-102 AC6: a package without the declaration of the clauses is refused as well (fail closed); approved clauses are signed', () => {
+    const missing = world({ appConfig: '{"extra":{"buildVariant":"release"}}' });
+    assert.equal(signApk(options(), missing.host), 1);
+    assert.match(missing.logs.join('\n'), /does not declare the state of the privacy clauses/);
+    const unreadable = world({ appConfig: '{"privacyClauses":{"draft":}}' });
+    assert.equal(signApk(options(), unreadable.host), 1);
+    const approved = world();
+    assert.equal(signApk(options(), approved.host), 0, approved.logs.join('\n'));
   });
 
   it('EVM-009 AC5: without the password variables apksigner prompts on the inherited terminal and gets no password option', () => {

@@ -7,6 +7,7 @@
 import { join } from 'node:path';
 import { isScannable, checkFileList, scanText, PLACEHOLDER_API_HOST } from './contents.mjs';
 import { checkManifest } from './manifest.mjs';
+import { checkTelemetry, clauseBlockers } from './telemetry.mjs';
 import { checkBackupRules, checkDataExtractionRules, checkNetworkSecurityConfig } from './resources.mjs';
 
 /** Resource names written by the hardening plugin of the app (apps/mobile/plugins/with-hardening.ts). */
@@ -39,7 +40,8 @@ export function apkanalyzerCommand({ java, cmdlineTools, args }) {
 /**
  * @param {{ apk: string, applicationId: string, java: string, cmdlineTools: string }} options
  * @param {Host} host
- * @returns {{ problems: string[], notes: string[], placeholderApi: boolean }} placeholderApi: the bundle holds the stand-in API address
+ * @returns {{ problems: string[], notes: string[], placeholderApi: boolean, releaseBlockers: string[] }} placeholderApi: the bundle holds the
+ *   stand-in API address; releaseBlockers: reasons for `sign` (not `verify`) to refuse the package (EVM-102 AC6)
  */
 export function verifyApk({ apk, applicationId, java, cmdlineTools }, host) {
   /** @type {string[]} */
@@ -47,6 +49,8 @@ export function verifyApk({ apk, applicationId, java, cmdlineTools }, host) {
   /** @type {string[]} */
   const notes = [];
   let placeholderApi = false;
+  /** @type {{ path: string, text: string }[]} */
+  const scanned = [];
   /**
    * @param {string[]} args
    * @param {string} what
@@ -82,9 +86,17 @@ export function verifyApk({ apk, applicationId, java, cmdlineTools }, host) {
       const content = analyzer(['files', 'cat', '--file', path.replace(/^\//, ''), apk], `cat ${path}`, { binary: true });
       if (content === null) continue;
       problems.push(...scanText(path, content));
+      scanned.push({ path, text: content });
       if (content.includes(PLACEHOLDER_API_HOST)) placeholderApi = true;
     }
   }
+
+  // EVM-102 AC5 (static; says nothing about traffic): no telemetry SDK; AC6: the state of the clauses, for `sign` only
+  if (manifest !== null) {
+    const dexPackages = analyzer(['dex', 'packages', '--defined-only', apk], 'dex packages');
+    problems.push(...guarded('telemetry', () => checkTelemetry({ manifest, dexPackages })));
+  }
+  const releaseBlockers = clauseBlockers(scanned);
 
   const summary = analyzer(['apk', 'summary', apk], 'apk summary')?.trim();
   if (summary !== undefined) {
@@ -93,7 +105,7 @@ export function verifyApk({ apk, applicationId, java, cmdlineTools }, host) {
     if (id !== applicationId) problems.push(`application id of the package is not ${applicationId}`);
   }
   if (placeholderApi) notes.push('API address is the placeholder of CI (not for distribution)');
-  return { problems, notes, placeholderApi };
+  return { problems, notes, placeholderApi, releaseBlockers };
 }
 
 /**

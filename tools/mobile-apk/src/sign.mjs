@@ -251,6 +251,11 @@ export function signApk(options, host) {
     for (const problem of inputCheck.problems) host.log(`sign: APK: ${problem}`);
     return fail('refused: the package does not pass the verification');
   }
+  // EVM-102 AC6: a package with privacy clauses in the state of a draft is never signed (verify in CI does not fail for this)
+  if (inputCheck.releaseBlockers.length > 0) {
+    for (const blocker of inputCheck.releaseBlockers) host.log(`sign: ${blocker}`);
+    return fail('refused: the privacy clauses in the package are not final (see above); build again after they are approved');
+  }
   if (inputCheck.placeholderApi && !options.allowPlaceholderApi) {
     return fail(
       'refused: the package was built with the placeholder API address (set the repository variable EVIA_API_BASE_URL and build again; --allow-placeholder-api only for a test build)',

@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { describe, it } from 'node:test';
 import { E2E_HOOKS_MARKER, PLACEHOLDER_API_HOST } from '../src/contents.mjs';
 import { apkanalyzerCommand, verifyApk } from '../src/verify.mjs';
+import { DEX_PACKAGES, FINAL_CLAUSES } from './helpers.mjs';
 
 /** @param {string} name */
 const read = (name) => readFileSync(join(import.meta.dirname, 'fixtures', name), 'utf8');
@@ -30,7 +31,9 @@ function analyzer(overrides = {}) {
     'resources xml --file res/xml/evia_network_security_config.xml app.apk': read('evia_network_security_config.xml.txt'),
     'resources xml --file res/xml/evia_backup_rules.xml app.apk': read('evia_backup_rules.xml.txt'),
     'resources xml --file res/xml/evia_data_extraction_rules.xml app.apk': read('evia_data_extraction_rules.xml.txt'),
-    'files list app.apk': `${read('files-list.txt')}\n/assets/index.android.bundle\n/assets/fonts/Inter.ttf\n`,
+    'files list app.apk': `${read('files-list.txt')}\n/assets/index.android.bundle\n/assets/app.config\n/assets/fonts/Inter.ttf\n`,
+    'files cat --file assets/app.config app.apk': FINAL_CLAUSES,
+    'dex packages --defined-only app.apk': DEX_PACKAGES,
     'files cat --file assets/index.android.bundle app.apk': 'var url="https://api.example.test"',
     'apk summary app.apk': read('apk-summary.txt'),
     ...overrides,
