@@ -10,6 +10,6 @@ export default defineConfig({
     testTimeout: 20_000,
     include: ['test/**/*.test.{ts,tsx}'],
     setupFiles: ['test/setup.ts'],
-    coverage: coverage({ layer: 'web', include: ['src/**/*.{ts,tsx}', 'security-headers.ts'] }),
+    coverage: coverage({ layer: 'web', include: ['src/**/*.{ts,tsx}', 'security-headers.ts', 'panel-origin.ts'] }),
   },
 });

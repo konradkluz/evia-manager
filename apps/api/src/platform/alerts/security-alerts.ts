@@ -77,6 +77,7 @@ export class SecurityAlertEmitter {
   readonly #logger: Logger;
   readonly #clock: Clock;
   #stop: (() => void) | undefined;
+  #polling = false;
 
   constructor(db: Kysely<Database>, logger: Logger, clock: Clock) {
     this.#db = db;
@@ -87,9 +88,16 @@ export class SecurityAlertEmitter {
   /** Emits pending alerts now and then (interval timer, never keeps the process alive). @returns a function that stops it */
   start(intervalMs: number = POLL_INTERVAL_MS): () => void {
     const timer = setInterval(() => {
-      this.emitPending().catch((error: unknown) => {
-        this.#logger.warn({ err: error }, 'security alert emission failed; will retry');
-      });
+      // A slow database must not pile up overlapping polls (each holds a connection and a lock): the next tick waits for this one.
+      if (this.#polling) return;
+      this.#polling = true;
+      this.emitPending()
+        .catch((error: unknown) => {
+          this.#logger.warn({ err: error }, 'security alert emission failed; will retry');
+        })
+        .finally(() => {
+          this.#polling = false;
+        });
     }, intervalMs);
     timer.unref();
     this.#stop?.();

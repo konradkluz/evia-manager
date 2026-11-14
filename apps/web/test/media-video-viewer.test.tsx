@@ -270,8 +270,11 @@ describe('EVM-046 AC4 the address of the preview lives 300 s and a film lasts up
     fireEvent.loadedMetadata(video);
     expect(position.time).toBe(33);
     expect(asked(api, 'preview')).toBe(2);
-    // the new address has its own clock
-    expect(caught.filter((entry) => entry.delay === ADDRESS_SECONDS * 1000 - REFRESH_MARGIN_MS)).toHaveLength(2);
+    // the new address has its own clock; it is set by a passive effect that runs after the commit that changed `src`,
+    // so the test waits for that condition instead of assuming both happen in the same tick (EVM-126 AC1)
+    await waitFor(() => {
+      expect(caught.filter((entry) => entry.delay === ADDRESS_SECONDS * 1000 - REFRESH_MARGIN_MS)).toHaveLength(2);
+    });
   });
 
   it('EVM-046 AC4 a film that is playing is not interrupted at the margin: the renewal waits for the pause', async () => {

@@ -2,7 +2,8 @@ import { Banner, Card, Disclosure, InlineAlert, TextLink, TriangleAlert } from '
 import { useRouterState } from '@tanstack/react-router';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { PRIVACY_ANCHORS } from '../paths.ts';
+import { GUIDE_PATH, PRIVACY_ANCHORS } from '../paths.ts';
+import { RouterLink } from '../shell/router-link.tsx';
 import { mailtoHref } from '../work-orders/safe-href.ts';
 import { ADMINISTRATOR, CLAUSES, CONTACT_EMAIL, DRAFT, type Clause, type ClauseBlock } from './content.ts';
 
@@ -65,6 +66,12 @@ function Help(): ReactNode {
       <h2 id={HELP_ID} tabIndex={-1} className={SECTION_HEADING}>
         {t('privacy.help.title')}
       </h2>
+      <p className="text-body">
+        <TextLink href={GUIDE_PATH} link={RouterLink}>
+          {t('privacy.help.guideLink')}
+        </TextLink>{' '}
+        {t('privacy.help.guideIntro')}
+      </p>
       <p className="text-body">
         {link === null ? (
           t('privacy.help.contactMissing')

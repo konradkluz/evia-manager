@@ -4,7 +4,7 @@ title: Krótka instrukcja dla biura
 type: story
 milestone: M1
 epic: E8 Gotowość produkcyjna
-status: ready
+status: in-review
 priority: P1
 path: lekka
 owner: product-owner
@@ -83,7 +83,10 @@ Jako **pracownik biura** chcę **krótkiej instrukcji krok po kroku z zasadami b
 _Uzupełnia wykonawca przed implementacją._
 
 ## Decyzje
-_—_
+- 2026-11-14 — źródło instrukcji: `docs/user/instrukcja-dla-biura.md` (klasa „żywy”, reguła walidatora dodawana w tej historyjce) — do potwierdzenia rano.
+- 2026-11-14 — zrzutów ekranu nie ma (noc, brak MCP playwright): instrukcja tekstowa krok po kroku; zrzuty z testów E2E na danych syntetycznych do uzupełnienia po demo — do potwierdzenia rano.
+- 2026-11-14 — klasy poufności dokumentów opisane wg etykiet panelu (`document-labels.ts`): „Bezpieczeństwo budynku” i „Dane identyfikacyjne” pobierają tylko Administrator i Edytor — do potwierdzenia rano.
+- 2026-11-14 — strona instrukcji pod adresem `/guide` (otwarta jak W-19: z sesją i bez); w kontekście budowy obrazu `evia-web` dozwolony wyłącznie katalog `docs/user` (reguła `repo-policy` zawężona do `docs(?!/user$)`) — do potwierdzenia rano.
 
 ## Uwagi do rozważenia
 _—_
@@ -102,3 +105,12 @@ _—_
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-11-13 — dostosowanie do jednego środowiska `panel.eviacharge.pl` (product-owner): `path: lekka`, jeden recenzent `ux-designer`, `model: sonnet`; AC1 — adres i zaproszenie e-mail; AC3 — zrzuty tylko z lokalnego środowiska (RR-93). Recenzje `code-reviewer` i `security-engineer` zdjęte (treść bez kodu; wyjątek: zmiana polityki dokumentów w AC5 zatwierdza Konrad)
 - 2026-11-13 — decyzja Konrada: przegląd tylko `ux-designer` (ścieżka `lekka`); w nocnej kolejce `/noc-2026-11-13` (tor B po EVM-126) (Tech Lead)
+- 2026-11-14 — start realizacji w kolejce nocnej `/noc-2026-11-13` (Tech Lead): status `in-progress`, gałąź `feature/EVM-126-066-testy-i-instrukcja`
+- 2026-11-14 — treść instrukcji napisana (product-owner): `docs/user/instrukcja-dla-biura.md`, nazwy z kodu panelu; bez zrzutów ekranu; strona w panelu, odnośnik W-19, reguła walidatora i testy — web-developer / devops-engineer
+- 2026-11-14 — poprawki treści po przeglądzie UX: kroki scenariuszy A–D, kontakt w Pomocy (product-owner)
+- 2026-11-14 — strona `/guide` w panelu budowana z `docs/user/instrukcja-dla-biura.md` (`?raw` + własny czytnik podzbioru Markdown, bez nowej zależności), odnośnik w W-19 → „Pomoc”, testy `EVM-066 AC6`, minimalna reguła walidatora `docs/user/**/*.md` (żywy), `!docs/user` w kontekście obrazu web, CHANGELOG (web-developer); reguła i testy narzędzi do dopracowania przez devops-engineer
+
+- 2026-11-14 — bramka lokalna zielona (gate, test:tools, docs:check 0 błędów); zrzutów ekranu brak (do uzupełnienia po demo); do sprawdzenia w CI: e2e-web i gate:deploy (kontekst obrazu web z docs/user)
+- 2026-11-14 — reguła docs/user (żywy) potwierdzona testem config; wyjątek `!docs/user` w repo-policy zawężony do obrazu web (api nadal bez docs/); `pnpm run gate` i `npm run test:tools` zielone, docs:check 0 błędów (devops-engineer)
+- 2026-11-14 — poprawka E2E w kontenerze Linux (devops-engineer): `docs/user` zamontowany tylko w `web-e2e-linux` (tylko do odczytu); zmiana w `docs/user/**` uruchamia e2e-web i publikację obrazów (filtr `changes`), testy `EVM-066 AC6`
+- 2026-11-14 — workflow `deliver-story` (lekka) `passed`, ux-designer: approve (uwagi minor). Po przeglądzie: kroki scenariuszy A–D i zdanie o braku kontaktu w „Pomocy” (product-owner). Końcowe sprawdzenie orkiestratora wykryło czerwony `web-e2e-linux` (kontener nie widział `docs/user`) — poprawka devops-engineer (montowanie `docs/user` tylko w `web-e2e-linux`; `docs/user/**` jako wejście budowy panelu w filtrze zmian CI: uruchamia `e2e-web` w PR i publikację na `main`). Wyniki: `pnpm run gate` zielona (pokrycie zmienionego kodu 100% linii i gałęzi), `gate:deploy` zielona, `web-e2e-linux` 1291 passed, 0 failed, 2 flaky na Firefoksie (EVM-067 AC6, EVM-035 AC5 — przeszły przy ponowieniu), `test:tools` 761 pass. Bez zrzutów ekranu (do uzupełnienia po demo). Do akceptacji Konrada także zmiana polityki dokumentów (reguła 16: `docs/user/**/*.md`, „żywy”). Koszt: 6 agentów, ok. 447 tys. tokenów, ok. 50 min. Status `in-review` (Tech Lead, kolejka nocna)

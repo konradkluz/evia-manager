@@ -12,6 +12,8 @@
  */
 
 const DOCS_PREFIX = 'docs/';
+/** EVM-066 AC6: the source of the office guide is imported by the panel (`?raw`), so it is a build input, not documentation. */
+const GUIDE_SOURCE_PREFIX = 'docs/user/';
 const ROOT_MARKDOWN = /^[^/]+\.md$/;
 const ZERO_SHA = /^0+$/;
 const SHA = /^[0-9a-f]{40}$/;
@@ -21,7 +23,7 @@ const CONTROL = /[\u0000-\u001f\u007f]/;
 /** Not relevant to the panel E2E besides documentation (EVM-086 AC1): the API and the mobile app do not affect the panel. */
 export const E2E_NOT_RELEVANT_PREFIXES = Object.freeze(['apps/api/', 'apps/mobile/', 'packages/sync-core/']);
 /** Not relevant to the API integration tests besides documentation (EVM-086 AC1). */
-export const INTEGRATION_NOT_RELEVANT_PREFIXES = Object.freeze(['apps/web/', 'apps/mobile/', 'packages/sync-core/']);
+export const INTEGRATION_NOT_RELEVANT_PREFIXES = Object.freeze(['apps/web/', 'apps/mobile/', 'packages/sync-core/', GUIDE_SOURCE_PREFIX]);
 
 /** Paths that can change the Android package (EVM-009; architect: the app, the tokens and the contract client, the lockfile, the job itself). */
 export const MOBILE_RELEVANT_PREFIXES = Object.freeze([
@@ -51,6 +53,7 @@ function wellFormed(path) {
 /** @param {string} path */
 export function isDocumentation(path) {
   if (!wellFormed(path)) return false;
+  if (path.startsWith(GUIDE_SOURCE_PREFIX)) return false;
   return path.startsWith(DOCS_PREFIX) || ROOT_MARKDOWN.test(path);
 }
 
@@ -123,10 +126,10 @@ export const IAC_FILES = Object.freeze(['compose.yaml', 'compose.iac.yaml', 'inf
  * EVM-007 AC2 (ADR-0018 "Publikacja hermetyczna"): build inputs of the release images — `publish` runs for a push to main
  * that changes apps/, packages/, infra/ or the lockfile; the other inputs of the image build (workspace and root
  * configuration, patches, design tokens) count too, so that no input of an image changes without a new image.
- * Documentation alone never publishes. Fail closed for a push: a bad base, a diff error or an empty diff mean "true".
+ * Documentation alone never publishes (except docs/user/, the source of the office guide built into the web image, EVM-066 AC6). Fail closed for a push: a bad base, a diff error or an empty diff mean "true".
  * Any other event: "false" (`publish` runs for a push to main only).
  */
-export const PUBLISH_PREFIXES = Object.freeze(['apps/', 'packages/', 'infra/', 'design/tokens/', 'patches/']);
+export const PUBLISH_PREFIXES = Object.freeze(['apps/', 'packages/', 'infra/', 'design/tokens/', 'patches/', GUIDE_SOURCE_PREFIX]);
 export const PUBLISH_FILES = Object.freeze(['pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json', '.nvmrc', 'turbo.json']);
 
 /** @param {string} path @param {readonly string[]} prefixes @param {readonly string[]} files */

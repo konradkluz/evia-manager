@@ -495,6 +495,7 @@ jobs:
           for image in api web; do
             docker buildx build --no-cache --pull --provenance=false --sbom=false --platform linux/arm64 \
               --build-arg EVIA_RELEASE_COMMIT="$EVIA_RELEASE_COMMIT" \
+              --build-arg PANEL_ORIGIN=https://panel.eviacharge.pl \
               --file "infra/images/$image/Dockerfile" --tag "evia-$image:candidate" --load .
             platform="$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "evia-$image:candidate")"
             if [ "$platform" != linux/arm64 ]; then echo "evia-$image is $platform, not linux/arm64" >&2; exit 1; fi
