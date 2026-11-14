@@ -4,8 +4,9 @@ title: RODO przed startem — umowy powierzenia, rejestr czynności, ćwiczenie 
 type: enabler
 milestone: M1
 epic: E8 Gotowość produkcyjna
-status: ready
+status: in-review
 priority: P1
+path: pelna            # dane osobowe (RODO), 8 AC — decyzja Konrada 2026-11-14
 owner: security-engineer
 contributors: [product-owner, devops-engineer]
 reviewers: [solution-architect]
@@ -78,15 +79,20 @@ Nie dotyczy.
 _Uzupełnia wykonawca przed implementacją._
 
 ## Decyzje
-_—_
+- 2026-11-14 — Konrad: ścieżka `pelna`, recenzent `solution-architect` (pytanie `/deliver`).
+- 2026-11-14 — Konrad: bez konsultacji z prawnikiem ani IOD. Punkty `[PRAWNIK/IOD]` potrzebne w tej historyjce (10 — transfery do USA, 11 — potrzeba DPIA) agenci przygotowują jako rekomendacje, a Konrad zatwierdza je na demo; zapis jako świadoma decyzja administratora bez porady prawnej.
+- 2026-11-14 — Tech Lead (RR-93): agenci nie logują się na jedyne środowisko, nie czytają jego bazy ani logów i nie zakładają kont u dostawców. Czynności ręczne — zawarcie i sprawdzenie umów na kontach dostawców (AC1), rejestr poza repozytorium (AC2), spotkanie z checklistą (AC3), próby procedur na środowisku na danych syntetycznych (AC4, AC5), przegląd próbek logów (AC7), zatwierdzenie DPIA (AC8) — wykonuje Konrad wg przygotowanych checklist i protokołów; do tego czasu historyjka zostaje w `in-review`.
+- 2026-11-14 — decyzje punktów 10 i 11, DPIA, RR-95 i retencji (AC6): pkt 10 przyjęty z warunkami; DPIA zatwierdzona z warunkami (wersja 1.0; klauzule, upoważnienia, informacja o audycie i przegląd próbek logów — przed wpisaniem pierwszych realnych danych klientów; pilot B dopiero po oświadczeniach i środku technicznym dla `identity_data`); RR-95 przyjęte z warunkami; retencja — „konfiguracja jako kod” przyjęta, zadanie usuwania `sync.change_log` i `media.media_exports` do 2027-02-11 (szczegóły: `rodo.md`, `dpia.md` § 6, RR-95, protokoły AC6 i AC8). 2026-11-14 — decyzja Tech Leada z delegacji Konrada (demo EVM-064: wybór wariantu najbezpieczniejszego przekazany Tech Leadowi); Konrad potwierdza ją scaleniem PR z tą zmianą.
 
 ## Uwagi do rozważenia
-_—_
+- Operacje ręczne realizacji praw osób (neutralizacja lokalizacji i stron, soft delete z art. 18) nie trafiają do rejestru usunięć i po odtworzeniu kopii trzeba je powtórzyć ręcznie (runbooki `prawa-osob.md`, `restore.md`) — zapis do rejestru to kandydat do backlogu (M4, `/refine`).
+- **Zobowiązanie z terminem (decyzja AC6, 2026-11-14):** zadanie usuwania `sync.change_log` (P4: 90 dni) i `media.media_exports` działa **najpóźniej 2027-02-11** (90 dni liczone zachowawczo od 2026-11-13 — RR-93) — historyjka przez `/refine`, nie czekać na M4 ([`retencja.md` § 4](../../ops/runbooks/retencja.md#4-pytania-do-decyzji-konrada-evm-064-demo)). Linki jednorazowe i `security_alert_outbox` (bez danych klientów, identyfikatory pseudonimowe) — kandydat do tej samej historyjki.
+- **Zobowiązanie — warunek startu pilota B (DPIA D3, [`dpia.md` § 5](../../security/dpia.md#5-wniosek), warunek 5):** środek techniczny dla `identity_data` — ponowne potwierdzenie tożsamości przy pobraniu (MFA, gdy ostatnie uwierzytelnienie > 15 min) albo blokada takich pobrań z telefonu; historyjka przez `/refine`. Technicy zaczynają korzystać z panelu na prywatnych telefonach dopiero po podpisaniu oświadczeń (wzór 2) i wdrożeniu tego środka; do tego czasu osoby z rolą Edytor nie logują się do panelu na prywatnych telefonach. Aplikacji mobilnej M2 to nie dotyczy — operacje dokumentów mają w kontrakcie API tylko kanał `web`.
 
 ## Definition of Done
 - [ ] AC1–AC8 spełnione (weryfikacja QA przez inspekcję i protokoły ćwiczeń)
-- [ ] Przegląd: solution-architect — APPROVE
-- [ ] `rodo.md`, runbooki i `CHANGELOG.md` zaktualizowane
+- [x] Przegląd: solution-architect — APPROVE
+- [x] `rodo.md`, runbooki i `CHANGELOG.md` zaktualizowane
 - [ ] Akceptacja Konrada
 
 ## Dziennik
@@ -96,3 +102,13 @@ _—_
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-11-12 — zmiana AC (Tech Lead z delegacji Konrada „tanio, szybko, bezpiecznie”; decyzja Konrada o rezygnacji z Sentry): AC1 i AC7 bez Sentry; AC3 — jedno spotkanie z checklistą zamiast ćwiczenia tabletop; DPIA (AC8) bez zmian — uproszczona albo uzasadnienie zbędności
 - 2026-11-13 — decyzja Konrada „jedno środowisko, realne dane od startu”: `depends_on` bez EVM-061 (przepisanej na warunki startu); „przed startem” = przed wpisaniem pierwszych realnych danych klientów na jedynym środowisku (warunek AC3 w EVM-061); „przećwiczona na staging” czytaj: na jedynym środowisku na danych syntetycznych; AC bez zmian (product-owner)
+- 2026-11-14 — start realizacji (`/deliver`): status `in-progress`, gałąź `feature/EVM-064-rodo-przed-startem`, ścieżka `pelna` (Tech Lead)
+- 2026-11-14 — plan gotowy (security-engineer)
+- 2026-11-14 — implementacja dokumentów (security-engineer): `dpia.md`, `checklista-wydania.md`, runbooki `prawa-osob.md`, `naruszenie-danych.md`, `retencja.md`, procedura awaryjnego resetu MFA, `rodo.md` (dostawcy ze źródeł publicznych, pkt 10 i 11 jako rekomendacje), RR-95, protokoły `docs/qa/EVM-064/protokoly.md`; AC1–AC5, AC7, AC8 czekają na czynności Konrada (`manual`), AC6 — dwa pytania o retencję
+- 2026-11-14 — przegląd pokrycia AC (product-owner): dokumenty kompletne względem AC; nic nie wpisano za Konrada (pola protokołów puste); brak zmian kodu produktu
+- 2026-11-14 — workflow `deliver-story` (pelna) `passed` po 2 rundach: QA pass przez inspekcję (AC1–AC8 `manual` — dokumenty i protokoły gotowe, czynności i decyzje Konrada otwarte); `solution-architect` — runda 1 `changes_required` (major: runbook obiecywał, że wszystkie usunięcia wracają przez rejestr usunięć), poprawka `029512ab`, runda 2 approve. Weryfikacja orkiestratora: `pnpm run gate` zielona (brak zmian kodu), `npm run docs:check` 0 błędów; status `in-review` do wypełnienia protokołów `docs/qa/EVM-064/protokoly.md` (Tech Lead)
+- 2026-11-14 — Koszt: ok. 0,8 mln tokenów agentów (9 wywołań, 1 runda poprawek, ok. 33 min; rozbicia w USD nie odczytano); ścieżka pelna; plik historyjki 10 KB; dla porównania EVM-103 (pelna, kod): ok. 0,9 mln tokenów; porównanie z baseline EVM-013 i celem ścieżki w USD niemożliwe bez rozbicia (Tech Lead)
+- 2026-11-14 — poprawki po przeglądzie prawnym (security-engineer; 1 blocker, 7 major, 9 minor): DPIA 0.2 — D3 z W3 (po środkach P1 × W3 = 3 z uzasadnieniem), warunki § 5 (upoważnienia, informacja o audycie, oświadczenia techników, ograniczenia pilota B, kopia w chmurze = naruszenie, oryginały poza systemem), art. 35 ust. 7 i 9, wykaz UODO dosłownie; `rodo.md` — stan prawny DPF, wpisy DPF „Active” (Tech Lead), GitHub bez umowy powierzenia, próg zgłoszenia naruszeń i PESEL; runbooki naruszeń (art. 33 ust. 3, art. 34 ust. 2, kanały UODO bez ePUAP), praw osób (C-154/21, art. 12 ust. 4) i retencji (termin `sync.change_log` 2027-02-11); RR-01, RR-95; nowe [`wzory-dla-pracownikow.md`](../../security/wzory-dla-pracownikow.md); pola w protokołach AC1 i AC8
+- 2026-11-14 — runda 2 poprawek po ponownym przeglądzie prawnym i wpis decyzji z delegacji Konrada (security-engineer): stan na 2026-11-14 wg Konrada: brak realnych danych na środowisku; warunki sformułowane jako bramka przed pierwszymi realnymi danymi klientów (klauzule pierwsze; po korekcie Tech Leada — wcześniej przez chwilę termin 2026-11-28); pilot B dopiero po oświadczeniach i środku technicznym dla `identity_data` (zobowiązanie); wzory 2 i 3 uzupełnione; protokół AC1 — wydruk wpisów DPF; decyzje pkt 10, pkt 11 / DPIA 1.0, RR-95 i AC6 wpisane z formułą delegacji; SR-PRIV-01 doprecyzowane
+- 2026-11-14 — dodatkowy niezależny przegląd prawny (agent w roli radcy prawnego od RODO, zlecony przez Tech Leada po decyzji Konrada „bez prawnika, wybierz wariant najbezpieczniejszy”): runda 1 — 1 blocker, 7 major; runda 2 — wcześniejsze ustalenia załatwione, 3 nowe major poprawione; lista DPF sprawdzona w przeglądarce (Grafana Labs i GitHub — Active). Weryfikacja orkiestratora po poprawkach: `pnpm run gate` zielona, `npm run docs:check` 0 błędów. Status `in-review` do wypełnienia protokołów przez Konrada (Tech Lead)
+- 2026-11-14 — Koszt (uzupełnienie): przegląd prawny i dwie rundy poprawek — ok. 0,6 mln tokenów (2 agenci, 5 wywołań); łącznie historyjka ok. 1,4 mln tokenów; rozbicia w USD nie odczytano (Tech Lead)
