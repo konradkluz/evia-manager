@@ -13,6 +13,7 @@ import {
   IDLE_SNAPSHOT,
   type AttentionResult,
   type QueueView,
+  type RecreateSource,
   type SyncRuntime,
   type SyncPauseReason,
   type SyncSnapshot,
@@ -131,8 +132,11 @@ export class SyncHost implements SyncRuntime {
   discard(id: string): Promise<AttentionResult> {
     return this.#service?.discard(id) ?? Promise.resolve({ ok: false, code: 'no_session' });
   }
-  recreate(id: string): Promise<AttentionResult> {
-    return this.#service?.recreate(id) ?? Promise.resolve({ ok: false, code: 'no_session' });
+  recreateSource(id: string): Promise<RecreateSource | null> {
+    return this.#service?.recreateSource(id) ?? Promise.resolve(null);
+  }
+  recreate(id: string, payload?: Record<string, unknown>): Promise<AttentionResult> {
+    return this.#service?.recreate(id, payload) ?? Promise.resolve({ ok: false, code: 'no_session' });
   }
   retarget(id: string, workOrderId: string): Promise<AttentionResult> {
     return this.#service?.retarget(id, workOrderId) ?? Promise.resolve({ ok: false, code: 'no_session' });

@@ -4,6 +4,7 @@ import {
   cleanLine,
   cleanNote,
   customerName,
+  draftFromQuickPayload,
   draftSiteType,
   EMPTY_DRAFT,
   EMPTY_QUICK_SOURCE,
@@ -334,5 +335,104 @@ describe('quick order model: similar customers (EVM-106 AC3)', () => {
     expect(phoneKey('0044 20 7946 0958')).toBe('+442079460958');
     expect(phoneKey('1234567890')).toBe('+1234567890');
     expect(phoneKey('12')).toBeNull();
+  });
+});
+
+// EVM-128 AC1, AC2: the draft of the form "Utwórz ponownie" rebuilt from the payload of a rejected command (pure; synthetic data).
+describe('draftFromQuickPayload (EVM-128)', () => {
+  const personPayload = {
+    workOrderId: '0194c2a0-0000-7000-8000-0000000000f1',
+    templateId: T1,
+    title: 'Wallbox w domu — Fikcyjna',
+    newCustomer: { id: 'c-new', kind: 'person', displayName: 'Anna Maria Fikcyjna', phone: '600 000 009' },
+    newSite: {
+      id: 's-new',
+      siteType: 'multi_family_garage',
+      street: 'ul. Testowa',
+      buildingNumber: '5',
+      apartmentNumber: '7',
+      postalCode: '05-500',
+      city: 'Piaseczno',
+      parkingSpotNumber: 'B-12',
+    },
+    note: 'Oględziny w piątek',
+  };
+
+  it('EVM-128 AC1: a new person and a new place come back into the fields (the name splits at the first space); the ids are not carried', () => {
+    const draft = draftFromQuickPayload(personPayload, { templateUnavailable: false });
+    expect(draft).toMatchObject({
+      customerMode: 'new',
+      customerId: null,
+      kind: 'person',
+      firstName: 'Anna',
+      lastName: 'Maria Fikcyjna',
+      phone: '600 000 009',
+      siteMode: 'new',
+      siteId: null,
+      siteType: 'multi_family_garage',
+      street: 'ul. Testowa',
+      buildingNumber: '5',
+      apartmentNumber: '7',
+      postalCode: '05-500',
+      city: 'Piaseczno',
+      parkingSpotNumber: 'B-12',
+      templateId: T1,
+      title: 'Wallbox w domu — Fikcyjna',
+      note: 'Oględziny w piątek',
+    });
+    expect(JSON.stringify(draft)).not.toMatch(/c-new|s-new|0194c2a0-0000-7000-8000-0000000000f1/);
+  });
+
+  it('EVM-128 AC1: a company keeps its name in one field; one word of a person goes to the first name (the form then asks for the rest)', () => {
+    const company = draftFromQuickPayload(
+      { ...personPayload, newCustomer: { id: 'c', kind: 'company', displayName: 'Fikcyjna Sp. z o.o.', phone: '600 000 009' } },
+      { templateUnavailable: false },
+    );
+    expect(company).toMatchObject({ kind: 'company', companyName: 'Fikcyjna Sp. z o.o.', firstName: '', lastName: '' });
+    const single = draftFromQuickPayload(
+      { ...personPayload, newCustomer: { id: 'c', kind: 'person', displayName: 'Fikcyjna', phone: '600 000 009' } },
+      { templateUnavailable: false },
+    );
+    expect(single).toMatchObject({ firstName: 'Fikcyjna', lastName: '' });
+    expect(validateQuickOrder(single, EMPTY_QUICK_SOURCE, templates).map((e) => e.field)).toContain('lastName');
+  });
+
+  it('EVM-128 AC1: an existing customer and an existing place stay chosen by id (the validation checks them against the phone)', () => {
+    const draft = draftFromQuickPayload(
+      { workOrderId: 'w', templateId: T1, title: 'T', customerId: 'c-1', siteId: 's-1' },
+      { templateUnavailable: false },
+    );
+    expect(draft).toMatchObject({ customerMode: 'existing', customerId: 'c-1', siteMode: 'existing', siteId: 's-1', note: '' });
+    expect(validateQuickOrder(draft, EMPTY_QUICK_SOURCE, templates).map((e) => e.field)).toEqual(['customer', 'site']);
+  });
+
+  it('EVM-128 AC2: a template that is no longer available is deselected, the title of the command stays', () => {
+    const draft = draftFromQuickPayload(personPayload, { templateUnavailable: true });
+    expect(draft.templateId).toBeNull();
+    expect(draft.title).toBe('Wallbox w domu — Fikcyjna');
+    expect(validateQuickOrder(draft, EMPTY_QUICK_SOURCE, templates).map((e) => e.field)).toContain('template');
+  });
+
+  it('EVM-128 AC1: a payload of unexpected shape gives empty fields, never a throw or the text "undefined"', () => {
+    const draft = draftFromQuickPayload(
+      { title: 5, newCustomer: 'x', newSite: [], note: null, templateId: 7 },
+      { templateUnavailable: false },
+    );
+    expect(draft).toMatchObject({ ...initialDraft(EMPTY_QUICK_SOURCE), title: '', note: '', templateId: null });
+    expect(JSON.stringify(draft)).not.toContain('undefined');
+    const unknownSite = draftFromQuickPayload({ newSite: { siteType: 'castle', street: 'ul. X' } }, { templateUnavailable: false });
+    expect(unknownSite.siteType).toBeNull();
+    expect(unknownSite.street).toBe('ul. X');
+  });
+
+  it('EVM-128 AC3: the draft of the old command, built again, gives the SAME data under NEW ids', () => {
+    const draft = draftFromQuickPayload(personPayload, { templateUnavailable: false });
+    let n = 0;
+    const built = buildQuickOrderInput(draft, EMPTY_QUICK_SOURCE, templates, () => `new-${String((n += 1))}`);
+    if (!built.ok) throw new Error('valid');
+    const payload = built.input.payload as Record<string, Record<string, unknown>>;
+    expect(payload['newCustomer']).toMatchObject({ displayName: 'Anna Maria Fikcyjna', phone: '600 000 009', id: 'new-2' });
+    expect(payload['newSite']).toMatchObject({ street: 'ul. Testowa', id: 'new-3' });
+    expect(built.workOrderId).toBe('new-1');
   });
 });

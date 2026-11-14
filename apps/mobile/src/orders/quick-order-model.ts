@@ -325,6 +325,54 @@ export function buildQuickOrderInput(
   return { ok: true, workOrderId, input: { type: 'CreateQuickWorkOrder', commandVersion: 1, payload } };
 }
 
+const asRecord = (value: unknown): Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+const asText = (value: unknown): string => (typeof value === 'string' ? value : '');
+
+/**
+ * The form of "Utwórz ponownie" (EVM-128 AC1, AC2): the draft rebuilt from the payload of a rejected `CreateQuickWorkOrder`, so that the
+ * technician corrects the data instead of typing them again. Pure; the payload is read defensively (the queue is not trusted to hold the
+ * shape) and what comes out is only a draft - the command that is saved is always built again by `buildQuickOrderInput` (new ids), never
+ * taken from the old one. The ids of the old command (order, new customer, new place) are not carried; an existing customer or place stays
+ * chosen by its id and the validation checks it against the phone. A template that the server no longer offers is deselected, the title stays.
+ */
+export function draftFromQuickPayload(
+  payload: Record<string, unknown>,
+  options: { readonly templateUnavailable: boolean },
+): QuickOrderDraft {
+  const customer = asRecord(payload['newCustomer']);
+  const site = asRecord(payload['newSite']);
+  const customerId = asText(payload['customerId']);
+  const siteId = asText(payload['siteId']);
+  const kind: CustomerKind = customer['kind'] === 'company' ? 'company' : 'person';
+  const name = cleanLine(asText(customer['displayName']));
+  const space = name.indexOf(' ');
+  const siteType = site['siteType'];
+  const templateId = asText(payload['templateId']);
+  return {
+    ...EMPTY_DRAFT,
+    customerMode: customerId === '' ? 'new' : 'existing',
+    customerId: customerId === '' ? null : customerId,
+    kind,
+    firstName: kind === 'person' ? (space < 0 ? name : name.slice(0, space)) : '',
+    lastName: kind === 'person' && space >= 0 ? name.slice(space + 1) : '',
+    companyName: kind === 'company' ? name : '',
+    phone: asText(customer['phone']),
+    siteMode: siteId === '' ? 'new' : 'existing',
+    siteId: siteId === '' ? null : siteId,
+    siteType: isSiteType(siteType) ? siteType : null,
+    street: asText(site['street']),
+    buildingNumber: asText(site['buildingNumber']),
+    apartmentNumber: asText(site['apartmentNumber']),
+    postalCode: asText(site['postalCode']),
+    city: asText(site['city']),
+    parkingSpotNumber: asText(site['parkingSpotNumber']),
+    templateId: options.templateUnavailable || templateId === '' ? null : templateId,
+    title: asText(payload['title']),
+    note: asText(payload['note']),
+  };
+}
+
 /** The name of a customer the way the search compares it: no case, no Polish letters, one space. */
 export function nameKey(raw: string): string {
   return normalizeSearch(cleanLine(raw));
