@@ -11,7 +11,7 @@ owner: mobile-developer
 contributors: []
 reviewers: [code-reviewer]
 model: sonnet
-depends_on: [EVM-108]
+depends_on: [EVM-108, EVM-131]
 ---
 
 # EVM-111: Aplikacja — status każdego pliku w kolejce telefonu
@@ -50,3 +50,4 @@ Galeria i przegląd mediów zlecenia na telefonie (zdjęcia z biura, miniatury z
 - 2026-10-27 — utworzono (product-owner)
 - 2026-10-27 — ścieżka zmieniona na `pelna` po konsultacji security (product-owner)
 - 2026-11-12 — zawężono do statusu plików w kolejce telefonu; galeria mediów tylko w panelu web; ścieżka `pelna` → `lekka` (brak pobierania miniatur i podpisanych adresów), zależności 045/068 usunięte, 4 AC (decyzja Konrada 2026-11-12 / Tech Lead z delegacji Konrada „tanio, szybko, bezpiecznie”)
+- 2026-11-14 — `depends_on` + EVM-131; uwagi z konsultacji (product-owner), bez zmiany AC i statusu `draft`: stan `clean` pochodzi wyłącznie z repliki `media_asset` (wymaga EVM-131); offline — tylko dane lokalne; miniatura z pliku lokalnego, bez pamięci podręcznej na dysku; w trybie ukrytym i po `session_revoked` ekran nie renderuje danych; przyczyna kwarantanny tylko jako kod ze słownika; retencja rekordu wysłanego pliku (rekomendacja 7 dni) i jeden komponent listy z Kolejką — do potwierdzenia w `/refine`
