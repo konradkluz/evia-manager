@@ -7,12 +7,13 @@
  * Reads only regular files (never follows symbolic links); git runs without a shell.
  */
 import { spawnSync } from 'node:child_process';
-import { lstatSync, readdirSync, readFileSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
+import { lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { parseNumstat, parseUnifiedDiff, unaccounted } from './diff.mjs';
 import { evaluate, isSourceFile, meets } from './evaluate.mjs';
 import { mergeCoverage, parseLcov } from './lcov.mjs';
-import { CONTAINER_REPORTS, normalizeSource, workspaceOfReport } from './paths.mjs';
+import { koverToLcov, KoverReportError } from './kover.mjs';
+import { EXTRA_REPORT_DIRECTORIES, normalizeSource, workspaceOfReport } from './paths.mjs';
 
 /** Changed-code threshold in percent (docs/process/testing-strategy.md → Progi). */
 export const THRESHOLD = 90;
@@ -24,7 +25,7 @@ const WORKSPACE_ROOTS = ['apps', 'packages', 'services', 'tools'];
  * diff.mnemonicPrefix of the developer's git config, which would otherwise hide every file from the parser.
  */
 const DIFF_OPTIONS = ['--no-color', '--no-ext-diff', '--no-textconv', '--find-renames', '--src-prefix=a/', '--dst-prefix=b/'];
-const USAGE = 'Użycie: node tools/diff-coverage/cli.mjs [clean | --local]';
+const USAGE = 'Użycie: node tools/diff-coverage/cli.mjs [clean | --local | kover-to-lcov <raport.xml> <katalog źródeł> <wynik.info>]';
 
 class ToolError extends Error {}
 
@@ -45,10 +46,11 @@ export function main(argv, io) {
     if (argv.length === 0) return check(io, false);
     if (argv.length === 1 && argv[0] === '--local') return check(io, true);
     if (argv.length === 1 && argv[0] === 'clean') return clean(io);
+    if (argv[0] === 'kover-to-lcov' && argv.length === 4) return convertKover(io, argv[1] ?? '', argv[2] ?? '', argv[3] ?? '');
     io.stderr.write(`${USAGE}\n`);
     return 2;
   } catch (error) {
-    if (!(error instanceof ToolError)) throw error;
+    if (!(error instanceof ToolError) && !(error instanceof KoverReportError)) throw error;
     io.stderr.write(`diff-coverage: ${oneLine(error.message)}\n`);
     return 2;
   }
@@ -101,6 +103,33 @@ function check(io, local) {
   });
   io.stdout.write(`${render(result, base)}\n`);
   return result.passed ? 0 : 1;
+}
+
+/**
+ * EVM-109 AC5: converts a Kover XML report into lcov (SF relative to the repository root); every path stays inside the repository.
+ * @param {Io} io
+ * @param {string} xmlPath
+ * @param {string} sourceRoot
+ * @param {string} outPath
+ */
+function convertKover(io, xmlPath, sourceRoot, outPath) {
+  const root = repositoryRoot(io.cwd);
+  /** @param {string} path */
+  const inside = (path) => {
+    const relation = relative(root, resolve(root, path));
+    return relation !== '' && !relation.startsWith('..') && !isAbsolute(relation);
+  };
+  if (!inside(xmlPath) || !inside(outPath) || isAbsolute(sourceRoot) || sourceRoot.split(/[\\/]/).includes('..')) {
+    throw new ToolError('ścieżki raportu, katalogu źródeł i wyniku muszą leżeć wewnątrz repozytorium');
+  }
+  const xml = readRegularFile(join(root, xmlPath));
+  if (xml === null) throw new ToolError(`nie odczytano raportu Kover: ${oneLine(xmlPath)}`);
+  const lcov = koverToLcov(xml, sourceRoot);
+  mkdirSync(dirname(join(root, outPath)), { recursive: true });
+  writeFileSync(join(root, outPath), lcov);
+  io.stdout.write(`diff-coverage: zapisano ${oneLine(outPath)}
+`);
+  return 0;
 }
 
 /** @param {Io} io */
@@ -275,7 +304,7 @@ function findReports(root) {
       else if (entry.isFile() && entry.name === 'lcov.info') reports.push(path);
     }
   };
-  walk(CONTAINER_REPORTS);
+  for (const directory of EXTRA_REPORT_DIRECTORIES) walk(directory);
   return reports.sort();
 }
 

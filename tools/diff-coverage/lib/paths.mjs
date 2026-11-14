@@ -5,8 +5,12 @@
  */
 import { posix } from 'node:path';
 
-/** Prefix under which the backend-tests container copies its reports (`/out` mounted at coverage/backend-tests). */
-export const CONTAINER_REPORTS = 'coverage/backend-tests/';
+/**
+ * Directories (repository paths) that hold reports outside a workspace: `coverage/backend-tests/` (the backend-tests container
+ * copies its reports there, a workspace tree below it) and `coverage/mobile-kotlin/` (EVM-109: the Kotlin engine report, converted
+ * from Kover; its `SF:` paths are relative to the repository root, so its workspace is `.`).
+ */
+export const EXTRA_REPORT_DIRECTORIES = Object.freeze(['coverage/backend-tests/', 'coverage/mobile-kotlin/']);
 
 /** Working copy of the repository inside the backend-tests container (tools/container/sync.mjs). */
 const CONTAINER_ROOT = '/work/repo/';
@@ -19,7 +23,8 @@ const slashes = (path) => path.replaceAll('\\', '/');
  * @returns {string} workspace directory of the report (the directory above `coverage/`)
  */
 export function workspaceOfReport(reportPath) {
-  const path = reportPath.startsWith(CONTAINER_REPORTS) ? reportPath.slice(CONTAINER_REPORTS.length) : reportPath;
+  const directory = EXTRA_REPORT_DIRECTORIES.find((prefix) => reportPath.startsWith(prefix));
+  const path = directory === undefined ? reportPath : reportPath.slice(directory.length);
   return posix.dirname(posix.dirname(path));
 }
 

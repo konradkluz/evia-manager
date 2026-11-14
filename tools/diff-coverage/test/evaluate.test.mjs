@@ -9,6 +9,14 @@ const cov = (lines, branches = []) => ({ lines: new Map(lines), branches: new Ma
 const EXCLUDE = ['**/test/**', '**/*.test.*', '**/*.config.*', '**/dist/**'];
 
 describe('changed-code coverage (EVM-006 AC3)', () => {
+  it('EVM-109 AC5: Kotlin sources (.kt) count, Gradle scripts (.kts) and the Android glue do not', () => {
+    const exclude = [...EXCLUDE, 'apps/mobile/modules/evia-upload/android/**'];
+    assert.equal(isSourceFile('apps/mobile/modules/evia-upload/engine/src/main/kotlin/pl/eviacharge/upload/A.kt', exclude), true);
+    assert.equal(isSourceFile('apps/mobile/modules/evia-upload/engine/src/test/kotlin/pl/eviacharge/upload/ATest.kt', exclude), false);
+    assert.equal(isSourceFile('apps/mobile/modules/evia-upload/engine/build.gradle.kts', exclude), false);
+    assert.equal(isSourceFile('apps/mobile/modules/evia-upload/android/src/main/kotlin/G.kt', exclude), false);
+  });
+
   it('EVM-006 AC3: only source files of apps, packages, services and tools count; tests, configs and docs do not', () => {
     for (const path of ['packages/tokens/src/build.ts', 'tools/x/lib/a.mjs', 'apps/web/src/App.tsx', 'services/m/src/a.cts']) {
       assert.equal(isSourceFile(path, EXCLUDE), true, path);

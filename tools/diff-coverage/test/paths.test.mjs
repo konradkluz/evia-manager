@@ -8,6 +8,16 @@ describe('report paths (EVM-006 AC3)', () => {
     assert.equal(workspaceOfReport('packages/tokens/coverage/lcov.info'), 'packages/tokens');
     assert.equal(workspaceOfReport('coverage/backend-tests/packages/tokens/coverage/lcov.info'), 'packages/tokens');
     assert.equal(workspaceOfReport('tools/diff-coverage/coverage/lcov.info'), 'tools/diff-coverage');
+    // EVM-109 AC5: the Kotlin report lies at the repository root level (workspace '.')
+    assert.equal(workspaceOfReport('coverage/mobile-kotlin/lcov.info'), '.');
+  });
+
+  it('EVM-109 AC5: SF paths of the Kotlin report are relative to the repository root', () => {
+    const ctx = { root: '/r', workspace: '.' };
+    assert.equal(
+      normalizeSource('apps/mobile/modules/evia-upload/engine/src/main/kotlin/A.kt', ctx),
+      'apps/mobile/modules/evia-upload/engine/src/main/kotlin/A.kt',
+    );
   });
 
   it('EVM-006 AC3: relative SF paths (Vitest, node:test) resolve against the workspace — Windows and Linux separators', () => {
