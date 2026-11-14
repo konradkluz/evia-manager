@@ -38,6 +38,7 @@ class NotificationTextTest {
     @Test
     fun `EVM-130 AC6 no text carries digits other than counts, an order number or an address`() {
         val all = listOf(NotificationText.progress(3, 12), NotificationText.sent(12), NotificationText.failed(2), NotificationText.PAUSED)
-        all.forEach { assertFalse(Regex("https?://|@|zlecenie|\.jpg|\.mp4", RegexOption.IGNORE_CASE).containsMatchIn(it), it) }
+        val forbidden = listOf("http", "@", "zlecenie", ".jpg", ".mp4")
+        all.forEach { line -> forbidden.forEach { assertFalse(line.contains(it, ignoreCase = true), line) } }
     }
 }

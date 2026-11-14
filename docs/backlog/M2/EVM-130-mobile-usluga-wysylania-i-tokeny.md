@@ -95,3 +95,4 @@ Aparat i wejścia do zdjęć (EVM-108), filmy i „tylko Wi-Fi” (EVM-110), ekr
 - 2026-11-14 — draft → ready: kryteria zatwierdzone przez Tech Leada z delegacji Konrada (pytanie przed nocą 2026-11-14); Konrad przegląda je rano w PR
 - 2026-11-14 — start realizacji w kolejce nocnej `/noc-2026-11-14` (Tech Lead): status `in-progress`, gałąź `feature/queue-2026-11-14-mobile-media` (EVM-109 `in-review` w tej samej gałęzi)
 - 2026-11-14 — plan gotowy (mobile-developer)
+- 2026-11-14 — implementacja częściowa (mobile-developer): AC7 (verify paczki) i AC8 (serwer wysyłania) gotowe; JVM: właściciel tokenów, teksty powiadomienia, poprawki przeglądu EVM-109 (1, 6, 7); reszta (klej Androida, JS, Maestro, dokumenty) do kontynuacji
