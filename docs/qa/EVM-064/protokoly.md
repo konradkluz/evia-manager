@@ -2,7 +2,7 @@
 
 Historyjka: [EVM-064](../../backlog/M1/EVM-064-rodo-przed-startem.md). Przygotował: `security-engineer`, 2026-11-14. Czynności wykonuje Konrad (RR-93: agenci nie logują się na środowisko, nie czytają jego danych ani kont dostawców). **Wpisuj tylko daty, role, wyniki i liczby — bez danych osobowych, adresów e-mail, numerów umów i identyfikatorów kont** (repozytorium jest publiczne). Puste pole = czynność niewykonana.
 
-Kolejność: AC1 → AC2 → AC5 → AC4 → AC3 → AC7 → AC8 (DPIA zatwierdzona 2026-11-14 z warunkami — Konrad wpisuje ich wykonanie: podpisane wzory z [`wzory-dla-pracownikow.md`](../../security/wzory-dla-pracownikow.md), a przed startem pilota B spotkanie z technikami). Terminy: AC3, AC4, AC5, AC7 i warunki 1–3 DPIA — niezwłocznie, najpóźniej do 2026-11-28. Szacowany czas łącznie: ok. 4–5 h.
+Kolejność: AC1 → AC2 → AC5 → AC4 → AC3 → AC7 → AC8 (DPIA zatwierdzona 2026-11-14 z warunkami — Konrad wpisuje ich wykonanie: podpisane wzory z [`wzory-dla-pracownikow.md`](../../security/wzory-dla-pracownikow.md), a przed startem pilota B spotkanie z technikami). Bramka: AC3, AC4, AC5, AC7 i warunki 1–3 DPIA — przed wpisaniem pierwszych realnych danych klientów (nowe osoby — przed pierwszym dostępem). Szacowany czas łącznie: ok. 4–5 h.
 
 ## AC1 — Umowy powierzenia, regiony i retencje
 Na koncie każdego dostawcy: umowa powierzenia zawarta albo warunki zaakceptowane, region UE, retencja, MFA. Wskazówki — [`rodo.md` → „Weryfikacja dostawców 2026-11-14”](../../security/rodo.md#weryfikacja-dostawców-2026-11-14-evm-064-ac1).
@@ -37,7 +37,7 @@ Checklista i scenariusz: [`naruszenie-danych.md` → sekcja 5](../../ops/runbook
 | Wnioski (krótko, bez danych) — przenieść do historyjki EVM-064 | _do wypełnienia_ |
 
 ## AC4 — Prawa osób (ćwiczenie)
-Na danych syntetycznych wg [`prawa-osob.md` → sekcja 5](../../ops/runbooks/prawa-osob.md#5-ćwiczenie-ac4--niezwłocznie-najpóźniej-do-2026-11-28).
+Na danych syntetycznych wg [`prawa-osob.md` → sekcja 5](../../ops/runbooks/prawa-osob.md#5-ćwiczenie-ac4--przed-pierwszymi-realnymi-danymi-klientów).
 
 | Krok | Wynik (OK / problem) | Uwagi |
 |---|---|---|
@@ -73,7 +73,7 @@ Pytania z [`retencja.md` → sekcja 4](../../ops/runbooks/retencja.md#4-pytania-
 Obie: 2026-11-14 — decyzja Tech Leada z delegacji Konrada (demo EVM-064: wybór wariantu najbezpieczniejszego przekazany Tech Leadowi); Konrad potwierdza ją scaleniem PR z tą zmianą.
 
 ## AC7 — Przegląd próbek logów
-Wg [`checklista-wydania.md` → sekcja 1](../../security/checklista-wydania.md#1-przegląd-próbek-logów-sr-priv-09--konrad); wykonać niezwłocznie, najpóźniej do 2026-11-28 (środowisko przyjmuje realne dane od 2026-11-13 — RR-93).
+Wg [`checklista-wydania.md` → sekcja 1](../../security/checklista-wydania.md#1-przegląd-próbek-logów-sr-priv-09--konrad); wykonać przed wpisaniem pierwszych realnych danych klientów.
 
 | Zapytanie | Liczba trafień | Usługa (gdy > 0) | Wynik |
 |---|---|---|---|
@@ -96,10 +96,10 @@ Decyzje (pola wypełnione): 2026-11-14 — decyzja Tech Leada z delegacji Konrad
 | [`dpia.md`](../../security/dpia.md) — decyzja | zatwierdzona z warunkami, wersja 1.0 (decyzja jak wyżej) |
 | Punkt `[PRAWNIK/IOD]` 11 — rekomendacja (uproszczona DPIA) | przyjęta (decyzja jak wyżej) |
 | Punkt `[PRAWNIK/IOD]` 10 — rekomendacja (podstawa transferów) | przyjęta z warunkami z `rodo.md` (decyzja jak wyżej) |
-| Czy przed zatwierdzeniem wprowadzono realne dane klientów (tak / nie; od kiedy) — środowisko przyjmuje realne dane od 2026-11-13 (RR-93) | _do wypełnienia_ |
-| Warunek 1 — klauzule informacyjne w wersji ostatecznej w panelu (do 2026-11-28): data | _do wypełnienia_ |
-| Warunek 2 — upoważnienia i zobowiązania do poufności ([wzór 1](../../security/wzory-dla-pracownikow.md#wzór-1--upoważnienie-do-przetwarzania-danych-osobowych-i-zobowiązanie-do-poufności); do 2026-11-28): liczba osób z kontem / liczba podpisanych, data | _do wypełnienia_ |
-| Warunek 3 — informacja o audycie ([wzór 3](../../security/wzory-dla-pracownikow.md#wzór-3--informacja-dla-osób-z-kontem-o-audycie-działań-w-systemie); do 2026-11-28): liczba osób / podpisanych, data; umowy o pracę — dotyczy / nie dotyczy; data obwieszczenia | _do wypełnienia_ |
+| Czy przed zatwierdzeniem wprowadzono realne dane klientów (tak / nie; od kiedy) | nie — oświadczenie Konrada z 2026-11-14: na środowisku nie ma realnych danych |
+| Warunek 1 — klauzule informacyjne w wersji ostatecznej w panelu (przed pierwszymi realnymi danymi klientów): data | _do wypełnienia_ |
+| Warunek 2 — upoważnienia i zobowiązania do poufności ([wzór 1](../../security/wzory-dla-pracownikow.md#wzór-1--upoważnienie-do-przetwarzania-danych-osobowych-i-zobowiązanie-do-poufności); przed pierwszymi realnymi danymi klientów, nowe osoby — przed pierwszym dostępem): liczba osób z kontem / liczba podpisanych, data | _do wypełnienia_ |
+| Warunek 3 — informacja o audycie ([wzór 3](../../security/wzory-dla-pracownikow.md#wzór-3--informacja-dla-osób-z-kontem-o-audycie-działań-w-systemie); przed pierwszymi realnymi danymi klientów, nowe osoby — przed pierwszym dostępem): liczba osób / podpisanych, data; umowy o pracę — dotyczy / nie dotyczy; data obwieszczenia | _do wypełnienia_ |
 | Warunek 4 — oświadczenia techników ([wzór 2](../../security/wzory-dla-pracownikow.md#wzór-2--oświadczenie-technika-prywatny-telefon-w-pracy-pilot-b)) przed pierwszym logowaniem na telefonie: liczba techników w pilocie B / liczba oświadczeń, data | _do wypełnienia_ |
 | Warunek 5 — środek techniczny dla `identity_data` wdrożony (historyjka EVM-…, data) — dopiero potem start pilota B | _do wypełnienia_ |
 | Opinia techników (art. 35 ust. 9) — data spotkania (przed startem pilota B) | _do wypełnienia_ |

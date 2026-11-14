@@ -2,10 +2,10 @@
 
 > Dokument żywy (EVM-064 AC7). Właściciel: `security-engineer`; wykonuje `security-engineer` (część repozytorium) i Konrad (część na środowisku — agenci nie czytają jego logów ani danych, RR-93). Wymagania: SR-PRIV-09 (przegląd próbek logów), SR-PRIV-06, SR-PRIV-07; sign-off 1.0 — EVM-070.
 
-**Kiedy:** pierwszy przebieg niezwłocznie, najpóźniej do 2026-11-28 (środowisko przyjmuje realne dane od 2026-11-13 — RR-93), potem przy każdym wydaniu wersji (1.0, 1.1, …) i po każdej zmianie loggera, redakcji w Alloy albo listy zbieranych usług. Między wydaniami wdrożenia z `main` chronią testy redakcji w CI. Wynik każdego przebiegu — w protokole (pierwszy: [`docs/qa/EVM-064/protokoly.md` → „AC7”](../qa/EVM-064/protokoly.md#ac7--przegląd-próbek-logów)), bez treści logów.
+**Kiedy:** przed wpisaniem pierwszych realnych danych klientów, potem przy każdym wydaniu wersji (1.0, 1.1, …) i po każdej zmianie loggera, redakcji w Alloy albo listy zbieranych usług. Między wydaniami wdrożenia z `main` chronią testy redakcji w CI. Wynik każdego przebiegu — w protokole (pierwszy: [`docs/qa/EVM-064/protokoly.md` → „AC7”](../qa/EVM-064/protokoly.md#ac7--przegląd-próbek-logów)), bez treści logów.
 
 ## 1. Przegląd próbek logów (SR-PRIV-09) — Konrad
-W Grafanie: Explore → źródło Loki → zakres **ostatnie 7 dni** (pierwszy przebieg: cała dostępna retencja — 14 dni). Każde zapytanie uruchom osobno; zapisz **tylko liczbę trafień i nazwę usługi** — nie kopiuj linii logów do plików, zgłoszeń, czatu ani do agentów.
+W Grafanie: Explore → źródło Loki → zakres **ostatnie 7 dni** (przed startem: od ostatniego wdrożenia). Każde zapytanie uruchom osobno; zapisz **tylko liczbę trafień i nazwę usługi** — nie kopiuj linii logów do plików, zgłoszeń, czatu ani do agentów.
 
 | # | Czego szukamy | Oczekiwane |
 |---|---|---|
