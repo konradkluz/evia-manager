@@ -41,9 +41,14 @@ export interface JournalServer {
   readonly entries: Map<string, JournalRecord[]>;
   /** `orderId|Idempotency-Key` → the raw body and the entry that was created. */
   readonly keys: Map<string, { readonly raw: string; readonly entryId: string }>;
+  /** EVM-129: the instant (ms) the server counts as "now"; `null` is the real clock. A spec that freezes the clock of the tab sets the same instant here. */
+  now: number | null;
 }
 
-export const newJournalServer = (): JournalServer => ({ entries: new Map(), keys: new Map() });
+export const newJournalServer = (): JournalServer => ({ entries: new Map(), keys: new Map(), now: null });
+
+/** The "now" of the synthetic journal (EVM-129): the instant set by the spec, otherwise the real clock. */
+export const journalNow = (server: JournalServer): number => server.now ?? Date.now();
 
 const json = (status: number, body: unknown, headers: Record<string, string> = {}): Answer => ({
   status,
@@ -177,7 +182,7 @@ export function answerJournalCreate(server: JournalServer, orders: OrderServer, 
     body: text,
     procedureStageId: typeof stage === 'string' ? stage : stage === null ? null : inherited,
     authorId: input.userId,
-    createdAt: new Date().toISOString(),
+    createdAt: new Date(journalNow(server)).toISOString(),
     supersedesEntryId: typeof supersedes === 'string' ? supersedes : null,
   };
   server.entries.set(orderId, [record, ...list]);
@@ -185,12 +190,17 @@ export function answerJournalCreate(server: JournalServer, orders: OrderServer, 
   return json(201, represent(server, orders, orderId, record), { Location: `/api/v1/work-orders/${orderId}/timeline/${id}` });
 }
 
-/** For the specs: `count` entries of an order, the newest first, one every 30 minutes before now; `body(n)` is the text of the n-th. */
+/**
+ * For the specs: `count` entries of an order, the newest first, one every `stepMinutes` (30 by default) before the "now" of the
+ * server (EVM-129: `server.now`); `body(n)` is the text of the n-th. `stepMinutes` 0 puts all of them at "now" — a spec that
+ * needs entries of the same business day as "now" even a minute after midnight.
+ */
 export function seedJournal(
   server: JournalServer,
   orderId: string,
   count: number,
   body: (n: number) => string = (n) => `Wpis numer ${String(n)}`,
+  stepMinutes = 30,
 ): void {
   server.entries.set(
     orderId,
@@ -201,7 +211,7 @@ export function seedJournal(
       body: body(index + 1),
       procedureStageId: null,
       authorId: '11111111-1111-4111-8111-111111111111',
-      createdAt: new Date(Date.now() - (index + 1) * 30 * 60_000).toISOString(),
+      createdAt: new Date(journalNow(server) - (index + 1) * stepMinutes * 60_000).toISOString(),
       supersedesEntryId: null,
     })),
   );
@@ -219,7 +229,7 @@ export function seedEvents(server: JournalServer, orderId: string, stage: string
     id: `01968f3e-0000-7000-8000-0000000e${String(index).padStart(4, '0')}`,
     kind: 'event',
     procedureStageId,
-    createdAt: new Date(Date.now() - minutes * 60_000).toISOString(),
+    createdAt: new Date(journalNow(server) - minutes * 60_000).toISOString(),
     event: {
       code: 'stage_status_changed',
       objectType: procedureStageId === null ? 'work_order' : 'procedure_stage',
@@ -231,12 +241,17 @@ export function seedEvents(server: JournalServer, orderId: string, stage: string
       ...data,
     },
   });
-  server.entries.set(orderId, [
-    event(1, 5, stage, { toStatus: 'waiting', fromStatus: 'in_progress', waitingOn: 'party', waitingOnParty: party }),
-    event(2, 15, stage, { code: 'stage_updated', changedFields: ['responsibleUserId', 'dueDate'] }),
-    event(3, 25, stage, { toStatus: 'in_progress', fromStatus: 'todo' }),
-    event(4, 35, null, { code: 'work_order_status_changed', fromStatus: 'new', toStatus: 'on_hold' }),
-    event(5, 45, null, { code: 'work_order_created' }),
-    ...(server.entries.get(orderId) ?? []),
-  ]);
+  server.entries.set(
+    orderId,
+    [
+      event(1, 5, stage, { toStatus: 'waiting', fromStatus: 'in_progress', waitingOn: 'party', waitingOnParty: party }),
+      event(2, 15, stage, { code: 'stage_updated', changedFields: ['responsibleUserId', 'dueDate'] }),
+      event(3, 25, stage, { toStatus: 'in_progress', fromStatus: 'todo' }),
+      event(4, 35, null, { code: 'work_order_status_changed', fromStatus: 'new', toStatus: 'on_hold' }),
+      event(5, 45, null, { code: 'work_order_created' }),
+      ...(server.entries.get(orderId) ?? []),
+      // the real server answers newest first by `createdAt`; the day groups of the panel rely on it (EVM-129 AC2: a list that
+      // goes today, yesterday, today again gave two sections "Dziś" — a fault of the data, not of the panel)
+    ].sort((first, second) => second.createdAt.localeCompare(first.createdAt)),
+  );
 }

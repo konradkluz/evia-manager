@@ -45,17 +45,15 @@ describe('activity of the session is recorded by the guard once a request is all
     expect(touch).not.toHaveBeenCalled();
   });
 
-  it('EVM-067 AC5 a denied request records nothing (wrong role, session in enrolment, failed query check)', async () => {
-    for (const denied of [{ role: 'editor' }, { state: 'mfa_enrollment' }] as const) {
-      const touch = vi.fn(() => Promise.resolve());
-      current = await withSession({ principal: principal(denied), touch });
-      await request(current.app.getHttpServer()).get('/api/v1/test-widgets').expect(403);
-      expect(touch).not.toHaveBeenCalled();
-      await current.close();
-    }
+  // One application per case: each boot of the whole module graph gets its own time budget instead of three sharing one (EVM-129 AC3).
+  it.each([
+    ['wrong role', { role: 'editor' }, '/api/v1/test-widgets', 403],
+    ['session in enrolment', { state: 'mfa_enrollment' }, '/api/v1/test-widgets', 403],
+    ['failed query check', {}, '/api/v1/test-widgets?limit=5', 400],
+  ] as const)('EVM-067 AC5 a denied request records nothing (%s)', async (_label, denied, path, status) => {
     const touch = vi.fn(() => Promise.resolve());
-    current = await withSession({ principal: principal(), touch });
-    await request(current.app.getHttpServer()).get('/api/v1/test-widgets?limit=5').expect(400);
+    current = await withSession({ principal: principal(denied), touch });
+    await request(current.app.getHttpServer()).get(path).expect(status);
     expect(touch).not.toHaveBeenCalled();
   });
 

@@ -4,7 +4,7 @@ title: Krótka instrukcja dla biura
 type: story
 milestone: M1
 epic: E8 Gotowość produkcyjna
-status: in-review
+status: done
 priority: P1
 path: lekka
 owner: product-owner
@@ -114,3 +114,4 @@ _—_
 - 2026-11-14 — reguła docs/user (żywy) potwierdzona testem config; wyjątek `!docs/user` w repo-policy zawężony do obrazu web (api nadal bez docs/); `pnpm run gate` i `npm run test:tools` zielone, docs:check 0 błędów (devops-engineer)
 - 2026-11-14 — poprawka E2E w kontenerze Linux (devops-engineer): `docs/user` zamontowany tylko w `web-e2e-linux` (tylko do odczytu); zmiana w `docs/user/**` uruchamia e2e-web i publikację obrazów (filtr `changes`), testy `EVM-066 AC6`
 - 2026-11-14 — workflow `deliver-story` (lekka) `passed`, ux-designer: approve (uwagi minor). Po przeglądzie: kroki scenariuszy A–D i zdanie o braku kontaktu w „Pomocy” (product-owner). Końcowe sprawdzenie orkiestratora wykryło czerwony `web-e2e-linux` (kontener nie widział `docs/user`) — poprawka devops-engineer (montowanie `docs/user` tylko w `web-e2e-linux`; `docs/user/**` jako wejście budowy panelu w filtrze zmian CI: uruchamia `e2e-web` w PR i publikację na `main`). Wyniki: `pnpm run gate` zielona (pokrycie zmienionego kodu 100% linii i gałęzi), `gate:deploy` zielona, `web-e2e-linux` 1291 passed, 0 failed, 2 flaky na Firefoksie (EVM-067 AC6, EVM-035 AC5 — przeszły przy ponowieniu), `test:tools` 761 pass. Bez zrzutów ekranu (do uzupełnienia po demo). Do akceptacji Konrada także zmiana polityki dokumentów (reguła 16: `docs/user/**/*.md`, „żywy”). Koszt: 6 agentów, ok. 447 tys. tokenów, ok. 50 min. Status `in-review` (Tech Lead, kolejka nocna)
+- 2026-11-14 — akceptacja Konrada przez scalenie PR #137 (main `fb06b296`, wdrożenie na `panel.eviacharge.pl`); status `done` (Tech Lead)
