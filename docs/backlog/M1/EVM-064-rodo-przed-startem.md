@@ -4,7 +4,7 @@ title: RODO przed startem — umowy powierzenia, rejestr czynności, ćwiczenie 
 type: enabler
 milestone: M1
 epic: E8 Gotowość produkcyjna
-status: in-progress
+status: in-review
 priority: P1
 path: pelna            # dane osobowe (RODO), 8 AC — decyzja Konrada 2026-11-14
 owner: security-engineer
@@ -84,12 +84,14 @@ _Uzupełnia wykonawca przed implementacją._
 - 2026-11-14 — Tech Lead (RR-93): agenci nie logują się na jedyne środowisko, nie czytają jego bazy ani logów i nie zakładają kont u dostawców. Czynności ręczne — zawarcie i sprawdzenie umów na kontach dostawców (AC1), rejestr poza repozytorium (AC2), spotkanie z checklistą (AC3), próby procedur na środowisku na danych syntetycznych (AC4, AC5), przegląd próbek logów (AC7), zatwierdzenie DPIA (AC8) — wykonuje Konrad wg przygotowanych checklist i protokołów; do tego czasu historyjka zostaje w `in-review`.
 
 ## Uwagi do rozważenia
-_—_
+- Operacje ręczne realizacji praw osób (neutralizacja lokalizacji i stron, soft delete z art. 18) nie trafiają do rejestru usunięć i po odtworzeniu kopii trzeba je powtórzyć ręcznie (runbooki `prawa-osob.md`, `restore.md`) — zapis do rejestru to kandydat do backlogu (M4, `/refine`).
+- Brak zadania usuwania dla `sync.change_log` (P4: 90 dni), `media.media_exports`, linków jednorazowych i `security_alert_outbox` — wiersze bez danych osobowych; kandydat do historyjki razem z retencją M4.
+- SR-PRIV-01 mówi o konfiguracji, a okresy retencji są stałymi w kodzie i regułami IaC — decyzja Konrada w protokole AC6.
 
 ## Definition of Done
 - [ ] AC1–AC8 spełnione (weryfikacja QA przez inspekcję i protokoły ćwiczeń)
-- [ ] Przegląd: solution-architect — APPROVE
-- [ ] `rodo.md`, runbooki i `CHANGELOG.md` zaktualizowane
+- [x] Przegląd: solution-architect — APPROVE
+- [x] `rodo.md`, runbooki i `CHANGELOG.md` zaktualizowane
 - [ ] Akceptacja Konrada
 
 ## Dziennik
@@ -103,3 +105,5 @@ _—_
 - 2026-11-14 — plan gotowy (security-engineer)
 - 2026-11-14 — implementacja dokumentów (security-engineer): `dpia.md`, `checklista-wydania.md`, runbooki `prawa-osob.md`, `naruszenie-danych.md`, `retencja.md`, procedura awaryjnego resetu MFA, `rodo.md` (dostawcy ze źródeł publicznych, pkt 10 i 11 jako rekomendacje), RR-95, protokoły `docs/qa/EVM-064/protokoly.md`; AC1–AC5, AC7, AC8 czekają na czynności Konrada (`manual`), AC6 — dwa pytania o retencję
 - 2026-11-14 — przegląd pokrycia AC (product-owner): dokumenty kompletne względem AC; nic nie wpisano za Konrada (pola protokołów puste); brak zmian kodu produktu
+- 2026-11-14 — workflow `deliver-story` (pelna) `passed` po 2 rundach: QA pass przez inspekcję (AC1–AC8 `manual` — dokumenty i protokoły gotowe, czynności i decyzje Konrada otwarte); `solution-architect` — runda 1 `changes_required` (major: runbook obiecywał, że wszystkie usunięcia wracają przez rejestr usunięć), poprawka `029512ab`, runda 2 approve. Weryfikacja orkiestratora: `pnpm run gate` zielona (brak zmian kodu), `npm run docs:check` 0 błędów; status `in-review` do wypełnienia protokołów `docs/qa/EVM-064/protokoly.md` (Tech Lead)
+- 2026-11-14 — Koszt: ok. 0,8 mln tokenów agentów (9 wywołań, 1 runda poprawek, ok. 33 min; rozbicia w USD nie odczytano); ścieżka pelna; plik historyjki 10 KB; dla porównania EVM-103 (pelna, kod): ok. 0,9 mln tokenów; porównanie z baseline EVM-013 i celem ścieżki w USD niemożliwe bez rozbicia (Tech Lead)
