@@ -209,10 +209,11 @@ describe('the verdict and the labels (EVM-098 AC4; SR-LOG-02)', () => {
   });
 
   it('EVM-098 AC1 the label of the type is a closed list: anything a client invents is unknown', () => {
-    expect(['CreateNote', 'CreateComment', 'CreateQuickWorkOrder', 'DropTable', undefined, 7].map(typeLabel)).toEqual([
+    expect(['CreateNote', 'CreateComment', 'CreateQuickWorkOrder', 'CreateMediaAsset', 'DropTable', undefined, 7].map(typeLabel)).toEqual([
       'create_note',
       'create_comment',
       'create_quick_work_order',
+      'create_media_asset',
       'unknown',
       'unknown',
       'unknown',
@@ -367,5 +368,69 @@ describe('the errors of the fields and the limit (EVM-099 AC5, AC7)', () => {
     expect(signal).toBeInstanceOf(MutationVerdictSignal);
     expect(signal.kind).toBe('site');
     expect(signal.verdict).toEqual({ outcome: 'rejected', code: 'quota_exceeded' });
+  });
+});
+
+describe('the command CreateMediaAsset (EVM-131 AC3; SR-SYNC-01, SR-SYNC-02, SR-INPUT-01, CWE-915)', () => {
+  const MEDIA = '0193a000-0000-7000-8000-0000000000f1';
+  const media = (payload: Record<string, unknown> = {}, extra: Record<string, unknown> = {}): RawMutation => ({
+    mutationId: MUTATION,
+    type: 'CreateMediaAsset',
+    commandVersion: 1,
+    payload: { id: MEDIA, workOrderId: ORDER, mediaType: 'photo', category: 'before_work', capturedAt: '2026-10-31T09:55:00Z', ...payload },
+    ...extra,
+  });
+
+  it('EVM-131 AC3 a valid command is decoded with the optional fields as given and the hash of the command as received', () => {
+    const raw = media({ description: ' Opis \r\n', procedureStageId: STAGE });
+    const decoded = decodeMutation(raw, NOW);
+    expect(decoded).toMatchObject({
+      ok: true,
+      type: 'CreateMediaAsset',
+      capturedAtOutOfRange: false,
+      media: { id: MEDIA, workOrderId: ORDER, mediaType: 'photo', category: 'before_work', procedureStageId: STAGE },
+    });
+    // the description is NOT normalised here: the rules of `media` do it (one function for the panel and the phone)
+    expect((decoded as { media: { description: string } }).media.description).toBe(' Opis \r\n');
+    expect(decoded).toMatchObject({ hash: requestHash({ type: 'CreateMediaAsset', commandVersion: 1, payload: raw['payload'] }) });
+    expect(decodeMutation(media(), NOW)).toMatchObject({ ok: true, media: { description: undefined, procedureStageId: undefined } });
+    expect(decodeMutation(media({ mediaType: 'video' }), NOW)).toMatchObject({ ok: true, media: { mediaType: 'video' } });
+  });
+
+  it('EVM-131 AC3 a field of the server, an unknown field, a bad category or type, a bad identifier and a missing field are validation_failed (no value in the answer)', () => {
+    for (const bad of [
+      { origin: 'web' },
+      { createdBy: ENTRY },
+      { fileState: 'clean' },
+      { version: 1 },
+      { fileName: 'a.jpg' },
+      { category: 'selfie' },
+      { mediaType: 'document' },
+      { id: 'not-a-uuid' },
+      { id: '0193a000-0000-4000-8000-0000000000f1' },
+      { workOrderId: 'x' },
+      { procedureStageId: 'x' },
+      { description: 'x'.repeat(1001) },
+      { capturedAt: '2026-10-31T09:55:00' },
+      { capturedAt: 'yesterday' },
+    ]) {
+      expect(decodeMutation(media(bad), NOW), JSON.stringify(bad)).toEqual({ ok: false });
+    }
+    for (const key of ['id', 'workOrderId', 'mediaType', 'category', 'capturedAt']) {
+      const payload = without(media()['payload'] as Record<string, unknown>, key);
+      expect(decodeMutation({ ...media(), payload }, NOW), key).toEqual({ ok: false });
+    }
+    expect(decodeMutation(media({}, { commandVersion: 2 }), NOW)).toEqual({ ok: false });
+    expect(decodeMutation(media({ description: 'x'.repeat(70_000) }), NOW)).toEqual({ ok: false });
+  });
+
+  it('EVM-131 AC3 capturedAt is judged like the one of a note: out of range is kept as no moment with a warning, never an error', () => {
+    const early = decodeMutation(media({ capturedAt: new Date(NOW.getTime() - CAPTURED_AT_MAX_AGE_MS - 1).toISOString() }), NOW);
+    expect(early).toMatchObject({ ok: true, capturedAtOutOfRange: true, media: { capturedAt: null } });
+    const late = decodeMutation(media({ capturedAt: new Date(NOW.getTime() + CAPTURED_AT_MAX_AHEAD_MS + 1).toISOString() }), NOW);
+    expect(late).toMatchObject({ ok: true, capturedAtOutOfRange: true, media: { capturedAt: null } });
+    const edge = decodeMutation(media({ capturedAt: new Date(NOW.getTime() + CAPTURED_AT_MAX_AHEAD_MS).toISOString() }), NOW);
+    expect(edge).toMatchObject({ ok: true, capturedAtOutOfRange: false });
+    expect((edge as { media: { capturedAt: Date } }).media.capturedAt.getTime()).toBe(NOW.getTime() + CAPTURED_AT_MAX_AHEAD_MS);
   });
 });
