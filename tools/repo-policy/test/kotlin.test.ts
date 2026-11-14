@@ -106,8 +106,8 @@ describe('EVM-109 AC5, AC7: thresholds and exclusions on the real files', () => 
     const patterns = (record(json('packages/config/coverage-exclusions.json'))['exclude'] as Array<Record<string, string>>).map(
       (entry) => entry['pattern'] ?? '',
     );
-    const upload = patterns.filter((pattern) => pattern.includes('evia-upload'));
-    expect(upload).toEqual(['apps/mobile/modules/evia-upload/android/**']);
+    const upload = patterns.filter((pattern) => pattern.includes('/android/'));
+    expect(upload).toEqual(['apps/mobile/modules/*/android/**']);
     expect(patterns.some((pattern) => /(^|\/)engine(\/|$)/.test(pattern))).toBe(false);
   });
 
