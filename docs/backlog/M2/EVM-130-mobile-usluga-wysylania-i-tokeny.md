@@ -94,3 +94,4 @@ Aparat i wejścia do zdjęć (EVM-108), filmy i „tylko Wi-Fi” (EVM-110), ekr
 - 2026-11-14 — utworzono jako druga połowa EVM-109 (product-owner); 8 AC
 - 2026-11-14 — draft → ready: kryteria zatwierdzone przez Tech Leada z delegacji Konrada (pytanie przed nocą 2026-11-14); Konrad przegląda je rano w PR
 - 2026-11-14 — start realizacji w kolejce nocnej `/noc-2026-11-14` (Tech Lead): status `in-progress`, gałąź `feature/queue-2026-11-14-mobile-media` (EVM-109 `in-review` w tej samej gałęzi)
+- 2026-11-14 — plan gotowy (mobile-developer)
