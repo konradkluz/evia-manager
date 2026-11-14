@@ -181,8 +181,8 @@ describe('an operation open to both channels, the credential and the version (EV
     expect(await code({ principal: bearer }, { principal: bearer }, APP)).toEqual({ status: 200, code: undefined });
   });
 
-  it('EVM-127 AC2 a Bearer principal of the role Tylko odczyt is 403 (the sign-in of that role is refused with channel_not_allowed, EVM-094)', async () => {
+  it('EVM-127 AC2 a Bearer principal of the role Tylko odczyt is 403 channel_not_allowed (the sign-in of that role is refused with the same code, EVM-094)', async () => {
     const readOnly = principal({ channel: 'mobile', role: 'read_only', csrfToken: '' });
-    expect(await code(ANONYMOUS, { principal: readOnly }, APP)).toMatchObject({ status: 403 });
+    expect(await code(ANONYMOUS, { principal: readOnly }, APP)).toEqual({ status: 403, code: 'channel_not_allowed' });
   });
 });

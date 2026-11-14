@@ -448,10 +448,10 @@ describe('the list of templates for the phone (EVM-127; SR-AUTHZ-05, SR-AUTHZ-12
     expect(repeated.status).toBe(400);
   });
 
-  it('EVM-127 AC2 Tylko odczyt on the phone is 403 (the sign-in of that role is refused with channel_not_allowed: EVM-094; a change to that role wipes the phone: EVM-095 AC5)', async () => {
+  it('EVM-127 AC2 Tylko odczyt on the phone is 403 channel_not_allowed (the sign-in of that role is refused too: EVM-094; a change to that role wipes the phone: EVM-095 AC5)', async () => {
     const response = await phoneGet(LIST, 'read_only');
     expect(response.status).toBe(403);
-    expect(response.body).toMatchObject({ code: 'forbidden' });
+    expect(response.body).toMatchObject({ code: 'channel_not_allowed' });
   });
 
   it('EVM-127 AC2 an anonymous caller is 401, a device ordered to wipe is 401 device_wipe_required, a revoked or an unknown token is 401', async () => {

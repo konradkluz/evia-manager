@@ -13,7 +13,8 @@
  * 6. the per-IP limit of sign-in and MFA operations (429);
  * 7. a session in `mfa_enrollment` may call only the operations on the enrolment list that also declare it
  *    (403 mfa_enrollment_required);
- * 8. channel, then role (403 forbidden). A channel outside the policy is forbidden too — there is no separate code;
+ * 8. channel, then role (403 forbidden). A channel outside the policy is forbidden too; the role that has no phone (Tylko odczyt) on an operation open
+ *    to both the panel and the phone is 403 channel_not_allowed (EVM-127 AC2);
  * 9. step-up (EVM-029; SR-SESS-08): an operation with `stepUp: true` needs a passkey authentication of the session within
  *    the last 15 minutes (403 step_up_required). Last on purpose: a role that may not call the operation at all is
  *    forbidden and never learns that the operation exists and is protected (SR-AUTHZ-11);
@@ -31,6 +32,7 @@ export type DenyCode =
   | 'session_expired'
   | 'device_wipe_required'
   | 'forbidden'
+  | 'channel_not_allowed'
   | 'csrf_failed'
   | 'mfa_enrollment_required'
   | 'step_up_required'
@@ -121,8 +123,12 @@ export function decideAccess(request: AccessRequest): AccessDecision {
   }
 
   const { roles, channels } = policy;
-  if (channels?.includes(principal.channel) !== true || !request.channelAllowed(principal.role, principal.channel))
-    return deny('forbidden');
+  if (channels?.includes(principal.channel) !== true) return deny('forbidden');
+  if (!request.channelAllowed(principal.role, principal.channel)) {
+    // Only an operation open to both channels has the code (EVM-127 AC2); the operations of the phone alone keep `forbidden` (EVM-094–EVM-099, the app maps it).
+    const bothChannels = channels.includes('web') && channels.includes('mobile');
+    return deny(principal.channel === 'mobile' && bothChannels ? 'channel_not_allowed' : 'forbidden');
+  }
   if (roles?.includes(principal.role) !== true) return deny('forbidden');
   if (policy.stepUp === true && !request.stepUpFresh(principal)) return deny('step_up_required');
   return ALLOW;

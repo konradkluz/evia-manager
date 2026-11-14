@@ -310,7 +310,7 @@ describe('expectations of the matrix on a synthetic contract (EVM-016 AC8; SR-AU
   it('EVM-016 AC8 channels: a channel outside the policy is forbidden, and the read-only role has no mobile even where the policy lists it', () => {
     expect(expect_('editThing', session('administrator', 'mobile'))).toEqual(forbidden);
     expect(expect_('readThing', session('editor', 'mobile'))).toEqual(allowed);
-    expect(expect_('readThing', session('read_only', 'mobile'))).toEqual(forbidden);
+    expect(expect_('readThing', session('read_only', 'mobile'))).toEqual({ outcome: 'denied', status: 403, code: 'channel_not_allowed' });
   });
 
   it('EVM-016 AC8 public operations are open to everybody; anonymous and revoked callers are 401 elsewhere', () => {
@@ -486,7 +486,10 @@ describe('the list of work order templates is open to both channels (EVM-127 AC2
   it('EVM-127 AC2 the phone reads with a Bearer token: Administrator and Editor are allowed, Tylko odczyt is 403', () => {
     expect(phone('administrator')).toMatchObject({ credential: 'bearer', expectation: { outcome: 'allowed' } });
     expect(phone('editor')).toMatchObject({ credential: 'bearer', expectation: { outcome: 'allowed' } });
-    expect(phone('read_only')).toMatchObject({ credential: 'bearer', expectation: { outcome: 'denied', status: 403, code: 'forbidden' } });
+    expect(phone('read_only')).toMatchObject({
+      credential: 'bearer',
+      expectation: { outcome: 'denied', status: 403, code: 'channel_not_allowed' },
+    });
   });
 
   it('EVM-127 AC2 the panel keeps its cookie and its rules: the three roles are allowed, a revoked or an expired session keeps its own 401', () => {
