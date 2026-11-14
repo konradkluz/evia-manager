@@ -124,8 +124,8 @@ class UploadEngine(
     private fun drive(context: RunContext): Outcome {
         while (true) {
             try {
-                if (context.snapshot.partSize == null) openSession(context)
-                val plan = plan(context.snapshot.size, context.snapshot.partSize, context.snapshot.partCount)
+                val partSize = context.snapshot.partSize ?: openSession(context)
+                val plan = plan(context.snapshot.size, partSize, context.snapshot.partCount)
                 if (!context.snapshot.completeSent) transfer(context, plan, reconcile(context, plan))
                 return complete(context)
             } catch (gone: SessionGone) {
@@ -140,16 +140,17 @@ class UploadEngine(
 
     private fun plan(
         size: Long,
-        partSize: Long?,
+        partSize: Long,
         partCount: Int?,
     ): List<PartRange> =
         try {
-            planParts(size, partSize ?: 0, partCount ?: 0)
+            planParts(size, partSize, partCount ?: 0)
         } catch (mismatch: PlanMismatchException) {
             throw attention(AttentionReason.PLAN_MISMATCH)
         }
 
-    private fun openSession(context: RunContext) {
+    /** Opens (or resumes) the session and returns its part size. */
+    private fun openSession(context: RunContext): Long {
         val snapshot = context.snapshot
         val session = call { deps.api.createSession(snapshot.assetId, snapshot.uploadSessionId, snapshot.idempotencyKey) }
         if (!SESSION_ID.matches(session.id)) throw attention(AttentionReason.INVALID_SERVER_RESPONSE)
@@ -157,6 +158,7 @@ class UploadEngine(
         // The server may hand back an already active session of this asset (another id): adopt it.
         update(context) { it.copy(uploadSessionId = session.id, partSize = session.partSize, partCount = session.partCount) }
         deps.checkpoints?.reached(Checkpoint.AFTER_SESSION)
+        return session.partSize
     }
 
     /** ListParts is the source of truth. A part counts as sent only when its size equals the expected length. */

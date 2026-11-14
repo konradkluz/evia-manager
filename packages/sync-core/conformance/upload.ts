@@ -61,6 +61,7 @@ interface ServerSpec {
   listOverride?: RemotePart[];
   createId?: string;
   putEtag?: string;
+  omitEtag?: boolean;
   completeResult?: CompleteResult;
 }
 interface RunSpec {
@@ -179,7 +180,7 @@ class FakeServer {
     session.parts = [...session.parts.filter((item) => item.partNumber !== number), { partNumber: number, size: request.length }];
     this.puts.set(number, (this.puts.get(number) ?? 0) + 1);
     if (lost) throw new UploadFailure({ kind: 'network' });
-    return this.spec.putEtag ?? `"etag-${number}"`;
+    return this.spec.omitEtag === true ? null : (this.spec.putEtag ?? `"etag-${number}"`);
   }
 
   complete(id: string): CompleteResult {

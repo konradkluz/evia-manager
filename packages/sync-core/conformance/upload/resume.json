@@ -1,5 +1,5 @@
 {
-  "$comment": "EVM-109 AC4 (AC1, AC2, AC3): scenarios of the upload loop against a deterministic fake server (the same fake is written in TypeScript and in Kotlin). A scenario: `initialStore` (a persisted snapshot or nothing), `server`, `faults` (consumed in order of calls, across runs), `runs` (each run is `engine.run(assetId, size)`; `crashAt` kills the process at the n-th checkpoint of that run, the next run uses a new engine instance on the same store) and `final` (state of the fake server and the store). `calls` lists API and transport calls without addresses: createSession, listParts, partUrl:N, put:N, complete. Faults: effect `network` (no answer), `lost_response` (the server executes, the answer is lost), `http:<status>[:<code>]`. Server: sessions (id, key, state active|expired|aborted|completed, parts), fileState (state of the file for a NEW session), partSize, partCount, partUrlHost, partUrlContentLength, listOverride (raw ListParts answer), createId (id returned by createSession), putEtag, completeResult. Synthetic data only.",
+  "$comment": "EVM-109 AC4 (AC1, AC2, AC3): scenarios of the upload loop against a deterministic fake server (the same fake is written in TypeScript and in Kotlin). A scenario: `initialStore` (a persisted snapshot or nothing), `server`, `faults` (consumed in order of calls, across runs), `runs` (each run is `engine.run(assetId, size)`; `crashAt` kills the process at the n-th checkpoint of that run, the next run uses a new engine instance on the same store) and `final` (state of the fake server and the store). `calls` lists API and transport calls without addresses: createSession, listParts, partUrl:N, put:N, complete. Faults: effect `network` (no answer), `lost_response` (the server executes, the answer is lost), `http:<status>[:<code>]`. Server: sessions (id, key, state active|expired|aborted|completed, parts), fileState (state of the file for a NEW session), partSize, partCount, partUrlHost, partUrlContentLength, listOverride (raw ListParts answer), createId (id returned by createSession), putEtag, omitEtag (storage answers without an ETag header), completeResult. Synthetic data only.",
   "defaults": {
     "assetId": "asset-1",
     "size": 40,
@@ -1575,6 +1575,100 @@
               "reason": "invalid_server_response"
             },
             "calls": ["createSession"],
+            "sleeps": [],
+            "store": "active"
+          }
+        }
+      ],
+      "final": {
+        "objects": 0,
+        "sessionsCreated": 1,
+        "open": 1,
+        "puts": {},
+        "store": "active"
+      }
+    },
+    {
+      "id": "R38-negative-part-size-in-listparts",
+      "ac": "AC3",
+      "server": {
+        "listOverride": [
+          {
+            "partNumber": 1,
+            "size": -1
+          }
+        ]
+      },
+      "runs": [
+        {
+          "expect": {
+            "outcome": {
+              "type": "needs_attention",
+              "reason": "invalid_server_response"
+            },
+            "calls": ["createSession", "listParts"],
+            "sleeps": [],
+            "store": "active"
+          }
+        }
+      ],
+      "final": {
+        "objects": 0,
+        "sessionsCreated": 1,
+        "open": 1,
+        "puts": {},
+        "store": "active"
+      }
+    },
+    {
+      "id": "R39-storage-without-etag-header-still-uploads",
+      "ac": "AC1",
+      "server": {
+        "omitEtag": true
+      },
+      "runs": [
+        {
+          "expect": {
+            "outcome": {
+              "type": "uploaded"
+            },
+            "calls": ["createSession", "listParts", "partUrl:1", "put:1", "partUrl:2", "put:2", "partUrl:3", "put:3", "complete"],
+            "sleeps": [],
+            "store": "uploaded"
+          }
+        }
+      ],
+      "final": {
+        "objects": 1,
+        "sessionsCreated": 1,
+        "open": 0,
+        "puts": {
+          "1": 1,
+          "2": 1,
+          "3": 1
+        },
+        "store": "uploaded"
+      }
+    },
+    {
+      "id": "R40-403-from-the-api-is-not-a-renewal",
+      "ac": "AC2",
+      "faults": [
+        {
+          "op": "partUrl",
+          "part": 1,
+          "effect": "http:403:forbidden",
+          "times": 1
+        }
+      ],
+      "runs": [
+        {
+          "expect": {
+            "outcome": {
+              "type": "needs_attention",
+              "reason": "unknown"
+            },
+            "calls": ["createSession", "listParts", "partUrl:1"],
             "sleeps": [],
             "store": "active"
           }

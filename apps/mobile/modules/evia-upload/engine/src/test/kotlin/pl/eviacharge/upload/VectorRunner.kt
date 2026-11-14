@@ -104,6 +104,7 @@ class FakeServer(
     private val contentLengthOverride = (spec["partUrlContentLength"] as? Number)?.toLong()
     private val createId = spec["createId"] as? String
     private val putEtag = spec["putEtag"] as? String
+    private val omitEtag = spec["omitEtag"] == true
     private val listOverride =
         (spec["listOverride"] as? List<*>)?.map {
             val item = Json.obj(it)
@@ -199,7 +200,7 @@ class FakeServer(
         session.parts[number] = request.length
         puts[number] = (puts[number] ?: 0) + 1
         if (lost) throw UploadFailure(Failure.Network)
-        return putEtag ?: "\"etag-$number\""
+        return if (omitEtag) null else putEtag ?: "\"etag-$number\""
     }
 
     override fun complete(sessionId: String): FileState {

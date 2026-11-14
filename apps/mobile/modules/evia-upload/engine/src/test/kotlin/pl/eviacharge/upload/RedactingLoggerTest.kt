@@ -68,6 +68,14 @@ class RedactingLoggerTest {
     }
 
     @Test
+    fun `EVM-109 AC3 a very long cause chain is cut off instead of flooding the log`() {
+        var error: Throwable = IllegalStateException("root")
+        repeat(30) { error = IllegalStateException("level $it", error) }
+        logger.error("deep", error)
+        assertTrue(lines.count { it.startsWith("IllegalStateException:") } <= 11)
+    }
+
+    @Test
     fun `EVM-109 AC3 a missing message and keys outside the allowlist are dropped`() {
         logger.error("no_message", RuntimeException())
         logger.event("custom", mapOf("filename" to "kitchen.jpg", "owner" to "Jan Kowalski", "part" to "2"))
