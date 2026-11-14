@@ -4,7 +4,7 @@ title: "API: media z telefonu"
 type: story
 milestone: M2
 epic: E11 Zdjęcia i filmy
-status: in-progress
+status: in-review
 priority: P1
 path: pelna             # zmiana uprawnień i kanałów, pliki, dziennik zmian, migracja
 owner: backend-developer
@@ -86,3 +86,6 @@ Zmiana czasu ważności adresu części (zostaje ≤ 60 min; kryterium „≤ 15
 - 2026-11-14 — start realizacji w kolejce nocnej `/noc-2026-11-14` (Tech Lead): status `in-progress`, gałąź `feature/queue-2026-11-14-api-media-i-drobne`
 - 2026-11-14 — plan gotowy (backend-developer)
 - 2026-11-14 — implementacja gotowa na gałęzi (backend-developer): kontrakt (5 operacji `[web, mobile]`, `CreateMediaAsset`, `file` w sesji, stany `clean`/`quarantined`), migracja `0065_media_sync`, replikacja `media_asset`, komenda, testy AC1–AC6 w kontenerze; czeka na przegląd (code-reviewer, security-engineer) i bramkę orkiestratora
+- 2026-11-14 — workflow `deliver-story` passed (2 rundy; QA pass 6/6 AC; code-reviewer i security-engineer approve po poprawkach: `capturedAt` opcjonalny wg AC3, RR-96 dla medium bez pliku); bramka orkiestratora `pnpm run gate` zielona; część kontenerowa (integracja z PostgreSQL) uruchomiona przez QA dla 8 plików (144 testy), pełna w CI; status `in-review` (Tech Lead)
+- 2026-11-14 — do decyzji Konrada: RR-96 (medium bez pliku — brak widoku w panelu, retencji i limitu; warunek sign-offu EVM-112, historyjka przez `/refine`); założenie AC4 (zmiany mediów tylko dla urządzeń ze zleceniem w zakresie); odmowa 404 dla cudzej sesji jak w panelu
+- 2026-11-14 — Koszt: 11 agentów, ok. 1,43 mln tokenów subagentów, 123 min pracy agentów

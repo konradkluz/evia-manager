@@ -4,7 +4,7 @@ title: "Aplikacja: „Utwórz ponownie” odrzuconego szybkiego zlecenia"
 type: story
 milestone: M2
 epic: E13 Nowe zlecenie z telefonu
-status: ready
+status: in-progress
 priority: P2
 path: pelna             # synchronizacja offline, dane osobowe na urządzeniu
 owner: mobile-developer
@@ -71,3 +71,4 @@ Edycja zlecenia po utworzeniu, automatyczne ponawianie bez udziału technika, pr
 - 2026-11-13 — utworzono jako podział EVM-106 (product-owner)
 - 2026-11-14 — refinement do DoR (product-owner): 3 → 5 AC wg konsultacji UX i security; decyzja 13 potwierdzona
 - 2026-11-14 — draft → ready: kryteria zatwierdzone przez Tech Leada z delegacji Konrada (pytanie przed nocą 2026-11-14); Konrad przegląda je rano w PR
+- 2026-11-14 — start realizacji w kolejce nocnej `/noc-2026-11-14` (Tech Lead): status `in-progress`, gałąź `feature/queue-2026-11-14-api-media-i-drobne`
