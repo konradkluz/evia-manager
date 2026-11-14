@@ -18,3 +18,9 @@
 *.otf binary
 *.mp4 binary
 *.mov binary
+
+# Gradle wrapper of the Kotlin upload engine (EVM-109): the shell script keeps LF (it runs on Linux CI), the batch file CRLF, the jar is binary
+# (its SHA-256 is pinned by tools/repo-policy against the official checksum of gradle.org).
+*.jar binary
+apps/mobile/modules/evia-upload/engine/gradlew text eol=lf
+*.bat text eol=crlf
