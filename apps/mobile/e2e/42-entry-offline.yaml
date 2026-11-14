@@ -52,8 +52,9 @@ appId: pl.eviacharge.manager
     timeout: 5000
 - tapOn:
     id: 'entry-discard-back'
+# no hideKeyboard here: the keyboard is already hidden, so Maestro would press Back and the form would ask again
+- assertNotVisible: 'Odrzucić wpis?'
 - assertVisible: 'Zapisz wpis'
-- hideKeyboard
 - takeScreenshot: m04-entry-form-filled
 - tapOn:
     id: 'entry-save'
