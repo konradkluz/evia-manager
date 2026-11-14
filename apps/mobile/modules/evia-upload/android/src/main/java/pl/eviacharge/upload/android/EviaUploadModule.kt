@@ -70,7 +70,11 @@ class EviaUploadModule : Module() {
     Events("onUploadProgress", "onFileState", "onSessionState")
 
     OnCreate {
-      runtime()?.events = EventSink { name, body -> sendEvent(name, body) }
+      runtime()?.let {
+        it.events = EventSink { name, body -> sendEvent(name, body) }
+        // the module is created with the visible activity; the foreground and background callbacks keep the flag from here on
+        it.appVisible = appContext.currentActivity != null
+      }
     }
 
     OnDestroy {
