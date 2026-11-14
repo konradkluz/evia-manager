@@ -15,7 +15,7 @@ describe('Maestro flows and scenarios agree (EVM-009 AC4)', () => {
     for (const flow of referenced) {
       const text = readFileSync(join(FLOWS, flow), 'utf8');
       assert.match(text, new RegExp(`^appId: ${APPLICATION_ID.replaceAll('.', String.raw`\.`)}$`, 'm'), flow);
-      assert.match(text, /^# EVM-(009|093|100|103|104|105|107) AC\d/m, flow);
+      assert.match(text, /^# EVM-(009|093|100|103|104|105|106|107) AC\d/m, flow);
     }
   });
 
@@ -99,6 +99,17 @@ describe('Maestro flows and scenarios agree (EVM-009 AC4)', () => {
         'm04-entries-sent',
         'm07-entry-needs-attention',
         'm07-entry-moved',
+        // EVM-106: the quick work order (M-10), the order waiting for its number (M-03, M-05) and the rejected one (M-07)
+        'm10-quick-order-templates',
+        'm10-quick-order-no-templates',
+        'm03-quick-order-entry-waiting',
+        'm05-quick-order-awaiting-number',
+        'm03-quick-order-after-kill',
+        'm03-quick-order-numbered',
+        'm05-quick-order-numbered',
+        'm07-quick-order-needs-attention',
+        'm07-quick-order-discard-dialog',
+        'm02-templates-role',
       ].sort(),
     );
   });
@@ -172,6 +183,66 @@ describe('Maestro flows and scenarios agree (EVM-009 AC4)', () => {
     for (const action of ['Kopiuj treść', 'Dodaj do innego zlecenia', 'Usuń z telefonu']) assert.ok(flow.includes(action), action);
     assert.match(flow, /optional: true/);
     assert.match(flow, /hideKeyboard/);
+  });
+
+  it('EVM-106 AC1, AC2, AC4: the quick order scenario brings the templates, creates the order offline, kills the app, restarts offline and expects 2 unique, 0 duplicates and 0 rejected after the return of the network', () => {
+    const scenario = SCENARIOS.find((candidate) => candidate.name === 'quick-order-offline');
+    assert.ok(scenario !== undefined);
+    assert.deepEqual(
+      scenario.steps.map((step) => [step.flow, step.airplane]),
+      [
+        ['43-quick-order-sign-in.yaml', false],
+        ['43-quick-order-offline.yaml', true],
+        ['43-quick-order-restart.yaml', true],
+        ['43-quick-order-return.yaml', false],
+      ],
+    );
+    assert.deepEqual(scenario.steps[1]?.after, ['force-stop']);
+    assert.equal(scenario.steps[3]?.background, true);
+    assert.deepEqual(scenario.steps[3].expectSync, { unique: 2, duplicates: 0, rejected: 0 });
+    for (const step of scenario.steps) assert.equal(step.quick ?? 'ok', 'ok');
+    const create = readFileSync(join(FLOWS, 'common', 'quick-order-create.yaml'), 'utf8');
+    // the lessons of the earlier flows: below the fold is scrolled to first, the keyboard is hidden only after typing, regexes escaped
+    assert.match(create, /scrollUntilVisible/);
+    assert.match(create, /inputText: 'Anna'\n- hideKeyboard/);
+    assert.match(create, /Numer nadamy po synchronizacji\\\./);
+    assert.match(create, /quick-template-0194c2a0-0000-7000-8000-00000000e201/);
+    assert.doesNotMatch(create, /Rozumiem/);
+    const offline = readFileSync(join(FLOWS, '43-quick-order-offline.yaml'), 'utf8');
+    assert.match(offline, /text: 'Rozumiem'\s+optional: true/);
+    assert.match(offline, /common\/quick-order-create\.yaml/);
+    assert.match(offline, /Wyślemy po utworzeniu zlecenia/);
+    assert.match(readFileSync(join(FLOWS, '43-quick-order-restart.yaml'), 'utf8'), /visible: 'Offline · 2'/);
+    // the number comes from the scenario server: the second order of the scenario is ZL-E2E-3
+    assert.match(readFileSync(join(FLOWS, '43-quick-order-return.yaml'), 'utf8'), /ZL-E2E-3/);
+  });
+
+  it('EVM-106 AC5: the rejected scenario makes the server answer quota_exceeded, creates the order and an entry offline and finds one group with its dependents', () => {
+    const scenario = SCENARIOS.find((candidate) => candidate.name === 'quick-order-rejected');
+    assert.ok(scenario !== undefined);
+    assert.deepEqual(
+      scenario.steps.map((step) => [step.flow, step.airplane, step.quick]),
+      [
+        ['43-quick-order-rejected-sign-in.yaml', false, 'quota_exceeded'],
+        ['43-quick-order-rejected-offline.yaml', true, 'quota_exceeded'],
+        ['43-quick-order-rejected-return.yaml', false, 'quota_exceeded'],
+      ],
+    );
+    assert.deepEqual(scenario.steps[2]?.expectSync, { unique: 0, duplicates: 0, rejected: 1 });
+    const flow = readFileSync(join(FLOWS, '43-quick-order-rejected-return.yaml'), 'utf8');
+    assert.match(flow, /Dziś założono zbyt wiele nowych klientów/);
+    assert.match(flow, /Czeka z nim 1 element\\\./);
+    assert.match(flow, /Usuniemy ten element i 1 zależny element\\\./);
+    for (const action of ['Utwórz ponownie', 'Usuń z telefonu']) assert.ok(flow.includes(action), action);
+  });
+
+  it('EVM-106 AC1: the scenario without templates and the scenario of the role without access set the catalogue answer of the scenario server', () => {
+    const none = SCENARIOS.find((candidate) => candidate.name === 'quick-order-no-templates');
+    const role = SCENARIOS.find((candidate) => candidate.name === 'quick-order-role-without-access');
+    assert.equal(none?.steps[0]?.templates, 'none');
+    assert.equal(role?.steps[0]?.templates, 'channel_not_allowed');
+    assert.match(readFileSync(join(FLOWS, '43-quick-order-no-templates.yaml'), 'utf8'), /Brak szablonów w telefonie\\\./);
+    assert.match(readFileSync(join(FLOWS, '43-quick-order-forbidden.yaml'), 'utf8'), /Aplikacja jest niedostępna dla Twojej roli/);
   });
 
   it('EVM-107 AC6: the offline recovery adds the notes in airplane mode, kills the app, restarts it offline and expects 5 unique and 0 duplicates after the return of the network', () => {

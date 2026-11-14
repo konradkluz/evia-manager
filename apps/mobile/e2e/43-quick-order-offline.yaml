@@ -1,0 +1,49 @@
+# EVM-106 AC2: in airplane mode (set by tools/mobile-e2e) the technician creates a quick work order (new customer, new place, template,
+# note) and adds an entry to it. The order is saved in the durable queue BEFORE the toast; it stands on top of the list as "Oczekuje na
+# numer" and opens from the queue; the entry waits behind it ("Wyślemy po utworzeniu zlecenia"). tools/mobile-e2e kills the app right
+# after this flow (AC4). Synthetic data only.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible: 'Brak zasięgu.*'
+    timeout: 30000
+# the emulator image is older than 12 months: the security banner of EVM-100 pushes the list down - acknowledge it if shown
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- runFlow: common/quick-order-create.yaml
+# the entry for the order that has no number yet
+- scrollUntilVisible:
+    element:
+      id: 'order-detail-add-entry'
+    direction: DOWN
+- tapOn:
+    id: 'order-detail-add-entry'
+- extendedWaitUntil:
+    visible: 'Nowy wpis'
+    timeout: 10000
+- tapOn:
+    id: 'entry-body'
+- inputText: 'Wpis do nowego zlecenia'
+- hideKeyboard
+- tapOn:
+    id: 'entry-save'
+- extendedWaitUntil:
+    visible: 'Zapisano w telefonie\. Wyślemy, gdy wróci zasięg\.'
+    timeout: 10000
+- scrollUntilVisible:
+    element: 'Wyślemy po utworzeniu zlecenia'
+    direction: DOWN
+- scrollUntilVisible:
+    element: 'Wpis do nowego zlecenia'
+    direction: DOWN
+- takeScreenshot: m03-quick-order-entry-waiting
+# the order stands on top of the list without a number
+- tapOn:
+    id: 'order-detail-back'
+- extendedWaitUntil:
+    visible: 'Oczekuje na numer'
+    timeout: 10000
+- takeScreenshot: m05-quick-order-awaiting-number

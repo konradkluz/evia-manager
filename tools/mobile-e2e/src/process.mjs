@@ -65,6 +65,10 @@ export async function startStubInWorker(port, workerUrl = new URL('./stub-worker
     setMode: (mode, auth = 'ok') => {
       worker.postMessage({ mode, auth });
     },
+    // EVM-106: the answers of the catalogue and of a quick work order for the step (a worker message like the mode)
+    setSyncModes: (syncModes) => {
+      worker.postMessage({ syncModes });
+    },
     requests: () => {
       if (!exited) drain();
       return [...recorded];

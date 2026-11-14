@@ -1,0 +1,32 @@
+# EVM-106 AC1 (preparation): a fresh install signs in against the scenario server; the first download ends on the list, and the cycle
+# brings the templates of the catalogue into the encrypted database. The form shows them (the template of the house is a card); an
+# untouched form closes without a question.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    clearState: true
+- runFlow: common/sign-in.yaml
+- extendedWaitUntil:
+    visible: 'ZL-E2E-2'
+    timeout: 60000
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- tapOn:
+    id: 'orders-add'
+- tapOn:
+    id: 'add-new-order'
+- extendedWaitUntil:
+    visible: 'Numer nadamy po synchronizacji\.'
+    timeout: 10000
+# the templates arrive after the first cycle; the form picks them up while it is open
+- scrollUntilVisible:
+    element:
+      id: 'quick-template-0194c2a0-0000-7000-8000-00000000e201'
+    direction: DOWN
+    timeout: 60000
+- assertNotVisible: 'Brak szablonów w telefonie.*'
+- takeScreenshot: m10-quick-order-templates
+- tapOn:
+    id: 'quick-order-close'
+- assertNotVisible: 'Odrzucić zlecenie\?'

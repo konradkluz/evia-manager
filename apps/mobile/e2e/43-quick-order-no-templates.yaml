@@ -1,0 +1,28 @@
+# EVM-106 AC1: the catalogue of the scenario server is empty (tools/mobile-e2e: templates "none"). The form says so and "Zapisz zlecenie"
+# is not available (a tap changes nothing).
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    clearState: true
+- runFlow: common/sign-in.yaml
+- extendedWaitUntil:
+    visible: 'ZL-E2E-2'
+    timeout: 60000
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- tapOn:
+    id: 'orders-add'
+- tapOn:
+    id: 'add-new-order'
+- extendedWaitUntil:
+    visible: 'Numer nadamy po synchronizacji\.'
+    timeout: 10000
+- scrollUntilVisible:
+    element: 'Brak szablonów w telefonie\. Połącz się z internetem, aby je pobrać\.'
+    direction: DOWN
+- takeScreenshot: m10-quick-order-no-templates
+- tapOn:
+    id: 'quick-order-save'
+- assertVisible: 'Numer nadamy po synchronizacji\.'
+- assertNotVisible: 'Oczekuje na numer'

@@ -23,7 +23,7 @@ import { color, space, text } from '../ui/theme';
 import { CustomerSection, SiteSection, SiteTypeDialog, TemplateSection, errorMessages, errorProp, type Patch } from './QuickOrderSections';
 import { SAVE_PROBLEM_KEYS, errorKey } from './quick-order-text';
 import { SyncCapsule } from './SyncCapsule';
-import { useGuard, useSession } from './session-context';
+import { useGuard, useSession, useSyncSnapshot } from './session-context';
 
 type SaveProblem = 'storage' | 'too_large' | 'failed';
 
@@ -55,6 +55,7 @@ export function QuickOrderScreen({ onClose, onSaved }: { onClose: () => void; on
   const { t } = useTranslation();
   const session = useSession();
   const hidden = useGuard().hidden !== null;
+  const snapshot = useSyncSnapshot();
   const [load, setLoad] = useState<Load>({ kind: 'loading' });
   const [draft, setDraft] = useState<QuickOrderDraft | null>(null);
   const [showAll, setShowAll] = useState(false);
@@ -100,6 +101,21 @@ export function QuickOrderScreen({ onClose, onSaved }: { onClose: () => void; on
       active = false;
     };
   }, [hidden, session.sync]);
+
+  // templates that arrive while the form is open (the first cycle ends after it was opened) replace the "no templates" notice at once
+  useEffect(() => {
+    if (hidden || load.kind !== 'ready') return undefined;
+    let active = true;
+    session.sync.templates().then(
+      (templates) => {
+        if (active) setLoad((current) => (current.kind === 'ready' ? { ...current, templates } : current));
+      },
+      () => undefined,
+    );
+    return () => {
+      active = false;
+    };
+  }, [hidden, load.kind, session.sync, snapshot.syncing, snapshot.lastSuccessAt]);
 
   const requestClose = useCallback(() => {
     if (draft !== null && hasInput(draft)) setDiscardAsk(true);

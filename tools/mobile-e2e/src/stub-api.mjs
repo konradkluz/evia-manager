@@ -116,7 +116,7 @@ const AUTH_PATHS = [
 
 /**
  * @param {{ port?: number, onRequest?: (request: RecordedRequest) => void, onSync?: (report: import('./sync-stub.mjs').SyncReport) => void }} [options] port 0 = a free port; onRequest sees every recorded request
- * @returns {Promise<{ port: number, setMode: (mode: StubMode, auth?: AuthMode) => void, requests: () => RecordedRequest[], syncReport: () => import('./sync-stub.mjs').SyncReport, syncReset: () => void, close: () => Promise<void> }>}
+ * @returns {Promise<{ port: number, setMode: (mode: StubMode, auth?: AuthMode) => void, setSyncModes: (modes: Partial<import('./sync-stub.mjs').SyncModes>) => void, requests: () => RecordedRequest[], syncReport: () => import('./sync-stub.mjs').SyncReport, syncReset: () => void, close: () => Promise<void> }>}
  */
 export async function startStubApi({ port = 0, onRequest, onSync } = {}) {
   /** @type {StubMode} */
@@ -131,7 +131,10 @@ export async function startStubApi({ port = 0, onRequest, onSync } = {}) {
     const isHealth = request.method === 'GET' && request.url === '/api/health';
     const isAuth = request.method === 'POST' && AUTH_PATHS.includes(request.url ?? '');
     const target = new URL(request.url ?? '/', 'http://stub.local');
-    const isSync = target.pathname.startsWith('/api/v1/sync/') || target.pathname === '/api/v1/meta/client-config';
+    const isSync =
+      target.pathname.startsWith('/api/v1/sync/') ||
+      target.pathname === '/api/v1/meta/client-config' ||
+      target.pathname === '/api/v1/catalog/work-order-templates';
     if (isSync) {
       /** @type {Buffer[]} */
       const parts = [];
@@ -213,6 +216,10 @@ export async function startStubApi({ port = 0, onRequest, onSync } = {}) {
     setMode: (next, nextAuth = 'ok') => {
       mode = next;
       auth = nextAuth;
+    },
+    /** The answers of the catalogue and of a quick work order for the scenario (EVM-106). */
+    setSyncModes: (next) => {
+      sync.setModes(next);
     },
     requests: () => [...recorded],
     /** Counters of the synchronization part: unique mutations, duplicates, everything received (EVM-107 AC6). */

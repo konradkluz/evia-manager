@@ -159,6 +159,32 @@ describe('wiring of the smoke test to the machine (EVM-009 AC4)', () => {
     assert.deepEqual(stub.requests(), []);
   });
 
+  it('EVM-106 AC1: the modes of the catalogue reach the worker - the list of templates is answered, empty, or 403 channel_not_allowed', async () => {
+    const host = realHost(process.cwd());
+    const stub = await host.startStub(0);
+    const fetchTemplates = `fetch('http://127.0.0.1:${String(stub.port)}/api/v1/catalog/work-order-templates', { headers: { Authorization: 'Bearer e2e-access-1-------------------------------' } }).then(async (r) => { const b = await r.json(); process.exit(r.status === 200 ? (b.items.length === 0 ? 5 : 0) : r.status === 403 ? 6 : 3); }, () => process.exit(4))`;
+    /** @param {number} expected */
+    const waitFor = (expected) => {
+      // the mode reaches the worker asynchronously: poll until the answer changes, with a limit
+      let status = host.run(process.execPath, ['-e', fetchTemplates]).status;
+      for (const deadline = Date.now() + 10_000; status !== expected && Date.now() < deadline;) {
+        status = host.run(process.execPath, ['-e', fetchTemplates]).status;
+      }
+      return status;
+    };
+    try {
+      assert.equal(waitFor(0), 0);
+      stub.setSyncModes({ templates: 'none' });
+      assert.equal(waitFor(5), 5);
+      stub.setSyncModes({ templates: 'channel_not_allowed' });
+      assert.equal(waitFor(6), 6);
+      stub.setSyncModes({ templates: 'ok' });
+      assert.equal(waitFor(0), 0);
+    } finally {
+      await stub.close();
+    }
+  });
+
   it('EVM-009 AC4: the scenario server answers while the runner is blocked in a synchronous child process (Maestro)', async () => {
     const host = realHost(process.cwd());
     const stub = await host.startStub(0);

@@ -25,13 +25,14 @@ const stub = await startStubApi({
 parent.on(
   'message',
   (
-    /** @type {{ mode?: import('./stub-api.mjs').StubMode, auth?: import('./stub-api.mjs').AuthMode, close?: true, syncReset?: number }} */ message,
+    /** @type {{ mode?: import('./stub-api.mjs').StubMode, auth?: import('./stub-api.mjs').AuthMode, syncModes?: Partial<import('./sync-stub.mjs').SyncModes>, close?: true, syncReset?: number }} */ message,
   ) => {
     if (message.syncReset !== undefined) {
       epoch = message.syncReset;
       stub.syncReset();
       channel.postMessage({ sync: stub.syncReport(), epoch });
     }
+    if (message.syncModes !== undefined) stub.setSyncModes(message.syncModes);
     if (message.mode !== undefined) stub.setMode(message.mode, message.auth ?? 'ok');
     if (message.close === true) {
       void stub.close().then(() => {

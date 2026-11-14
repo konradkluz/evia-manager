@@ -12,9 +12,12 @@
  *   before?: import('./device.mjs').DeviceAction[],
  *   after?: import('./device.mjs').DeviceAction[],
  *   expectSync?: { unique: number, duplicates: number, rejected?: number },
+ *   templates?: 'ok' | 'none' | 'channel_not_allowed',
+ *   quick?: 'ok' | 'quota_exceeded',
  * }} Step
  * `before` runs ahead of the flow (a failure skips it), `after` once the flow passed (EVM-093 device steps, src/device.mjs).
  * `auth` is the sign-in mode of the scenario server for the step (EVM-100; default `ok`).
+ * `templates` and `quick` are the answers of the scenario server for the list of templates and for a quick work order (EVM-106; default `ok`).
  * @typedef {{ name: string, ac: string, steps: Step[] }} Scenario
  */
 
@@ -201,6 +204,55 @@ export const SCENARIOS = [
       },
       { flow: '42-entry-rejected.yaml', server: 'ok', airplane: false, expectSync: { unique: 3, duplicates: 0, rejected: 1 } },
     ],
+  },
+  // EVM-106 AC1, AC2, AC4: a quick work order created offline (new customer, new place, template, note) and an entry behind it survive
+  // the kill, are sent once after the return of the network (2 unique, 0 duplicates, 0 rejected) and the order gets its number
+  // (ZL-E2E-3) on the screen that is open. The templates come from the catalogue of the scenario server after the first cycle.
+  {
+    name: 'quick-order-offline',
+    ac: 'EVM-106 AC1 AC2 AC4',
+    steps: [
+      { flow: '43-quick-order-sign-in.yaml', server: 'ok', airplane: false },
+      { flow: '43-quick-order-offline.yaml', server: 'ok', airplane: true, after: ['force-stop'] },
+      { flow: '43-quick-order-restart.yaml', server: 'ok', airplane: true },
+      {
+        flow: '43-quick-order-return.yaml',
+        server: 'ok',
+        airplane: false,
+        background: true,
+        expectSync: { unique: 2, duplicates: 0, rejected: 0 },
+      },
+    ],
+  },
+  // EVM-106 AC5: the server rejects the quick work order with `quota_exceeded`; the order and its entry are one group of "Wymaga uwagi"
+  // with the number of dependents, and "Usuń z telefonu" names them (the entry is held back: 0 unique, 1 rejected at the server).
+  {
+    name: 'quick-order-rejected',
+    ac: 'EVM-106 AC5',
+    steps: [
+      { flow: '43-quick-order-rejected-sign-in.yaml', server: 'ok', airplane: false, quick: 'quota_exceeded' },
+      { flow: '43-quick-order-rejected-offline.yaml', server: 'ok', airplane: true, quick: 'quota_exceeded' },
+      {
+        flow: '43-quick-order-rejected-return.yaml',
+        server: 'ok',
+        airplane: false,
+        background: true,
+        quick: 'quota_exceeded',
+        expectSync: { unique: 0, duplicates: 0, rejected: 1 },
+      },
+    ],
+  },
+  // EVM-106 AC1: an empty catalogue - "Brak szablonów w telefonie" and no way to save.
+  {
+    name: 'quick-order-no-templates',
+    ac: 'EVM-106 AC1',
+    steps: [{ flow: '43-quick-order-no-templates.yaml', server: 'ok', airplane: false, templates: 'none' }],
+  },
+  // EVM-106 AC1 (security K1): 403 `channel_not_allowed` on the list of templates ends in the screen of the role without access.
+  {
+    name: 'quick-order-role-without-access',
+    ac: 'EVM-106 AC1',
+    steps: [{ flow: '43-quick-order-forbidden.yaml', server: 'ok', airplane: false, templates: 'channel_not_allowed' }],
   },
   // Last: the held request keeps the app in its loading state (skeleton), and the first-flow retry of the runner is not affected.
   {

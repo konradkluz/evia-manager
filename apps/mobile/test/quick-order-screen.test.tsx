@@ -136,6 +136,20 @@ describe('templates on the form (EVM-106 AC1)', () => {
     expect(rig.sync.enqueued).toEqual([]);
   });
 
+  it('EVM-106 AC1: templates that arrive while the form is open (the first cycle ends later) replace the notice and enable saving', async () => {
+    const rig = rigWith(null);
+    await openForm(rig);
+    expect(screen.getByTestId('quick-no-templates')).toBeOnTheScreen();
+    rig.sync.templateSet = TEMPLATES;
+    await act(() => {
+      rig.sync.set({ lastSuccessAt: 999_000 });
+    });
+    await settle();
+    expect(screen.queryByTestId('quick-no-templates')).toBeNull();
+    expect(screen.getByTestId(`quick-template-${T_HOUSE}`)).toBeOnTheScreen();
+    expect(screen.getByTestId('quick-order-save')).toBeEnabled();
+  });
+
   it('EVM-106 AC1: an empty set of templates is the same as none', async () => {
     const rig = rigWith({ fetchedAt: 1, items: [] });
     await openForm(rig);

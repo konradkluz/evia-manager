@@ -1,0 +1,31 @@
+# EVM-106 AC5: the network returns; the server rejects the order with `quota_exceeded`. The order and its entry are ONE group of
+# "Wymaga uwagi" with the plain reason and the number of dependents; "Usuń z telefonu" is a separate action whose dialog names the
+# dependents. After the confirmation the queue is empty. The counters of the scenario server (0 unique, 0 duplicates, 1 rejected: the
+# entry is held back) are asserted by tools/mobile-e2e after this flow.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- extendedWaitUntil:
+    visible: 'Wymaga uwagi.*'
+    timeout: 90000
+- tapOn:
+    id: 'nav-queue'
+- extendedWaitUntil:
+    visible: 'Dziś założono zbyt wiele nowych klientów.*'
+    timeout: 30000
+- assertVisible: 'Czeka z nim 1 element\.'
+- assertVisible: 'Utwórz ponownie'
+- assertVisible: 'Usuń z telefonu'
+- takeScreenshot: m07-quick-order-needs-attention
+- tapOn: 'Usuń z telefonu'
+- extendedWaitUntil:
+    visible: 'Usuniemy ten element i 1 zależny element\. Tego nie da się cofnąć\.'
+    timeout: 10000
+- takeScreenshot: m07-quick-order-discard-dialog
+- tapOn:
+    id: 'discard-confirm'
+- extendedWaitUntil:
+    visible: '0 elementów w kolejce'
+    timeout: 30000
+- assertNotVisible: 'Wymaga uwagi.*'

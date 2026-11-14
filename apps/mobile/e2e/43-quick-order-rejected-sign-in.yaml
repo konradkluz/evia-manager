@@ -1,0 +1,11 @@
+# EVM-106 AC5 (preparation): a fresh install signs in against the scenario server; the first download ends on the list of the two
+# synthetic work orders. The next flows create a quick work order that the server rejects with `quota_exceeded`.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    clearState: true
+- runFlow: common/sign-in.yaml
+- extendedWaitUntil:
+    visible: 'ZL-E2E-2'
+    timeout: 60000
+- assertVisible: 'ZL-E2E-1'
