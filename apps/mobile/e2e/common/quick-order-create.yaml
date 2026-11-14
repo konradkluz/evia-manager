@@ -32,12 +32,14 @@ appId: pl.eviacharge.manager
     element:
       id: 'quick-site-new'
     direction: DOWN
+    centerElement: true
 - tapOn:
     id: 'quick-site-new'
 - scrollUntilVisible:
     element:
       id: 'quick-site-type'
     direction: DOWN
+    centerElement: true
 - tapOn:
     id: 'quick-site-type'
 - extendedWaitUntil:
@@ -49,6 +51,7 @@ appId: pl.eviacharge.manager
     element:
       id: 'quick-street'
     direction: DOWN
+    centerElement: true
 - tapOn:
     id: 'quick-street'
 - inputText: 'Testowa'
@@ -57,6 +60,7 @@ appId: pl.eviacharge.manager
     element:
       id: 'quick-building'
     direction: DOWN
+    centerElement: true
 - tapOn:
     id: 'quick-building'
 - inputText: '5'
@@ -65,6 +69,7 @@ appId: pl.eviacharge.manager
     element:
       id: 'quick-postal'
     direction: DOWN
+    centerElement: true
 - tapOn:
     id: 'quick-postal'
 - inputText: '05-500'
@@ -73,16 +78,17 @@ appId: pl.eviacharge.manager
     element:
       id: 'quick-city'
     direction: DOWN
+    centerElement: true
 - tapOn:
     id: 'quick-city'
 - inputText: 'Piaseczno'
 - hideKeyboard
 # 3. the template of the house (the garage one is filtered out by the type of the place); the title is taken from it
+# the card can count as visible while it is still under the sticky bar with "Zapisz zlecenie": scroll to its description and centre it
 - scrollUntilVisible:
-    element:
-      id: 'quick-template-0194c2a0-0000-7000-8000-00000000e201'
+    element: '3 pozycje · 1 proces · 1 transza'
     direction: DOWN
-- assertVisible: '3 pozycje · 1 proces · 1 transza'
+    centerElement: true
 - tapOn:
     id: 'quick-template-0194c2a0-0000-7000-8000-00000000e201'
 # 4. the note
@@ -90,6 +96,7 @@ appId: pl.eviacharge.manager
     element:
       id: 'quick-note'
     direction: DOWN
+    centerElement: true
 - tapOn:
     id: 'quick-note'
 - inputText: 'Ogledziny w piatek'
