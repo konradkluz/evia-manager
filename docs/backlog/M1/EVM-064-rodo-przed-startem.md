@@ -102,3 +102,4 @@ _—_
 - 2026-11-14 — start realizacji (`/deliver`): status `in-progress`, gałąź `feature/EVM-064-rodo-przed-startem`, ścieżka `pelna` (Tech Lead)
 - 2026-11-14 — plan gotowy (security-engineer)
 - 2026-11-14 — implementacja dokumentów (security-engineer): `dpia.md`, `checklista-wydania.md`, runbooki `prawa-osob.md`, `naruszenie-danych.md`, `retencja.md`, procedura awaryjnego resetu MFA, `rodo.md` (dostawcy ze źródeł publicznych, pkt 10 i 11 jako rekomendacje), RR-95, protokoły `docs/qa/EVM-064/protokoly.md`; AC1–AC5, AC7, AC8 czekają na czynności Konrada (`manual`), AC6 — dwa pytania o retencję
+- 2026-11-14 — przegląd pokrycia AC (product-owner): dokumenty kompletne względem AC; nic nie wpisano za Konrada (pola protokołów puste); brak zmian kodu produktu
