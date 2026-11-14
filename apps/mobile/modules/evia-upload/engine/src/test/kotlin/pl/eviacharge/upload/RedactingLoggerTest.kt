@@ -47,7 +47,7 @@ class RedactingLoggerTest {
 
     @Test
     fun `EVM-130 AC5 a token without digits is masked too, only UUIDs stay readable`() {
-        val base64url = "QWxwaGFCZXRhRGFtbWFEZWx0YUVwc2lsb25aZXRhRXRhVGhldGE"
+        val base64url = "AlphaBetaGammaDeltaEpsilonZetaEtaThetaIotaKappa"
         assertTrue(base64url.none { it.isDigit() })
         assertEquals("token [token]", Redactor.redact("token $base64url"))
         assertEquals("[token]", Redactor.redact("a".repeat(40)))
