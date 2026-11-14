@@ -1,6 +1,6 @@
 # Silnik wysyłania plików (Kotlin) — `modules/evia-upload/engine`
 
-Czysty silnik wysyłania plików z EVM-109 (ADR-0020, `docs/architecture/media-pipeline.md` §1–§3, §6): wieloczęściowy upload z wznawianiem bez duplikatów, mapowanie odpowiedzi serwera na stany, adresy części tylko w pamięci i logi z redakcją. **Bez zależności od Androida, Expo i JSON** — to samodzielny projekt Gradle/JVM, testowany bez emulatora i bez `expo prebuild`. Usługa Androida, natywny magazyn tokenów, kolejka plików i adaptery HTTP to EVM-130: dołączy te źródła jako `sourceSet` modułu Androida (bez drugiej wtyczki Kotlin w buildzie APK) i dostarczy implementacje portów.
+Czysty silnik wysyłania plików z EVM-109 (ADR-0020, `docs/architecture/media-pipeline.md` §1–§3, §6): wieloczęściowy upload z wznawianiem bez duplikatów, mapowanie odpowiedzi serwera na stany, adresy części tylko w pamięci i logi z redakcją. EVM-130 (etap A1) dołożył do tego całą logikę natywną bez Androida: właściciela tokenów, magazyn tokenu z portem szyfru, pliki zadań i kolejkę, adaptery HTTP (`HttpURLConnection`), znacznik i łańcuch czyszczenia, politykę harmonogramu i „runner” jednego zadania. **Bez zależności od Androida, Expo, org.json i OkHttp** (tylko JDK i `kotlin-stdlib`; własny minimalny parser JSON) — to samodzielny projekt Gradle/JVM, testowany bez emulatora i bez `expo prebuild`. Klej Androida (etap A2: `JobService`, moduł Expo, Keystore, powiadomienia, config plugin) dołączy te źródła jako `sourceSet` modułu Androida (bez drugiej wtyczki Kotlin w buildzie APK) i dostarczy implementacje portów z sekcji „Porty dla kleju Androida (etap A2)”.
 
 Odpowiednik w TypeScript (model referencyjny) i wspólne wektory zgodności: `packages/sync-core/src/upload/` i `packages/sync-core/conformance/upload/`. Oba silniki czytają **te same** wektory; rozjazd któregokolwiek daje czerwony test po jednej ze stron.
 
@@ -19,18 +19,29 @@ Odpowiednik w TypeScript (model referencyjny) i wspólne wektory zgodności: `pa
 | `FailureMapper.kt` | odpowiedź HTTP, stan pliku po `complete` i błąd sieci → wynik silnika (AC2) |
 | `PartUrlPolicy.kt` | adres części: tylko `https`, bez `userinfo`, host dokładnie z listy dozwolonych, port domyślny albo jawnie dozwolony |
 | `JobSnapshot.kt` | utrwalany stan (tylko identyfikatory, rozmiary, liczniki, ETagi; `schemaVersion`) |
-| `RedactingLogger.kt` | jedyna droga do logów: kod zdarzenia i pola z listy dozwolonych; redakcja adresów, `Bearer`, `X-Amz-*`, sygnatur, wyjątków (komunikat, przyczyny, stos) |
+| `RedactingLogger.kt` | jedyna droga do logów: kod zdarzenia i pola z listy dozwolonych; redakcja adresów, `Bearer`, `X-Amz-*`, sygnatur; wyjątek jest logowany **wyłącznie jako nazwa klasy** (i kod `UploadFailure`), nigdy `message`, `toString`, przyczyna ani stos |
+| `Json.kt` | minimalny czytnik i zapis JSON (bez zależności): `JsonException` bez treści wejścia, limit zagnieżdżenia |
+| `Cancellation.kt` | `UploadCancelledException` (zatrzymanie z zewnątrz — nigdy `Failure.Network`), `OriginalMissingException`, `CancelHandle` (anulowanie wywołuje `disconnect()` na aktywnym połączeniu) |
+| `session/TokenOwner.kt` | jedyny właściciel tokenów w procesie: logowanie (krok 2 → zatwierdzenie), single-flight, zapis rotowanego tokenu przed użyciem, okno ≤ 20 s (zegar monotoniczny), wylogowanie z oczekującym odwołaniem (≤ 4, jeden atomowy zapis), refresh → logout, `session_revoked` → pauza, wznowienie tylko po pełnym logowaniu tego samego właściciela; **żadna metoda nie zwraca tokenu odświeżania** |
+| `session/TokenVaultFile.kt` | rekord tokenów: `EVTK` + wersja + IV + szyfrogram AES-GCM, AAD z nazwą i wersją, zapis atomowy; uszkodzony rekord / brak klucza = „wymaga logowania”; port szyfru `RecordCipher` (+ `JceRecordCipher` nad kluczem `SecretKey`) |
+| `files/` | `AtomicFiles` (plik tymczasowy, fsync, rename), `UploadFiles` (układ katalogu bazowego; ścieżka tylko z UUID sprawdzonego regexem, CWE-22), `JobFile*` (plik zadania: allowlista kluczy, `userId`/`deviceId`, bez tokenów, adresów i ścieżek; `JobFileStore` = `JobStore` silnika), `JobIdRegistry` (trwałe id zadania systemowego: zakres zarezerwowany, licznik), `WipeMarker` + `WipeChain` (znacznik i łańcuch czyszczenia), `ContactMarker` (znacznik ostatniego uwierzytelnionego kontaktu), `FileDigest` (SHA-256 strumieniowo), `OriginalPolicy` (oryginał zostaje do `clean`) |
+| `http/` | `HttpConfig` (adres API i hosty magazynu z konfiguracji builda; https; flaga e2e), `HttpCore` (jedna polityka: bez przekierowań, limity czasu i rozmiaru, `Authorization` tylko do hosta API, mapowanie wyjątków), `HttpUploadApi`, `HttpAuthApi` (refresh i logout), `HttpPartTransport` (PUT części z pliku, tylko `Content-Length`) |
+| `schedule/SchedulePolicy.kt` | czysta funkcja: zadanie inicjowane przez użytkownika (API 34+, aplikacja widoczna) albo zwykłe z ograniczeniem sieci; zawsze `persisted` |
+| `runner/UploadJobRunner.kt` | jeden bieg jednego zadania: znacznik czyszczenia → plik zadania → właściciel (obcy właściciel odrzucony, jawne wznowienie) → silnik → `JobResult` dla harmonogramu |
 
 ## Zasady (kontrakt dla EVM-130)
 - Adres części jest pobierany tuż przed jej wysłaniem i trzymany wyłącznie w pamięci; `PartUrl` i `PartRequest` nie drukują adresu w `toString`.
 - Żądanie części ma tylko nagłówek `Content-Length` (nigdy `Authorization`); host adresu musi być na liście dozwolonych hostów magazynu (konfiguracja; w testach `*.test`) — inaczej `needs_attention(untrusted_part_url)` bez wysyłki. **`PartTransport` nie podąża za przekierowaniami** (adapter musi to wyłączyć).
 - Adapter `UploadApi` sam odświeża access token i ponawia raz; do silnika trafia `401` dopiero po nieudanym odświeżeniu, a `401` z innym kodem niż `session_revoked` i `device_wipe_required` daje `needs_attention(unknown)`.
 - Silnik ponawia w procesie najwyżej 4 razy (potem `retry_later(delayMs)`) i odnawia adres części po `403` najwyżej 3 razy; dalsze ponawianie należy do harmonogramu systemowego (EVM-130). Brak nieograniczonego `sleep`.
+- **Jedna instancja `UploadEngine` na zadanie, jeden wątek** (silnik ma stan: `wiped`, kontekst biegu; nie jest bezpieczny wątkowo). `UploadJobRunner` tworzy instancję na każdy bieg; `TokenOwner` jest jeden na proces (holder na `Application`), współdzielony z modułem Expo i `JobService`, i sam szereguje wątki (jedna blokada).
+- `run(assetId, size, resume)`: zadanie w stanie `paused_revoked` jest odrzucane bez żądań, dopóki ktoś nie poda `resume = true` — runner robi to dopiero po pełnym logowaniu tego samego właściciela (`userId:deviceId` z pliku zadania). `StopCheck.isStopped()` (znacznik czyszczenia) jest sprawdzany przed każdym wywołaniem i daje `device_wipe`.
+- Zatrzymanie (`onStopJob`): `CancelHandle.cancel()` + przerwanie wątku; adaptery zamieniają to na `UploadCancelledException`, która przechodzi przez silnik (snapshot jest zapisany po każdym kroku). `429` z `Retry-After` (`Failure.Http.retryAfterSeconds`) jest dolną granicą czekania; czekanie dłuższe niż 30 s przechodzi do harmonogramu systemowego.
 - Silnik nie ma operacji usuwania plików ani wpisów kolejki. `paused_revoked` zapisuje stan i niczego nie kasuje; `device_wipe` zatrzymuje instancję (zero dalszych wywołań); czyszczenie wykonuje EVM-130.
 - Logowanie: wyłącznie `RedactingLogger`. `android.util.Log`, `System.out`, `printStackTrace` i `println` w źródłach `apps/mobile/modules/**` pilnuje `tools/repo-policy` (`src/kotlin.ts`).
 - Dane z serwera są walidowane przed użyciem i zapisem (numery części w planie, bez duplikatów, rozmiary, ETag: zestaw znaków i długość, identyfikator sesji); niezgodna odpowiedź to `needs_attention(invalid_server_response)`.
 - Nieznana wersja zapisanego stanu (`schemaVersion`) nie wywraca silnika: zadanie startuje od początku przez `ListParts` (serwer zwraca aktywną sesję).
-- EVM-130: stub scenariuszy `tools/mobile-e2e` musi serwować części przez HTTPS albo lista dozwolonych hostów i polityka adresu muszą dostać jawnie opisany wariant testowy (silnik odrzuca `http`).
+- Wariant e2e (stub scenariuszy `tools/mobile-e2e`: `http` i host `10.0.2.2`): tylko z flagą `HttpConfig.e2eCleartext` i `UploadEngineDeps.allowCleartextPartUrls` (osobny meta-data builda, który `verify` odrzuca w release); bez flagi silnik i transport odrzucają `http`.
 
 ## Zależności i łańcuch dostaw (AC6)
 Wersje dokładne, wyłącznie Maven Central (bez Google, JitPack i Plugin Portal; `RepositoriesMode.FAIL_ON_PROJECT_REPOS`), sumy SHA-256 wszystkich artefaktów w `gradle/verification-metadata.xml` (`verify-metadata=true`, bez `<trust>`), dystrybucja Gradle i `gradle-wrapper.jar` z oficjalnymi sumami (sprawdza `tools/repo-policy`).
@@ -62,3 +73,30 @@ Zmiana wersji dowolnej zależności (też wymuszonej w `resolutionStrategy`) prz
 4. Wrapper: nowa wersja Gradle wymaga sum z gradle.org/release-checksums w `OFFICIAL_GRADLE_CHECKSUMS` (`tools/repo-policy/src/kotlin.ts`), `distributionSha256Sum` i `gradle-wrapper.jar` zgodnych z oficjalnymi; `tools/repo-policy` czerwieni się przy rozbieżności.
 5. Sprawdź w OSV wszystkie komponenty z nowego pliku sum (POST `https://api.osv.dev/v1/querybatch`, ekosystem `Maven`, nazwa `group:artifact`, wersja; wysyłamy wyłącznie nazwy i wersje) i zaktualizuj kolumny „Data wydania” oraz „Znane CVE” w tabeli powyżej z datą sprawdzenia.
 6. `pnpm run gate:kotlin` i testy `tools/repo-policy` muszą być zielone.
+
+## Porty dla kleju Androida (etap A2)
+Klej Androida nie ma logiki decyzyjnej: tworzy obiekty z tych portów i wywołuje `UploadJobRunner`, `WipeChain`, `SchedulePolicy`. Wszystkie interfejsy są w silniku (pakiet bazowy `pl.eviacharge.upload`).
+
+| Port / klasa do dostarczenia | Pakiet | Co klej implementuje |
+|---|---|---|
+| `RecordCipher` (przez `JceRecordCipher { key }`) | `session` | szyfr rekordu tokenów: AES/GCM/NoPadding, klucz 256 bit z Android Keystore pod własnym aliasem (bez uwierzytelnienia użytkownika, `randomizedEncryptionRequired`, IV losuje Keystore); `key()` zwraca `null` albo rzuca, gdy klucza brak |
+| `KeyEraser` | `files` | usuwa z Keystore alias klucza magazynu tokenu (klucz bazy SQLCipher zostaje) |
+| katalog bazowy `UploadFiles(root)` | `files` | `noBackupFilesDir/evia-upload` (pamięć CE, bez `directBootAware`); silnik tworzy w nim `jobs/`, `originals/`, `token.bin`, `wipe.marker`, `contact.json`, `job-ids.json` |
+| `MonotonicClock` | `session` | `SystemClock.elapsedRealtime()` (okno 20 s odświeżania) |
+| `ClockReadings` | `files` | odczyt `ClockReading(wallMs, monoMs, bootId)`; `bootId` np. z `/proc/sys/kernel/random/boot_id` albo licznika uruchomień systemu |
+| `LogSink` | `(bazowy)` | jedyne ujście zredagowanych linii logu (`RedactingLogger`); nic innego nie loguje |
+| `JobCanceller` | `files` | `JobScheduler.cancel(id)` dla każdego id z `JobIdRegistry.allIds()` |
+| `InstanceStopper` | `files` | zatrzymuje działające instancje: `CancelHandle.cancel()` i przerwanie wątków workerów |
+| `TokenWiper` | `files` | `TokenOwner.wipe()` (pamięć i magazyn) |
+| `StopCheck` | `(bazowy)` | `WipeMarker.isStopped()` — ta sama instancja dla `UploadEngineDeps.stop`, `HttpCore` i `HttpPartTransport` |
+| `Sleeper`, `RandomSource`, `IdSource` | `(bazowy)` | `Thread.sleep` (przerwanie → `UploadCancelledException`), `ThreadLocalRandom`, UUIDv7 |
+| `ContactSink` | `files` | zwykle `ContactMarker(files.contactFile, readings)`; JS bierze max(własny, natywny) |
+| `HttpConfig(apiBaseUrl, storageHosts, clientVersion, e2eCleartext)` | `http` | z meta-data builda: `pl.eviacharge.API_BASE_URL`, `pl.eviacharge.STORAGE_HOSTS`, `pl.eviacharge.UPLOAD_E2E_CLEARTEXT`; wersja aplikacji z `PackageInfo` |
+| fabryka silnika `(JobFileData) -> UploadEngine` | `runner` | składa `UploadEngineDeps`: `HttpUploadApi(core, tokenOwner, contact, job.workOrderId, job.assetId)`, `HttpPartTransport(core, cancel, marker, files.originalFile(job.assetId))`, `JobFileStore`, `allowedHosts = config.storageHosts`, `allowCleartextPartUrls = config.e2eCleartext`; `HttpCore` i `CancelHandle` są per zadanie (jeden wątek) |
+| `TokenOwner(vault, HttpAuthApi, clock, HttpAuthApi, contact)` | `session` | jedna instancja na proces; `FileTokenVault(files.tokenFile, cipher)`; `load()` przy starcie procesu |
+| `JobIdRegistry(files.jobIdsFile)` | `files` | `idFor(assetId)` przy uzbrajaniu zadania, `release` po zakończeniu |
+| powiadomienia | `notification` | `NotificationText` (teksty); kanał i `PendingIntent` to klej |
+| `SchedulePolicy.decide(api, appVisible, userInitiatedRefused, wifiOnly)` → `JobSpec` | `schedule` | klej zamienia `JobSpec` na `JobInfo` (UIDT, sieć `ANY`/`UNMETERED`, `setPersisted(true)`) i po `SecurityException` pyta ponownie z `userInitiatedRefused = true` |
+| `JobResult` z `UploadJobRunner.run` → `jobFinished` | `runner` | `Retry`, `RetryChecksum`, `Stopped` = `wantsReschedule = true`; pozostałe = `false`; `DeviceWipe` uruchamia `WipeChain.run()` |
+
+Przy starcie procesu: `WipeChain.finishIfPending()`, `TokenOwner.load()`, potem uzbrajanie zadań z kolejki JS (`JobFileStore.arm`). Znacznik czyszczenia znosi dopiero `WipeMarker.clearAfterLogin()` po pełnym logowaniu, gdy czyszczenie jest zakończone.

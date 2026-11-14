@@ -467,7 +467,7 @@ class TokenOwnerTest {
     }
 
     @Test
-    fun `EVM-130 AC3 a missing refresh token ends in a new sign-in`() {
+    fun `EVM-130 AC3 after a sign-out the owner gives no token and asks nothing`() {
         val (tokenOwner, api) = owner()
         tokenOwner.commitLogin(OWNER, "refresh-0", "access-0", 1000L)
         tokenOwner.onApiRevoked()
