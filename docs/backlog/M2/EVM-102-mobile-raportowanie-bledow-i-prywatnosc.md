@@ -4,7 +4,7 @@ title: "Aplikacja: ekran prywatności i pomocy (bez raportowania błędów do do
 type: story
 milestone: M2
 epic: E14 Dystrybucja i utrzymanie
-status: ready
+status: in-progress
 priority: P2
 path: lekka             # statyczny ekran prywatności i pomocy (M-11) bez telemetrii; klauzule RODO sprawdza security-engineer (2026-11-12, Tech Lead z delegacji)
 owner: mobile-developer
@@ -81,3 +81,4 @@ Raportowanie błędów do dostawcy (Sentry i podobni), biblioteka telemetrii, ma
 - 2026-11-12 — path pelna → lekka, jedyny recenzent security-engineer (klauzule RODO); Tech Lead z delegacji Konrada „tanio, szybko, bezpiecznie”
 - 2026-11-14 — refinement do DoR (product-owner): 6 AC wg konsultacji UX i security (źródło klauzul, odmowa podpisu, statyczna kontrola telemetrii); ścieżka `lekka` ujednolicona w README planu
 - 2026-11-14 — draft → ready: kryteria zatwierdzone przez Tech Leada z delegacji Konrada (pytanie przed nocą 2026-11-14); Konrad przegląda je rano w PR
+- 2026-11-14 — start realizacji w kolejce nocnej `/noc-2026-11-14` (Tech Lead): status `in-progress`, gałąź `feature/queue-2026-11-14-api-media-i-drobne`

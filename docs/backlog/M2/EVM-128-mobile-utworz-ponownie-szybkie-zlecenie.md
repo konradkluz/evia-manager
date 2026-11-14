@@ -4,7 +4,7 @@ title: "Aplikacja: „Utwórz ponownie” odrzuconego szybkiego zlecenia"
 type: story
 milestone: M2
 epic: E13 Nowe zlecenie z telefonu
-status: in-progress
+status: in-review
 priority: P2
 path: pelna             # synchronizacja offline, dane osobowe na urządzeniu
 owner: mobile-developer
@@ -58,6 +58,8 @@ Edycja zlecenia po utworzeniu, automatyczne ponawianie bez udziału technika, pr
 - Bezpieczeństwo (security, Low): nowe UUIDv7 dla zlecenia **oraz** klienta i lokalizacji i nowy `mutation_id`; dane klienta starej komendy znikają z urządzenia w tej samej transakcji; recenzent security niewymagany.
 - UX / UI: komponenty ze styleguide'u (InlineAlert, FilterChip, TextField, dolny pasek akcji, toast); stany: pusty — nie dotyczy, błąd (AC1, AC4), offline (normalna praca), ukryte dane (AC5). Do `manual` w EVM-112: układ alertu na 360 dp, TalkBack, 200% czcionki.
 - Rola: Administrator i Edytor (Tylko odczyt nie loguje się do aplikacji).
+- **Tech Lead w nocy 2026-11-14 — do potwierdzenia rano:** odrzucenie z kodem `quota_exceeded` (AC1 go nie wymienia) otwiera ten sam formularz z ogólnym powodem; notatki i komentarze z `id_conflict` zachowują dotychczasowe „Utwórz ponownie” bez formularza.
+- Uwagi nieblokujące z przeglądów (2026-11-14): drugi akapit w `InlineAlert` przekazany przez slot `action` (do decyzji ux-designer: właściwość `detail` albo odstępstwo w styleguide'zie); w trybie ukrytych danych dwa komunikaty pod rząd na karcie; zrzuty ekranu „do demo” i sprawdzenie TalkBack / czcionki 200% — w EVM-112.
 
 ## Notatki techniczne
 - Przepływy Maestro toru B: numery 70–79. Pliki wspólne z torem A (ograniczyć zmiany): `apps/mobile/src/i18n/pl.ts` (nowe klucze w osobnym bloku na końcu sekcji), `screens/QueueScreen.tsx`, `src/e2e-hooks/panel.tsx`, `tools/mobile-e2e/src/scenarios.mjs` i `sync-stub.mjs` (tylko dopisywanie scenariuszy), `test/flows.test.mjs`, `CHANGELOG.md`, README M2. `sync-core` nie jest zmieniany (dotyka go tylko tor A).
@@ -74,3 +76,5 @@ Edycja zlecenia po utworzeniu, automatyczne ponawianie bez udziału technika, pr
 - 2026-11-14 — start realizacji w kolejce nocnej `/noc-2026-11-14` (Tech Lead): status `in-progress`, gałąź `feature/queue-2026-11-14-api-media-i-drobne`
 - 2026-11-14 — plan gotowy (mobile-developer)
 - 2026-11-14 — implementacja gotowa, w przeglądzie (mobile-developer): testy Jest i scenariusze Maestro 70–77; E2E na emulatorze po stronie orkiestratora
+- 2026-11-14 — workflow `deliver-story` passed (1 runda; QA pass 5/5 AC; code-reviewer i ux-designer approve); bramka orkiestratora `pnpm run gate` zielona; przepływy Maestro 70–77 uruchamia orkiestrator na końcu toru; status `in-review` (Tech Lead)
+- 2026-11-14 — Koszt: 6 agentów, ok. 0,61 mln tokenów subagentów, 25 min pracy agentów
