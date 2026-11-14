@@ -12,6 +12,26 @@ data class ClockReading(
     val bootId: String,
 )
 
+/**
+ * The boot id in the same form as the JavaScript of the app builds it (`createContactClock`), so that both sides compare one id: the boot
+ * counter of the system when known, else the boot time derived from the two clocks, rounded to a minute (a change of the id only makes
+ * the comparison fall back to the wall clock).
+ */
+object BootIds {
+    private const val MINUTE_MS = 60_000.0
+
+    fun of(
+        bootCount: Int?,
+        wallMs: Long,
+        monoMs: Long,
+    ): String =
+        if (bootCount != null && bootCount >= 0) {
+            "boot-$bootCount"
+        } else {
+            "boot-w${Math.floor((wallMs - monoMs) / MINUTE_MS + 0.5).toLong()}"
+        }
+}
+
 fun interface ClockReadings {
     fun read(): ClockReading
 }

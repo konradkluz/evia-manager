@@ -44,6 +44,13 @@ class JobIdRegistry(
         return base + candidate
     }
 
+    /** The id of the asset when it has one; nothing is allocated. */
+    @Synchronized
+    fun existing(assetId: String): Int? {
+        load()
+        return ids[assetId]
+    }
+
     /** The asset was done: its id can be used again (later in the circle). A missing asset is nothing to do. */
     @Synchronized
     @Throws(IOException::class)

@@ -6,6 +6,7 @@ package pl.eviacharge.upload.notification
  */
 object NotificationText {
     const val PUBLIC_TITLE = "EVia Manager"
+    const val CHANNEL_NAME = "Wysyłanie plików"
     const val PAUSED = "Wysyłanie wstrzymane — zaloguj się w aplikacji"
 
     fun progress(

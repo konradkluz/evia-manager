@@ -119,6 +119,22 @@ sealed interface TokenResult {
     ) : TokenResult
 }
 
+/** The answer to the app (JavaScript): the access token and how long it holds; never a refresh token. */
+sealed interface AppAccess {
+    data class Ready(
+        val accessToken: String,
+        val ownerId: String,
+        /** Milliseconds the token is still valid, counted now on the monotonic clock. */
+        val validForMs: Long,
+    ) : AppAccess
+
+    data object RetryLater : AppAccess
+
+    data class Blocked(
+        val state: SessionState,
+    ) : AppAccess
+}
+
 /** What the HTTP adapter of the API needs from the owner: an access token and the way to report what the server said. */
 interface ApiSession {
     fun accessToken(): TokenResult
@@ -202,6 +218,20 @@ class TokenOwner(
         }
 
     fun state(): SessionState = lock.withLock { state }
+
+    /**
+     * The access token for the JavaScript of the app: the same single-flight refresh as for a job. With [rejected] (the server answered
+     * `401` to that token) the token is replaced first, unless another caller already did.
+     */
+    fun accessForApp(rejected: String? = null): AppAccess =
+        lock.withLock {
+            val result = if (rejected == null) accessToken() else accessTokenRejected(rejected)
+            when (result) {
+                is TokenResult.Ready -> AppAccess.Ready(result.accessToken, result.ownerId, maxOf(0L, accessUntil - clock.nowMs()))
+                TokenResult.RetryLater -> AppAccess.RetryLater
+                is TokenResult.Blocked -> AppAccess.Blocked(result.state)
+            }
+        }
 
     /** The owner (`userId:deviceId`) of the session, `null` unless signed in. Not a secret. */
     fun currentOwnerId(): String? = lock.withLock { if (state == SessionState.SIGNED_IN) ownerId else null }

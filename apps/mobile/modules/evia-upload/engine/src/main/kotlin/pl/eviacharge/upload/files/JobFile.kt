@@ -42,6 +42,10 @@ private const val MAX_FILE_BYTES = 256 * 1024
 /** Serialization of [JobFileData]: the keys are an allowlist, in both directions (an unknown key makes the file unreadable). */
 object JobFileCodec {
     const val FILE_SCHEMA_VERSION = 1
+
+    /** An identifier of the server (UUID, `-` and alphanumerics, at most 64 characters): the only shape allowed in a job file. */
+    fun isIdentifier(value: String): Boolean = IDENTIFIER.matches(value)
+
     val FIELD_NAMES = setOf("fileSchemaVersion", "assetId", "workOrderId", "size", "userId", "deviceId", "snapshot")
 
     fun encode(data: JobFileData): ByteArray {

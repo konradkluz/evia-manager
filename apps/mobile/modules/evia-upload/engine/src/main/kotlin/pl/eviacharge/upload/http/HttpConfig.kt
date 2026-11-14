@@ -64,6 +64,30 @@ class HttpConfig(
     }
 
     companion object {
+        const val UNKNOWN_CLIENT_VERSION = "0.0.0"
+
+        /**
+         * The configuration from the manifest meta-data of the build: the API address, the storage hosts as a comma separated list and
+         * the version name of the app (an unusable one becomes [UNKNOWN_CLIENT_VERSION]). A missing or bad value is an
+         * [IllegalArgumentException] without the value in its message; the service then does nothing (fail closed).
+         */
+        fun fromMetaData(
+            apiBaseUrl: String?,
+            storageHosts: String?,
+            versionName: String?,
+            e2eCleartext: Boolean,
+        ): HttpConfig =
+            HttpConfig(
+                apiBaseUrl.orEmpty().trim(),
+                storageHosts
+                    .orEmpty()
+                    .split(',')
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() },
+                versionName?.takeIf { CLIENT_VERSION.matches(it) } ?: UNKNOWN_CLIENT_VERSION,
+                e2eCleartext,
+            )
+
         const val DEFAULT_CONNECT_TIMEOUT_MS = 15_000
         const val DEFAULT_READ_TIMEOUT_MS = 30_000
 
