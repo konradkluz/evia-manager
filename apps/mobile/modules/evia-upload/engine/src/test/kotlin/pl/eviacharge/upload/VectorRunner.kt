@@ -153,7 +153,7 @@ class FakeServer(
         }
         if (fault.effect == "network") throw UploadFailure(Failure.Network)
         val pieces = fault.effect.split(':')
-        throw UploadFailure(Failure.Http(pieces[1].toInt(), pieces.getOrNull(2)))
+        throw UploadFailure(Failure.Http(pieces[1].toInt(), pieces.getOrNull(2), pieces.getOrNull(3)?.toLong()))
     }
 
     private fun conflict(): Nothing = throw UploadFailure(Failure.Http(409, "invalid_state_transition"))
@@ -264,6 +264,8 @@ fun runScenario(
     var rngIndex = 0
     var sleeps = mutableListOf<Long>()
     var crashAt: Map<String, Any?>? = null
+    var stopAfterCalls: Int? = null
+    var runStart = 0
     var seen = 0
     val assetId = defaults["assetId"] as String
 
@@ -277,6 +279,7 @@ fun runScenario(
                 sleeper = { sleeps.add(it) },
                 random = { rngValues[rngIndex++ % rngValues.size] },
                 ids = { if (ids.isEmpty()) "exhausted-ids" else ids.removeAt(0) },
+                stop = { stopAfterCalls.let { it != null && server.calls.size - runStart >= it } },
                 checkpoints = {
                     val target = crashAt
                     if (target != null && CHECKPOINT_NAMES[it] == target["checkpoint"] &&
@@ -295,10 +298,12 @@ fun runScenario(
         sleeps = mutableListOf()
         seen = 0
         crashAt = run["crashAt"]?.let { Json.obj(it) }
+        stopAfterCalls = (run["stopAfterCalls"] as? Number)?.toInt()
         val before = server.calls.size
+        runStart = before
         val outcome: Any =
             try {
-                outcomeWire(engine.run(assetId, size))
+                outcomeWire(engine.run(assetId, size, resume = run["resume"] == true))
             } catch (crash: CrashSignal) {
                 engine = newEngine()
                 "crashed"

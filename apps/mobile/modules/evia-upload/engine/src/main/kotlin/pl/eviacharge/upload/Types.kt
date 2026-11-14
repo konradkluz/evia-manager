@@ -18,9 +18,11 @@ sealed interface MappingInput
 sealed interface Failure : MappingInput {
     data object Network : Failure
 
+    /** [retryAfterSeconds] is the `Retry-After` of a `429` in delta-seconds; an HTTP date or a bad value is left out by the adapter. */
     data class Http(
         val status: Int,
         val code: String? = null,
+        val retryAfterSeconds: Long? = null,
     ) : Failure
 }
 
@@ -72,7 +74,7 @@ sealed class Outcome(
 
     data object RetryChecksum : Outcome("retry_checksum")
 
-    /** `delayMs` is set by the engine (the delay the system schedule should respect); the mapping alone leaves it out. */
+    /** `delayMs` is set by the engine (the delay the system schedule should respect); the mapping alone sets it only from a `Retry-After`. */
     data class RetryLater(
         val delayMs: Long? = null,
     ) : Outcome("retry_later")
@@ -146,6 +148,15 @@ interface JobStore {
     fun save(snapshot: JobSnapshot)
 
     fun clear(assetId: String)
+}
+
+/** True when the work must stop at once (the wipe marker is set): checked before every call; the outcome is [Outcome.DeviceWipe]. */
+fun interface StopCheck {
+    fun isStopped(): Boolean
+
+    companion object {
+        val NEVER = StopCheck { false }
+    }
 }
 
 fun interface Sleeper {

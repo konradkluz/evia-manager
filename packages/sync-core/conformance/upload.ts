@@ -66,6 +66,10 @@ interface ServerSpec {
 }
 interface RunSpec {
   crashAt?: { checkpoint: Checkpoint; nth: number };
+  /** The explicit resume after a full sign-in of the same owner (`engine.run(..., { resume: true })`). */
+  resume?: boolean;
+  /** The stop signal (wipe marker) is raised once this many calls of the run have been made; 0 = from the start. */
+  stopAfterCalls?: number;
   expect: { outcome: Outcome | 'crashed'; calls: string[]; sleeps: number[]; store?: string | null };
 }
 export interface Scenario {
@@ -132,8 +136,13 @@ class FakeServer {
       return false;
     }
     if (fault.effect === 'network') throw new UploadFailure({ kind: 'network' });
-    const [, status, code] = fault.effect.split(':');
-    throw new UploadFailure({ kind: 'http', status: Number(status), ...(code === undefined ? {} : { code }) });
+    const [, status, code, retryAfter] = fault.effect.split(':');
+    throw new UploadFailure({
+      kind: 'http',
+      status: Number(status),
+      ...(code === undefined ? {} : { code }),
+      ...(retryAfter === undefined ? {} : { retryAfterSeconds: Number(retryAfter) }),
+    });
   }
 
   private conflict(): never {
@@ -240,6 +249,8 @@ export async function runScenario(scenario: Scenario, defaults: ResumeFile['defa
   let rngIndex = 0;
   let sleeps: number[] = [];
   let crashAt: RunSpec['crashAt'];
+  let stopAfterCalls: number | undefined;
+  let runStart = 0;
   let seen = 0;
   const newEngine = (): UploadEngine =>
     new UploadEngine({
@@ -258,6 +269,7 @@ export async function runScenario(scenario: Scenario, defaults: ResumeFile['defa
       },
       rng: () => rngValues[rngIndex++ % rngValues.length] ?? 0,
       newId: () => ids.shift() ?? 'exhausted-ids',
+      isStopped: () => stopAfterCalls !== undefined && server.calls.length - runStart >= stopAfterCalls,
       checkpoint: (name) => {
         if (name === crashAt?.checkpoint && ++seen === crashAt.nth) throw new Crash();
       },
@@ -269,10 +281,12 @@ export async function runScenario(scenario: Scenario, defaults: ResumeFile['defa
     sleeps = [];
     seen = 0;
     crashAt = run.crashAt;
+    stopAfterCalls = run.stopAfterCalls;
     const before = server.calls.length;
+    runStart = before;
     let outcome: Outcome | 'crashed';
     try {
-      outcome = await engine.run(defaults.assetId, size);
+      outcome = await engine.run(defaults.assetId, size, { resume: run.resume === true });
     } catch (error) {
       if (!(error instanceof Crash)) throw error;
       outcome = 'crashed';

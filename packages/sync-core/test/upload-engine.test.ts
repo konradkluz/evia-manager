@@ -101,10 +101,18 @@ describe('EVM-109 AC3: requests and persisted state of the reference engine', ()
     await expect(new UploadEngine(broken).run(ASSET, 40)).rejects.toThrow('boom');
   });
 
-  it('EVM-109 AC1: a paused_revoked snapshot is resumed as active', async () => {
+  it('EVM-109 AC1, EVM-130 AC5: a paused_revoked snapshot is resumed as active only by the explicit resume', async () => {
     const { deps, saved } = harness({ ...SNAPSHOT, state: 'paused_revoked' });
-    expect(await new UploadEngine(deps).run(ASSET, 40)).toEqual({ type: 'uploaded' });
+    expect(await new UploadEngine(deps).run(ASSET, 40, { resume: true })).toEqual({ type: 'uploaded' });
     expect(saved.every((snapshot) => snapshot.state !== 'paused_revoked')).toBe(true);
+  });
+
+  it('EVM-130 AC5: a paused_revoked snapshot without the explicit resume is refused, nothing is sent and the snapshot stays', async () => {
+    const { deps, saved, requests } = harness({ ...SNAPSHOT, state: 'paused_revoked' });
+    expect(await new UploadEngine(deps).run(ASSET, 40)).toEqual({ type: 'paused_revoked' });
+    expect(await new UploadEngine(deps).run(ASSET, 40, { resume: false })).toEqual({ type: 'paused_revoked' });
+    expect(requests).toHaveLength(0);
+    expect(saved).toHaveLength(0);
   });
 });
 

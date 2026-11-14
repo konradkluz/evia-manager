@@ -140,7 +140,7 @@ class EngineBehaviorTest {
     }
 
     @Test
-    fun `EVM-109 AC1 a paused_revoked snapshot is resumed as active and nothing is removed from the store`() {
+    fun `EVM-109 AC1 EVM-130 AC5 a paused_revoked snapshot is resumed by the explicit resume and nothing is removed`() {
         val harness =
             Harness(
                 spec =
@@ -148,8 +148,18 @@ class EngineBehaviorTest {
                         ("sessions" to listOf(mapOf("id" to "id-1", "key" to "id-2", "state" to "active", "parts" to emptyList<Any?>()))),
                 initial = snapshot(state = JobState.PAUSED_REVOKED),
             )
-        assertEquals(Outcome.Uploaded, harness.engine().run(ASSET, SIZE))
+        assertEquals(Outcome.Uploaded, harness.engine().run(ASSET, SIZE, resume = true))
         assertTrue(harness.saved.none { it.state == JobState.PAUSED_REVOKED })
+    }
+
+    @Test
+    fun `EVM-130 AC5 a paused_revoked snapshot without the explicit resume is refused, nothing is sent and the snapshot stays`() {
+        val harness = Harness(initial = snapshot(state = JobState.PAUSED_REVOKED))
+        assertEquals(Outcome.PausedRevoked, harness.engine().run(ASSET, SIZE))
+        assertEquals(Outcome.PausedRevoked, harness.engine().run(ASSET, SIZE, resume = false))
+        assertTrue(harness.server.calls.isEmpty())
+        assertTrue(harness.saved.isEmpty())
+        assertEquals(JobState.PAUSED_REVOKED, harness.store.snapshot?.state)
     }
 
     @Test

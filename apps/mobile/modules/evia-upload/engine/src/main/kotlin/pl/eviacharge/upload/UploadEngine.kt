@@ -46,6 +46,10 @@ class UploadEngineDeps(
     val ids: IdSource,
     val logger: RedactingLogger = RedactingLogger.NONE,
     val checkpoints: CheckpointHook? = null,
+    /** The wipe marker (EVM-130): checked before every call. */
+    val stop: StopCheck = StopCheck.NEVER,
+    /** Part addresses with `http` are accepted only in the e2e variant of the build (EVM-130); never in a release. */
+    val allowCleartextPartUrls: Boolean = false,
 )
 
 /**
@@ -59,15 +63,24 @@ class UploadEngine(
 ) {
     private var wiped = false
 
+    /**
+     * One instance per job, used by one thread. [resume] is the explicit resume of a job paused by `session_revoked`: it is given only
+     * after a full sign-in of the same owner (EVM-130, SR-MOB-13); without it a paused job is refused and nothing is sent.
+     */
     fun run(
         assetId: String,
         size: Long,
+        resume: Boolean = false,
     ): Outcome {
-        if (wiped) return Outcome.DeviceWipe
-        val context = start(assetId, size)
-        if (context.snapshot.state == JobState.UPLOADED) return Outcome.Uploaded
+        if (wiped || deps.stop.isStopped()) {
+            wiped = true
+            return Outcome.DeviceWipe
+        }
+        var context: RunContext? = null
         val outcome =
             try {
+                context = start(assetId, size, resume)
+                if (context.snapshot.state == JobState.UPLOADED) return Outcome.Uploaded
                 drive(context)
             } catch (stop: Stop) {
                 finish(context, stop.outcome)
@@ -77,11 +90,12 @@ class UploadEngine(
     }
 
     private fun finish(
-        context: RunContext,
+        context: RunContext?,
         outcome: Outcome,
     ): Outcome {
+        if (outcome is Outcome.DeviceWipe) wiped = true
+        if (context == null) return outcome
         when (outcome) {
-            is Outcome.DeviceWipe -> wiped = true
             is Outcome.PausedRevoked -> deps.store.save(context.snapshot.copy(state = JobState.PAUSED_REVOKED))
             is Outcome.RetryChecksum -> deps.store.clear(context.snapshot.assetId)
             else -> Unit
@@ -92,8 +106,10 @@ class UploadEngine(
     private fun start(
         assetId: String,
         size: Long,
+        resume: Boolean,
     ): RunContext {
         val stored = deps.store.load(assetId)
+        if (stored?.state == JobState.PAUSED_REVOKED && !resume) throw Stop(Outcome.PausedRevoked)
         if (stored != null && stored.schemaVersion == SNAPSHOT_SCHEMA_VERSION && stored.size == size) {
             val state = if (stored.state == JobState.UPLOADED) JobState.UPLOADED else JobState.ACTIVE
             return RunContext(stored.copy(state = state), regenerated = false)
@@ -202,7 +218,14 @@ class UploadEngine(
             while (true) {
                 // The address is fetched right before its part is sent and lives only in memory (SR-FILE-02).
                 val target = call { deps.api.partUrl(context.snapshot.uploadSessionId, part.partNumber) }
-                if (!isTrustedPartUrl(target.url, deps.allowedHosts)) throw attention(AttentionReason.UNTRUSTED_PART_URL)
+                if (!isTrustedPartUrl(
+                        target.url,
+                        deps.allowedHosts,
+                        deps.allowCleartextPartUrls,
+                    )
+                ) {
+                    throw attention(AttentionReason.UNTRUSTED_PART_URL)
+                }
                 if (target.contentLength != part.length) throw attention(AttentionReason.PLAN_MISMATCH)
                 val request = PartRequest(target.url, part.offset, part.length, mapOf("Content-Length" to part.length.toString()))
                 val etag =
@@ -244,6 +267,7 @@ class UploadEngine(
     ): T {
         var attempt = 0
         while (true) {
+            if (deps.stop.isStopped()) throw Stop(Outcome.DeviceWipe)
             try {
                 return action()
             } catch (error: UploadFailure) {
@@ -256,9 +280,11 @@ class UploadEngine(
                 val outcome = mapFailure(failure)
                 if (outcome !is Outcome.RetryLater) throw Stop(outcome)
                 attempt += 1
-                val delayMs = backoffDelayMs(attempt - 1, deps.random.nextDouble())
+                // a `Retry-After` of the server (429) is a floor; a wait longer than the cap of the backoff is left to the system schedule
+                val hint = (outcome as Outcome.RetryLater).delayMs ?: 0L
+                val delayMs = maxOf(backoffDelayMs(attempt - 1, deps.random.nextDouble()), hint)
                 deps.logger.event("retry", mapOf("attempt" to attempt.toString(), "delayMs" to delayMs.toString()))
-                if (attempt >= UploadLimits.MAX_ATTEMPTS) throw Stop(Outcome.RetryLater(delayMs))
+                if (attempt >= UploadLimits.MAX_ATTEMPTS || delayMs > UploadLimits.CAP_DELAY_MS) throw Stop(Outcome.RetryLater(delayMs))
                 deps.sleeper.sleep(delayMs)
             }
         }

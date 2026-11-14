@@ -53,11 +53,19 @@ export class UploadEngine {
     this.deps = deps;
   }
 
-  async run(assetId: string, size: number): Promise<Outcome> {
-    if (this.wiped) return { type: 'device_wipe' };
-    const context = await this.start(assetId, size);
-    if (context.snapshot.state === 'uploaded') return { type: 'uploaded' };
+  /**
+   * `resume` is the explicit resume of a job paused by `session_revoked`: it is given only after a full sign-in of the same owner
+   * (EVM-130, SR-MOB-13). Without it a paused job is refused with `paused_revoked` and nothing is sent.
+   */
+  async run(assetId: string, size: number, options: { readonly resume?: boolean } = {}): Promise<Outcome> {
+    if (this.wiped || this.deps.isStopped?.() === true) {
+      this.wiped = true;
+      return { type: 'device_wipe' };
+    }
+    let context: RunContext | undefined;
     try {
+      context = await this.start(assetId, size, options.resume === true);
+      if (context.snapshot.state === 'uploaded') return { type: 'uploaded' };
       return await this.drive(context);
     } catch (error) {
       if (!(error instanceof Stop)) throw error;
@@ -65,16 +73,18 @@ export class UploadEngine {
     }
   }
 
-  private async finish(context: RunContext, outcome: Outcome): Promise<Outcome> {
+  private async finish(context: RunContext | undefined, outcome: Outcome): Promise<Outcome> {
     const { store } = this.deps;
     if (outcome.type === 'device_wipe') this.wiped = true;
+    if (context === undefined) return outcome;
     if (outcome.type === 'paused_revoked') await store.save({ ...context.snapshot, state: 'paused_revoked' });
     if (outcome.type === 'retry_checksum') await store.clear(context.snapshot.assetId);
     return outcome;
   }
 
-  private async start(assetId: string, size: number): Promise<RunContext> {
+  private async start(assetId: string, size: number, resume: boolean): Promise<RunContext> {
     const stored = await this.deps.store.load(assetId);
+    if (stored?.state === 'paused_revoked' && !resume) throw new Stop({ type: 'paused_revoked' });
     if (stored !== null && stored.schemaVersion === SNAPSHOT_SCHEMA_VERSION && stored.size === size) {
       return { snapshot: { ...stored, state: stored.state === 'uploaded' ? 'uploaded' : 'active' }, regenerated: false, reconciled: false };
     }
@@ -214,6 +224,7 @@ export class UploadEngine {
   private async call<T>(action: () => Promise<T>, expiredOn403 = false, incompleteOn422 = false): Promise<T> {
     let attempt = 0;
     for (;;) {
+      if (this.deps.isStopped?.() === true) throw new Stop({ type: 'device_wipe' });
       try {
         return await action();
       } catch (error) {
@@ -226,8 +237,9 @@ export class UploadEngine {
         const outcome = mapFailure(failure);
         if (outcome.type !== 'retry_later') throw new Stop(outcome);
         attempt += 1;
-        const delayMs = backoffDelayMs(attempt - 1, this.deps.rng());
-        if (attempt >= UPLOAD_LIMITS.maxAttempts) throw new Stop({ type: 'retry_later', delayMs });
+        // a `Retry-After` of the server (429) is a floor; a wait longer than the cap of the backoff is left to the system schedule
+        const delayMs = Math.max(backoffDelayMs(attempt - 1, this.deps.rng()), outcome.delayMs ?? 0);
+        if (attempt >= UPLOAD_LIMITS.maxAttempts || delayMs > UPLOAD_LIMITS.capDelayMs) throw new Stop({ type: 'retry_later', delayMs });
         await this.deps.sleep(delayMs);
       }
     }

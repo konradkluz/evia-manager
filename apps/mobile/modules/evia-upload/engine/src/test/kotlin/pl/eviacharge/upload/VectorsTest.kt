@@ -93,9 +93,21 @@ class VectorsTest {
                 val input = Json.obj(case["input"])
                 val mapped =
                     when (input["kind"]) {
-                        "network" -> Failure.Network
-                        "http" -> Failure.Http((input["status"] as Number).toInt(), input["code"] as? String)
-                        else -> FileState(input["state"] as String, input["reasonCode"] as? String)
+                        "network" -> {
+                            Failure.Network
+                        }
+
+                        "http" -> {
+                            Failure.Http(
+                                (input["status"] as Number).toInt(),
+                                input["code"] as? String,
+                                (input["retryAfterSeconds"] as? Number)?.toLong(),
+                            )
+                        }
+
+                        else -> {
+                            FileState(input["state"] as String, input["reasonCode"] as? String)
+                        }
                     }
                 assertEquals(normalize(case["expected"]), normalize(outcomeWire(mapFailure(mapped))))
             }

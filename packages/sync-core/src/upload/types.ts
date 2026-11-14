@@ -19,7 +19,10 @@ export const UPLOAD_LIMITS = Object.freeze({
 });
 
 /** What a port reports when a call did not succeed: an HTTP answer (`code` is the problem `code`) or no answer at all. */
-export type Failure = { readonly kind: 'network' } | { readonly kind: 'http'; readonly status: number; readonly code?: string };
+export type Failure =
+  | { readonly kind: 'network' }
+  /** `retryAfterSeconds` is the `Retry-After` of a `429` in delta-seconds (EVM-130); an HTTP date or a bad value is left out by the adapter. */
+  | { readonly kind: 'http'; readonly status: number; readonly code?: string; readonly retryAfterSeconds?: number };
 
 /** Thrown by ports (API, part transport). The engine never sees other error types from them. */
 export class UploadFailure extends Error {
@@ -51,7 +54,7 @@ export type Outcome =
   | { readonly type: 'paused_update' }
   | { readonly type: 'needs_attention'; readonly reason: AttentionReason }
   | { readonly type: 'retry_checksum' }
-  /** `delayMs` is set by the engine (the delay the schedule should respect); the mapping alone leaves it out. */
+  /** `delayMs` is set by the engine (the delay the schedule should respect); the mapping alone sets it only from a `Retry-After` of `429`. */
   | { readonly type: 'retry_later'; readonly delayMs?: number };
 
 /** Session as returned by the server: the server decides the split (fixed part size, the last part smaller, at most 1000 parts). */
@@ -136,6 +139,8 @@ export interface EngineDeps {
   readonly rng: () => number;
   /** New UUIDv7 (session id, idempotency key). */
   readonly newId: () => string;
+  /** True when the work must stop at once (the wipe marker of the device is set): checked before every call; the outcome is `device_wipe`. */
+  readonly isStopped?: () => boolean;
   /** Test hook: throwing here simulates the process being killed exactly at this point. */
   readonly checkpoint?: (name: Checkpoint) => void | Promise<void>;
 }

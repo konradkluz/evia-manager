@@ -44,7 +44,11 @@ private fun mapHttp(failure: Failure.Http): Outcome =
             Outcome.NeedsAttention(AttentionReason.UPLOAD_INCOMPLETE)
         }
 
-        failure.status == 429 || failure.status >= 500 -> {
+        failure.status == 429 -> {
+            retryHint(failure.retryAfterSeconds)
+        }
+
+        failure.status >= 500 -> {
             Outcome.RetryLater()
         }
 
@@ -52,6 +56,12 @@ private fun mapHttp(failure: Failure.Http): Outcome =
             UNKNOWN
         }
     }
+
+/** The longest `Retry-After` taken into account (a day): a larger value is a mistake of the server or an attack on the schedule. */
+internal const val MAX_RETRY_AFTER_SECONDS = 86_400L
+
+private fun retryHint(seconds: Long?): Outcome =
+    if (seconds == null || seconds < 0) Outcome.RetryLater() else Outcome.RetryLater(minOf(seconds, MAX_RETRY_AFTER_SECONDS) * 1000)
 
 private fun mapFileState(file: FileState): Outcome =
     when {

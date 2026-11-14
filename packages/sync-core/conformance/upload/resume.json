@@ -1,5 +1,5 @@
 {
-  "$comment": "EVM-109 AC4 (AC1, AC2, AC3): scenarios of the upload loop against a deterministic fake server (the same fake is written in TypeScript and in Kotlin). A scenario: `initialStore` (a persisted snapshot or nothing), `server`, `faults` (consumed in order of calls, across runs), `runs` (each run is `engine.run(assetId, size)`; `crashAt` kills the process at the n-th checkpoint of that run, the next run uses a new engine instance on the same store) and `final` (state of the fake server and the store). `calls` lists API and transport calls without addresses: createSession, listParts, partUrl:N, put:N, complete. Faults: effect `network` (no answer), `lost_response` (the server executes, the answer is lost), `http:<status>[:<code>]`. Server: sessions (id, key, state active|expired|aborted|completed, parts), fileState (state of the file for a NEW session), partSize, partCount, partUrlHost, partUrlContentLength, listOverride (raw ListParts answer), createId (id returned by createSession), putEtag, omitEtag (storage answers without an ETag header), completeResult. Synthetic data only.",
+  "$comment": "EVM-109 AC4 (AC1, AC2, AC3): scenarios of the upload loop against a deterministic fake server (the same fake is written in TypeScript and in Kotlin). A scenario: `initialStore` (a persisted snapshot or nothing), `server`, `faults` (consumed in order of calls, across runs), `runs` (each run is `engine.run(assetId, size)`; `crashAt` kills the process at the n-th checkpoint of that run, the next run uses a new engine instance on the same store) and `final` (state of the fake server and the store). `calls` lists API and transport calls without addresses: createSession, listParts, partUrl:N, put:N, complete. Faults: effect `network` (no answer), `lost_response` (the server executes, the answer is lost), `http:<status>[:<code>[:<Retry-After in seconds>]]`. A run may have `resume: true` (the explicit resume of a paused job after a full sign-in of the same owner; without it a job paused by `session_revoked` is refused with `paused_revoked` and nothing is sent) and `stopAfterCalls: N` (the stop signal of the wipe marker rises after N calls of the run; 0 = from the start). Server: sessions (id, key, state active|expired|aborted|completed, parts), fileState (state of the file for a NEW session), partSize, partCount, partUrlHost, partUrlContentLength, listOverride (raw ListParts answer), createId (id returned by createSession), putEtag, omitEtag (storage answers without an ETag header), completeResult. Synthetic data only.",
   "defaults": {
     "assetId": "asset-1",
     "size": 40,
@@ -1036,6 +1036,7 @@
           }
         },
         {
+          "resume": true,
           "expect": {
             "outcome": {
               "type": "uploaded"
@@ -1758,6 +1759,97 @@
         }
       ],
       "final": { "objects": 1, "sessionsCreated": 1, "open": 0, "puts": { "1": 1, "2": 1, "3": 1 }, "store": "uploaded" }
+    },
+    {
+      "id": "R41-paused-job-is-refused-without-an-explicit-resume",
+      "ac": "AC2",
+      "$comment": "EVM-130 (SR-MOB-13): a job paused by session_revoked works again only after an explicit resume, given after a full sign-in of the same owner.",
+      "faults": [{ "op": "partUrl", "part": 2, "effect": "http:401:session_revoked", "times": 1 }],
+      "runs": [
+        {
+          "expect": {
+            "outcome": { "type": "paused_revoked" },
+            "calls": ["createSession", "listParts", "partUrl:1", "put:1", "partUrl:2"],
+            "sleeps": [],
+            "store": "paused_revoked"
+          }
+        },
+        { "expect": { "outcome": { "type": "paused_revoked" }, "calls": [], "sleeps": [], "store": "paused_revoked" } },
+        {
+          "resume": true,
+          "expect": {
+            "outcome": { "type": "uploaded" },
+            "calls": ["listParts", "partUrl:2", "put:2", "partUrl:3", "put:3", "complete"],
+            "sleeps": [],
+            "store": "uploaded"
+          }
+        }
+      ],
+      "final": { "objects": 1, "sessionsCreated": 1, "open": 0, "puts": { "1": 1, "2": 1, "3": 1 }, "store": "uploaded" }
+    },
+    {
+      "id": "R42-429-retry-after-is-a-floor-of-the-wait",
+      "ac": "AC2",
+      "faults": [{ "op": "createSession", "effect": "http:429:rate_limited:7", "times": 1 }],
+      "runs": [
+        {
+          "expect": {
+            "outcome": { "type": "uploaded" },
+            "calls": [
+              "createSession",
+              "createSession",
+              "listParts",
+              "partUrl:1",
+              "put:1",
+              "partUrl:2",
+              "put:2",
+              "partUrl:3",
+              "put:3",
+              "complete"
+            ],
+            "sleeps": [7000],
+            "store": "uploaded"
+          }
+        }
+      ],
+      "final": { "objects": 1, "sessionsCreated": 1, "open": 0, "puts": { "1": 1, "2": 1, "3": 1 }, "store": "uploaded" }
+    },
+    {
+      "id": "R43-429-long-retry-after-goes-to-the-system-schedule",
+      "ac": "AC2",
+      "faults": [{ "op": "createSession", "effect": "http:429:rate_limited:120", "times": 1 }],
+      "runs": [
+        {
+          "expect": { "outcome": { "type": "retry_later", "delayMs": 120000 }, "calls": ["createSession"], "sleeps": [], "store": "active" }
+        },
+        {
+          "expect": {
+            "outcome": { "type": "uploaded" },
+            "calls": ["createSession", "listParts", "partUrl:1", "put:1", "partUrl:2", "put:2", "partUrl:3", "put:3", "complete"],
+            "sleeps": [],
+            "store": "uploaded"
+          }
+        }
+      ],
+      "final": { "objects": 1, "sessionsCreated": 1, "open": 0, "puts": { "1": 1, "2": 1, "3": 1 }, "store": "uploaded" }
+    },
+    {
+      "id": "R44-stop-signal-from-the-start-sends-nothing",
+      "ac": "AC5",
+      "runs": [{ "stopAfterCalls": 0, "expect": { "outcome": { "type": "device_wipe" }, "calls": [], "sleeps": [], "store": null } }],
+      "final": { "objects": 0, "sessionsCreated": 0, "open": 0, "puts": {}, "store": null }
+    },
+    {
+      "id": "R45-stop-signal-between-calls-stops-the-instance",
+      "ac": "AC5",
+      "runs": [
+        {
+          "stopAfterCalls": 2,
+          "expect": { "outcome": { "type": "device_wipe" }, "calls": ["createSession", "listParts"], "sleeps": [], "store": "active" }
+        },
+        { "stopAfterCalls": 2, "expect": { "outcome": { "type": "device_wipe" }, "calls": [], "sleeps": [], "store": "active" } }
+      ],
+      "final": { "objects": 0, "sessionsCreated": 1, "open": 1, "puts": {}, "store": "active" }
     }
   ]
 }

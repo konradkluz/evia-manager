@@ -25,8 +25,17 @@ export function mapFailure(input: MappingInput): Outcome {
     return { type: 'needs_attention', reason: 'unknown' };
   }
   if (status === 422 && code !== undefined && INCOMPLETE_CODES.has(code)) return { type: 'needs_attention', reason: 'upload_incomplete' };
-  if (status === 429 || status >= 500) return { type: 'retry_later' };
+  if (status === 429) return retryHint(input.retryAfterSeconds);
+  if (status >= 500) return { type: 'retry_later' };
   return { type: 'needs_attention', reason: 'unknown' };
+}
+
+/** The longest `Retry-After` taken into account (a day): a larger value is a mistake of the server or an attack on the schedule. */
+export const MAX_RETRY_AFTER_SECONDS = 86_400;
+
+function retryHint(seconds: number | undefined): Outcome {
+  if (seconds === undefined || !Number.isInteger(seconds) || seconds < 0) return { type: 'retry_later' };
+  return { type: 'retry_later', delayMs: Math.min(seconds, MAX_RETRY_AFTER_SECONDS) * 1000 };
 }
 
 function mapFileState(state: string, reasonCode: string | undefined): Outcome {

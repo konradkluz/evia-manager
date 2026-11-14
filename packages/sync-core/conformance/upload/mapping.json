@@ -45,6 +45,32 @@
       "expected": { "type": "retry_later" }
     },
     { "id": "M12-429", "input": { "kind": "http", "status": 429, "code": "rate_limited" }, "expected": { "type": "retry_later" } },
+    {
+      "id": "M12b-429-retry-after",
+      "$comment": "EVM-130: the Retry-After of a 429 (delta-seconds) becomes the wait of the engine; the mapping carries it as delayMs.",
+      "input": { "kind": "http", "status": 429, "code": "rate_limited", "retryAfterSeconds": 7 },
+      "expected": { "type": "retry_later", "delayMs": 7000 }
+    },
+    {
+      "id": "M12c-429-retry-after-zero",
+      "input": { "kind": "http", "status": 429, "retryAfterSeconds": 0 },
+      "expected": { "type": "retry_later", "delayMs": 0 }
+    },
+    {
+      "id": "M12d-429-retry-after-capped-at-a-day",
+      "input": { "kind": "http", "status": 429, "retryAfterSeconds": 9999999 },
+      "expected": { "type": "retry_later", "delayMs": 86400000 }
+    },
+    {
+      "id": "M12e-429-retry-after-negative-is-ignored",
+      "input": { "kind": "http", "status": 429, "retryAfterSeconds": -5 },
+      "expected": { "type": "retry_later" }
+    },
+    {
+      "id": "M12f-503-retry-after-is-ignored",
+      "input": { "kind": "http", "status": 503, "retryAfterSeconds": 30 },
+      "expected": { "type": "retry_later" }
+    },
     { "id": "M13-network", "input": { "kind": "network" }, "expected": { "type": "retry_later" } },
     {
       "id": "M14-400",
