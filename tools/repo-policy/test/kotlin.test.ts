@@ -31,8 +31,11 @@ const wrapperJarSha = (): string =>
   createHash('sha256')
     .update(readFileSync(join(ROOT, `${ENGINE}/gradle/wrapper/gradle-wrapper.jar`)))
     .digest('hex');
-const kotlinSources = (dir: string): Record<string, string> =>
-  Object.fromEntries(filesBelow(dir, (path) => path.endsWith('.kt')).map((path) => [path, read(path)]));
+const sourcesBelow = (dir: string, extensions: readonly string[]): Record<string, string> =>
+  Object.fromEntries(filesBelow(dir, (path) => extensions.some((extension) => path.endsWith(extension))).map((path) => [path, read(path)]));
+const kotlinSources = (dir: string): Record<string, string> => sourcesBelow(dir, ['.kt']);
+/** Kotlin and Java: a Java file in a module must not log around the redacting logger either (EVM-130, review of EVM-109). */
+const moduleSources = (dir: string): Record<string, string> => sourcesBelow(dir, ['.kt', '.java']);
 
 describe('EVM-109 AC6: Gradle supply chain on the real files', () => {
   it('EVM-109 AC6: versions are exact (no +, ranges, latest, SNAPSHOT) in the build script', () => {
@@ -85,9 +88,9 @@ describe('EVM-109 AC6: Gradle supply chain on the real files', () => {
 describe('EVM-109 AC3: logging and purity of module sources on the real files', () => {
   it('EVM-109 AC3: no android.util.Log, System.out, printStackTrace or println in the Kotlin sources of modules, android and plugins', () => {
     const sources = {
-      ...kotlinSources('apps/mobile/modules'),
-      ...kotlinSources('apps/mobile/android'),
-      ...kotlinSources('apps/mobile/plugins'),
+      ...moduleSources('apps/mobile/modules'),
+      ...moduleSources('apps/mobile/android'),
+      ...moduleSources('apps/mobile/plugins'),
     };
     expect(Object.keys(sources).length).toBeGreaterThan(10);
     expect(loggingProblems(sources)).toEqual([]);
@@ -239,6 +242,19 @@ describe('EVM-109 AC6: the checkers reject bad examples', () => {
       expect(loggingProblems({ 'A.kt': code }), code).toHaveLength(1);
     }
     expect(loggingProblems({ 'A.kt': 'val line = "log"\nfun printable() = 1\nvalue.printer(1)' })).toEqual([]);
+  });
+
+  it('EVM-130 AC5: Android and console logging in Java files of modules is found as well', () => {
+    for (const code of [
+      'import android.util.Log;',
+      'android.util.Log.w(TAG, "m");',
+      'System.out.println("x");',
+      'System.err.print("x");',
+      'error.printStackTrace();',
+    ]) {
+      expect(loggingProblems({ 'A.java': code }), code).toHaveLength(1);
+    }
+    expect(loggingProblems({ 'A.java': '// android.util.Log is forbidden\nclass A { int printable() { return 1; } }' })).toEqual([]);
   });
 
   it('EVM-109 AC1: Android, Google and org.json imports in the engine are found', () => {

@@ -43,7 +43,17 @@ class RedactingLoggerTest {
         assertEquals("hash=[token]", Redactor.redact("hash=$token"))
         val uuid = "0191f0a8-1234-7abc-8def-0123456789ab"
         assertEquals("session $uuid", Redactor.redact("session $uuid"))
-        assertEquals("a".repeat(40), Redactor.redact("a".repeat(40)))
+    }
+
+    @Test
+    fun `EVM-130 AC5 a token without digits is masked too, only UUIDs stay readable`() {
+        val base64url = "QWxwaGFCZXRhRGFtbWFEZWx0YUVwc2lsb25aZXRhRXRhVGhldGE"
+        assertTrue(base64url.none { it.isDigit() })
+        assertEquals("token [token]", Redactor.redact("token $base64url"))
+        assertEquals("[token]", Redactor.redact("a".repeat(40)))
+        assertEquals("[token]", Redactor.redact("Zm9vYmFyLWJheg_-ZmFyYm9vLWJheg_-Zm9vYmFy"))
+        val uuid = "0191f0a8-1234-7abc-8def-0123456789ab"
+        assertEquals("asset=$uuid", Redactor.redact("asset=$uuid"))
     }
 
     @Test

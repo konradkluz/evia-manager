@@ -36,7 +36,8 @@ object Redactor {
         result = ASSIGNMENT.replace(result) { "${it.groupValues[1]}=[redacted]" }
         result = AMZ_NAME.replace(result, "[redacted]")
         return TOKEN_LIKE.replace(result) { match ->
-            if (UUID.matches(match.value) || match.value.none { it.isDigit() }) match.value else "[token]"
+            // every long token-like string is masked, also one without digits (base64url tokens can have none); only UUIDs stay readable
+            if (UUID.matches(match.value)) match.value else "[token]"
         }
     }
 }
