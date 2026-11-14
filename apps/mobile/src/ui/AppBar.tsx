@@ -4,10 +4,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { color, size, space, text } from './theme';
 
 /**
- * Top bar (styleguide § 3.18): `color.bg.brand-strong`, the title as a heading, the sync indicator on the right. Everything on the bar
+ * Top bar (styleguide § 3.18): `color.bg.brand-strong`, the title as a heading, the sync indicator on the right and, on a detail screen, the back action on the left. Everything on the bar
  * uses the inverse focus ring (`color.focus.ring-inverse`) — the default ring has only 1.74:1 here.
  */
-export function AppBar({ title, right }: { title: string; right?: ReactNode }) {
+export function AppBar({ title, right, left }: { title: string; right?: ReactNode; left?: ReactNode }) {
   const insets = useSafeAreaInsets();
   return (
     <View
@@ -22,7 +22,8 @@ export function AppBar({ title, right }: { title: string; right?: ReactNode }) {
         columnGap: space.inline.md,
       }}
     >
-      <Text accessibilityRole="header" style={{ ...text.heading3, color: color.text.onBrand, flexShrink: 1 }}>
+      {left}
+      <Text accessibilityRole="header" style={{ ...text.heading3, color: color.text.onBrand, flexShrink: 1, flex: 1 }}>
         {title}
       </Text>
       {right}

@@ -38,6 +38,8 @@ export interface SessionPorts {
   };
   /** Destination of a pick in "Dodaj" (EVM-107 / E11 provide the screens). */
   readonly openAddTarget: (target: AddTarget) => void;
+  /** A new id (UUIDv7) for an entry created on the phone (EVM-105): the generator of the session, CSPRNG. */
+  readonly newId: () => string;
   /** The synchronization of the session (EVM-107): the service is started here after the sign-in and stopped when it ends. */
   readonly sync: SyncRuntime;
   /** The sensitive clipboard (marked, removed after 60 s); `false` = not copied. */
@@ -252,6 +254,7 @@ export function SessionRoot({ ports, children }: { ports: SessionPorts; children
           void sync.recreate(item.id);
         }),
       openAddTarget: ports.openAddTarget,
+      newId: ports.newId,
       openHelp: ports.openHelp,
     }),
     // the name is read again whenever the view changes (a new sign-in)

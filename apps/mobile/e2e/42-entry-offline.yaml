@@ -1,0 +1,94 @@
+# EVM-105 AC1, AC2: in airplane mode (set by tools/mobile-e2e) the technician writes a note (category "Spotkanie") and a comment into the
+# work order 1 from "Dodaj wpis" in M-03. Each save is confirmed by the toast only after the entry is in the durable queue; the journal
+# shows both as "Czeka na wysłanie". tools/mobile-e2e kills the app right after this flow (AC5). Synthetic text only.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible: 'Brak zasięgu.*'
+    timeout: 30000
+# the emulator image is older than 12 months: the security banner of EVM-100 pushes the list down - acknowledge it if shown
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- tapOn:
+    id: 'order-row-30000000-0000-4000-8000-000000000001'
+- extendedWaitUntil:
+    visible: 'Zlecenie testowe 1'
+    timeout: 10000
+# AC1: the note
+# "Dodaj wpis" sits in the journal section, below the fold on a phone-sized screen
+- scrollUntilVisible:
+    element:
+      id: 'order-detail-add-entry'
+    direction: DOWN
+- tapOn:
+    id: 'order-detail-add-entry'
+- extendedWaitUntil:
+    visible: 'Nowy wpis'
+    timeout: 10000
+- assertVisible: 'Nie wpisuj PESEL, numerów dokumentów ani kodów do bram i alarmów\.'
+- tapOn:
+    id: 'entry-category-meeting'
+# the stage list opens over the whole screen (not inside the scroll) and is dismissed
+- tapOn:
+    id: 'entry-stage'
+- extendedWaitUntil:
+    visible: 'Etap wpisu'
+    timeout: 5000
+- assertVisible: 'Bez etapu'
+- tapOn:
+    id: 'entry-stage-cancel'
+# a typed text is not dropped by "Zamknij" without asking
+- tapOn:
+    id: 'entry-body'
+- inputText: 'Wpis testowy z telefonu bez zasiegu'
+- hideKeyboard
+- tapOn:
+    id: 'entry-close'
+- extendedWaitUntil:
+    visible: 'Odrzucić wpis\?'
+    timeout: 5000
+- tapOn:
+    id: 'entry-discard-back'
+# no hideKeyboard here: the keyboard is already hidden, so Maestro would press Back and the form would ask again
+- assertNotVisible: 'Odrzucić wpis\?'
+- assertVisible: 'Zapisz wpis'
+- takeScreenshot: m04-entry-form-filled
+- tapOn:
+    id: 'entry-save'
+- extendedWaitUntil:
+    visible: 'Zapisano w telefonie\. Wyślemy, gdy wróci zasięg\.'
+    timeout: 10000
+- takeScreenshot: m04-entry-saved-toast
+# AC2: the comment
+# "Dodaj wpis" sits in the journal section, below the fold on a phone-sized screen
+- scrollUntilVisible:
+    element:
+      id: 'order-detail-add-entry'
+    direction: DOWN
+- tapOn:
+    id: 'order-detail-add-entry'
+- extendedWaitUntil:
+    visible: 'Nowy wpis'
+    timeout: 10000
+- tapOn:
+    id: 'entry-kind-comment'
+- tapOn:
+    id: 'entry-body'
+- inputText: 'Komentarz testowy z telefonu'
+- hideKeyboard
+- tapOn:
+    id: 'entry-save'
+- extendedWaitUntil:
+    visible: 'Zapisano w telefonie\. Wyślemy, gdy wróci zasięg\.'
+    timeout: 10000
+# the journal below the fold shows both entries as waiting
+- scrollUntilVisible:
+    element: 'Czeka na wysłanie'
+    direction: DOWN
+- scrollUntilVisible:
+    element: 'Wpis testowy z telefonu bez zasiegu'
+    direction: DOWN
+- takeScreenshot: m03-journal-waiting

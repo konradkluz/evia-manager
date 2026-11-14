@@ -1,0 +1,26 @@
+# EVM-106 AC4: the network returns while the app was in the background; the foreground starts the synchronization. The order is sent once
+# and gets its number: the details that are open turn from "Oczekuje na numer" into the synchronized order (the number in the title),
+# and the entry is sent after it (the queue empties). The counters of the scenario server (2 unique, 0 duplicates, 0 rejected) are
+# asserted by tools/mobile-e2e after this flow.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- extendedWaitUntil:
+    visible: 'Zsynchr\. .*'
+    timeout: 60000
+- assertNotVisible: 'Offline.*'
+- extendedWaitUntil:
+    visible: 'ZL-E2E-3'
+    timeout: 30000
+- assertNotVisible: 'Oczekuje na numer'
+- takeScreenshot: m03-quick-order-numbered
+- tapOn:
+    id: 'nav-queue'
+- assertVisible: '0 elementów w kolejce'
+- assertNotVisible: 'Wymaga uwagi.*'
+- tapOn:
+    id: 'nav-orders'
+- assertVisible: 'ZL-E2E-3'
+- assertNotVisible: 'Oczekuje na numer'
+- takeScreenshot: m05-quick-order-numbered

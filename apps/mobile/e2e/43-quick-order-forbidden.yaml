@@ -1,0 +1,12 @@
+# EVM-106 AC1 (security K1): the scenario server answers the list of templates with 403 `channel_not_allowed` (the role "Tylko odczyt"
+# with the token of the phone; tools/mobile-e2e: templates "channel_not_allowed"). The app treats it like any 403 of the synchronization:
+# the screen "Aplikacja jest niedostępna dla Twojej roli", nothing removed from the phone.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    clearState: true
+- runFlow: common/sign-in.yaml
+- extendedWaitUntil:
+    visible: 'Aplikacja jest niedostępna dla Twojej roli'
+    timeout: 60000
+- takeScreenshot: m02-templates-role

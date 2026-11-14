@@ -17,6 +17,8 @@ export interface ButtonProps {
   inverse?: boolean;
   /** Stretches to the full width of the bottom bar (styleguide § 3.1 mobile). */
   fullWidth?: boolean;
+  /** A fuller name for the screen reader when the visible label needs its context (e.g. "Zadzwoń: klient"). */
+  accessibilityLabel?: string;
   testID?: string;
 }
 
@@ -30,12 +32,14 @@ export function Button({
   busy = false,
   inverse = false,
   fullWidth = false,
+  accessibilityLabel,
   testID,
 }: ButtonProps) {
   const [focused, setFocused] = useState(false);
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
       accessibilityState={{ disabled, busy }}
       disabled={disabled || busy}
       onPress={onPress}

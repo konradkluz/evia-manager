@@ -1,7 +1,7 @@
 # Module `catalog` — read-only configuration for the new work order (W-05), processes, payments and documents
 # (EVM-019). There is no operation that changes the configuration in M1 (the editor is M4, step-up for the
-# Administrator); changing the starting data is a new data migration. Every operation: the three roles, web only
-# (mobile arrives with the offline configuration in M2), no audit (reading configuration is not a sensitive event).
+# Administrator); changing the starting data is a new data migration. Every operation: the three roles, web only —
+# except the list of templates, also open to the phone (EVM-127) — no audit (reading configuration is not a sensitive event).
 workOrderTemplates:
   get:
     operationId: listWorkOrderTemplates
@@ -11,10 +11,12 @@ workOrderTemplates:
       Aktywne szablony zleceń (wycofane — `isActive = false` — pomijane), każdy z podglądem: pozycje, procesy z liczbą
       etapów i transze planu płatności z udziałami. Opcjonalny filtr typu obiektu `siteTypeHint`; wartość spoza słownika
       daje `400 validation_failed`, nieznany parametr — `400 unknown_parameter`. Zbiór jest mały i zwracany w całości
-      (`nextCursor` zawsze `null`).
+      (`nextCursor` zawsze `null`). Dostępne także dla telefonu (kanał mobile, `Authorization: Bearer`; Administrator
+      i Edytor z zarejestrowanego urządzenia, EVM-127) z tą samą treścią — wyłącznie katalog biura, bez danych klientów,
+      użytkowników i kwot zleceń; telefon wysyła `X-Client-Platform` i `X-Client-Version`. Odpowiedź ma `Cache-Control: no-store`.
     x-evia-authz:
       roles: [administrator, editor, read_only]
-      channels: [web]
+      channels: [web, mobile]
     parameters:
       - name: siteTypeHint
         in: query
@@ -35,6 +37,8 @@ workOrderTemplates:
         $ref: ../components/responses.yaml#/Unauthenticated
       '403':
         $ref: ../components/responses.yaml#/Forbidden
+      '426':
+        $ref: ../components/responses.yaml#/MobileClientVersionUnsupported
       '429':
         $ref: ../components/responses.yaml#/RateLimited
 workOrderTemplate:

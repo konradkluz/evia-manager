@@ -69,7 +69,18 @@ function useAnnouncement(query: string, count: number, t: Translate): string | n
  *   (security K4); it is cleared when the hidden-data mode starts and when the screen goes away.
  * - The hidden-data mode (`guard.hidden !== null`, also while it is being checked) shows no field, no chips and no rows (AC5).
  */
-export function OrdersScreen({ onOpenQueue, onAdd, now = Date.now }: { onOpenQueue: () => void; onAdd: () => void; now?: () => number }) {
+export function OrdersScreen({
+  onOpenQueue,
+  onAdd,
+  onOpen,
+  now = Date.now,
+}: {
+  onOpenQueue: () => void;
+  onAdd: () => void;
+  /** Opens the details of a work order (EVM-104 AC1); only the id travels. */
+  onOpen?: (orderId: string) => void;
+  now?: () => number;
+}) {
   const { t } = useTranslation();
   const { state, slow } = useStartup();
   const session = useSession();
@@ -244,7 +255,7 @@ export function OrdersScreen({ onOpenQueue, onAdd, now = Date.now }: { onOpenQue
         <FlatList<OrderRow>
           data={visible}
           keyExtractor={(row) => row.id}
-          renderItem={({ item }) => <OrderCard row={item} />}
+          renderItem={({ item }) => <OrderCard row={item} onOpen={onOpen} />}
           ItemSeparatorComponent={() => <View style={{ height: space.stack.sm }} />}
           ListEmptyComponent={emptyList}
           keyboardShouldPersistTaps="handled"

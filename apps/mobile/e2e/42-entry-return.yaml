@@ -1,0 +1,16 @@
+# EVM-105 AC1, AC5, EVM-107 AC2: the network returns while the app was in the background; the foreground starts the synchronization and the
+# two entries leave the queue ("0 elementów w kolejce"). The server counters (2 unique, 0 duplicates, 0 rejected) are asserted by
+# tools/mobile-e2e after this flow.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- extendedWaitUntil:
+    visible: 'Zsynchr\. .*'
+    timeout: 60000
+- assertNotVisible: 'Offline.*'
+- tapOn:
+    id: 'nav-queue'
+- assertVisible: '0 elementów w kolejce'
+- assertNotVisible: 'Wymaga uwagi.*'
+- takeScreenshot: m04-entries-sent

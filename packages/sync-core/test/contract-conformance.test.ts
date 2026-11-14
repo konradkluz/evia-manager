@@ -60,10 +60,10 @@ describe('sync-core vs. the contract: value sets in both directions (EVM-107 AC7
     expect(resultShape.outcome).toBe('applied');
   });
 
-  it('EVM-107 AC7: rejection codes of the contract = known codes of the core + the two handled separately (transient / unknown bucket)', () => {
+  it('EVM-107 AC7: rejection codes of the contract = known codes of the core + the one handled separately (transient)', () => {
     const contract = vocabulary('SyncMutationResult', 'code');
-    // idempotency_in_progress is retried (transient); quota_exceeded falls into the "unknown" bucket on purpose
-    const handledElsewhere = ['idempotency_in_progress', 'quota_exceeded'];
+    // idempotency_in_progress is retried (transient); quota_exceeded is a known code since EVM-106 AC5
+    const handledElsewhere = ['idempotency_in_progress'];
     expect(sorted([...KNOWN_REJECTION_CODES, ...handledElsewhere])).toEqual(sorted(contract));
     for (const code of KNOWN_REJECTION_CODES) expect(contract).toContain(code);
   });

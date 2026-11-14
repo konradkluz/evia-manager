@@ -1,6 +1,9 @@
 // A fake of the synchronization seen by the screens (EVM-107): a settable snapshot and queue, recorded calls.
 import type { EnqueueInput } from '@evia/sync-core';
+import type { OrderDetail } from '../../src/orders/order-detail-model';
 import { redactRows, type OrderRow } from '../../src/orders/order-list-model';
+import type { QuickOrderSource } from '../../src/orders/quick-order-model';
+import type { TemplateSet } from '../../src/orders/templates';
 import {
   EMPTY_COUNTS,
   INITIAL_FIRST_PULL,
@@ -74,8 +77,13 @@ export class FakeSync implements SyncRuntime {
   trigger(): void {
     this.calls.push('trigger');
   }
+  /** What was passed to `enqueue`, in order (EVM-105); `enqueueHook` lets a test hold or fail the call. */
+  readonly enqueued: EnqueueInput[] = [];
+  enqueueHook: ((input: EnqueueInput) => Promise<AttentionResult>) | undefined;
   enqueue(input: EnqueueInput): Promise<AttentionResult> {
     this.calls.push(`enqueue:${input.type}`);
+    this.enqueued.push(input);
+    if (this.enqueueHook !== undefined) return this.enqueueHook(input);
     return Promise.resolve(this.result);
   }
   queueView(withLabels: boolean): Promise<QueueView> {
@@ -94,6 +102,26 @@ export class FakeSync implements SyncRuntime {
     this.orderRequests.push(withData);
     if (this.orderListHook !== undefined) return this.orderListHook(withData);
     return Promise.resolve(withData ? this.rows : redactRows(this.rows));
+  }
+  /** The details the fake answers by id (set by the test); an id that is not there = not available (null). */
+  details = new Map<string, OrderDetail>();
+  readonly detailRequests: string[] = [];
+  orderDetailHook: ((id: string) => Promise<OrderDetail | null>) | undefined;
+  orderDetail(id: string): Promise<OrderDetail | null> {
+    this.detailRequests.push(id);
+    if (this.orderDetailHook !== undefined) return this.orderDetailHook(id);
+    return Promise.resolve(this.details.get(id) ?? null);
+  }
+  /** The templates and the customers the fake answers (set by the test; EVM-106). */
+  templateSet: TemplateSet | null = null;
+  quickSource: QuickOrderSource = { customers: [], sites: [] };
+  readonly quickSourceRequests: number[] = [];
+  templates(): Promise<TemplateSet | null> {
+    return Promise.resolve(this.templateSet);
+  }
+  quickOrderSource(): Promise<QuickOrderSource> {
+    this.quickSourceRequests.push(this.quickSourceRequests.length);
+    return Promise.resolve(this.quickSource);
   }
   dependentsOf(id: string): Promise<number> {
     this.calls.push(`dependentsOf:${id}`);

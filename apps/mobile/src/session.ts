@@ -2,6 +2,7 @@
  * Composition of the sign-in and the session (EVM-100; architect 6): the only place where the HTTP adapter, the secure store, the local
  * store and the session owner meet. Screens get `SessionPorts` and never import the adapters (dependency-cruiser).
  */
+import { createUuidV7 } from '@evia/sync-core';
 import { Linking } from 'react-native';
 import { createHttpAuthClient } from './api/auth-client';
 import { clientHeaders } from './api/health';
@@ -55,7 +56,10 @@ const NO_SYNC_TRANSPORT = {
   getChanges: () => Promise.resolve({ kind: 'network' as const }),
   getWorkOrderSnapshot: () => Promise.resolve({ kind: 'network' as const }),
   getClientConfig: () => Promise.resolve({ kind: 'network' as const }),
+  listWorkOrderTemplates: () => Promise.resolve({ kind: 'network' as const }),
 };
+
+let makeId: (() => string) | undefined;
 
 export function createSessionPorts(config: RuntimeConfig | null = readRuntimeConfig()): SessionPorts {
   const host = localData();
@@ -144,6 +148,8 @@ export function createSessionPorts(config: RuntimeConfig | null = readRuntimeCon
     companyWipe,
     screenLockOk: () => deviceLock.isDeviceSecure().catch(() => false),
     openAddTarget: () => undefined,
+    // the ids of entries written on the phone: UUIDv7 from the CSPRNG of the storage module, never a non-cryptographic generator (SR-SYNC-03)
+    newId: () => (makeId ??= createUuidV7({ now: Date.now }, randomSource()))(),
     sync,
     copyToClipboard: (text) => clipboard.copy(text),
     unsentBeforeSignIn: () => host.unsentItemCountBeforeSignIn(),

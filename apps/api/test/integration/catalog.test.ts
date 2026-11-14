@@ -2,7 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { sql } from 'kysely';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createSession, createUser, type Role } from '../support/identity-fixtures.ts';
+import { zWorkOrderTemplateList } from '@evia/contracts/zod';
+import { createMobileSession, createSession, createUser, type Role } from '../support/identity-fixtures.ts';
+import { setDeviceState } from '../support/mobile-flows.ts';
 import { createIdentityApp, type IdentityApp } from '../support/identity-app.ts';
 
 let current: IdentityApp;
@@ -351,14 +353,182 @@ describe('who may read the configuration (EVM-019 AC7; SR-AUTHZ-05, SR-AUTHZ-12)
     }
   });
 
-  it('EVM-019 AC7 the mobile channel is not allowed in M1 (web only) for any role', async () => {
+  it('EVM-019 AC7 EVM-127 AC2 the mobile channel is not allowed (web only) for any role on the operations other than the list of templates: a session of the phone in a cookie is 403, a Bearer token is 401', async () => {
+    const webOnly = [...OPERATIONS.filter((path) => path !== `${BASE}/work-order-templates`), await templatePath()];
     for (const role of ['administrator', 'editor'] as const) {
-      for (const path of OPERATIONS) {
+      for (const path of webOnly) {
         const response = await get(path, role, { channel: 'mobile' });
         expect(response.status, `${role} ${path}`).toBe(403);
         expect(response.body, `${role} ${path}`).toMatchObject({ code: 'forbidden' });
+        const phone = await phoneGet(path, role);
+        expect(phone.status, `${role} ${path} bearer`).toBe(401);
+        expect(phone.body, `${role} ${path} bearer`).toMatchObject({ code: 'unauthenticated' });
       }
     }
+  });
+});
+
+interface Phone {
+  readonly bearer: string;
+  readonly deviceId: string;
+  readonly sessionId: string;
+}
+const APP = { 'X-Client-Platform': 'android', 'X-Client-Version': '1.2.0' };
+
+/** A phone of the role registered through the fixtures (a Bearer token, no cookie). */
+async function phoneOf(role: Role): Promise<Phone> {
+  const user = await createUser(current.database.admin, current.clock, { role });
+  return createMobileSession(current.database.admin, current.clock, user);
+}
+
+/** The clock moves a minute per request: the per-IP limits are not what these tests measure. */
+async function phoneGet(path: string, role: Role = 'administrator', headers: Record<string, string> = APP) {
+  const phone = await phoneOf(role);
+  current.clock.advance(61_000);
+  return request(server())
+    .get(path)
+    .set({ Authorization: `Bearer ${phone.bearer}`, ...headers });
+}
+
+const withToken = async (bearer: string, headers: Record<string, string> = APP) => {
+  current.clock.advance(61_000);
+  return request(server())
+    .get(`${BASE}/work-order-templates`)
+    .set({ Authorization: `Bearer ${bearer}`, ...headers });
+};
+
+describe('the list of templates for the phone (EVM-127; SR-AUTHZ-05, SR-AUTHZ-12, SR-DATA-03, SR-API-08)', () => {
+  const LIST = `${BASE}/work-order-templates`;
+  const endSession = (id: string) =>
+    sql`update identity.sessions set revoked_at = ${current.clock.now()}, revoke_reason = 'logout' where id = ${id}`.execute(
+      current.database.admin,
+    );
+
+  it('EVM-127 AC1 Administrator and Editor on the phone get 200 with exactly the content of the panel, no-store and no cookie', async () => {
+    const panel = await get(LIST);
+    for (const role of ['administrator', 'editor'] as const) {
+      const response = await phoneGet(LIST, role);
+      expect(response.status, role).toBe(200);
+      expect(response.body, role).toEqual(panel.body);
+      expect(zWorkOrderTemplateList.parse(response.body), role).toEqual(response.body);
+      expect(response.headers['cache-control'], role).toBe('no-store');
+      expect(response.headers['set-cookie'], role).toBeUndefined();
+      expect(response.headers['access-control-allow-origin'], role).toBeUndefined();
+    }
+  });
+
+  it('EVM-127 AC1 the filter narrows the list for the phone like for the panel, and a retired template is left out', async () => {
+    const all = (await get(LIST)).body as TemplateList;
+    const target = all.items.find((template) => template.siteTypeHint !== null);
+    if (target === undefined) throw new Error('no template with a site type to filter by');
+    const query = `?siteTypeHint=${String(target.siteTypeHint)}`;
+    const filtered = await phoneGet(`${LIST}${query}`);
+    expect(filtered.status).toBe(200);
+    expect(filtered.body).toEqual((await get(`${LIST}${query}`)).body);
+    expect((filtered.body as TemplateList).items.map((template) => template.code)).toContain(target.code);
+
+    await sql`update catalog.work_order_templates set is_active = false where id = ${target.id}`.execute(current.database.admin);
+    try {
+      const after = (await phoneGet(LIST)).body as TemplateList;
+      expect(after.items.map((template) => template.code)).not.toContain(target.code);
+      expect(after.items.every((template) => template.isActive)).toBe(true);
+    } finally {
+      await sql`update catalog.work_order_templates set is_active = true where id = ${target.id}`.execute(current.database.admin);
+    }
+  });
+
+  it('EVM-127 AC1 a wrong filter, an unknown and a repeated parameter are 400 on the phone as in the panel', async () => {
+    const wrong = await phoneGet(`${LIST}?siteTypeHint=castle`);
+    expect(wrong.status).toBe(400);
+    expect(wrong.body).toMatchObject({ code: 'validation_failed' });
+    const unknown = await phoneGet(`${LIST}?color=red`);
+    expect(unknown.status).toBe(400);
+    expect(unknown.body).toMatchObject({ code: 'unknown_parameter' });
+    const repeated = await phoneGet(`${LIST}?siteTypeHint=single_family_house&siteTypeHint=single_family_house`);
+    expect(repeated.status).toBe(400);
+  });
+
+  it('EVM-127 AC2 Tylko odczyt on the phone is 403 channel_not_allowed (the sign-in of that role is refused too: EVM-094; a change to that role wipes the phone: EVM-095 AC5)', async () => {
+    const response = await phoneGet(LIST, 'read_only');
+    expect(response.status).toBe(403);
+    expect(response.body).toMatchObject({ code: 'channel_not_allowed' });
+  });
+
+  it('EVM-127 AC2 an anonymous caller is 401, a device ordered to wipe is 401 device_wipe_required, a revoked or an unknown token is 401', async () => {
+    current.clock.advance(61_000);
+    const anonymous = await request(server()).get(LIST).set(APP);
+    expect(anonymous.status).toBe(401);
+    expect(anonymous.body).toMatchObject({ code: 'unauthenticated' });
+
+    const wiped = await phoneOf('editor');
+    await setDeviceState(current, wiped.deviceId, 'wipe_required');
+    const wipe = await withToken(wiped.bearer);
+    expect(wipe.status).toBe(401);
+    expect(wipe.body).toMatchObject({ code: 'device_wipe_required' });
+
+    const ended = await phoneOf('administrator');
+    await endSession(ended.sessionId);
+    const revoked = await withToken(ended.bearer);
+    expect(revoked.status).toBe(401);
+    expect(revoked.body).toMatchObject({ code: 'session_revoked' });
+    expect((await withToken('not-a-token')).status).toBe(401);
+  });
+
+  it('EVM-127 AC2 the panel is unchanged: the three roles get 200 without X-Client-* headers (no 426), a revoked or an expired cookie keeps its own 401', async () => {
+    for (const role of ROLES) {
+      expect((await get(LIST, role)).status, role).toBe(200);
+    }
+    const user = await createUser(current.database.admin, current.clock, { role: 'administrator' });
+    const revoked = await createSession(current.database.admin, current.clock, user);
+    await endSession(revoked.id);
+    current.clock.advance(61_000);
+    const answer = await request(server()).get(LIST).set('Cookie', revoked.cookie);
+    expect(answer.status).toBe(401);
+    expect(answer.body).toMatchObject({ code: 'session_revoked' });
+
+    const idle = await createSession(current.database.admin, current.clock, user);
+    await sql`update identity.sessions set idle_expires_at = ${new Date(current.clock.now().getTime() - 1)} where id = ${idle.id}`.execute(
+      current.database.admin,
+    );
+    current.clock.advance(61_000);
+    const expired = await request(server()).get(LIST).set('Cookie', idle.cookie);
+    expect(expired.status).toBe(401);
+    expect(expired.body).toMatchObject({ code: 'session_expired' });
+  });
+
+  it('EVM-127 AC2 the panel ignores forged or old X-Client-* headers, and a phone without them or with an old version is 426', async () => {
+    const user = await createUser(current.database.admin, current.clock, { role: 'editor' });
+    const session = await createSession(current.database.admin, current.clock, user);
+    current.clock.advance(61_000);
+    const forged = await request(server())
+      .get(LIST)
+      .set('Cookie', session.cookie)
+      .set({ 'X-Client-Platform': 'android', 'X-Client-Version': '0.0.1' });
+    expect(forged.status).toBe(200);
+
+    const oldHeaders: Array<Record<string, string>> = [{}, { 'X-Client-Platform': 'android', 'X-Client-Version': '1.0.0' }];
+    for (const headers of oldHeaders) {
+      const old = await phoneGet(LIST, 'administrator', headers);
+      expect(old.status, JSON.stringify(headers)).toBe(426);
+      expect(old.body).toMatchObject({ code: 'client_version_unsupported' });
+    }
+    current.clock.advance(61_000);
+    const anonymousOld = await request(server()).get(LIST).set({ 'X-Client-Platform': 'android', 'X-Client-Version': '1.0.0' });
+    expect(anonymousOld.status).toBe(401);
+  });
+
+  it('EVM-127 AC3 the answer has no customer, user, amount or order data and the logs hold no token; reading is not an audit event', async () => {
+    const [before] = (await sql<{ n: string }>`select count(*)::text as n from audit.events`.execute(current.database.admin)).rows;
+    const phone = await phoneOf('editor');
+    const response = await withToken(phone.bearer);
+    expect(response.status).toBe(200);
+    // the names of the fields, not the values (a code such as `customer_charger` is catalog text): none of customer, user, amount or order data
+    const keys = new Set([...JSON.stringify(response.body).matchAll(/"([A-Za-z]+)":/g)].map((match) => match[1]));
+    expect([...keys].filter((key) => /customer|created|updated|email|phone|amount|workOrder|user/i.test(String(key)))).toEqual([]);
+    const [after] = (await sql<{ n: string }>`select count(*)::text as n from audit.events`.execute(current.database.admin)).rows;
+    expect(after?.n).toBe(before?.n);
+    expect(current.logs.text).not.toContain(phone.bearer);
+    expect(current.logs.text).not.toMatch(/defaultParameters|dedicatedCircuit/);
   });
 });
 

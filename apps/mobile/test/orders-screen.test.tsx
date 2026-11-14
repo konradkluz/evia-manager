@@ -132,15 +132,16 @@ describe('list from the local database (EVM-103 AC1)', () => {
     expect(within(screen.getByTestId('order-row-o-odd')).getByText(pl.shell.orders.unknownStatus)).toBeOnTheScreen();
   });
 
-  it('EVM-103 AC1: until the details exist (EVM-104) a row is one inactive block - no button role, not selectable, no action', async () => {
+  it('EVM-104 AC1: a row of a numbered work order is a button with its number in the name; EVM-106 AC2: "Oczekuje na numer" is a button too (it opens its details from the queue)', async () => {
     await open(rigWith());
     const row = screen.getByTestId('order-row-o-old');
-    expect(row.props).not.toHaveProperty('onPress');
-    expect(row.props).not.toHaveProperty('onClick');
-    expect(row.props.accessibilityRole).toBeUndefined();
-    expect(row.props.accessible).toBe(true);
-    expect(within(screen.getByTestId('orders-list')).queryAllByRole('button')).toEqual([]);
-    for (const node of within(row).queryAllByText(/./)) expect(node.props.selectable).toBeFalsy();
+    expect(row.props.accessibilityRole).toBe('button');
+    expect(row.props.accessibilityLabel).toMatch(/^ZL-2026-0042, /);
+    const waiting = screen.getByTestId('order-row-o-quick');
+    expect(waiting.props.accessibilityRole).toBe('button');
+    expect(waiting.props.accessibilityLabel).toMatch(new RegExp(`^${pl.shell.orders.awaitingNumber}, `));
+    expect(within(screen.getByTestId('orders-list')).queryAllByRole('button')).toHaveLength(4);
+    for (const node of within(waiting).queryAllByText(/./)) expect(node.props.selectable).toBeFalsy();
   });
 
   it('EVM-103 AC1: an unauthenticated user sees the sign-in, never the list (no read of the model)', async () => {

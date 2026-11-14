@@ -363,8 +363,15 @@ describe('sheet "Dodaj" and the queue in the hidden-data mode (EVM-101 AC8)', ()
     expect(screen.getByTestId('add-entry')).toBeEnabled();
     expect(screen.getByTestId('add-new-order')).toBeEnabled();
     expect(screen.queryByTestId('add-hidden-reason')).toBeNull();
+    // EVM-105: "Wpis" opens the picker of the order inside the shell; EVM-106: "Nowe zlecenie" opens the quick order form there too
     await fireEvent.press(screen.getByTestId('add-entry'));
-    expect(rig.opened).toEqual(['add:entry']);
+    expect(rig.opened).toEqual([]);
+    expect(screen.getByTestId('entry-picker')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByTestId('entry-picker-cancel'));
+    await fireEvent.press(screen.getByTestId('orders-add'));
+    await fireEvent.press(screen.getByTestId('add-new-order'));
+    expect(rig.opened).toEqual([]);
+    expect(screen.getByTestId('quick-order')).toBeOnTheScreen();
   });
 
   it('EVM-101 AC8: hidden data - "Wpis" and "Nowe zlecenie" are disabled with the reason, "Zdjęcie lub film" works', async () => {

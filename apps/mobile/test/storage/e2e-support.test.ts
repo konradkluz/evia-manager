@@ -93,3 +93,11 @@ describe('ports of the e2e hooks (EVM-093 AC1, AC6)', () => {
     expect(device.files.has(WIPE_MARKER_FILE)).toBe(false);
   });
 });
+
+describe('read of the work order details through the unlocked store (EVM-104 AC1, AC5)', () => {
+  it('EVM-104 AC5: the capability of the open store reads one order from the replica - an order that is not there is null', async () => {
+    const { host } = boot(device);
+    const store = unlocked(await host.openForUser(USER_A));
+    expect(await store.replicaExtras.readOrderDetailSource(WO)).toBeNull();
+  });
+});

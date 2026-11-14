@@ -11,7 +11,7 @@ import type { Request } from 'express';
 import type { Clock } from '../../platform/clock/clock.ts';
 import type { AppConfig } from '../../platform/config/config.ts';
 import { OPERATION_ID } from '../../platform/http/operation-id.ts';
-import { authenticationOf, bearerAuthenticationOf, type Authentication } from '../../platform/http/principal.ts';
+import { ANONYMOUS, authenticationOf, bearerAuthenticationOf, type Authentication } from '../../platform/http/principal.ts';
 import { ProblemException } from '../../platform/http/problem.ts';
 import { assertQueryParameters, SAFE_METHODS } from '../../platform/http/query-parameters.ts';
 import { RATE_LIMITER, RATE_LIMITS, type RateLimiter } from '../../platform/http/rate-limiter.ts';
@@ -87,7 +87,9 @@ export class AuthorizationGuard implements CanActivate {
         decision.retryAfterSeconds === undefined ? {} : { retryAfterSeconds: decision.retryAfterSeconds },
       );
     }
-    if (versionChecked && !isPublic) this.#assertClientVersion(request);
+    // Only a Bearer principal of the phone is asked for the version: the credential the guard chose decides, never the X-Client-* headers (EVM-127; SR-AUTHZ-12).
+    if (versionChecked && !isPublic && source.bearer && source.authentication.principal?.channel === 'mobile')
+      this.#assertClientVersion(request);
     assertQueryParameters(request.query, declaredQuery);
     const { authentication } = source;
     if (authentication.principal !== null && this.#recordsActivity(operationId)) await authentication.touch?.();
@@ -126,7 +128,12 @@ function authenticationFor(
   if (mobile && !web) return { authentication: bearerAuthenticationOf(request), bearer: true };
   if (!mobile) return { authentication: authenticationOf(request), bearer: false };
   const cookie = authenticationOf(request);
-  return cookie.principal !== null
-    ? { authentication: cookie, bearer: false }
-    : { authentication: bearerAuthenticationOf(request), bearer: true };
+  // A cookie only counts for the panel: a session of the phone never travels in a cookie, so one that does is no credential (EVM-127; SR-AUTHZ-12).
+  if (cookie.principal !== null && cookie.principal.channel === 'web') return { authentication: cookie, bearer: false };
+  const token = bearerAuthenticationOf(request);
+  // No Bearer token at all: the answer is the one of the cookie with its reason (session_revoked / session_expired of the panel, EVM-127; SR-SESS-06).
+  // A Bearer token that was recognised (a wipe, a revoked family) keeps its own answer.
+  if (token.principal === null && token.reason === 'anonymous')
+    return { authentication: cookie.principal === null ? cookie : ANONYMOUS, bearer: false };
+  return { authentication: token, bearer: true };
 }

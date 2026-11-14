@@ -4,7 +4,7 @@ title: "Aplikacja: szybkie zlecenie z telefonu"
 type: story
 milestone: M2
 epic: E13 Nowe zlecenie z telefonu
-status: ready
+status: in-review
 priority: P1
 path: pelna             # synchronizacja offline, dane osobowe (nowy klient i adres)
 owner: mobile-developer
@@ -72,3 +72,8 @@ Jako **technik** chcę **założyć zlecenie na miejscu (klient + adres + szablo
 - 2026-10-27 — naniesiono konsultacje: architekt, security, UX (product-owner)
 - 2026-11-13 — refinement do DoR: 6 AC; podział — szablony dla telefonu (EVM-127, luka: kanał web only) i „Utwórz ponownie” (EVM-128); dopisane zależności EVM-104/105/127; usunięto baner 24 h i szkic (YAGNI); pytania 1 i 3 do Konrada z rekomendacją; status `draft` do akceptacji (product-owner)
 - 2026-11-13 — akceptacja Konrada (DoR) do nocnej kolejki `/noc-2026-11-13`: kolejność toru A 104 → 105 → 127 → 106 (tor B: 126 → 066), autokorekta zostaje w długich tekstach (wyłączona w polach klienta, telefonu, adresu; autofill wszędzie wyłączony), bez szkiców i „ostatnio otwieranych” w M2, EVM-126 — budowa panelu bez adresu kończy się błędem; status `ready` (Tech Lead)
+- 2026-11-14 — start realizacji w kolejce nocnej `/noc-2026-11-13` (Tech Lead): status `in-progress`, gałąź `feature/queue-2026-11-13-mobile` (EVM-104, EVM-105, EVM-127 `in-review` na tej gałęzi)
+- 2026-11-14 — plan gotowy (mobile-developer)
+- 2026-11-14 — implementacja (mobile-developer): szablony w SQLCipher przez bramę sesji, formularz M-10, szczegóły zlecenia z kolejki, grupa odrzucenia, przepływy Maestro 43-*; podpowiedź „podobny klient” w całości (bez linii cięcia)
+- 2026-11-14 — poprawki po przeglądach (mobile-developer): szablony pobierane tylko po udanym cyklu, zerowanie niepasującego szablonu po zmianie typu obiektu, obrona onPick w trybie ukrytych danych
+- 2026-11-14 — workflow `deliver-story` (pelna) `passed` po 2 rundach (wznowiony po awarii sesji): QA pass (AC1–AC6, całość — bez linii cięcia), code-reviewer i security-engineer approve w rundzie 1, ux-designer approve w rundzie 2 (podsumowanie formularza ogłasza pytanie o podobnego klienta). Po przeglądach trzy poprawki (`a4aefaac`). Bramka orkiestratora `pnpm run gate` zielona — pokrycie zmienionego kodu gałęzi 97,8% linii, 94,5% gałęzi. E2E Maestro (przepływy 43-*) — końcowy przebieg toru A z klonu `C:`. Do decyzji Konrada: ograniczenie pobierania szablonów do raz na 10–15 min (dziś po każdym udanym cyklu, wg AC1). Koszt: 11 agentów, ok. 957 tys. tokenów, ok. 50 min po wznowieniu. Status `in-review` (Tech Lead, kolejka nocna)

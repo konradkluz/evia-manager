@@ -189,6 +189,7 @@ export async function runE2e({ skipBuild, port }, host) {
           continue;
         }
         stub.setMode(step.server, step.auth ?? 'ok');
+        stub.setSyncModes({ templates: step.templates ?? 'ok', quick: step.quick ?? 'ok' });
         if (step.background === true) {
           adb(...adbArgs(serial, 'shell', 'input', 'keyevent', 'KEYCODE_HOME'));
           await host.sleep(BACKGROUND_WAIT_MS);
@@ -246,11 +247,14 @@ export async function runE2e({ skipBuild, port }, host) {
         }
         if (passed && step.expectSync !== undefined) {
           const report = stub.syncReport();
-          const ok = report.unique === step.expectSync.unique && report.duplicates === step.expectSync.duplicates;
+          const ok =
+            report.unique === step.expectSync.unique &&
+            report.duplicates === step.expectSync.duplicates &&
+            (step.expectSync.rejected === undefined || report.rejected === step.expectSync.rejected);
           checks.push({
             action: 'check-sync-report',
             ok,
-            detail: `server received ${String(report.unique)} unique mutation(s), ${String(report.duplicates)} duplicate(s) of ${String(report.received)} (expected ${String(step.expectSync.unique)} and ${String(step.expectSync.duplicates)})`,
+            detail: `server received ${String(report.unique)} unique mutation(s), ${String(report.duplicates)} duplicate(s), ${String(report.rejected)} rejected of ${String(report.received)} (expected ${String(step.expectSync.unique)}, ${String(step.expectSync.duplicates)} and ${step.expectSync.rejected === undefined ? 'any' : String(step.expectSync.rejected)})`,
           });
           if (!ok) passed = false;
         }

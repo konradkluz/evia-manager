@@ -10,6 +10,7 @@ export type { BottomNavItem } from './BottomNav';
 export { Button } from './Button';
 export type { ButtonProps, ButtonVariant } from './Button';
 export { EmptyState } from './EmptyState';
+export { Icon } from './Icon';
 export type { EmptyStateProps } from './EmptyState';
 export { FilterChip } from './FilterChip';
 export type { FilterChipProps } from './FilterChip';
@@ -17,10 +18,16 @@ export { InlineAlert } from './InlineAlert';
 export type { AlertTone, InlineAlertProps } from './InlineAlert';
 export { ProgressBar } from './ProgressBar';
 export type { ProgressBarProps, ProgressTone } from './ProgressBar';
+export { SelectableCard } from './SelectableCard';
+export type { SelectableCardProps } from './SelectableCard';
 export { Skeleton } from './Skeleton';
 export { StatusBadge } from './StatusBadge';
 export type { BadgeTone, StatusBadgeProps } from './StatusBadge';
 export { SyncIndicator } from './SyncIndicator';
+export { TextArea } from './TextArea';
+export type { TextAreaProps } from './TextArea';
+export { Toast, TOAST_MS } from './Toast';
+export type { ToastProps } from './Toast';
 export { TextField } from './TextField';
 export type { SearchOptions, SecureToggle, TextFieldProps } from './TextField';
 export type { SyncIndicatorProps, SyncState } from './SyncIndicator';
@@ -32,6 +39,7 @@ export {
   Check,
   CircleAlert,
   CircleCheck,
+  ChevronRight,
   CirclePause,
   CircleQuestionMark,
   CloudAlert,

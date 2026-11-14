@@ -81,9 +81,20 @@ function fakeMachine({
   const modes = [];
   /** @type {string[]} */
   const auths = [];
+  /** EVM-106: the answers of the scenario server for the templates and the quick work order, per step */
+  /** @type {{ templates?: string, quick?: string }[]} */
+  const syncModes = [];
   let closed = false;
   /** the counters of the sync part of the scenario server (EVM-107 AC6) */
-  let syncReport = { unique: 5, duplicates: 0, received: 5, requests: 3, lastPendingItems: 5 };
+  let syncReport = { unique: 5, duplicates: 0, rejected: 0, received: 5, requests: 3, lastPendingItems: 5 };
+  /** EVM-105: the flows of the entry scenarios expect other counters of the scenario server than the five notes of EVM-107 */
+  const syncReportByFlow = {
+    '42-entry-return.yaml': { unique: 2, duplicates: 0, rejected: 0, received: 2, requests: 3, lastPendingItems: 2 },
+    // EVM-106: the quick order scenario (the order and its note arrive once) and the rejected one (the order only; its note is held back)
+    '43-quick-order-return.yaml': { unique: 2, duplicates: 0, rejected: 0, received: 2, requests: 3, lastPendingItems: 2 },
+    '43-quick-order-rejected-return.yaml': { unique: 0, duplicates: 0, rejected: 1, received: 1, requests: 3, lastPendingItems: 2 },
+    '42-entry-rejected.yaml': { unique: 3, duplicates: 0, rejected: 1, received: 5, requests: 3, lastPendingItems: 0 },
+  };
   let syncResets = 0;
   let devicePolls = 0;
   /** @type {{ command: string, args: string[] }[]} */
@@ -217,7 +228,18 @@ function fakeMachine({
           auths.push(auth ?? 'ok');
         },
         requests: () => requests ?? [{ platform: 'android', version: '0.1.0' }],
-        syncReport: () => syncReport,
+        syncReport: () => {
+          const lastFlow = processes
+            .filter((entry) => entry.args.includes('test'))
+            .map((entry) => entry.args[entry.args.indexOf('test') + 1]?.split(/[\\/]/).at(-1))
+            .at(-1);
+          return lastFlow !== undefined && lastFlow in syncReportByFlow
+            ? syncReportByFlow[/** @type {keyof typeof syncReportByFlow} */ (lastFlow)]
+            : syncReport;
+        },
+        setSyncModes: (next) => {
+          syncModes.push(next);
+        },
         syncReset: () => {
           syncResets += 1;
         },
@@ -239,6 +261,7 @@ function fakeMachine({
     written,
     modes,
     auths,
+    syncModes,
     resets,
     collected,
     detached,
@@ -322,6 +345,10 @@ describe('smoke test run (EVM-009 AC4; ADR-0015)', () => {
     assert.deepEqual(
       machine.auths,
       SCENARIOS.flatMap((scenario) => scenario.steps.map((step) => step.auth ?? 'ok')),
+    );
+    assert.deepEqual(
+      machine.syncModes,
+      SCENARIOS.flatMap((scenario) => scenario.steps.map((step) => ({ templates: step.templates ?? 'ok', quick: step.quick ?? 'ok' }))),
     );
     // airplane mode changes exactly where two consecutive steps differ (the offline flows of EVM-009 and EVM-100), nothing else
     assert.deepEqual(machine.airplane(), expectedAirplane(SCENARIOS.flatMap((scenario) => scenario.steps)));
@@ -479,7 +506,18 @@ describe('smoke test run (EVM-009 AC4; ADR-0015)', () => {
     assert.ok(machine.maestroFlows().includes('04-update-required.yaml'));
     // the failed offline flow skips its return step: the next scenario switches airplane mode off, the later ones toggle as planned
     // EVM-103 adds the scenario "orders-list-and-search": one more offline stretch (two flows in airplane mode), switched off before "loading"
+    // EVM-104 adds "order-details-offline": one more offline stretch
+    // EVM-105 adds "entries-offline": one more offline stretch
+    // EVM-106 adds "quick-order-offline" and "quick-order-rejected": two more offline stretches
     assert.deepEqual(machine.airplane(), [
+      'enable',
+      'disable',
+      'enable',
+      'disable',
+      'enable',
+      'disable',
+      'enable',
+      'disable',
       'enable',
       'disable',
       'enable',
@@ -502,8 +540,8 @@ describe('smoke test run (EVM-009 AC4; ADR-0015)', () => {
     assert.ok(good.syncResets() >= 1);
     assert.match(Object.values(good.written).join('\n'), /check-sync-report/);
     for (const report of [
-      { unique: 4, duplicates: 0, received: 4, requests: 3, lastPendingItems: 4 },
-      { unique: 5, duplicates: 1, received: 6, requests: 3, lastPendingItems: 5 },
+      { unique: 4, duplicates: 0, rejected: 0, received: 4, requests: 3, lastPendingItems: 4 },
+      { unique: 5, duplicates: 1, rejected: 0, received: 6, requests: 3, lastPendingItems: 5 },
     ]) {
       const bad = fakeMachine();
       bad.setSyncReport(report);

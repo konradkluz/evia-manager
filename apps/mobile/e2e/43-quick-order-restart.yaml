@@ -1,0 +1,26 @@
+# EVM-106 AC2, AC4: after the kill the order and its entry are still in the queue ("Offline · 2"), the list shows the order on top as
+# "Oczekuje na numer", it opens from the queue with its entry waiting, and nothing was sent.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible: 'Offline · 2'
+    timeout: 45000
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- extendedWaitUntil:
+    visible: 'Oczekuje na numer'
+    timeout: 10000
+- tapOn: 'Oczekuje na numer'
+- extendedWaitUntil:
+    visible: 'Zapisano w telefonie\. Numer nadamy po synchronizacji\.'
+    timeout: 10000
+- scrollUntilVisible:
+    element: 'Wyślemy po utworzeniu zlecenia'
+    direction: DOWN
+- scrollUntilVisible:
+    element: 'Wpis do nowego zlecenia'
+    direction: DOWN
+- takeScreenshot: m03-quick-order-after-kill

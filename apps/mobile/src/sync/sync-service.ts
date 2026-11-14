@@ -30,8 +30,12 @@ import {
   type SyncCore,
   type SyncOptions,
   type Transport,
+  type TransportResponse,
 } from '@evia/sync-core';
+import { buildOrderDetail, buildPendingOrderDetail, type OrderDetail, type OrderDetailSource } from '../orders/order-detail-model';
 import { buildOrderList, queueFact, type OrderListSource, type OrderRow } from '../orders/order-list-model';
+import { EMPTY_QUICK_SOURCE, type QuickOrderSource } from '../orders/quick-order-model';
+import { parseStoredTemplates, parseTemplateResponse, type TemplateSet } from '../orders/templates';
 import { classifySqlError } from '../storage/errors';
 import {
   EMPTY_COUNTS,
@@ -47,6 +51,7 @@ import {
   type SyncPauseReason,
   type SyncSnapshot,
   type TargetOption,
+  type TemplateTransport,
 } from './types';
 
 /** Triggers are spaced out: the server allows 60 requests a minute per device (security S10). */
@@ -66,6 +71,12 @@ export interface SyncServiceStore {
     writeLastSuccess(at: number): Promise<void>;
     listWorkOrders(limit?: number): Promise<{ id: string; number: string; title: string }[]>;
     readOrderListSource(withData: boolean): Promise<OrderListSource>;
+    readOrderDetailSource(workOrderId: string): Promise<OrderDetailSource | null>;
+    /** The templates of work orders (EVM-106): the stored document as it is (`unknown`; the reader validates it) and its atomic replacement. */
+    readTemplates(): Promise<unknown>;
+    writeTemplates(set: TemplateSet): Promise<void>;
+    /** The customers and places of the active generation for the form of a quick work order (EVM-106); never called in the hidden-data mode. */
+    readQuickOrderSource(): Promise<QuickOrderSource>;
   };
   takeSettled(): Promise<{ mutationId: string; info: SettledInfo }[]>;
 }
@@ -85,7 +96,7 @@ export interface SyncServiceDeps {
   readonly owner: SessionOwner;
   /** Whether the 7-day rule lets the data be shown: a contact is recorded only then. */
   readonly contactVisible: () => Promise<boolean>;
-  readonly createTransport: (context: TransportContext) => Transport & PullTransport;
+  readonly createTransport: (context: TransportContext) => Transport & PullTransport & TemplateTransport;
   readonly clock: Clock;
   readonly monotonic: MonotonicClock;
   readonly random: Random;
@@ -145,6 +156,7 @@ class GuardedReplica implements ReplicaStore {
 export class SyncService implements SyncControl {
   readonly #deps: SyncServiceDeps;
   readonly #core: SyncCore;
+  readonly #templates: TemplateTransport;
   readonly #abort = new AbortController();
   readonly #listeners = new Set<() => void>();
   readonly #schedule: (callback: () => void, ms: number) => () => void;
@@ -179,6 +191,7 @@ export class SyncService implements SyncControl {
       paused: null,
     };
     const transport = deps.createTransport({ signal: this.#abort.signal, pendingItems: () => this.#snapshot.counts.unsent });
+    this.#templates = transport;
     this.#core = createSyncCore({
       store: deps.store.queue,
       transport,
@@ -379,9 +392,60 @@ export class SyncService implements SyncControl {
       // the limits of one cycle were reached, not an error: carry on at once (the spacing protects against loops, not against paging)
       this.#lastStart = Number.NEGATIVE_INFINITY;
       this.#rerun ??= 'queue';
-    } else if (retryAt !== null && this.#deps.isOnline()) {
-      this.#armTimer(retryAt);
+    } else {
+      if (retryAt !== null && this.#deps.isOnline()) this.#armTimer(retryAt);
+      // only after a cycle that ended well (AC1): a 429, 5xx or network error is not followed by one more request
+      if (failure === null) await this.#refreshTemplates();
     }
+  }
+
+  /**
+   * The templates of work orders (EVM-106 AC1; security K1-K3): once per finished cycle, only while the gate is not paused and the data
+   * are visible. A failure goes to the SAME gate as push and pull (401 -> one refresh and one more try, 403 of both codes, 426 -> pause
+   * and screen); 5xx, a network error, a damaged answer and a failed write leave the old set quietly. The result is stored only when the
+   * epoch of the gate and the user are unchanged (a sign-out or a wipe during the request does not bring the key back). It touches
+   * neither `failure` nor `lastSuccessAt`, and nothing of the answer is logged.
+   */
+  async #refreshTemplates(): Promise<void> {
+    const gate = this.#core.gate;
+    const alive = (epoch: number): boolean => !this.#disposed && gate.paused === undefined && gate.epoch === epoch;
+    try {
+      if (this.#disposed || gate.paused !== undefined || !this.#deps.isOnline() || !(await this.contactVisible())) return;
+      const userId = await this.#deps.owner.currentUserId();
+      if (userId === null) return;
+      const epoch = gate.epoch;
+      for (let canRefresh = true; ; canRefresh = false) {
+        let response: TransportResponse;
+        try {
+          response = await this.#templates.listWorkOrderTemplates();
+        } catch {
+          return;
+        }
+        if (!alive(epoch)) return;
+        if (response.kind === 'network') return;
+        if (response.kind === 'ok') {
+          const set = parseTemplateResponse(response.body, this.#deps.clock.now());
+          if (set === null) return;
+          if ((await this.#deps.owner.currentUserId()) !== userId || !alive(epoch)) return;
+          await this.#deps.store.replicaExtras.writeTemplates(set);
+          return;
+        }
+        const code = response.code !== undefined && /^[a-z_]{1,64}$/.test(response.code) ? response.code : undefined;
+        const verdict = await gate.onHttpFailure(response.status, code, userId, canRefresh);
+        if (verdict === 'retry') continue;
+        if (verdict === 'stop') this.#paused(gate.paused);
+        return;
+      }
+    } catch {
+      // the old set stays; the next cycle tries again (no content in any message)
+    }
+  }
+
+  #paused(reason: SyncPauseReason | undefined): void {
+    if (reason === undefined || this.#disposed) return;
+    this.#pausedReason = reason;
+    this.#set({ paused: reason, failure: null });
+    this.#deps.onPause(reason);
   }
 
   #firstPullFailure(rateLimited: boolean): FirstPullFailure {
@@ -522,6 +586,42 @@ export class SyncService implements SyncControl {
       source,
       records.map((record) => queueFact(record, withData)),
     );
+  }
+
+  /**
+   * The details of one work order (EVM-104): one read of the replica and one of the queue, joined in memory; no request to the server.
+   * `null` = the order is not in the active generation (outside the scope or deleted; AC5) - its queue items stay untouched. Only
+   * notes and comments of this order are taken from the queue (security K5). Never called in the hidden-data mode (the screen decides).
+   */
+  async orderDetail(workOrderId: string): Promise<OrderDetail | null> {
+    const [source, records, userId] = await Promise.all([
+      this.#deps.store.replicaExtras.readOrderDetailSource(workOrderId),
+      this.#records(),
+      this.#deps.owner.currentUserId(),
+    ]);
+    if (source !== null) return buildOrderDetail(source, records, userId ?? '');
+    // not on the server yet: a quick work order that waits in the queue (EVM-106 AC2)
+    if (!records.some((record) => record.type === 'CreateQuickWorkOrder' && record.objectId === workOrderId)) return null;
+    const [places, templates] = await Promise.all([
+      this.#deps.store.replicaExtras.readQuickOrderSource().catch(() => EMPTY_QUICK_SOURCE),
+      this.templates(),
+    ]);
+    return buildPendingOrderDetail(workOrderId, records, places, templates);
+  }
+
+  /** The templates kept on the phone (replica only); a damaged or missing document is `null`. */
+  async templates(): Promise<TemplateSet | null> {
+    try {
+      return parseStoredTemplates(await this.#deps.store.replicaExtras.readTemplates());
+    } catch {
+      return null;
+    }
+  }
+
+  /** The customers and places for the quick order form; nothing while the data are hidden (the form is not available then). */
+  async quickOrderSource(): Promise<QuickOrderSource> {
+    if (!(await this.contactVisible())) return EMPTY_QUICK_SOURCE;
+    return this.#deps.store.replicaExtras.readQuickOrderSource();
   }
 
   async dependentsOf(id: string): Promise<number> {

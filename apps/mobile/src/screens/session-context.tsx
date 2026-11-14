@@ -30,6 +30,8 @@ export interface SessionActions {
   readonly openRecreate: (item: QueueItem) => void;
   /** The destination of a pick in "Dodaj" (entries and quick work orders: EVM-107; the camera: E11). */
   readonly openAddTarget: (target: AddTarget) => void;
+  /** A new id (UUIDv7) for an entry created on the phone (EVM-105). */
+  readonly newId: () => string;
   /** "Pomoc" (M-11, EVM-102). */
   readonly openHelp: () => void;
 }

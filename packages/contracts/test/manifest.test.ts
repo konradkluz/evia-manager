@@ -225,7 +225,8 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
     expect(mobile.map(([id]) => id).sort()).toEqual([...MOBILE_OPERATIONS].sort());
     for (const [id, operation] of mobile) {
       expect(operation.authz.stepUp, id).toBeUndefined();
-      expect(operationChannels(operation.authz), id).toEqual(['mobile']);
+      // EVM-127: the list of the templates of the catalog is the one operation open to both channels (the panel keeps its cookie)
+      expect(operationChannels(operation.authz), id).toEqual(id === 'listWorkOrderTemplates' ? ['web', 'mobile'] : ['mobile']);
     }
   });
 

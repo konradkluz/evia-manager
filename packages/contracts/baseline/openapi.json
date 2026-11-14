@@ -14399,7 +14399,7 @@
     },
     "/api/v1/catalog/work-order-templates": {
       "get": {
-        "description": "Aktywne szablony zleceń (wycofane — `isActive = false` — pomijane), każdy z podglądem: pozycje, procesy z liczbą etapów i transze planu płatności z udziałami. Opcjonalny filtr typu obiektu `siteTypeHint`; wartość spoza słownika daje `400 validation_failed`, nieznany parametr — `400 unknown_parameter`. Zbiór jest mały i zwracany w całości (`nextCursor` zawsze `null`).",
+        "description": "Aktywne szablony zleceń (wycofane — `isActive = false` — pomijane), każdy z podglądem: pozycje, procesy z liczbą etapów i transze planu płatności z udziałami. Opcjonalny filtr typu obiektu `siteTypeHint`; wartość spoza słownika daje `400 validation_failed`, nieznany parametr — `400 unknown_parameter`. Zbiór jest mały i zwracany w całości (`nextCursor` zawsze `null`). Dostępne także dla telefonu (kanał mobile, `Authorization: Bearer`; Administrator i Edytor z zarejestrowanego urządzenia, EVM-127) z tą samą treścią — wyłącznie katalog biura, bez danych klientów, użytkowników i kwot zleceń; telefon wysyła `X-Client-Platform` i `X-Client-Version`. Odpowiedź ma `Cache-Control: no-store`.",
         "operationId": "listWorkOrderTemplates",
         "parameters": [
           {
@@ -14432,6 +14432,9 @@
           "403": {
             "$ref": "#/components/responses/Forbidden"
           },
+          "426": {
+            "$ref": "#/components/responses/MobileClientVersionUnsupported"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           }
@@ -14442,7 +14445,8 @@
         ],
         "x-evia-authz": {
           "channels": [
-            "web"
+            "web",
+            "mobile"
           ],
           "roles": [
             "administrator",

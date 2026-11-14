@@ -1,0 +1,46 @@
+# EVM-104 AC1, AC2, AC3, AC4: in airplane mode (set by tools/mobile-e2e) the app opens the details of the work order from the local
+# database: the header, the customer with "Zadzwoń", the location, the scope, the stages with their status and the journal. "Wstecz"
+# returns to the list. Synthetic data of the scenario server (tools/mobile-e2e/src/sync-stub.mjs).
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible: 'Brak zasięgu.*'
+    timeout: 30000
+# the emulator image is older than 12 months: the security banner of EVM-100 pushes the list down - acknowledge it if shown
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- assertVisible: 'ZL-E2E-1'
+- tapOn:
+    id: 'order-row-30000000-0000-4000-8000-000000000001'
+- extendedWaitUntil:
+    visible: 'Zlecenie testowe 1'
+    timeout: 10000
+- assertVisible:
+    id: 'order-detail-back'
+- assertVisible: 'Klient Testowy 1'
+- assertVisible: 'Zadzwoń'
+- takeScreenshot: m03-details-offline
+# the scope, the process with the stages and the journal are below the fold on a phone-sized screen
+- scrollUntilVisible:
+    element: 'Wallbox testowy 11 kW'
+    direction: DOWN
+- scrollUntilVisible:
+    element: 'Wniosek testowy'
+    direction: DOWN
+# the status badge of the stage can still be under the fold when the stage name is already visible
+- scrollUntilVisible:
+    element: 'Zakończony'
+    direction: DOWN
+- scrollUntilVisible:
+    element: 'Wpis testowy: rozmowa fikcyjna\.'
+    direction: DOWN
+- assertVisible: 'Zdarzenie testowe: zmiana etapu\.'
+- takeScreenshot: m03-details-journal
+- tapOn:
+    id: 'order-detail-back'
+- extendedWaitUntil:
+    visible: 'ZL-E2E-2'
+    timeout: 10000

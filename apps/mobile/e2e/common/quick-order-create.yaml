@@ -1,0 +1,111 @@
+# EVM-106 AC2: the shared creation of a quick work order from the list (M-05): "Dodaj" -> "Nowe zlecenie", a NEW customer (person), a NEW
+# place (house), the template of the house (the title comes from it), a note, "Zapisz zlecenie". Ends on the details (M-03) of the order
+# that waits for its number, with the toast and the banner "Zapisano w telefonie. Numer nadamy po synchronizacji.". Synthetic data only;
+# ASCII text, because the keyboard input of the emulator does not carry Polish letters reliably. Rules of the earlier flows: elements below
+# the fold are scrolled to first (also buttons); hideKeyboard only right after a text was typed (the keyboard is certainly open).
+appId: pl.eviacharge.manager
+---
+- tapOn:
+    id: 'orders-add'
+- tapOn:
+    id: 'add-new-order'
+- extendedWaitUntil:
+    visible: 'Numer nadamy po synchronizacji\.'
+    timeout: 10000
+# 1. the customer: the phone has customers of the first download, so "Nowy klient" is chosen
+- tapOn:
+    id: 'quick-customer-new'
+- tapOn:
+    id: 'quick-first-name'
+- inputText: 'Anna'
+- hideKeyboard
+- tapOn:
+    id: 'quick-last-name'
+- inputText: 'Fikcyjna'
+- hideKeyboard
+- tapOn:
+    id: 'quick-phone'
+- inputText: '600000009'
+- hideKeyboard
+# 2. the place: a new one, of the type "Dom jednorodzinny" (the list of types is a dialog over the whole screen)
+- scrollUntilVisible:
+    element:
+      id: 'quick-site-new'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'quick-site-new'
+- scrollUntilVisible:
+    element:
+      id: 'quick-site-type'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'quick-site-type'
+- extendedWaitUntil:
+    visible: 'Dom jednorodzinny'
+    timeout: 5000
+- tapOn:
+    id: 'quick-site-type-single_family_house'
+- scrollUntilVisible:
+    element:
+      id: 'quick-street'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'quick-street'
+- inputText: 'Testowa'
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: 'quick-building'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'quick-building'
+- inputText: '5'
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: 'quick-postal'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'quick-postal'
+- inputText: '05-500'
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: 'quick-city'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'quick-city'
+- inputText: 'Piaseczno'
+- hideKeyboard
+# 3. the template of the house (the garage one is filtered out by the type of the place); the title is taken from it
+# the card can count as visible while it is still under the sticky bar with "Zapisz zlecenie": scroll to its description and centre it
+- scrollUntilVisible:
+    element: '3 pozycje · 1 proces · 1 transza'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'quick-template-0194c2a0-0000-7000-8000-00000000e201'
+# 4. the note
+- scrollUntilVisible:
+    element:
+      id: 'quick-note'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'quick-note'
+- inputText: 'Ogledziny w piatek'
+- hideKeyboard
+- takeScreenshot: m10-quick-order-filled
+- tapOn:
+    id: 'quick-order-save'
+- extendedWaitUntil:
+    visible: 'Oczekuje na numer'
+    timeout: 10000
+- assertVisible: 'Zapisano w telefonie\. Numer nadamy po synchronizacji\.'
+- takeScreenshot: m03-quick-order-pending

@@ -133,3 +133,56 @@ describe('the version of the app in the guard (EVM-094 AC6; SR-API-08)', () => {
     expect((await request(current.app.getHttpServer()).get('/api/v1/test-widgets')).status).toBe(200);
   });
 });
+
+describe('an operation open to both channels, the credential and the version (EVM-127 AC2; SR-AUTHZ-12, SR-API-08, SR-SESS-06)', () => {
+  const both = (): PolicySource =>
+    policies(
+      { roles: ['administrator', 'editor', 'read_only'], channels: ['web', 'mobile'] },
+      { clientVersionOperations: ['listTestWidgets'] },
+    );
+  const OLD = { 'X-Client-Platform': 'android', 'X-Client-Version': '1.0.0' };
+  const code = async (web: Authentication, phone: Authentication, headers: Record<string, string> = {}) => {
+    current = await start(both(), resolver(web, phone));
+    const response = await request(current.app.getHttpServer()).get('/api/v1/test-widgets').set(headers);
+    await current.close();
+    current = undefined;
+    return { status: response.status, code: (response.body as { code?: string }).code };
+  };
+
+  it('EVM-127 AC2 a revoked or an expired cookie without a Bearer token keeps its own 401 (session_revoked / session_expired), not unauthenticated', async () => {
+    expect(await code({ principal: null, reason: 'revoked' }, ANONYMOUS)).toEqual({ status: 401, code: 'session_revoked' });
+    expect(await code({ principal: null, reason: 'expired' }, ANONYMOUS)).toEqual({ status: 401, code: 'session_expired' });
+    expect(await code(ANONYMOUS, ANONYMOUS)).toEqual({ status: 401, code: 'unauthenticated' });
+  });
+
+  it('EVM-127 AC2 a wipe of the device with a Bearer token is still 401 device_wipe_required, a revoked Bearer token is 401 session_revoked', async () => {
+    expect(await code({ principal: null, reason: 'revoked' }, { principal: null, reason: 'wipe_required' })).toEqual({
+      status: 401,
+      code: 'device_wipe_required',
+    });
+    expect(await code(ANONYMOUS, { principal: null, reason: 'revoked' })).toEqual({ status: 401, code: 'session_revoked' });
+  });
+
+  it('EVM-127 AC2 the version of the app is asked only of a Bearer token: no headers or an old version is 426, an anonymous caller is 401 before 426', async () => {
+    expect(await code(ANONYMOUS, { principal: bearer })).toEqual({ status: 426, code: 'client_version_unsupported' });
+    expect(await code(ANONYMOUS, { principal: bearer }, OLD)).toEqual({ status: 426, code: 'client_version_unsupported' });
+    expect(await code(ANONYMOUS, { principal: bearer }, APP)).toEqual({ status: 200, code: undefined });
+    expect(await code(ANONYMOUS, ANONYMOUS, OLD)).toEqual({ status: 401, code: 'unauthenticated' });
+  });
+
+  it('EVM-127 AC2 a cookie of the panel is never asked for the version: old, forged or absent X-Client-* headers do not change the path', async () => {
+    expect(await code({ principal: cookie }, ANONYMOUS)).toEqual({ status: 200, code: undefined });
+    expect(await code({ principal: cookie }, ANONYMOUS, OLD)).toEqual({ status: 200, code: undefined });
+    expect(await code({ principal: cookie }, { principal: bearer }, OLD)).toEqual({ status: 200, code: undefined });
+  });
+
+  it('EVM-127 AC2 a session of the phone in a cookie is no credential: 401, and a Bearer token next to it still wins', async () => {
+    expect(await code({ principal: bearer }, ANONYMOUS, APP)).toEqual({ status: 401, code: 'unauthenticated' });
+    expect(await code({ principal: bearer }, { principal: bearer }, APP)).toEqual({ status: 200, code: undefined });
+  });
+
+  it('EVM-127 AC2 a Bearer principal of the role Tylko odczyt is 403 channel_not_allowed (the sign-in of that role is refused with the same code, EVM-094)', async () => {
+    const readOnly = principal({ channel: 'mobile', role: 'read_only', csrfToken: '' });
+    expect(await code(ANONYMOUS, { principal: readOnly }, APP)).toEqual({ status: 403, code: 'channel_not_allowed' });
+  });
+});

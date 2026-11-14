@@ -1,0 +1,31 @@
+# EVM-106 AC5 (preparation): the scenario server rejects a quick work order with `quota_exceeded` (tools/mobile-e2e). In airplane mode the
+# technician creates the order and adds an entry to it; both wait in the queue until the network returns.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible: 'Brak zasięgu.*'
+    timeout: 30000
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- runFlow: common/quick-order-create.yaml
+- scrollUntilVisible:
+    element:
+      id: 'order-detail-add-entry'
+    direction: DOWN
+- tapOn:
+    id: 'order-detail-add-entry'
+- extendedWaitUntil:
+    visible: 'Nowy wpis'
+    timeout: 10000
+- tapOn:
+    id: 'entry-body'
+- inputText: 'Wpis do odrzuconego zlecenia'
+- hideKeyboard
+- tapOn:
+    id: 'entry-save'
+- extendedWaitUntil:
+    visible: 'Zapisano w telefonie\. Wyślemy, gdy wróci zasięg\.'
+    timeout: 10000

@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import type { ComponentProps } from 'react';
+import type { ComponentProps, ComponentRef, Ref } from 'react';
 import { Platform, Pressable, Text, TextInput, View } from 'react-native';
 import { Icon } from './Icon';
-import { Search, X } from './icons';
+import { CircleAlert, Search, X } from './icons';
 import { borderWidth, color, radius, size, space, text } from './theme';
 
 type InputProps = ComponentProps<typeof TextInput>;
@@ -42,6 +42,15 @@ export interface TextFieldProps {
    * learn what is typed as far as the standard properties go - autocorrect, spell check, autofill and suggestions off (EVM-103 AC6).
    */
   search?: SearchOptions;
+  /**
+   * A field of personal data (a name, a phone, an address; EVM-106 AC6): the keyboard does not learn it and nothing fills it in -
+   * autofill, autocomplete and suggestions off (autocorrect and spell check are off in every field of this component).
+   */
+  privateData?: boolean;
+  /** The text of the problem of the field, under it (`color.text.error` and an icon, polite live region); turns the frame to the error colour. */
+  error?: string;
+  inputRef?: Ref<ComponentRef<typeof TextInput>>;
+  autoCapitalize?: InputProps['autoCapitalize'];
   /** Maximum length of the value (protects the work budget of a search). */
   maxLength?: number;
   placeholder?: string;
@@ -69,6 +78,10 @@ export function TextField({
   numeric = false,
   inverse = false,
   search,
+  privateData = false,
+  error,
+  inputRef,
+  autoCapitalize = 'none',
   maxLength,
   placeholder,
   editable = true,
@@ -81,7 +94,8 @@ export function TextField({
 }: TextFieldProps) {
   const [focused, setFocused] = useState(false);
   const masked = secure !== undefined && !secure.shown;
-  const priv = search !== undefined;
+  const priv = search !== undefined || privateData;
+  const failed = invalid || error !== undefined;
   const keyboard = numeric
     ? 'number-pad'
     : secure?.shown === true
@@ -108,8 +122,8 @@ export function TextField({
             minHeight: size.control.height.mobile.md,
             borderRadius: radius.control,
             backgroundColor: editable ? color.control.bg : color.control.bgDisabled,
-            borderWidth: focused || invalid ? borderWidth.strong : borderWidth.default,
-            borderColor: invalid ? color.border.error : focused ? color.border.selected : color.border.strong,
+            borderWidth: focused || failed ? borderWidth.strong : borderWidth.default,
+            borderColor: failed ? color.border.error : focused ? color.border.selected : color.border.strong,
           }}
         >
           {search === undefined ? null : (
@@ -118,6 +132,7 @@ export function TextField({
             </View>
           )}
           <TextInput
+            ref={inputRef}
             accessibilityLabel={label}
             accessibilityHint={hint}
             accessibilityState={{ disabled: !editable }}
@@ -130,11 +145,11 @@ export function TextField({
             textContentType={priv ? 'none' : textContentType}
             autoCorrect={false}
             spellCheck={false}
-            autoCapitalize="none"
+            autoCapitalize={autoCapitalize}
             importantForAutofill={priv ? 'no' : 'yes'}
             maxLength={maxLength}
             placeholder={placeholder}
-            returnKeyType={priv ? 'search' : returnKeyType}
+            returnKeyType={search === undefined ? returnKeyType : 'search'}
             onSubmitEditing={onSubmitEditing}
             onFocus={() => {
               setFocused(true);
@@ -196,6 +211,17 @@ export function TextField({
       </View>
       {hint === undefined ? null : (
         <Text style={{ ...text.bodySm, color: inverse ? color.text.onBrand : color.text.tertiary }}>{hint}</Text>
+      )}
+      {error === undefined ? null : (
+        <View style={{ flexDirection: 'row', alignItems: 'center', columnGap: space.inline.sm }} accessibilityLiveRegion="polite">
+          <Icon icon={CircleAlert} color={color.text.error} />
+          <Text
+            style={{ ...text.bodySm, color: color.text.error, flexShrink: 1 }}
+            testID={testID === undefined ? undefined : `${testID}-error`}
+          >
+            {error}
+          </Text>
+        </View>
       )}
     </View>
   );

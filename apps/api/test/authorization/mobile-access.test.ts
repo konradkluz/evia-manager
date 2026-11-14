@@ -69,7 +69,7 @@ describe('the mobile channel in the access decision (EVM-094 AC3; SR-AUTHZ-12, S
     });
   });
 
-  it('EVM-094 AC3 the role is still checked for the phone on every request: a read-only role is forbidden, and a principal of the other channel is forbidden too', () => {
+  it('EVM-094 AC3 the role is still checked for the phone on every request: a read-only role is forbidden (channel_not_allowed only on an operation open to both channels, EVM-127), and a principal of the other channel is forbidden too', () => {
     const channelAllowed = (role: string, channel: string) => !(role === 'read_only' && channel === 'mobile');
     expect(
       decideAccess(

@@ -1,0 +1,11 @@
+# EVM-104 AC1 (preparation): a fresh install signs in against the scenario server; the first download (M-12) ends on the list of the two
+# synthetic work orders, whose details the next flow opens without a network.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    clearState: true
+- runFlow: common/sign-in.yaml
+- extendedWaitUntil:
+    visible: 'ZL-E2E-2'
+    timeout: 60000
+- assertVisible: 'ZL-E2E-1'

@@ -16,6 +16,12 @@ const manifest: AuthzManifest = {
     query: [],
     authz: { roles: ['administrator', 'editor'], channels: ['web'] },
   },
+  readBoth: {
+    method: 'get',
+    path: '/api/v1/both',
+    query: [],
+    authz: { roles: ['administrator', 'editor', 'read_only'], channels: ['web', 'mobile'] },
+  },
   createThing: { method: 'post', path: '/api/v1/things', query: [], authz: { roles: ['administrator'], channels: ['web', 'mobile'] } },
   enrol: {
     method: 'post',
@@ -140,6 +146,11 @@ describe('access decision order (EVM-016 AC4, AC8; SR-AUTHZ-12, SR-SESS-10)', ()
   it('EVM-016 AC8 the role x channel rule of identity can deny a channel the policy allows (read-only has no mobile)', () => {
     const channelAllowed = (role: string, channel: string) => !(role === 'read_only' && channel === 'mobile');
     const readOnly = signedIn({ role: 'read_only', channel: 'mobile' });
+    expect(decide({ operationId: 'readBoth', authentication: () => readOnly, channelAllowed })).toEqual({
+      allowed: false,
+      code: 'channel_not_allowed',
+    });
+    // A channel outside the policy of the operation stays a plain forbidden.
     expect(decide({ operationId: 'listWorkOrders', authentication: () => readOnly, channelAllowed })).toEqual({
       allowed: false,
       code: 'forbidden',

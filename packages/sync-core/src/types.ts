@@ -67,6 +67,7 @@ export const KNOWN_REJECTION_CODES = [
   'validation_failed',
   'idempotency_mismatch',
   'template_unavailable',
+  'quota_exceeded',
 ] as const;
 
 export type PauseReason =

@@ -4,7 +4,7 @@ title: "Aplikacja: szczegóły zlecenia offline"
 type: story
 milestone: M2
 epic: E10 Zlecenia offline
-status: ready
+status: in-review
 priority: P1
 path: pelna             # dane osobowe na urządzeniu (klient, adres, telefon), tryb ukrytych danych (zmiana z lekka — 2026-11-13)
 owner: mobile-developer
@@ -71,3 +71,6 @@ Jako **technik** chcę **otworzyć zlecenie bez zasięgu i zobaczyć klienta, ad
 - 2026-10-27 — naniesiono konsultację security (product-owner)
 - 2026-11-13 — refinement do DoR: 6 AC (dodano zlecenie niedostępne w trakcie oglądania, prywatność i TalkBack, rozgraniczenie z EVM-105/106), ścieżka `lekka` → `pelna` (dane osobowe na urządzeniu), reviewers + security-engineer; status `draft` do akceptacji (product-owner)
 - 2026-11-13 — akceptacja Konrada (DoR) do nocnej kolejki `/noc-2026-11-13`: kolejność toru A 104 → 105 → 127 → 106 (tor B: 126 → 066), autokorekta zostaje w długich tekstach (wyłączona w polach klienta, telefonu, adresu; autofill wszędzie wyłączony), bez szkiców i „ostatnio otwieranych” w M2, EVM-126 — budowa panelu bez adresu kończy się błędem; status `ready` (Tech Lead)
+- 2026-11-14 — start realizacji w kolejce nocnej `/noc-2026-11-13` (Tech Lead): status `in-progress`, gałąź `feature/queue-2026-11-13-mobile`
+- 2026-11-14 — implementacja: model i odczyt repliki (K1–K10), ekran M-03 z nakładką w Shellu, aktywny wiersz listy, przepływ Maestro 41 i dane stubu; wskazówki dojazdu i opis zlecenia świadomie poza wersją 1 (rekomendacja K2) (mobile-developer)
+- 2026-11-14 — workflow `deliver-story` (pelna) `passed` po 2 rundach: QA pass (AC1–AC6), security-engineer i ux-designer approve w rundzie 1, code-reviewer approve w rundzie 2 (poprawka: wpis zastąpiony poprawką i poprawka oznaczone). Bramka orkiestratora `pnpm run gate` zielona — pokrycie zmienionego kodu 100% linii, 99,2% gałęzi. E2E Maestro (przepływ 41) — na końcu toru A z klonu `C:`. Uwagi nieblokujące (UX: TalkBack w dzienniku, ikona stanu błędu, brak zrzutów — do demo) w raporcie nocnym. Koszt: 10 agentów, ok. 613 tys. tokenów, 51 min (po wznowieniu). Status `in-review` (Tech Lead, kolejka nocna)
