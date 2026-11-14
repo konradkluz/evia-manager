@@ -3,6 +3,16 @@ import { describe, expect, it } from 'vitest';
 import { AUTHZ_MANIFEST, MFA_ENROLLMENT_OPERATIONS, MOBILE_OPERATIONS, operationChannels, PUBLIC_OPERATIONS } from '../src/authz.ts';
 import { buildAuthzManifest, renderAuthzModule } from '../src/manifest.ts';
 
+/** Open to both channels: the panel keeps its cookie (EVM-127: the templates; EVM-131: the five operations of the upload session). */
+const DUAL_CHANNEL_OPERATIONS = [
+  'listWorkOrderTemplates',
+  'createUploadSession',
+  'listUploadParts',
+  'getUploadPartUrl',
+  'completeUploadSession',
+  'abortUploadSession',
+];
+
 const bundled: unknown = JSON.parse(readFileSync('dist/openapi.json', 'utf8'));
 
 const spec = (authz: unknown, extra: Record<string, unknown> = {}) => ({
@@ -226,7 +236,30 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
     for (const [id, operation] of mobile) {
       expect(operation.authz.stepUp, id).toBeUndefined();
       // EVM-127: the list of the templates of the catalog is the one operation open to both channels (the panel keeps its cookie)
-      expect(operationChannels(operation.authz), id).toEqual(id === 'listWorkOrderTemplates' ? ['web', 'mobile'] : ['mobile']);
+      expect(operationChannels(operation.authz), id).toEqual(DUAL_CHANNEL_OPERATIONS.includes(id) ? ['web', 'mobile'] : ['mobile']);
+    }
+  });
+
+  it('EVM-131 AC2 AC5 exactly the five upload-session operations of the media are open to the phone besides the panel; the rest of the media stays web only', () => {
+    const media = ['createUploadSession', 'listUploadParts', 'getUploadPartUrl', 'completeUploadSession', 'abortUploadSession'];
+    const dual = Object.entries(AUTHZ_MANIFEST)
+      .filter(
+        ([, operation]) => operationChannels(operation.authz).includes('mobile') && operationChannels(operation.authz).includes('web'),
+      )
+      .map(([id]) => id);
+    expect(dual.filter((id) => media.includes(id)).sort()).toEqual([...media].sort());
+    for (const id of media) expect(AUTHZ_MANIFEST[id]?.authz.roles, id).toEqual(['administrator', 'editor']);
+    for (const id of [
+      'createMediaAssets',
+      'listMediaAssets',
+      'updateMediaAsset',
+      'deleteMediaAsset',
+      'restoreMediaAsset',
+      'rescanMediaAsset',
+      'purgeMediaAssetFile',
+      'createMediaAssetDownloadUrl',
+    ]) {
+      expect(operationChannels(AUTHZ_MANIFEST[id]?.authz ?? {}), id).toEqual(['web']);
     }
   });
 

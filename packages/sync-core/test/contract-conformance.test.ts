@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { KNOWN_REJECTION_CODES, MUTATION_TYPES, type MutationType, type PauseReason } from '../src/index.ts';
 import { ENTITY_TYPES, RESYNC_REASONS } from '../src/pull-types.ts';
 import { parseClientConfig, parsePage } from '../src/pull-parse.ts';
-import { toWire } from '../src/validate.ts';
+import { KEY_FIELDS, toWire } from '../src/validate.ts';
 import { aggregate, del, page, upsert } from './pull-helpers.ts';
 import { makeCore, noteInput } from './helpers.ts';
 
@@ -69,7 +69,7 @@ describe('sync-core vs. the contract: value sets in both directions (EVM-107 AC7
   });
 
   it('EVM-107 AC7: mutation types, entity types, phases and resync reasons are the same sets', () => {
-    expect(MUTATION_TYPES).toHaveLength(3);
+    expect(MUTATION_TYPES).toHaveLength(4);
     expect(sorted(vocabulary('SyncChangesPage', 'phase'))).toEqual(['changes', 'snapshot']);
     expect(sorted(RESYNC_REASONS.filter((r) => r !== 'invalid_change'))).toEqual(sorted(vocabulary('SyncResyncRequired', 'reason')));
     const projections = openapi.components.schemas['SyncEntity']?.['x-evia-sync-projections'];
@@ -99,10 +99,41 @@ describe('sync-core fixtures pass the contract schemas (EVM-107 AC7)', () => {
         title: 'Synthetic',
       },
     });
+    const media = await core.queue.enqueue({
+      type: 'CreateMediaAsset',
+      commandVersion: 1,
+      payload: {
+        id: '0194c2a0-0000-7000-8000-0000000000d1',
+        workOrderId: woId,
+        mediaType: 'photo',
+        category: 'before_work',
+        capturedAt: at,
+      },
+    });
     await core.engine.flush();
     const request = server.requests[0];
-    expect(request?.mutations.map((m) => m.mutationId)).toEqual([note.mutationId, comment.mutationId, quick.mutationId]);
+    expect(request?.mutations.map((m) => m.mutationId)).toEqual([note.mutationId, comment.mutationId, quick.mutationId, media.mutationId]);
     expect(zSyncMutationsRequest.safeParse(request).success).toBe(true);
+  });
+
+  it('EVM-131 AC3 AC5: the CreateMediaAsset command is in the contract and in the core with the same key fields', () => {
+    expect(MUTATION_TYPES).toContain('CreateMediaAsset');
+    expect(KEY_FIELDS['CreateMediaAsset']).toEqual({ objectId: 'id', orderingKey: 'workOrderId' });
+    const payload = openapi.components.schemas['CreateMediaAssetPayload'] as unknown as {
+      required: string[];
+      properties: Record<string, unknown>;
+    };
+    for (const field of ['id', 'workOrderId', 'mediaType', 'category', 'capturedAt']) expect(payload.required).toContain(field);
+    expect(Object.keys(payload.properties).sort()).toEqual([
+      'capturedAt',
+      'category',
+      'description',
+      'id',
+      'mediaType',
+      'procedureStageId',
+      'workOrderId',
+    ]);
+    for (const key of ['origin', 'createdBy', 'fileState', 'version']) expect(payload.properties).not.toHaveProperty(key);
   });
 
   it('EVM-107 AC7: pull fixtures (snapshot and change pages with upserts and deletes) pass zSyncChangesResponse', () => {

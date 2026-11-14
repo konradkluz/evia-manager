@@ -697,12 +697,17 @@ describe('EVM-090 AC3 pulling changes and the snapshot of an order', () => {
 describe('EVM-090 AC4 sending mutations', () => {
   const mutations = schemas['SyncMutationsRequest'].properties.mutations;
 
-  it('EVM-090 AC4 a batch has 1 to 50 mutations; each one is {mutationId, type, commandVersion, payload} for CreateNote, CreateComment or CreateQuickWorkOrder', () => {
+  it('EVM-090 AC4 a batch has 1 to 50 mutations; each one is {mutationId, type, commandVersion, payload} for CreateNote, CreateComment, CreateQuickWorkOrder or CreateMediaAsset', () => {
     expect(mutations).toMatchObject({ minItems: 1, maxItems: 50 });
     const union = schemas['SyncMutation'];
     expect(union.discriminator.propertyName).toBe('type');
-    expect(Object.keys(union.discriminator.mapping).sort()).toEqual(['CreateComment', 'CreateNote', 'CreateQuickWorkOrder']);
-    for (const name of ['CreateNoteMutation', 'CreateCommentMutation', 'CreateQuickWorkOrderMutation']) {
+    expect(Object.keys(union.discriminator.mapping).sort()).toEqual([
+      'CreateComment',
+      'CreateMediaAsset',
+      'CreateNote',
+      'CreateQuickWorkOrder',
+    ]);
+    for (const name of ['CreateNoteMutation', 'CreateCommentMutation', 'CreateQuickWorkOrderMutation', 'CreateMediaAssetMutation']) {
       expect(schemas[name]).toMatchObject({ additionalProperties: false, required: ['mutationId', 'type', 'commandVersion', 'payload'] });
       expect(resolve(schemas[name].properties.mutationId)).toMatchObject({ format: 'uuid' });
     }
@@ -959,5 +964,62 @@ describe('EVM-090 AC7 examples, generated types and the client', () => {
     const page: SyncChangesResponse = { result: 'resync_required', reason: 'periodic', serverTime: 'z' };
     expect(session.deviceId).toBe('x');
     expect(page.result).toBe('resync_required');
+  });
+});
+
+describe('EVM-131 AC5 media from the phone: the contract grows, nothing is removed or tightened', () => {
+  it('EVM-131 AC5 SyncMediaAsset keeps every field it had (required, nullable) and only the extensible vocabularies grow', () => {
+    const media = schemas['SyncMediaAsset'];
+    expect(media.additionalProperties).toBe(false);
+    expect([...media.required].sort()).toEqual(
+      [
+        'type',
+        'id',
+        'version',
+        'workOrderId',
+        'mediaType',
+        'category',
+        'description',
+        'procedureStageId',
+        'capturedAt',
+        'fileState',
+        'fileStateReasonCode',
+        'sizeBytes',
+        'durationSeconds',
+        'widthPx',
+        'heightPx',
+      ].sort(),
+    );
+    for (const field of ['description', 'capturedAt', 'sizeBytes', 'durationSeconds', 'widthPx', 'heightPx']) {
+      expect(media.properties[field].type, field).toContain('null');
+    }
+    expect(media.properties.fileState['x-extensible-enum']).toEqual(
+      expect.arrayContaining(['pending', 'uploading', 'processing', 'ready', 'failed', 'clean', 'quarantined']),
+    );
+    expect(media.properties.fileStateReasonCode['x-extensible-enum']).toEqual(
+      expect.arrayContaining(['checksum_mismatch', 'processing_error', 'abandoned']),
+    );
+    // the reason of a quarantine is never a value of the vocabulary (SR-MOB-10)
+    expect(media.properties.fileStateReasonCode['x-extensible-enum']).not.toContain('malware_detected');
+    expect(media.properties.fileStateReasonCode['x-extensible-enum']).not.toContain('type_mismatch');
+  });
+
+  it('EVM-131 AC1 AC5 the session request only gained an optional, closed `file`; the document session takes none', () => {
+    const request = schemas['CreateUploadSessionRequest'];
+    expect(request.required).toEqual(['id']);
+    expect(request.additionalProperties).toBe(false);
+    const file = resolve(request.properties.file);
+    expect(file).toMatchObject({ additionalProperties: false, required: ['fileName', 'declaredSize', 'contentType', 'sha256'] });
+    expect(schemas['CreateDocumentUploadSessionRequest'].properties).not.toHaveProperty('file');
+  });
+
+  it('EVM-131 AC3 the CreateMediaAsset payload is closed, carries no field of the server and is in the union', () => {
+    const payload = schemas['CreateMediaAssetPayload'];
+    expect(payload.additionalProperties).toBe(false);
+    for (const field of ['origin', 'createdBy', 'fileState', 'version', 'fileName', 'objectKey'])
+      expect(payload.properties).not.toHaveProperty(field);
+    expect(schemas['SyncMutation'].oneOf.map((item: Json) => item['$ref'] ?? item)).toContain(
+      '#/components/schemas/CreateMediaAssetMutation',
+    );
   });
 });

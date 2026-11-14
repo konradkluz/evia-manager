@@ -433,7 +433,10 @@ SyncMediaAsset:
   type: object
   description: >-
     Metadane materiału i podsumowanie pliku — bez klucza obiektu, skrótów SHA-256, nazwy pliku i przyczyny kwarantanny (SR-FILE).
-    Miniatury telefon pobiera osobno, na żądanie.
+    Miniatury telefon pobiera osobno, na żądanie. Serwer wysyła minimalny ładunek (EVM-131 AC4): identyfikatory, `mediaType`,
+    `category`, `procedureStageId`, `fileState` i `fileStateReasonCode`; `description`, `capturedAt`, `sizeBytes`, `durationSeconds`,
+    `widthPx` i `heightPx` zostają w schemacie (nullable) i serwer wysyła `null` — telefon zachowuje własne wartości lokalne.
+    `version` to wersja synchronizacji: `version` medium + rewizja stanu pliku (zmiana stanu pliku podnosi ją bez zmiany `If-Match` panelu).
   additionalProperties: false
   required:
     - type
@@ -482,12 +485,18 @@ SyncMediaAsset:
       maxLength: 40
     fileState:
       type: string
-      x-extensible-enum: [pending, uploading, processing, ready, failed]
+      description: >-
+        Stan pliku dla telefonu (EVM-131): `pending` (plik jeszcze nie zadeklarowany albo czeka na wysłanie), `uploading` (wysłany,
+        czeka na kontrolę), `clean` (kontrola zgodna — telefon może skasować oryginał), `processing`, `ready`, `quarantined`
+        (zatrzymany — bez przyczyny) i `failed`. Telefon kasuje oryginał dopiero po `clean` (albo `ready`). Wartość nieznana jest tolerowana.
+      x-extensible-enum: [pending, uploading, processing, ready, failed, clean, quarantined]
       maxLength: 32
     fileStateReasonCode:
       type: [string, 'null']
-      description: Tylko przy `failed`.
-      x-extensible-enum: [checksum_mismatch, processing_error]
+      description: >-
+        Tylko przy `failed`, z listy dozwolonych; każda inna przyczyna (także kwarantanny: `malware_detected`, `type_mismatch`) daje
+        `null` (SR-MOB-10). Dla `quarantined` zawsze `null`.
+      x-extensible-enum: [checksum_mismatch, processing_error, abandoned]
       maxLength: 64
     sizeBytes:
       type: [integer, 'null']
@@ -801,6 +810,34 @@ CreateQuickWorkOrderPayload:
     note:
       type: string
       maxLength: 2000
+CreateMediaAssetPayload:
+  type: object
+  description: >-
+    Medium zlecenia utworzone na telefonie (EVM-131; sam plik jest deklarowany dopiero w sesji uploadu). Pola serwera (`origin`,
+    `createdBy`, `fileState`, `version`) w ładunku dają `rejected validation_failed`. Opis może zawierać dane osobowe — nie trafia
+    do logów ani audytu.
+  additionalProperties: false
+  required: [id, workOrderId, mediaType, category, capturedAt]
+  properties:
+    id:
+      $ref: '#/SyncClientId'
+    workOrderId:
+      $ref: '#/SyncId'
+    mediaType:
+      type: string
+      enum: [photo, video]
+    category:
+      type: string
+      description: Kategoria medium (zamknięta lista panelu).
+      enum: [site_survey, before_work, in_progress, completed_work, defect, measurement, other]
+    description:
+      type: string
+      description: Opis (zwykły tekst, do 1000 znaków po normalizacji).
+      maxLength: 1000
+    procedureStageId:
+      $ref: '#/SyncId'
+    capturedAt:
+      $ref: '#/SyncTimestamp'
 CommandVersion:
   type: integer
   description: Wersja komendy (kompatybilność wersji aplikacji i serwera; nieznana → `rejected validation_failed`).
@@ -848,6 +885,20 @@ CreateQuickWorkOrderMutation:
       $ref: '#/CommandVersion'
     payload:
       $ref: '#/CreateQuickWorkOrderPayload'
+CreateMediaAssetMutation:
+  type: object
+  additionalProperties: false
+  required: [mutationId, type, commandVersion, payload]
+  properties:
+    mutationId:
+      $ref: '#/SyncClientId'
+    type:
+      type: string
+      const: CreateMediaAsset
+    commandVersion:
+      $ref: '#/CommandVersion'
+    payload:
+      $ref: '#/CreateMediaAssetPayload'
 SyncMutation:
   description: >-
     Mutacja z kolejki telefonu: koperta `{mutationId, type, commandVersion, payload}`. Mutacja ma najwyżej 64 KB (egzekwuje serwer,
@@ -857,12 +908,14 @@ SyncMutation:
     - $ref: '#/CreateNoteMutation'
     - $ref: '#/CreateCommentMutation'
     - $ref: '#/CreateQuickWorkOrderMutation'
+    - $ref: '#/CreateMediaAssetMutation'
   discriminator:
     propertyName: type
     mapping:
       CreateNote: '#/CreateNoteMutation'
       CreateComment: '#/CreateCommentMutation'
       CreateQuickWorkOrder: '#/CreateQuickWorkOrderMutation'
+      CreateMediaAsset: '#/CreateMediaAssetMutation'
 SyncMutationsRequest:
   type: object
   description: Partia mutacji w kolejności kolejki (1–50). Treść najwyżej 1 MB; `400 validation_failed` tylko dla złej koperty lub partii.

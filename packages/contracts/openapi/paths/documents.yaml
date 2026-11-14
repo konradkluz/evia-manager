@@ -250,7 +250,7 @@ documentUploadSessions:
       content:
         application/json:
           schema:
-            $ref: ../components/media.yaml#/CreateUploadSessionRequest
+            $ref: ../components/media.yaml#/CreateDocumentUploadSessionRequest
     responses:
       '200':
         description: Istniejąca aktywna sesja wołającego (wznowienie).

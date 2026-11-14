@@ -3200,6 +3200,98 @@
         ],
         "type": "object"
       },
+      "CreateDocumentUploadSessionRequest": {
+        "additionalProperties": false,
+        "description": "Sesja uploadu pliku wersji dokumentu. `id` (UUIDv7) nadaje klient; dokument nie przyjmuje deklaracji pliku (`file` — `400 unknown_field`).",
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "maxLength": 36,
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "CreateMediaAssetMutation": {
+        "additionalProperties": false,
+        "properties": {
+          "commandVersion": {
+            "$ref": "#/components/schemas/CommandVersion"
+          },
+          "mutationId": {
+            "$ref": "#/components/schemas/SyncClientId"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/CreateMediaAssetPayload"
+          },
+          "type": {
+            "const": "CreateMediaAsset",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mutationId",
+          "type",
+          "commandVersion",
+          "payload"
+        ],
+        "type": "object"
+      },
+      "CreateMediaAssetPayload": {
+        "additionalProperties": false,
+        "description": "Medium zlecenia utworzone na telefonie (EVM-131; sam plik jest deklarowany dopiero w sesji uploadu). Pola serwera (`origin`, `createdBy`, `fileState`, `version`) w ładunku dają `rejected validation_failed`. Opis może zawierać dane osobowe — nie trafia do logów ani audytu.",
+        "properties": {
+          "capturedAt": {
+            "$ref": "#/components/schemas/SyncTimestamp"
+          },
+          "category": {
+            "description": "Kategoria medium (zamknięta lista panelu).",
+            "enum": [
+              "site_survey",
+              "before_work",
+              "in_progress",
+              "completed_work",
+              "defect",
+              "measurement",
+              "other"
+            ],
+            "type": "string"
+          },
+          "description": {
+            "description": "Opis (zwykły tekst, do 1000 znaków po normalizacji).",
+            "maxLength": 1000,
+            "type": "string"
+          },
+          "id": {
+            "$ref": "#/components/schemas/SyncClientId"
+          },
+          "mediaType": {
+            "enum": [
+              "photo",
+              "video"
+            ],
+            "type": "string"
+          },
+          "procedureStageId": {
+            "$ref": "#/components/schemas/SyncId"
+          },
+          "workOrderId": {
+            "$ref": "#/components/schemas/SyncId"
+          }
+        },
+        "required": [
+          "id",
+          "workOrderId",
+          "mediaType",
+          "category",
+          "capturedAt"
+        ],
+        "type": "object"
+      },
       "CreateMediaAssetsRequest": {
         "additionalProperties": false,
         "description": "Partia mediów jednego zlecenia (najwyżej 50). Serwer tworzy po jednym medium i pliku w stanie `pending_upload` w jednej transakcji.",
@@ -3515,8 +3607,11 @@
       },
       "CreateUploadSessionRequest": {
         "additionalProperties": false,
-        "description": "Sesja uploadu medium. `id` (UUIDv7) nadaje klient; ponowienie z tym samym `id` i kluczem zwraca tę samą sesję.",
+        "description": "Sesja uploadu medium. `id` (UUIDv7) nadaje klient; ponowienie z tym samym `id` i kluczem zwraca tę samą sesję. `file` (EVM-131) — deklaracja pliku: WYMAGANA dla medium bez pliku (utworzonego na telefonie komendą `CreateMediaAsset`, tylko przez jego twórcę), dla medium z plikiem pominięta albo identyczna z deklaracją (powtórka po utracie odpowiedzi); inna deklaracja dla medium z plikiem — `400 validation_failed`. Dokumenty `file` odrzucają.",
         "properties": {
+          "file": {
+            "$ref": "#/components/schemas/UploadFileDeclaration"
+          },
           "id": {
             "format": "uuid",
             "maxLength": 36,
@@ -8718,7 +8813,7 @@
       },
       "SyncMediaAsset": {
         "additionalProperties": false,
-        "description": "Metadane materiału i podsumowanie pliku — bez klucza obiektu, skrótów SHA-256, nazwy pliku i przyczyny kwarantanny (SR-FILE). Miniatury telefon pobiera osobno, na żądanie.",
+        "description": "Metadane materiału i podsumowanie pliku — bez klucza obiektu, skrótów SHA-256, nazwy pliku i przyczyny kwarantanny (SR-FILE). Miniatury telefon pobiera osobno, na żądanie. Serwer wysyła minimalny ładunek (EVM-131 AC4): identyfikatory, `mediaType`, `category`, `procedureStageId`, `fileState` i `fileStateReasonCode`; `description`, `capturedAt`, `sizeBytes`, `durationSeconds`, `widthPx` i `heightPx` zostają w schemacie (nullable) i serwer wysyła `null` — telefon zachowuje własne wartości lokalne. `version` to wersja synchronizacji: `version` medium + rewizja stanu pliku (zmiana stanu pliku podnosi ją bez zmiany `If-Match` panelu).",
         "properties": {
           "capturedAt": {
             "format": "date-time",
@@ -8750,6 +8845,7 @@
             ]
           },
           "fileState": {
+            "description": "Stan pliku dla telefonu (EVM-131): `pending` (plik jeszcze nie zadeklarowany albo czeka na wysłanie), `uploading` (wysłany, czeka na kontrolę), `clean` (kontrola zgodna — telefon może skasować oryginał), `processing`, `ready`, `quarantined` (zatrzymany — bez przyczyny) i `failed`. Telefon kasuje oryginał dopiero po `clean` (albo `ready`). Wartość nieznana jest tolerowana.",
             "maxLength": 32,
             "type": "string",
             "x-extensible-enum": [
@@ -8757,11 +8853,13 @@
               "uploading",
               "processing",
               "ready",
-              "failed"
+              "failed",
+              "clean",
+              "quarantined"
             ]
           },
           "fileStateReasonCode": {
-            "description": "Tylko przy `failed`.",
+            "description": "Tylko przy `failed`, z listy dozwolonych; każda inna przyczyna (także kwarantanny: `malware_detected`, `type_mismatch`) daje `null` (SR-MOB-10). Dla `quarantined` zawsze `null`.",
             "maxLength": 64,
             "type": [
               "string",
@@ -8769,7 +8867,8 @@
             ],
             "x-extensible-enum": [
               "checksum_mismatch",
-              "processing_error"
+              "processing_error",
+              "abandoned"
             ]
           },
           "heightPx": {
@@ -8848,6 +8947,7 @@
         "discriminator": {
           "mapping": {
             "CreateComment": "#/components/schemas/CreateCommentMutation",
+            "CreateMediaAsset": "#/components/schemas/CreateMediaAssetMutation",
             "CreateNote": "#/components/schemas/CreateNoteMutation",
             "CreateQuickWorkOrder": "#/components/schemas/CreateQuickWorkOrderMutation"
           },
@@ -8862,6 +8962,9 @@
           },
           {
             "$ref": "#/components/schemas/CreateQuickWorkOrderMutation"
+          },
+          {
+            "$ref": "#/components/schemas/CreateMediaAssetMutation"
           }
         ]
       },
@@ -10729,6 +10832,38 @@
             ]
           }
         },
+        "type": "object"
+      },
+      "UploadFileDeclaration": {
+        "additionalProperties": false,
+        "description": "Deklaracja pliku medium utworzonego komendą `CreateMediaAsset` (EVM-131): typ, rozmiar i skrót liczy telefon; serwer sprawdza je jak w panelu (lista typów, limit 50 MB / 4 GiB, rozszerzenie zgodne z typem i rodzajem medium). Nazwę serwer oczyszcza; nigdy nie jest częścią klucza obiektu, logu ani audytu (telefon wysyła nazwę bez danych osobowych, np. UUID z rozszerzeniem).",
+        "properties": {
+          "contentType": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "declaredSize": {
+            "maximum": 4294967296,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "fileName": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "sha256": {
+            "maxLength": 64,
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileName",
+          "declaredSize",
+          "contentType",
+          "sha256"
+        ],
         "type": "object"
       },
       "UploadPart": {
@@ -16733,7 +16868,7 @@
     },
     "/api/v1/sync/mutations": {
       "post": {
-        "description": "Administrator i Edytor, kanał `mobile`. Partia 1–50 mutacji w kolejności kolejki (`CreateNote`, `CreateComment`, `CreateQuickWorkOrder`); każda: `mutationId` (UUIDv7 — klucz idempotencji), `type`, `commandVersion`, `payload`, najwyżej 64 KB (egzekwuje serwer, EVM-098; treść partii najwyżej 1 MB → `413 payload_too_large`). Wynik per mutacja: `applied`, `duplicate` (ta sama mutacja już zastosowana), `conflict` (`id_conflict`) albo `rejected` z kodem (`forbidden`, `target_unavailable`, `validation_failed`, `idempotency_mismatch`, `idempotency_in_progress`, `template_unavailable`) i ostrzeżeniami (`captured_at_out_of_range`, `idempotency_expired`). Zła koperta lub partia → `400`; zły ładunek albo nieznany `type` to wynik JEDNEJ mutacji (`rejected` `validation_failed`), nie `400` całej partii. Sesja lub urządzenie unieważnione → `401` dla całej partii (`session_revoked`, `device_wipe_required`; wyczyszczenie ma pierwszeństwo). Autoryzacja mutacji następuje w chwili zastosowania (rola, polityka obiektowa). Treść nie niesie `userId` ani `deviceId`. `pendingItems` — informacyjnie. `Cache-Control: no-store`; limit 60 żądań na minutę na urządzenie (partia to jedno żądanie, obok limitu na użytkownika), powyżej `429` z `Retry-After` bez skutków. `CreateQuickWorkOrder` do EVM-099 → `rejected` `validation_failed`.",
+        "description": "Administrator i Edytor, kanał `mobile`. Partia 1–50 mutacji w kolejności kolejki (`CreateNote`, `CreateComment`, `CreateQuickWorkOrder`, `CreateMediaAsset` — EVM-131); każda: `mutationId` (UUIDv7 — klucz idempotencji), `type`, `commandVersion`, `payload`, najwyżej 64 KB (egzekwuje serwer, EVM-098; treść partii najwyżej 1 MB → `413 payload_too_large`). Wynik per mutacja: `applied`, `duplicate` (ta sama mutacja już zastosowana), `conflict` (`id_conflict`) albo `rejected` z kodem (`forbidden`, `target_unavailable`, `validation_failed`, `idempotency_mismatch`, `idempotency_in_progress`, `template_unavailable`) i ostrzeżeniami (`captured_at_out_of_range`, `idempotency_expired`). Zła koperta lub partia → `400`; zły ładunek albo nieznany `type` to wynik JEDNEJ mutacji (`rejected` `validation_failed`), nie `400` całej partii. Sesja lub urządzenie unieważnione → `401` dla całej partii (`session_revoked`, `device_wipe_required`; wyczyszczenie ma pierwszeństwo). Autoryzacja mutacji następuje w chwili zastosowania (rola, polityka obiektowa). Treść nie niesie `userId` ani `deviceId`. `pendingItems` — informacyjnie. `Cache-Control: no-store`; limit 60 żądań na minutę na urządzenie (partia to jedno żądanie, obok limitu na użytkownika), powyżej `429` z `Retry-After` bez skutków. `CreateQuickWorkOrder` do EVM-099 → `rejected` `validation_failed`.",
         "operationId": "pushSyncMutations",
         "parameters": [
           {
@@ -18856,7 +18991,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateUploadSessionRequest"
+                "$ref": "#/components/schemas/CreateDocumentUploadSessionRequest"
               }
             }
           },
@@ -19784,7 +19919,7 @@
     },
     "/api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/upload-sessions": {
       "post": {
-        "description": "Sesja uploadu medium (EVM-044 AC1, AC4, AC5, AC6, AC7; SR-FILE-02, SR-AUTHZ-02, SR-AUTHZ-05, SR-API-05). Role Administrator i Edytor (Tylko odczyt — `403`), kanał `web`. Łańcuch zlecenie → medium → plik sprawdzany jednym zapytaniem (`404` dla medium innego zlecenia). Sesję otwiera wyłącznie twórca medium albo Administrator (inny Edytor — `404`, jak dla medium innego zlecenia). Dozwolone tylko dla pliku w `pending_upload` (nowa sesja) albo `failed` z przyczyną `checksum_mismatch` („Ponów” — plik wraca do `pending_upload`, klucz obiektu ten sam, poprzednia wersja obiektu zostaje w bucketcie z wersjonowaniem); każdy inny stan — `409 invalid_state_transition`. Istniejąca aktywna sesja WOŁAJĄCEGO jest zwracana ponownie (wznowienie po ponownym wyborze pliku, `200`); aktywna sesja innego użytkownika (Administrator na medium z cudzą sesją) — `409 id_conflict` bez szczegółów. Powtórka tego samego żądania (ten sam `Idempotency-Key`), gdy utworzona wtedy sesja została przerwana albo wygasła — `409 invalid_state_transition` (klient otwiera nową sesję z nowym kluczem i identyfikatorem), nigdy `201` z sesją nieużyteczną. Serwer dzieli plik na części (stały rozmiar 16 MiB, ostatnia mniejsza, najwyżej 1000), wystawia `CreateMultipartUpload` z typem z listy dozwolonych i zapisuje sesję ważną 7 dni. Limit aktywnych sesji użytkownika — `429` z `Retry-After`. Brak konfiguracji magazynu — `503 media_storage_unavailable`.",
+        "description": "Sesja uploadu medium (EVM-044 AC1, AC4, AC5, AC6, AC7; SR-FILE-02, SR-AUTHZ-02, SR-AUTHZ-05, SR-API-05). Role Administrator i Edytor (Tylko odczyt — `403`), kanały `web` i `mobile` (token telefonu: Tylko odczyt — `403 channel_not_allowed`). Łańcuch zlecenie → medium → plik sprawdzany jednym zapytaniem (`404` dla medium innego zlecenia). Sesję otwiera wyłącznie twórca medium albo Administrator (inny Edytor — `404`, jak dla medium innego zlecenia). Dozwolone tylko dla pliku w `pending_upload` (nowa sesja) albo `failed` z przyczyną `checksum_mismatch` („Ponów” — plik wraca do `pending_upload`, klucz obiektu ten sam, poprzednia wersja obiektu zostaje w bucketcie z wersjonowaniem); każdy inny stan — `409 invalid_state_transition`. Istniejąca aktywna sesja WOŁAJĄCEGO jest zwracana ponownie (wznowienie po ponownym wyborze pliku, `200`); aktywna sesja innego użytkownika (Administrator na medium z cudzą sesją) — `409 id_conflict` bez szczegółów. Powtórka tego samego żądania (ten sam `Idempotency-Key`), gdy utworzona wtedy sesja została przerwana albo wygasła — `409 invalid_state_transition` (klient otwiera nową sesję z nowym kluczem i identyfikatorem), nigdy `201` z sesją nieużyteczną. Serwer dzieli plik na części (stały rozmiar 16 MiB, ostatnia mniejsza, najwyżej 1000), wystawia `CreateMultipartUpload` z typem z listy dozwolonych i zapisuje sesję ważną 7 dni. Limit aktywnych sesji użytkownika — `429` z `Retry-After`. Brak konfiguracji magazynu — `503 media_storage_unavailable`.",
         "operationId": "createUploadSession",
         "parameters": [
           {
@@ -19865,7 +20000,8 @@
         ],
         "x-evia-authz": {
           "channels": [
-            "web"
+            "web",
+            "mobile"
           ],
           "roles": [
             "administrator",
@@ -19876,7 +20012,7 @@
     },
     "/api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/upload-sessions/{sessionId}/abort": {
       "post": {
-        "description": "Przerwanie aktywnej sesji (EVM-044 AC6, AC7). Role Administrator i Edytor (Tylko odczyt — `403`), kanał `web`; tylko twórca sesji (`404` dla pozostałych). „Wstrzymaj” w panelu NIE wywołuje tej operacji (wstrzymanie zachowuje potwierdzone części). Idempotentne: przerwana sesja daje `204`; zakończona (`completed`) — `409 invalid_state_transition`. Niezłożony upload w storage'u jest przerywany; plik pozostaje w `pending_upload` i może dostać nową sesję.",
+        "description": "Przerwanie aktywnej sesji (EVM-044 AC6, AC7). Role Administrator i Edytor (Tylko odczyt — `403`), kanały `web` i `mobile` (token telefonu: Tylko odczyt — `403 channel_not_allowed`); tylko twórca sesji (`404` dla pozostałych). „Wstrzymaj” w panelu NIE wywołuje tej operacji (wstrzymanie zachowuje potwierdzone części). Idempotentne: przerwana sesja daje `204`; zakończona (`completed`) — `409 invalid_state_transition`. Niezłożony upload w storage'u jest przerywany; plik pozostaje w `pending_upload` i może dostać nową sesję.",
         "operationId": "abortUploadSession",
         "parameters": [
           {
@@ -19921,7 +20057,8 @@
         ],
         "x-evia-authz": {
           "channels": [
-            "web"
+            "web",
+            "mobile"
           ],
           "roles": [
             "administrator",
@@ -19932,7 +20069,7 @@
     },
     "/api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/upload-sessions/{sessionId}/complete": {
       "post": {
-        "description": "Zakończenie sesji (EVM-044 AC1, AC5, AC6, AC7; SR-FILE-02, SR-CRYPTO-05). Role Administrator i Edytor (Tylko odczyt — `403`), kanał `web`; tylko twórca sesji (`404` dla pozostałych). Serwer czyta części ze storage'u (nie ufa ETagom klienta): liczba = `partCount`, każda poza ostatnią = `partSize`, suma = `declaredSize` (inaczej `422 upload_incomplete`, `size_mismatch` albo `parts_missing`), składa obiekt i sprawdza `HEAD` (rozmiar = `declaredSize`). Plik przechodzi do `uploaded` (panel: „Sprawdzanie pliku”) i czeka na skan; skan, SHA-256 i typ z zawartości wykonuje worker. Powtórka po złożeniu obiektu jest idempotentna (`200` z bieżącym stanem). Odpowiedź — medium z aktualnym stanem pliku.",
+        "description": "Zakończenie sesji (EVM-044 AC1, AC5, AC6, AC7; SR-FILE-02, SR-CRYPTO-05). Role Administrator i Edytor (Tylko odczyt — `403`), kanały `web` i `mobile` (token telefonu: Tylko odczyt — `403 channel_not_allowed`); tylko twórca sesji (`404` dla pozostałych). Serwer czyta części ze storage'u (nie ufa ETagom klienta): liczba = `partCount`, każda poza ostatnią = `partSize`, suma = `declaredSize` (inaczej `422 upload_incomplete`, `size_mismatch` albo `parts_missing`), składa obiekt i sprawdza `HEAD` (rozmiar = `declaredSize`). Plik przechodzi do `uploaded` (panel: „Sprawdzanie pliku”) i czeka na skan; skan, SHA-256 i typ z zawartości wykonuje worker. Powtórka po złożeniu obiektu jest idempotentna (`200` z bieżącym stanem). Odpowiedź — medium z aktualnym stanem pliku.",
         "operationId": "completeUploadSession",
         "parameters": [
           {
@@ -19987,7 +20124,8 @@
         ],
         "x-evia-authz": {
           "channels": [
-            "web"
+            "web",
+            "mobile"
           ],
           "roles": [
             "administrator",
@@ -19998,7 +20136,7 @@
     },
     "/api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/upload-sessions/{sessionId}/parts": {
       "get": {
-        "description": "Części już wysłane (`ListParts` po stronie serwera) — wysyłanie wznawia się od pierwszej brakującej (EVM-044 AC4, AC6, AC7; SR-AUTHZ-02, SR-AUTHZ-05). Role Administrator i Edytor, kanał `web`; sesję widzi wyłącznie jej twórca (inny użytkownik, sesja innego medium lub zlecenia, nieistniejąca — jedna odpowiedź `404`). Sesja zakończona lub wygasła — `409 invalid_state_transition`. `Cache-Control: no-store`.",
+        "description": "Części już wysłane (`ListParts` po stronie serwera) — wysyłanie wznawia się od pierwszej brakującej (EVM-044 AC4, AC6, AC7; SR-AUTHZ-02, SR-AUTHZ-05). Role Administrator i Edytor, kanały `web` i `mobile` (token telefonu: Tylko odczyt — `403 channel_not_allowed`); sesję widzi wyłącznie jej twórca (inny użytkownik, sesja innego medium lub zlecenia, nieistniejąca — jedna odpowiedź `404`). Sesja zakończona lub wygasła — `409 invalid_state_transition`. `Cache-Control: no-store`.",
         "operationId": "listUploadParts",
         "parameters": [
           {
@@ -20050,7 +20188,8 @@
         ],
         "x-evia-authz": {
           "channels": [
-            "web"
+            "web",
+            "mobile"
           ],
           "roles": [
             "administrator",
@@ -20061,7 +20200,7 @@
     },
     "/api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/upload-sessions/{sessionId}/parts/{partNumber}/url": {
       "get": {
-        "description": "Podpisany `PUT` jednej części (EVM-044 AC6, AC7; SR-FILE-02, SR-WEB-04). Role Administrator i Edytor (Tylko odczyt — `403`), kanał `web`; tylko twórca sesji (`404` dla pozostałych). Adres jest związany z kluczem obiektu, identyfikatorem uploadu, numerem części i dokładnym `Content-Length` części obliczonym przez serwer z planu sesji, ważny 60 minut. Numer spoza `1 … partCount` — `400`. Odpowiedź ma `Cache-Control: no-store`; adres nie jest logowany. Panel wysyła `PUT` z `credentials: 'omit'` i zapamiętuje `ETag` tylko informacyjnie (`complete` czyta części ze storage'u).",
+        "description": "Podpisany `PUT` jednej części (EVM-044 AC6, AC7; SR-FILE-02, SR-WEB-04). Role Administrator i Edytor (Tylko odczyt — `403`), kanały `web` i `mobile` (token telefonu: Tylko odczyt — `403 channel_not_allowed`); tylko twórca sesji (`404` dla pozostałych). Adres jest związany z kluczem obiektu, identyfikatorem uploadu, numerem części i dokładnym `Content-Length` części obliczonym przez serwer z planu sesji, ważny 60 minut. Numer spoza `1 … partCount` — `400`. Odpowiedź ma `Cache-Control: no-store`; adres nie jest logowany. Panel wysyła `PUT` z `credentials: 'omit'` i zapamiętuje `ETag` tylko informacyjnie (`complete` czyta części ze storage'u).",
         "operationId": "getUploadPartUrl",
         "parameters": [
           {
@@ -20127,7 +20266,8 @@
         ],
         "x-evia-authz": {
           "channels": [
-            "web"
+            "web",
+            "mobile"
           ],
           "roles": [
             "administrator",

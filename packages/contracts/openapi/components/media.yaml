@@ -339,9 +339,50 @@ MediaAssetList:
       type: integer
       minimum: 0
       description: Liczba plików zlecenia w kwarantannie `held` (znacznik „Wymaga uwagi (n)”).
+UploadFileDeclaration:
+  type: object
+  description: >-
+    Deklaracja pliku medium utworzonego komendą `CreateMediaAsset` (EVM-131): typ, rozmiar i skrót liczy telefon; serwer sprawdza je
+    jak w panelu (lista typów, limit 50 MB / 4 GiB, rozszerzenie zgodne z typem i rodzajem medium). Nazwę serwer oczyszcza; nigdy nie jest
+    częścią klucza obiektu, logu ani audytu (telefon wysyła nazwę bez danych osobowych, np. UUID z rozszerzeniem).
+  required: [fileName, declaredSize, contentType, sha256]
+  additionalProperties: false
+  properties:
+    fileName:
+      type: string
+      minLength: 1
+      maxLength: 1000
+    declaredSize:
+      type: integer
+      minimum: 1
+      maximum: 4294967296
+    contentType:
+      type: string
+      maxLength: 100
+    sha256:
+      type: string
+      pattern: '^[a-f0-9]{64}$'
+      maxLength: 64
 CreateUploadSessionRequest:
   type: object
-  description: Sesja uploadu medium. `id` (UUIDv7) nadaje klient; ponowienie z tym samym `id` i kluczem zwraca tę samą sesję.
+  description: >-
+    Sesja uploadu medium. `id` (UUIDv7) nadaje klient; ponowienie z tym samym `id` i kluczem zwraca tę samą sesję. `file` (EVM-131) —
+    deklaracja pliku: WYMAGANA dla medium bez pliku (utworzonego na telefonie komendą `CreateMediaAsset`, tylko przez jego twórcę),
+    dla medium z plikiem pominięta albo identyczna z deklaracją (powtórka po utracie odpowiedzi); inna deklaracja dla medium z plikiem —
+    `400 validation_failed`. Dokumenty `file` odrzucają.
+  required: [id]
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      format: uuid
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+      maxLength: 36
+    file:
+      $ref: '#/UploadFileDeclaration'
+CreateDocumentUploadSessionRequest:
+  type: object
+  description: Sesja uploadu pliku wersji dokumentu. `id` (UUIDv7) nadaje klient; dokument nie przyjmuje deklaracji pliku (`file` — `400 unknown_field`).
   required: [id]
   additionalProperties: false
   properties:
