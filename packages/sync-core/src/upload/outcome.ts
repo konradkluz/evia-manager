@@ -2,6 +2,9 @@ import type { MappingInput, Outcome } from './types.ts';
 
 const UPLOADED_STATES: ReadonlySet<string> = new Set(['uploaded', 'scanning', 'clean', 'processing', 'ready']);
 
+/** `422` of `complete`: the parts on the storage do not add up to the declared file (`upload_incomplete`, detail `size_mismatch` or `parts_missing`). */
+export const INCOMPLETE_CODES: ReadonlySet<string> = new Set(['upload_incomplete', 'size_mismatch', 'parts_missing']);
+
 /**
  * Maps what the server or the network returned onto the state of the engine (EVM-109 AC2). Three kinds of input: an HTTP answer
  * (status and problem `code`), the file state after `complete`, and a network error. Anything unknown is `needs_attention(unknown)`.
@@ -21,6 +24,7 @@ export function mapFailure(input: MappingInput): Outcome {
     if (code === 'invalid_state_transition') return { type: 'needs_attention', reason: 'invalid_state' };
     return { type: 'needs_attention', reason: 'unknown' };
   }
+  if (status === 422 && code !== undefined && INCOMPLETE_CODES.has(code)) return { type: 'needs_attention', reason: 'upload_incomplete' };
   if (status === 429 || status >= 500) return { type: 'retry_later' };
   return { type: 'needs_attention', reason: 'unknown' };
 }

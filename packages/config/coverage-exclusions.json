@@ -34,8 +34,8 @@
       "reason": "EVM-093: native shell of SQLCipher (expo-sqlite); needs the Android runtime, proven on the emulator (Maestro, ADR-0015); the logic above it is covered in Jest"
     },
     {
-      "pattern": "apps/mobile/modules/evia-upload/android/**",
-      "reason": "EVM-109: glue of the Android module (service, Keystore, HTTP adapters; EVM-130) needs the Android runtime and is proven on the emulator (Maestro, ADR-0015); the pure engine in modules/evia-upload/engine is never excluded and is measured at 95% (Kover)"
+      "pattern": "apps/mobile/modules/*/android/**",
+      "reason": "EVM-109: glue of the Android modules (evia-upload service and adapters, evia-keystore, evia-clipboard) needs the Android runtime and is proven on the emulator (Maestro, ADR-0015); the pure engine in modules/evia-upload/engine is never excluded and is measured at 95% (Kover)"
     }
   ]
 }

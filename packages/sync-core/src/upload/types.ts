@@ -41,6 +41,7 @@ export type AttentionReason =
   | 'invalid_server_response'
   | 'invalid_state'
   | 'url_renewal_exhausted'
+  | 'upload_incomplete'
   | 'unknown';
 
 export type Outcome =

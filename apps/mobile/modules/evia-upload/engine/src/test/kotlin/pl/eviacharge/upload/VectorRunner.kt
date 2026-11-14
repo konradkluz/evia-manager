@@ -126,6 +126,7 @@ class FakeServer(
                     }
                 FakeSession(item["id"] as String, item["key"] as? String, item["state"] as String, parts.toMutableMap())
             }.toMutableList()
+    private var dropAfterList: Int? = null
     private val faults =
         faultSpecs.map {
             Fault(it["op"] as String, (it["part"] as? Number)?.toInt(), it["effect"] as String, (it["times"] as Number).toInt())
@@ -146,6 +147,10 @@ class FakeServer(
         val fault = faults.firstOrNull { it.op == op && it.times > 0 && (it.part == null || it.part == part) } ?: return false
         fault.times -= 1
         if (fault.effect == "lost_response") return true
+        if (fault.effect.startsWith("drop_after_list:")) {
+            dropAfterList = fault.effect.split(':')[1].toInt()
+            return false
+        }
         if (fault.effect == "network") throw UploadFailure(Failure.Network)
         val pieces = fault.effect.split(':')
         throw UploadFailure(Failure.Http(pieces[1].toInt(), pieces.getOrNull(2)))
@@ -177,7 +182,11 @@ class FakeServer(
         val session = sessions.firstOrNull { it.id == sessionId } ?: throw UploadFailure(Failure.Http(404, "not_found"))
         if (session.state != "active") conflict()
         if (lost) throw UploadFailure(Failure.Network)
-        return listOverride ?: session.parts.map { RemotePart(it.key, it.value) }
+        val answer = listOverride ?: session.parts.map { RemotePart(it.key, it.value) }
+        // The part vanishes from the storage right after the answer (cleanup of the multipart, rollback).
+        dropAfterList?.let { session.parts.remove(it) }
+        dropAfterList = null
+        return answer
     }
 
     override fun partUrl(

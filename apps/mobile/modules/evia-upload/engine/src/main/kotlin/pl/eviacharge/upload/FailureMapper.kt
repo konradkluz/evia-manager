@@ -2,6 +2,9 @@ package pl.eviacharge.upload
 
 private val UPLOADED_STATES = setOf("uploaded", "scanning", "clean", "processing", "ready")
 
+/** `422` of `complete`: the parts on the storage do not add up to the declared file (`upload_incomplete`, detail `size_mismatch` or `parts_missing`). */
+internal val INCOMPLETE_CODES = setOf("upload_incomplete", "size_mismatch", "parts_missing")
+
 private val UNKNOWN = Outcome.NeedsAttention(AttentionReason.UNKNOWN)
 
 /**
@@ -35,6 +38,10 @@ private fun mapHttp(failure: Failure.Http): Outcome =
                 "invalid_state_transition" -> Outcome.NeedsAttention(AttentionReason.INVALID_STATE)
                 else -> UNKNOWN
             }
+        }
+
+        failure.status == 422 && failure.code in INCOMPLETE_CODES -> {
+            Outcome.NeedsAttention(AttentionReason.UPLOAD_INCOMPLETE)
         }
 
         failure.status == 429 || failure.status >= 500 -> {

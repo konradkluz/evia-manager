@@ -15,6 +15,11 @@ private class SessionGone : Exception() {
     override fun fillInStackTrace(): Throwable = this
 }
 
+/** `422 upload_incomplete` on `complete`: a part is missing on the storage (e.g. cleaned up after ListParts); reconcile once more. */
+private class UploadIncomplete : Exception() {
+    override fun fillInStackTrace(): Throwable = this
+}
+
 /** `403` on the address of a part: renew the address of this part only. */
 private class UrlExpired : Exception() {
     override fun fillInStackTrace(): Throwable = this
@@ -25,6 +30,8 @@ private fun attention(reason: AttentionReason) = Stop(Outcome.NeedsAttention(rea
 private class RunContext(
     var snapshot: JobSnapshot,
     var regenerated: Boolean,
+    /** True once this run reconciled again after `422 upload_incomplete`; a second one is `needs_attention`. */
+    var reconciled: Boolean = false,
 )
 
 /** Everything the engine needs from the outside; the adapters (EVM-130) implement the ports. */
@@ -128,6 +135,11 @@ class UploadEngine(
                 val plan = plan(context.snapshot.size, partSize, context.snapshot.partCount)
                 if (!context.snapshot.completeSent) transfer(context, plan, reconcile(context, plan))
                 return complete(context)
+            } catch (incomplete: UploadIncomplete) {
+                // The mark is withdrawn so that this run (once) and any later run reconcile with ListParts and resend what is missing.
+                update(context) { it.copy(completeSent = false) }
+                if (context.reconciled) throw attention(AttentionReason.UPLOAD_INCOMPLETE)
+                context.reconciled = true
             } catch (gone: SessionGone) {
                 if (context.regenerated) throw attention(AttentionReason.INVALID_STATE)
                 // Session expired or aborted: one new session per run, with a new id and key, only when the file state allows it.
@@ -216,7 +228,7 @@ class UploadEngine(
         // The mark is persisted before the request: after a lost answer the next run repeats `complete` (idempotent on the server).
         update(context) { it.copy(completeSent = true) }
         deps.checkpoints?.reached(Checkpoint.BEFORE_COMPLETE)
-        val result = call { deps.api.complete(context.snapshot.uploadSessionId) }
+        val result = call(incompleteOn422 = true) { deps.api.complete(context.snapshot.uploadSessionId) }
         val outcome = mapFailure(result)
         deps.checkpoints?.reached(Checkpoint.AFTER_COMPLETE_BEFORE_SAVE)
         if (outcome != Outcome.Uploaded) throw Stop(outcome)
@@ -227,6 +239,7 @@ class UploadEngine(
     /** One call with bounded in-process retries; what cannot be retried ends the run through [Stop]. */
     private fun <T> call(
         expiredOn403: Boolean = false,
+        incompleteOn422: Boolean = false,
         action: () -> T,
     ): T {
         var attempt = 0
@@ -237,6 +250,9 @@ class UploadEngine(
                 val failure = error.failure
                 if (failure is Failure.Http && failure.status == 403 && expiredOn403) throw UrlExpired()
                 if (failure is Failure.Http && failure.status == 409 && failure.code == "invalid_state_transition") throw SessionGone()
+                if (incompleteOn422 && failure is Failure.Http && failure.status == 422 && failure.code in INCOMPLETE_CODES) {
+                    throw UploadIncomplete()
+                }
                 val outcome = mapFailure(failure)
                 if (outcome !is Outcome.RetryLater) throw Stop(outcome)
                 attempt += 1

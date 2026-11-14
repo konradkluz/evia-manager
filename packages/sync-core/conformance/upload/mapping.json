@@ -60,6 +60,26 @@
     {
       "id": "M17-422",
       "input": { "kind": "http", "status": 422, "code": "parts_missing" },
+      "expected": { "type": "needs_attention", "reason": "upload_incomplete" }
+    },
+    {
+      "id": "M17b-422-upload-incomplete",
+      "input": { "kind": "http", "status": 422, "code": "upload_incomplete" },
+      "expected": { "type": "needs_attention", "reason": "upload_incomplete" }
+    },
+    {
+      "id": "M17c-422-size-mismatch",
+      "input": { "kind": "http", "status": 422, "code": "size_mismatch" },
+      "expected": { "type": "needs_attention", "reason": "upload_incomplete" }
+    },
+    {
+      "id": "M17d-422-other-code",
+      "input": { "kind": "http", "status": 422, "code": "validation_failed" },
+      "expected": { "type": "needs_attention", "reason": "unknown" }
+    },
+    {
+      "id": "M17e-422-no-code",
+      "input": { "kind": "http", "status": 422 },
       "expected": { "type": "needs_attention", "reason": "unknown" }
     },
     { "id": "M18-state-uploaded", "input": { "kind": "fileState", "state": "uploaded" }, "expected": { "type": "uploaded" } },

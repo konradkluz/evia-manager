@@ -13,7 +13,7 @@ Odpowiednik w TypeScript (model referencyjny) i wspólne wektory zgodności: `pa
 | Plik | Rola |
 |---|---|
 | `Types.kt` | porty (`UploadApi`, `PartTransport`, `JobStore`, `Sleeper`, `RandomSource`, `IdSource`), typy błędów i wyniku (`Outcome`), limity |
-| `UploadEngine.kt` | pętla: sesja → `ListParts` jako źródło prawdy → części → `complete` (idempotentny); jedna nowa sesja na przebieg |
+| `UploadEngine.kt` | pętla: sesja → `ListParts` jako źródło prawdy → części → `complete` (idempotentny); jedna nowa sesja na przebieg; `422 upload_incomplete` z `complete` (część zniknęła ze storage'u) cofa znacznik `completeSent`, najwyżej raz na przebieg ponawia `ListParts` i dosyła brakujące części, drugie `422` to `needs_attention(upload_incomplete)` (następny przebieg znów zaczyna od `ListParts`) |
 | `Planner.kt` | zakresy bajtów części; serwer dzieli plik, klient liczy i sprawdza spójność (`plan_mismatch`) |
 | `Backoff.kt` | pełny jitter, arytmetyka na `Long` (identyczne liczby w TS i Kotlinie) |
 | `FailureMapper.kt` | odpowiedź HTTP, stan pliku po `complete` i błąd sieci → wynik silnika (AC2) |

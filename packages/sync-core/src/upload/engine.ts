@@ -1,5 +1,5 @@
 import { backoffDelayMs } from './backoff.ts';
-import { mapFailure } from './outcome.ts';
+import { INCOMPLETE_CODES, mapFailure } from './outcome.ts';
 import { planParts, type PartRange } from './planner.ts';
 import { isTrustedPartUrl } from './url.ts';
 import {
@@ -25,6 +25,8 @@ class Stop extends Error {
 }
 /** The server says the session cannot continue (`409 invalid_state_transition`: expired, aborted or completed). */
 class SessionGone extends Error {}
+/** `422 upload_incomplete` on `complete`: a part is missing on the storage (e.g. cleaned up after ListParts); reconcile once more. */
+class UploadIncomplete extends Error {}
 /** `403` on the address of a part: renew the address of this part only. */
 class UrlExpired extends Error {}
 
@@ -34,6 +36,8 @@ interface RunContext {
   snapshot: JobSnapshot;
   /** True once this run generated a new session id and key; a second renewal in one run is `needs_attention`. */
   regenerated: boolean;
+  /** True once this run reconciled again after `422 upload_incomplete`; a second one is `needs_attention`. */
+  reconciled: boolean;
 }
 
 /**
@@ -72,12 +76,12 @@ export class UploadEngine {
   private async start(assetId: string, size: number): Promise<RunContext> {
     const stored = await this.deps.store.load(assetId);
     if (stored !== null && stored.schemaVersion === SNAPSHOT_SCHEMA_VERSION && stored.size === size) {
-      return { snapshot: { ...stored, state: stored.state === 'uploaded' ? 'uploaded' : 'active' }, regenerated: false };
+      return { snapshot: { ...stored, state: stored.state === 'uploaded' ? 'uploaded' : 'active' }, regenerated: false, reconciled: false };
     }
     // Nothing stored, an unknown schema version or a changed file: start from the beginning (the server hands back an active session).
     const snapshot = this.freshSnapshot(assetId, size);
     await this.deps.store.save(snapshot);
-    return { snapshot, regenerated: true };
+    return { snapshot, regenerated: true, reconciled: false };
   }
 
   private freshSnapshot(assetId: string, size: number): JobSnapshot {
@@ -111,6 +115,13 @@ export class UploadEngine {
         }
         return await this.complete(context);
       } catch (error) {
+        if (error instanceof UploadIncomplete) {
+          // The mark is withdrawn so that this run (once) and any later run reconcile with ListParts and resend what is missing.
+          await this.update(context, { completeSent: false });
+          if (context.reconciled) throw attention('upload_incomplete');
+          context.reconciled = true;
+          continue;
+        }
         if (!(error instanceof SessionGone)) throw error;
         if (context.regenerated) throw attention('invalid_state');
         // Session expired or aborted: one new session per run, with a new id and key, only when the file state allows it.
@@ -191,7 +202,7 @@ export class UploadEngine {
     // The mark is persisted before the request: after a lost answer the next run repeats `complete` (idempotent on the server).
     await this.update(context, { completeSent: true });
     await this.deps.checkpoint?.('beforeComplete');
-    const result = await this.call(() => this.deps.api.complete(context.snapshot.uploadSessionId));
+    const result = await this.call(() => this.deps.api.complete(context.snapshot.uploadSessionId), false, true);
     const outcome = mapFailure({ kind: 'fileState', state: result.state, reasonCode: result.reasonCode });
     await this.deps.checkpoint?.('afterCompleteBeforeSave');
     if (outcome.type !== 'uploaded') throw new Stop(outcome);
@@ -200,7 +211,7 @@ export class UploadEngine {
   }
 
   /** One call with bounded in-process retries; what cannot be retried ends the run through `Stop`. */
-  private async call<T>(action: () => Promise<T>, expiredOn403 = false): Promise<T> {
+  private async call<T>(action: () => Promise<T>, expiredOn403 = false, incompleteOn422 = false): Promise<T> {
     let attempt = 0;
     for (;;) {
       try {
@@ -210,6 +221,8 @@ export class UploadEngine {
         const { failure } = error;
         if (failure.kind === 'http' && failure.status === 403 && expiredOn403) throw new UrlExpired();
         if (failure.kind === 'http' && failure.status === 409 && failure.code === 'invalid_state_transition') throw new SessionGone();
+        if (incompleteOn422 && failure.kind === 'http' && failure.status === 422 && INCOMPLETE_CODES.has(failure.code ?? ''))
+          throw new UploadIncomplete();
         const outcome = mapFailure(failure);
         if (outcome.type !== 'retry_later') throw new Stop(outcome);
         attempt += 1;

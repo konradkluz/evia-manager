@@ -1681,6 +1681,83 @@
         "puts": {},
         "store": "active"
       }
+    },
+    {
+      "id": "R34-part-vanishes-after-listparts-complete-422-reconciles",
+      "ac": "AC1",
+      "initialStore": {
+        "schemaVersion": 1,
+        "assetId": "asset-1",
+        "size": 40,
+        "uploadSessionId": "sess-1",
+        "idempotencyKey": "key-1",
+        "partSize": 16,
+        "partCount": 3,
+        "completeSent": false,
+        "state": "active",
+        "etags": { "1": "\"e1\"", "2": "\"e2\"" }
+      },
+      "server": {
+        "sessions": [
+          {
+            "id": "sess-1",
+            "key": "key-1",
+            "state": "active",
+            "parts": [
+              { "partNumber": 1, "size": 16 },
+              { "partNumber": 2, "size": 16 }
+            ]
+          }
+        ]
+      },
+      "faults": [{ "op": "listParts", "effect": "drop_after_list:2", "times": 1 }],
+      "runs": [
+        {
+          "expect": {
+            "outcome": { "type": "uploaded" },
+            "calls": ["listParts", "partUrl:3", "put:3", "complete", "listParts", "partUrl:2", "put:2", "complete"],
+            "sleeps": [],
+            "store": "uploaded"
+          }
+        }
+      ],
+      "final": { "objects": 1, "sessionsCreated": 0, "open": 0, "puts": { "2": 1, "3": 1 }, "store": "uploaded" }
+    },
+    {
+      "id": "R35-second-422-in-one-run-needs-attention-then-next-run-reconciles",
+      "ac": "AC1",
+      "faults": [{ "op": "complete", "effect": "http:422:upload_incomplete", "times": 2 }],
+      "runs": [
+        {
+          "expect": {
+            "outcome": { "type": "needs_attention", "reason": "upload_incomplete" },
+            "calls": [
+              "createSession",
+              "listParts",
+              "partUrl:1",
+              "put:1",
+              "partUrl:2",
+              "put:2",
+              "partUrl:3",
+              "put:3",
+              "complete",
+              "listParts",
+              "complete"
+            ],
+            "sleeps": [],
+            "store": "active"
+          }
+        },
+        {
+          "expect": {
+            "outcome": { "type": "uploaded" },
+            "calls": ["listParts", "complete"],
+            "sleeps": [],
+            "store": "uploaded"
+          }
+        }
+      ],
+      "final": { "objects": 1, "sessionsCreated": 1, "open": 0, "puts": { "1": 1, "2": 1, "3": 1 }, "store": "uploaded" }
     }
   ]
 }

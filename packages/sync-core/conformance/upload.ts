@@ -96,6 +96,7 @@ class FakeServer {
   private readonly sessions: SessionSpec[];
   private readonly faults: FaultSpec[];
   private counter = 0;
+  private dropAfterList: number | undefined;
 
   private readonly spec: ServerSpec;
   private readonly size: number;
@@ -126,6 +127,10 @@ class FakeServer {
     if (fault === undefined) return false;
     fault.times -= 1;
     if (fault.effect === 'lost_response') return true;
+    if (fault.effect.startsWith('drop_after_list:')) {
+      this.dropAfterList = Number(fault.effect.split(':')[1]);
+      return false;
+    }
     if (fault.effect === 'network') throw new UploadFailure({ kind: 'network' });
     const [, status, code] = fault.effect.split(':');
     throw new UploadFailure({ kind: 'http', status: Number(status), ...(code === undefined ? {} : { code }) });
@@ -156,7 +161,12 @@ class FakeServer {
     if (session === undefined) throw new UploadFailure({ kind: 'http', status: 404, code: 'not_found' });
     if (session.state !== 'active') this.conflict();
     if (lost) throw new UploadFailure({ kind: 'network' });
-    return this.spec.listOverride ?? session.parts;
+    const answer = this.spec.listOverride ?? [...session.parts];
+    // The part vanishes from the storage right after the answer (cleanup of the multipart, rollback).
+    const dropped = this.dropAfterList;
+    this.dropAfterList = undefined;
+    if (dropped !== undefined) session.parts = session.parts.filter((item) => item.partNumber !== dropped);
+    return answer;
   }
 
   partUrl(id: string, part: number): PartUrl {

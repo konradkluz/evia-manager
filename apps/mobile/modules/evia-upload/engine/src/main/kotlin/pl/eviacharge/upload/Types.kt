@@ -50,6 +50,7 @@ enum class AttentionReason(
     INVALID_SERVER_RESPONSE("invalid_server_response"),
     INVALID_STATE("invalid_state"),
     URL_RENEWAL_EXHAUSTED("url_renewal_exhausted"),
+    UPLOAD_INCOMPLETE("upload_incomplete"),
     UNKNOWN("unknown"),
 }
 
