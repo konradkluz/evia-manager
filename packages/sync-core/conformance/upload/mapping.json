@@ -73,6 +73,17 @@
       "expected": { "type": "needs_attention", "reason": "upload_incomplete" }
     },
     {
+      "id": "M17f-422-idempotency-mismatch",
+      "$comment": "EVM-130 (review of EVM-109): the contract (components/media-responses.yaml) lists idempotency_mismatch and limit_exceeded next to upload_incomplete under 422; they are not an incomplete upload.",
+      "input": { "kind": "http", "status": 422, "code": "idempotency_mismatch" },
+      "expected": { "type": "needs_attention", "reason": "unknown" }
+    },
+    {
+      "id": "M17g-422-limit-exceeded",
+      "input": { "kind": "http", "status": 422, "code": "limit_exceeded" },
+      "expected": { "type": "needs_attention", "reason": "unknown" }
+    },
+    {
       "id": "M17d-422-other-code",
       "input": { "kind": "http", "status": 422, "code": "validation_failed" },
       "expected": { "type": "needs_attention", "reason": "unknown" }
