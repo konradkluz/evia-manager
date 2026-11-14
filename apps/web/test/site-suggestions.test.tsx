@@ -93,7 +93,15 @@ describe('W-05 "2. Lokalizacja": the locations of the earlier orders of the cust
     const [call, ...others] = suggestionCalls(api);
     expect(others).toEqual([]);
     expect(Object.fromEntries(call?.query ?? [])).toEqual({ customerId: JAN.id, sort: '-createdAt', limit: '100' });
+  });
 
+  // Split from the test above (EVM-126 AC1): one test did the render, an axe scan and the whole choose-and-return flow, so a
+  // slow machine pushed it over the 5 s limit; each part now has its own budget and keeps all of its assertions.
+  it('EVM-043 AC1 the choice sets "Istniejąca lokalizacja"; ONE site read; nothing in the stores of the browser; the list returns without a new read', async () => {
+    const api = suggestionApi();
+    await renderPanel(NEW, api);
+    await chooseCustomer('Jan Przykładowy');
+    await heading(2);
     await userEvent.click(screen.getByRole('button', { name: 'Wybierz lokalizację: ul. Testowa 7, Warszawa' }));
     expect(await screen.findByText('ul. Testowa 7, 00-001 Warszawa · Garaż w budynku wielorodzinnym · miejsce 15, poziom -1')).toBeTruthy();
     expect(screen.getByRole<HTMLInputElement>('radio', { name: 'Istniejąca lokalizacja' }).checked).toBe(true);

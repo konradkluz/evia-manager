@@ -67,7 +67,7 @@ expires: 2027-01-31
 | 13 | `spikes/<nazwa>/**/*.md` | kamień milowy (`milestone`) | pole `milestone` w `spikes/<nazwa>/README.md` (obowiązkowe) | nie — konwencja |
 | 14 | `docs/notes/**/*.md` | z pola `lifecycle` | pole `milestone` (gdy `lifecycle: milestone`) | tak (poza `README.md`) |
 | 15 | `docs/backlog/**` · `docs/architecture/adr/**` · `docs/process/retros/**` · `docs/qa/**` · `docs/ux/reviews/**` · `docs/spikes/**` · `spikes/*.md` | niedozwolone (`forbidden`) | — | — |
-| 16 | `docs/product/**/*.md` · `docs/process/**/*.md` · `docs/architecture/**/*.md` · `docs/security/**/*.md` · `docs/ux/**/*.md` · `docs/ops/**/*.md` · `design/**/*.md` | żywy (`living`) | — | tak (poza `README.md`) |
+| 16 | `docs/product/**/*.md` · `docs/process/**/*.md` · `docs/architecture/**/*.md` · `docs/security/**/*.md` · `docs/ux/**/*.md` · `docs/ops/**/*.md` · `docs/user/**/*.md` · `design/**/*.md` | żywy (`living`) | — | tak (poza `README.md`) |
 | 17 | `apps/**/README.md` · `packages/**/README.md` · `services/**/README.md` · `infra/**/README.md` · `tools/**/README.md` · `.github/**/*.md` | żywy (`living`) | — | nie — punkt wejścia |
 | — | każdy inny plik Markdown | niedozwolone (`forbidden`) | — | — |
 
@@ -90,6 +90,7 @@ expires: 2027-01-31
 | raport przeglądu UX | `docs/ux/reviews/<EVM-ID>/` | kamień milowy (M# historyjki) |
 | notatkę planistyczną na czas kamienia milowego | `docs/notes/<opis>.md` z `lifecycle: milestone` i `milestone: M#` | kamień milowy |
 | dokument produktu, procesu, architektury, bezpieczeństwa, UX lub operacji | `docs/product/`, `docs/process/`, `docs/architecture/`, `docs/security/`, `docs/ux/`, `docs/ops/`, `design/` | żywy |
+| dokumentacja dla użytkowników (instrukcja dla biura, publikowana w panelu) | `docs/user/` | żywy |
 | opis aplikacji, pakietu lub narzędzia | `README.md` w jego katalogu (`apps/`, `packages/`, `services/`, `infra/`, `tools/`) | żywy |
 | coś, co nie pasuje do żadnego wiersza | `docs/notes/` z polem `lifecycle` albo nowa reguła (patrz „Zmiana polityki”) | z pola `lifecycle` |
 
