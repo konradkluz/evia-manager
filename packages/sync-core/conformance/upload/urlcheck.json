@@ -1,0 +1,30 @@
+{
+  "$comment": "EVM-109 AC4 (AC3): trust check of a part address before any byte is sent. Only https, no userinfo, host exactly from the allowlist (case-insensitive), port default or listed as host:port. Synthetic hosts only (*.test).",
+  "allowedHosts": ["store.example.test", "alt.example.test:8443"],
+  "cases": [
+    { "id": "U01-allowed", "url": "https://store.example.test/b/k?X-Amz-Signature=abc", "trusted": true },
+    { "id": "U02-host-case", "url": "HTTPS://Store.Example.TEST/b/k", "trusted": true },
+    { "id": "U03-explicit-default-port", "url": "https://store.example.test:443/b/k", "trusted": true },
+    { "id": "U04-no-path", "url": "https://store.example.test", "trusted": true },
+    { "id": "U05-listed-port", "url": "https://alt.example.test:8443/b/k", "trusted": true },
+    { "id": "U06-port-not-listed", "url": "https://alt.example.test/b/k", "trusted": false },
+    { "id": "U07-other-port", "url": "https://store.example.test:8443/b/k", "trusted": false },
+    { "id": "U08-http", "url": "http://store.example.test/b/k", "trusted": false },
+    { "id": "U09-other-host", "url": "https://evil.example.test/b/k", "trusted": false },
+    { "id": "U10-suffix-host", "url": "https://store.example.test.evil.test/b/k", "trusted": false },
+    { "id": "U11-prefix-host", "url": "https://evilstore.example.test/b/k", "trusted": false },
+    { "id": "U12-userinfo", "url": "https://store.example.test@evil.test/b/k", "trusted": false },
+    { "id": "U13-userinfo-before-host", "url": "https://user:pw@store.example.test/b/k", "trusted": false },
+    { "id": "U14-ip-address", "url": "https://203.0.113.7/b/k", "trusted": false },
+    { "id": "U15-ipv6", "url": "https://[2001:db8::1]/b/k", "trusted": false },
+    { "id": "U16-backslash", "url": "https://store.example.test\\@evil.test/b/k", "trusted": false },
+    { "id": "U17-space", "url": "https://store.example.test /b/k", "trusted": false },
+    { "id": "U18-empty-authority", "url": "https:///b/k", "trusted": false },
+    { "id": "U19-no-scheme", "url": "//store.example.test/b/k", "trusted": false },
+    { "id": "U20-empty", "url": "", "trusted": false },
+    { "id": "U21-non-numeric-port", "url": "https://store.example.test:abc/b/k", "trusted": false },
+    { "id": "U22-query-first", "url": "https://store.example.test?x=1", "trusted": true },
+    { "id": "U23-host-chars", "url": "https://store_example.test/b/k", "trusted": false },
+    { "id": "U24-too-long", "urlRepeat": { "prefix": "https://store.example.test/", "filler": "a", "times": 4100 }, "trusted": false }
+  ]
+}

@@ -17,6 +17,14 @@
     "./conformance/queue": {
       "types": "./conformance/queue.ts",
       "default": "./conformance/queue.ts"
+    },
+    "./upload": {
+      "types": "./src/upload/index.ts",
+      "default": "./src/upload/index.ts"
+    },
+    "./conformance/upload": {
+      "types": "./conformance/upload.ts",
+      "default": "./conformance/upload.ts"
     }
   },
   "scripts": {

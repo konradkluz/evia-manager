@@ -1,0 +1,4 @@
+{
+  "$comment": "EVM-109 AC4: list of the vector files. The TypeScript model (packages/sync-core) and the Kotlin engine (apps/mobile/modules/evia-upload/engine) both read exactly these files; a file missing from the list, or a listed file that does not exist, fails the tests on both sides.",
+  "files": ["planning.json", "backoff.json", "mapping.json", "urlcheck.json", "resume.json"]
+}

@@ -1,0 +1,85 @@
+{
+  "$comment": "EVM-109 AC4 (AC1): planning of the part ranges. The server decides the split (partSize, partCount); the client computes ranges and checks partCount = ceil(size / partSize), 1 <= partCount <= 1000. Expected: either `error: plan_mismatch` or `count`, `total` (sum of lengths), `first`, `last` and optionally the full list `parts`.",
+  "cases": [
+    {
+      "id": "P01-one-small-part",
+      "input": { "size": 1, "partSize": 16777216, "partCount": 1 },
+      "expected": {
+        "count": 1,
+        "total": 1,
+        "first": { "partNumber": 1, "offset": 0, "length": 1 },
+        "last": { "partNumber": 1, "offset": 0, "length": 1 }
+      }
+    },
+    {
+      "id": "P02-last-part-equals-full",
+      "input": { "size": 16777216, "partSize": 16777216, "partCount": 1 },
+      "expected": {
+        "count": 1,
+        "total": 16777216,
+        "first": { "partNumber": 1, "offset": 0, "length": 16777216 },
+        "last": { "partNumber": 1, "offset": 0, "length": 16777216 }
+      }
+    },
+    {
+      "id": "P03-last-part-one-byte",
+      "input": { "size": 16777217, "partSize": 16777216, "partCount": 2 },
+      "expected": {
+        "count": 2,
+        "total": 16777217,
+        "first": { "partNumber": 1, "offset": 0, "length": 16777216 },
+        "last": { "partNumber": 2, "offset": 16777216, "length": 1 },
+        "parts": [
+          { "partNumber": 1, "offset": 0, "length": 16777216 },
+          { "partNumber": 2, "offset": 16777216, "length": 1 }
+        ]
+      }
+    },
+    {
+      "id": "P04-three-parts-last-smaller",
+      "input": { "size": 40, "partSize": 16, "partCount": 3 },
+      "expected": {
+        "count": 3,
+        "total": 40,
+        "first": { "partNumber": 1, "offset": 0, "length": 16 },
+        "last": { "partNumber": 3, "offset": 32, "length": 8 },
+        "parts": [
+          { "partNumber": 1, "offset": 0, "length": 16 },
+          { "partNumber": 2, "offset": 16, "length": 16 },
+          { "partNumber": 3, "offset": 32, "length": 8 }
+        ]
+      }
+    },
+    {
+      "id": "P05-exactly-multiple",
+      "input": { "size": 32, "partSize": 16, "partCount": 2 },
+      "expected": {
+        "count": 2,
+        "total": 32,
+        "first": { "partNumber": 1, "offset": 0, "length": 16 },
+        "last": { "partNumber": 2, "offset": 16, "length": 16 }
+      }
+    },
+    {
+      "id": "P06-thousand-parts",
+      "input": { "size": 16000, "partSize": 16, "partCount": 1000 },
+      "expected": {
+        "count": 1000,
+        "total": 16000,
+        "first": { "partNumber": 1, "offset": 0, "length": 16 },
+        "last": { "partNumber": 1000, "offset": 15984, "length": 16 }
+      }
+    },
+    { "id": "P07-count-too-small", "input": { "size": 40, "partSize": 16, "partCount": 2 }, "expected": { "error": "plan_mismatch" } },
+    { "id": "P08-count-too-large", "input": { "size": 40, "partSize": 16, "partCount": 4 }, "expected": { "error": "plan_mismatch" } },
+    { "id": "P09-size-zero", "input": { "size": 0, "partSize": 16, "partCount": 1 }, "expected": { "error": "plan_mismatch" } },
+    { "id": "P10-count-zero", "input": { "size": 40, "partSize": 16, "partCount": 0 }, "expected": { "error": "plan_mismatch" } },
+    {
+      "id": "P11-more-than-1000-parts",
+      "input": { "size": 16016, "partSize": 16, "partCount": 1001 },
+      "expected": { "error": "plan_mismatch" }
+    },
+    { "id": "P12-part-size-zero", "input": { "size": 40, "partSize": 0, "partCount": 3 }, "expected": { "error": "plan_mismatch" } },
+    { "id": "P13-negative-size", "input": { "size": -5, "partSize": 16, "partCount": 1 }, "expected": { "error": "plan_mismatch" } }
+  ]
+}
