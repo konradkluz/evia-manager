@@ -1,6 +1,6 @@
 # EVM-106 AC5: the network returns; the server rejects the order with `quota_exceeded`. The order and its entry are ONE group of
 # "Wymaga uwagi" with the plain reason and the number of dependents; "Usuń z telefonu" is a separate action whose dialog names the
-# dependents. After the confirmation the queue is empty. The counters of the scenario server (0 unique, 0 duplicates, 1 rejected: the
+# dependents. After the confirmation the queue is empty ("Nic nie czeka na wysłanie."). The counters of the scenario server (0 unique, 0 duplicates, 1 rejected: the
 # entry is held back) are asserted by tools/mobile-e2e after this flow.
 appId: pl.eviacharge.manager
 ---
@@ -25,7 +25,8 @@ appId: pl.eviacharge.manager
 - takeScreenshot: m07-quick-order-discard-dialog
 - tapOn:
     id: 'discard-confirm'
+# nothing was sent in this scenario, so the emptied queue shows its empty state (the count line needs sent items)
 - extendedWaitUntil:
-    visible: '0 elementów w kolejce'
+    visible: 'Nic nie czeka na wysłanie\.'
     timeout: 30000
 - assertNotVisible: 'Wymaga uwagi.*'
