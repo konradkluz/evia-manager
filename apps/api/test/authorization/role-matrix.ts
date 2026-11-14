@@ -102,9 +102,9 @@ export function expectationFor(operationId: string, manifest: AuthzManifest, lis
   const both = authz.channels?.includes('web') === true && authz.channels.includes('mobile');
   if (authz.channels?.includes('web') !== true || (both && phoneCaller)) {
     if (caller.kind !== 'session' || caller.channel !== 'mobile') return { outcome: 'denied', status: 401, code: 'unauthenticated' };
-    // A phone on an operation that does not list the mobile channel is forbidden; a role without the phone on one that does is channel_not_allowed (EVM-127 AC2).
-    if (authz.channels?.includes('mobile') === true && !roleMayUseChannel(caller.role, caller.channel))
-      return { outcome: 'denied', status: 403, code: 'channel_not_allowed' };
+    // A role without the phone is channel_not_allowed only on an operation open to both channels (EVM-127 AC2); on the operations of the phone alone and on those
+    // that do not list the mobile channel it is forbidden (the app maps that code; EVM-094–EVM-099).
+    if (both && !roleMayUseChannel(caller.role, caller.channel)) return { outcome: 'denied', status: 403, code: 'channel_not_allowed' };
     const entitledPhone = authz.roles?.includes(caller.role) === true && authz.channels?.includes('mobile') === true;
     return entitledPhone ? { outcome: 'allowed' } : { outcome: 'denied', status: 403, code: 'forbidden' };
   }
