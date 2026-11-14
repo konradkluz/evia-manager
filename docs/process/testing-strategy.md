@@ -48,6 +48,7 @@ Zasady: rozbieżność lokalnie/CI to błąd do wyjaśnienia (dla backendu rozst
 | Web — całość | ≥ 80% |
 | Mobile — całość | ≥ 80% |
 | Mobile — synchronizacja i kolejka uploadu | ≥ 95% |
+| Mobile — silnik wysyłania plików (Kotlin, czysta logika; EVM-109) | ≥ 95% linii i gałęzi (Kover; klucz `engine` w `coverage-thresholds.json`; klej Androida wykluczony z uzasadnieniem w `coverage-exclusions.json`) |
 | Macierz ról | 100% endpointów |
 
 Progi globalne działają jak zapadka: mogą tylko rosnąć. Obniżenie wymaga ADR i zgody użytkownika.
@@ -88,6 +89,7 @@ Stan po EVM-006. Jedno polecenie bramki lokalnej: **`pnpm run gate`** (kolejno: 
 | Web — komponentowe i E2E | Vitest + jsdom + Testing Library + `axe-core`; **Playwright** na `vite preview` (Chromium, Firefox, na Windows także Edge `msedge`; CI Linux — job `e2e-web`: Chromium, Firefox); zrzuty do przeglądu UX osobnym projektem, bez asercji wizualnych | `pnpm --filter @evia/web run test:coverage`, `pnpm run e2e`, `pnpm --filter @evia/web run e2e:screenshots` | EVM-008 |
 | Mobile — jednostkowe i komponentowe | Jest 30 + jest-expo + Testing Library (React Native); próg `mobile` 80% z **tego samego pliku** co preset Vitest (`packages/config/coverage-thresholds.json`), raport `apps/mobile/coverage/lcov.info` dla `coverage:diff`; testy oznaczone `EVM-009 AC#` | `pnpm --filter @evia/mobile run test:coverage` | EVM-009 |
 | Mobile — E2E Android (test dymny) | **Maestro** 2.11 na **jednym** emulatorze AVD `Medium_Phone_API_35` na Windows (`tools/mobile-e2e`: build wariantu e2e, serwer scenariuszy na 127.0.0.1, przepływy dymne i scenariusze, m.in. `sync-offline-recovery`: tryb samolotowy → zabicie aplikacji → powrót sieci, serwer scenariuszy liczy unikalne mutacje i duplikaty, raport z wersją API w `.scratch/mobile-e2e/report.md`); wymaga długich ścieżek Windows (`docs/ops/dystrybucja-apk-android.md`); w CI bez emulatora | `pnpm --filter @evia/mobile run e2e` | EVM-009, EVM-107 |
+| Mobile — silnik wysyłania plików (Kotlin, EVM-109) | **JUnit 6** na JVM (bez emulatora i `expo prebuild`; wektory wspólne z `packages/sync-core/conformance/upload`), **Kover** (raport XML zamieniany na lcov własnym konwerterem `tools/diff-coverage`, próg `engine` 95% linii i gałęzi), **ktlint** (format i lint), kontrola zależności produkcyjnych; wymaga JDK 17 (`JAVA_HOME`) — brak = kod 2, nigdy pominięcie; w CI job `mobile-apk` (artefakt `lcov-mobile-kotlin` do `coverage:diff`) | `pnpm run gate:kotlin` (część `pnpm run gate:native`) | EVM-109 |
 | Mobile — paczka APK w CI | job `mobile-apk`: build `assembleRelease` bez sekretów, weryfikacja gotowego pliku (`tools/mobile-apk`: manifest, reguły kopii i sieci, sekrety w zawartości), skrót SHA-256, gałąź i commit w podsumowaniu; podpis lokalny przez Konrada (`tools/mobile-apk` `sign`, testy na atrapie `apksigner`/`zipalign`), bez sekretów w CI | `node tools/mobile-apk/cli.mjs verify --apk <plik>` | EVM-009 |
 | Bezpieczeństwo (SAST, zależności, licencje, sekrety, Dockerfile, workflowy) | Semgrep CE, OSV-Scanner, Trivy, gitleaks, zizmor, actionlint + samotest skanerów | `pnpm run scan`; gitleaks także w hookach `pre-commit` / `pre-push` | EVM-006 |
 

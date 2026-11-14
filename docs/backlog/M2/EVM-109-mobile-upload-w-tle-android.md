@@ -90,3 +90,5 @@ Zadanie systemowe Androida, natywny właściciel tokenów, trwała kolejka plik�
 - 2026-11-14 — refinement do DoR (product-owner): podział na EVM-109 (silnik, model referencyjny, bramki; 7 AC) i EVM-130 (Android, tokeny, kolejka); `depends_on` bez EVM-084 (przeszła do EVM-112); decyzje Konrada: JUnit tylko testowo, ważność adresu części bez zmian, zakaz dystrybucji, decyzja 17 potwierdzona
 - 2026-11-14 — draft → ready: kryteria zatwierdzone przez Tech Leada z delegacji Konrada (pytanie przed nocą 2026-11-14); Konrad przegląda je rano w PR
 - 2026-11-14 — start realizacji w kolejce nocnej `/noc-2026-11-14` (Tech Lead): status `in-progress`, gałąź `feature/queue-2026-11-14-mobile-media`
+- 2026-11-14 — plan gotowy (mobile-developer)
+- 2026-11-14 — implementacja (mobile-developer): model referencyjny i wektory w sync-core, silnik Kotlin z testami JVM, bramka gate:kotlin (ktlint, Kover 95%, Gradle z weryfikacją sum), konwerter Kover→lcov, polityka w repo-policy, CI (mobile-apk, coverage), dokumentacja bramek
