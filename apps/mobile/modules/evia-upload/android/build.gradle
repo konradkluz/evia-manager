@@ -1,0 +1,27 @@
+// Local Expo module of the app (EVM-130): the background upload of files - the job service, the owner of the tokens, the Keystore store of
+// the refresh token, the notification and the bridge to JavaScript. All decisions are in the pure Kotlin engine (../engine, EVM-109/130),
+// compiled here as a source set of this module: no second Kotlin Gradle plugin in the app build and no new dependency (only
+// expo-modules-core from the expo-module-gradle-plugin and the platform). The tests of the engine are NOT part of this source set.
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'pl.eviacharge'
+version = '0.1.0'
+
+android {
+  namespace "pl.eviacharge.upload"
+  defaultConfig {
+    versionCode 1
+    versionName '0.1.0'
+  }
+  sourceSets {
+    main {
+      kotlin {
+        // the engine sources only (src/main, never src/test), relative to this directory
+        srcDirs += '../engine/src/main/kotlin'
+      }
+    }
+  }
+}
