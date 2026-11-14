@@ -92,3 +92,4 @@ Zadanie systemowe Androida, natywny właściciel tokenów, trwała kolejka plik�
 - 2026-11-14 — start realizacji w kolejce nocnej `/noc-2026-11-14` (Tech Lead): status `in-progress`, gałąź `feature/queue-2026-11-14-mobile-media`
 - 2026-11-14 — plan gotowy (mobile-developer)
 - 2026-11-14 — implementacja (mobile-developer): model referencyjny i wektory w sync-core, silnik Kotlin z testami JVM, bramka gate:kotlin (ktlint, Kover 95%, Gradle z weryfikacją sum), konwerter Kover→lcov, polityka w repo-policy, CI (mobile-apk, coverage), dokumentacja bramek
+- 2026-11-14 — devops-engineer: gate:kotlin, lint (ignorowanie build/ silnika w eslint mobile), testy sync-core/repo-policy/tools, docs:check, deps:check zielone
