@@ -4,7 +4,8 @@
  * {@link SYNC_EXCLUDED_TABLES} with a reason: a new table without a decision turns it red (fail closed).
  */
 export interface SyncedEntity {
-  readonly type: 'work_order' | 'customer' | 'site' | 'party' | 'scope_item' | 'procedure_stage' | 'timeline_entry' | 'user';
+  readonly type:
+    'work_order' | 'customer' | 'site' | 'party' | 'scope_item' | 'procedure_stage' | 'timeline_entry' | 'media_asset' | 'user';
   readonly table: string;
   /** The column that names the anchor order of a row; empty when the entity has none (customers, sites). */
   readonly anchorColumn: string;
@@ -18,6 +19,8 @@ export const SYNCED_ENTITIES: readonly SyncedEntity[] = Object.freeze([
   { type: 'scope_item', table: 'work_orders.scope_items', anchorColumn: 'work_order_id' },
   { type: 'procedure_stage', table: 'procedures.procedure_stages', anchorColumn: 'work_order_id' },
   { type: 'timeline_entry', table: 'timeline.timeline_entries', anchorColumn: 'work_order_id' },
+  /** The media of an order (EVM-131): the state of the file comes from `media.stored_files` (its trigger raises `file_state_revision`), the details of the file never leave. */
+  { type: 'media_asset', table: 'media.media_assets', anchorColumn: 'work_order_id' },
   /** Outside the schemas of {@link SYNC_SCOPE_SCHEMAS} on purpose: the other tables of `identity` (credentials, sessions) never reach the phone. */
   { type: 'user', table: 'identity.users', anchorColumn: '' },
 ]);
@@ -31,6 +34,7 @@ export const SYNC_SCOPE_SCHEMAS: readonly string[] = Object.freeze([
   'procedures',
   'timeline',
   'catalog',
+  'media',
 ]);
 
 const LATER = 'assignments of technicians arrive with the role Monter (M4): in v1 every Editor sees every order';
@@ -51,4 +55,11 @@ export const SYNC_EXCLUDED_TABLES: Readonly<Record<string, string>> = Object.fre
   'catalog.service_catalog_items': CATALOGUE,
   'catalog.work_order_template_items': CATALOGUE,
   'catalog.work_order_templates': CATALOGUE,
+  'media.stored_files':
+    'its state reaches the phone through the medium: a trigger raises media_assets.file_state_revision; the name, the key, the checksum never leave (EVM-131)',
+  'media.upload_sessions': 'the upload of the bytes is a call of the phone to the API, not data it replicates (EVM-131)',
+  'media.file_derivatives': 'thumbnails and previews are fetched on request, never replicated (galeria tylko w panelu)',
+  'media.documents': 'documents are an office matter, not on the phone (offline-sync.md)',
+  'media.document_versions': 'documents are an office matter, not on the phone (offline-sync.md)',
+  'media.media_exports': 'the ZIP export of the photos is an office matter, not on the phone',
 });

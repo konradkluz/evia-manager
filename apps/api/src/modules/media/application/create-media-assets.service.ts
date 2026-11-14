@@ -33,19 +33,12 @@ import { APP_CONFIG, CLOCK, DATABASE, EVENT_BUS } from '../../../platform/tokens
 import { WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders/index.ts';
 import { PROCEDURE_STAGE_DIRECTORY, type ProcedureStageDirectory } from '../../procedures/index.ts';
 import { checkDeclaration, type CheckedDeclaration } from '../domain/file-rules.ts';
-import { MEDIA_DESCRIPTION_MAX, normaliseDescription } from '../domain/metadata-patch.ts';
+import { resolveNewMediaMetadata } from '../domain/media-metadata-rules.ts';
 import { objectKeyFor } from '../domain/upload-plan.ts';
 import type { MediaAssetsAddedEvent, MediaAuditEvent } from '../events.ts';
-import {
-  countPendingOfCreator,
-  countPendingOfOrder,
-  findAssetsWithFiles,
-  insertMediaAsset,
-  insertStoredFile,
-  lockPendingCounter,
-  newFileIds,
-} from '../infrastructure/media-store.ts';
-import { mediaTables, type MediaDb } from '../infrastructure/tables.ts';
+import { findAssetsWithFiles, insertMediaAsset, insertStoredFile, newFileIds } from '../infrastructure/media-store.ts';
+import { mediaTables } from '../infrastructure/tables.ts';
+import { checkPendingLimits } from './pending-limits.ts';
 import { idempotencyKeyOf, requireStorage, toMediaAsset } from './media-support.ts';
 import { assertStageInOrder, stageNames } from './stage-support.ts';
 
@@ -145,24 +138,6 @@ export class CreateMediaAssetsService {
     });
   }
 
-  /**
-   * The limits of unfinished media (EVM-049 D9, RR-NOC-T1-4): per creator and per order, counted in the transaction under an advisory lock of
-   * each subject, so two parallel batches cannot both pass the count (CWE-367). `422 limit_exceeded` (a limit of subordinate objects); a
-   * batch that would pass the limit is refused whole.
-   */
-  async #checkLimits(tables: MediaDb, userId: string, workOrderId: string, adding: number): Promise<void> {
-    await lockPendingCounter(tables, 'user', userId);
-    await lockPendingCounter(tables, 'order', workOrderId);
-    const errors: Array<{ pointer: string; code: string }> = [];
-    if ((await countPendingOfCreator(tables, userId)) + adding > this.#limits.maxPendingPerUser) {
-      errors.push({ pointer: '/items', code: 'too_many_unfinished_for_user' });
-    }
-    if ((await countPendingOfOrder(tables, workOrderId)) + adding > this.#limits.maxPendingPerOrder) {
-      errors.push({ pointer: '/items', code: 'too_many_unfinished_for_order' });
-    }
-    if (errors.length > 0) throw new ProblemException('limit_exceeded', { errors });
-  }
-
   async #add(
     tx: Kysely<Database>,
     principal: Principal,
@@ -173,7 +148,7 @@ export class CreateMediaAssetsService {
   ): Promise<void> {
     const now = this.#clock.now();
     const tables = mediaTables(tx);
-    await this.#checkLimits(tables, principal.userId, workOrderId, items.length);
+    await checkPendingLimits(tables, this.#limits, principal.userId, workOrderId, items.length);
     // the stage must be a live stage of THIS order (EVM-048 AC1, AC4; SR-AUTHZ-02): ONE answer for a stranger's, a deleted and a missing one
     for (const [index, item] of items.entries()) {
       if (item.procedureStageId !== undefined) {
@@ -243,10 +218,10 @@ function parseItems(rawBody: unknown): { items: Item[]; checked: CheckedDeclarat
   for (const [index, item] of body.items.entries()) {
     if (seen.has(item.id)) errors.push({ pointer: `/items/${index}/id`, code: 'duplicate' });
     seen.add(item.id);
-    const description = normaliseDescription(item.description, MEDIA_DESCRIPTION_MAX);
-    if (!description.ok) errors.push({ pointer: `/items/${index}/description`, code: description.issue.code });
-    else if (description.value === null || description.value === undefined) delete (item as { description?: string }).description;
-    else (item as { description?: string }).description = description.value;
+    const metadata = resolveNewMediaMetadata(item);
+    if (!metadata.ok) for (const issue of metadata.issues) errors.push({ pointer: `/items/${index}${issue.pointer}`, code: issue.code });
+    else if (metadata.description === null) delete (item as { description?: string }).description;
+    else (item as { description?: string }).description = metadata.description;
     const declaration = checkDeclaration(item);
     if (declaration.ok) checked.push(declaration.value);
     else for (const issue of declaration.issues) errors.push({ pointer: `/items/${index}/${issue.field}`, code: issue.code });

@@ -58,6 +58,9 @@ import { MediaExportsController } from './http/media-exports.controller.ts';
 import { MediaExportBuilder } from './application/media-export-builder.ts';
 import { MediaExportReadService } from './application/media-export-read.service.ts';
 import { RequestMediaExportService } from './application/request-media-export.service.ts';
+import { MobileMediaCommandsService } from './application/mobile-media-commands.service.ts';
+import { MediaAssetSyncSourceService } from './infrastructure/sync-source.ts';
+import { MEDIA_ASSET_SYNC_SOURCE, MOBILE_MEDIA_COMMANDS } from './system-ports.ts';
 
 @Module({
   imports: [WorkOrdersModule, IdentityModule, CatalogModule, ProceduresModule, SitesModule, CustomersModule],
@@ -88,6 +91,8 @@ import { RequestMediaExportService } from './application/request-media-export.se
     SignatureMonitorJob,
     ErasureCompletionJob,
     StorageReconciliationJob,
+    { provide: MEDIA_ASSET_SYNC_SOURCE, useClass: MediaAssetSyncSourceService },
+    { provide: MOBILE_MEDIA_COMMANDS, useClass: MobileMediaCommandsService },
     {
       provide: MediaScanService,
       inject: [DATABASE, CLOCK, EVENT_BUS, LOGGER, OBJECT_STORAGE, MALWARE_SCANNER, AdministratorDirectory, METRICS],
@@ -144,6 +149,8 @@ import { RequestMediaExportService } from './application/request-media-export.se
     },
   ],
   exports: [
+    MEDIA_ASSET_SYNC_SOURCE,
+    MOBILE_MEDIA_COMMANDS,
     MediaExportBuilder,
     MediaScanService,
     MediaProcessingService,

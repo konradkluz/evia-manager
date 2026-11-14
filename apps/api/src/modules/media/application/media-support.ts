@@ -44,8 +44,16 @@ export function idempotencyKeyOf(rawKey: string | undefined): string {
   return parsed.data;
 }
 
-/** The creator of a session: the user and the device — the web has no device (`null`). */
-export const creatorOf = (principal: Principal): Creator => ({ userId: principal.userId, deviceId: null });
+/**
+ * The creator of a session: the user and the device (SR-SYNC-08, SR-API-05, CWE-639). The device is ONLY the one of the session of the phone (`principal.deviceId`, set by the resolver from the
+ * Bearer token) - never a header or a field of the body; the panel has none (`null`). So a session opened on one phone is not continued by another phone or by the panel of the same user.
+ * A session of the phone without a device is not a case that exists - it fails closed (`403`) rather than becoming the creator of the panel.
+ */
+export function creatorOf(principal: Principal): Creator {
+  if (principal.channel !== 'mobile') return { userId: principal.userId, deviceId: null };
+  if (principal.deviceId === undefined) throw new ProblemException('forbidden');
+  return { userId: principal.userId, deviceId: principal.deviceId };
+}
 
 interface Representation {
   /** The list with `uploadState=unfinished`: the only place the file name and the session are returned. */

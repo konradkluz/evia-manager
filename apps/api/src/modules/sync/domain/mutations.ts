@@ -8,7 +8,13 @@
  * The hash of a mutation is the SHA-256 of the canonical `{type, commandVersion, payload}` AS RECEIVED - before `capturedAt` is judged or the text normalised -
  * so a retry never becomes a mismatch when a rule of normalisation changes; `mutationId` and `pendingItems` are not part of it.
  */
-import { zCreateCommentPayload, zCreateNotePayload, zCreateQuickWorkOrderPayload, zSyncClientId } from '@evia/contracts/zod';
+import {
+  zCreateCommentPayload,
+  zCreateMediaAssetPayload,
+  zCreateNotePayload,
+  zCreateQuickWorkOrderPayload,
+  zSyncClientId,
+} from '@evia/contracts/zod';
 import { z } from 'zod';
 import { strictObjects } from '../../../platform/http/validation.ts';
 import { requestHash } from '../../../platform/idempotency/canonical-json.ts';
@@ -24,7 +30,7 @@ export const CAPTURED_AT_MAX_AHEAD_MS = 10 * 60 * 1000;
 export const SYNC_MUTATIONS_SCOPE = 'POST /api/v1/sync/mutations';
 
 /** The commands served (EVM-099 added `CreateQuickWorkOrder`; its content is judged by {@link decodeQuickWorkOrder}). */
-export type CommandType = 'CreateNote' | 'CreateComment' | 'CreateQuickWorkOrder';
+export type CommandType = 'CreateNote' | 'CreateComment' | 'CreateQuickWorkOrder' | 'CreateMediaAsset';
 
 /** The limit of the errors of a field in one result (the contract has `maxItems: 20`). */
 export const MAX_FIELD_ERRORS = 20;
@@ -45,6 +51,7 @@ export type RawMutation = Envelope['mutations'][number];
 const capturedAt = z.iso.datetime({ offset: true }).max(40);
 const notePayload = strictObjects(zCreateNotePayload.extend({ body: z.string(), capturedAt }));
 const commentPayload = strictObjects(zCreateCommentPayload.extend({ body: z.string(), capturedAt }));
+const mediaPayload = strictObjects(zCreateMediaAssetPayload.extend({ capturedAt }));
 const mutationShape = z.strictObject({ mutationId: zSyncClientId, type: z.string(), commandVersion: z.int(), payload: z.unknown() });
 
 interface NotePayload {
@@ -106,6 +113,17 @@ export interface QuickCommand {
   readonly duplicateIds: boolean;
 }
 
+/** `CreateMediaAsset` ready for the service: `capturedAt` is the moment in range or `null`; the description is judged by the rules of `media`. */
+export interface MediaCommand {
+  readonly id: string;
+  readonly workOrderId: string;
+  readonly mediaType: 'photo' | 'video';
+  readonly category: string;
+  readonly description: string | undefined;
+  readonly procedureStageId: string | undefined;
+  readonly capturedAt: Date | null;
+}
+
 export type DecodedMutation =
   | {
       readonly ok: true;
@@ -115,6 +133,13 @@ export type DecodedMutation =
       readonly capturedAtOutOfRange: boolean;
     }
   | { readonly ok: true; readonly type: 'CreateQuickWorkOrder'; readonly quick: QuickCommand; readonly hash: string }
+  | {
+      readonly ok: true;
+      readonly type: 'CreateMediaAsset';
+      readonly media: MediaCommand;
+      readonly hash: string;
+      readonly capturedAtOutOfRange: boolean;
+    }
   /** `errors`: only for `CreateQuickWorkOrder` (AC5: the field and the code, never the value). */
   | { readonly ok: false; readonly errors?: readonly FieldIssue[] };
 
@@ -137,6 +162,7 @@ export function decodeMutation(raw: RawMutation, now: Date): DecodedMutation {
   }
   const hash = requestHash({ type, commandVersion, payload });
   if (type === 'CreateQuickWorkOrder') return decodeQuickWorkOrder(payload, hash);
+  if (type === 'CreateMediaAsset') return decodeMediaAsset(payload, hash, now);
   if (type === 'CreateNote') {
     const parsed = notePayload.safeParse(payload);
     if (!parsed.success) return INVALID;
@@ -155,6 +181,38 @@ export function decodeMutation(raw: RawMutation, now: Date): DecodedMutation {
     return decoded('CreateComment', { ...comment, kind: 'comment', noteCategory: undefined, procedureStageId: undefined }, hash, now);
   }
   return INVALID;
+}
+
+/** `CreateMediaAsset` against the strict schema of the contract (a field of the server - `origin`, `createdBy`, `fileState`, `version` - is an unknown field); `capturedAt` is judged like the one of a note. */
+function decodeMediaAsset(payload: unknown, hash: string, now: Date): DecodedMutation {
+  const parsed = mediaPayload.safeParse(payload);
+  if (!parsed.success) return INVALID;
+  const media = parsed.data as {
+    id: string;
+    workOrderId: string;
+    mediaType: 'photo' | 'video';
+    category: string;
+    description?: string;
+    procedureStageId?: string;
+    capturedAt: string;
+  };
+  const at = new Date(media.capturedAt);
+  const inRange = capturedAtInRange(at, now);
+  return {
+    ok: true,
+    type: 'CreateMediaAsset',
+    hash,
+    capturedAtOutOfRange: !inRange,
+    media: {
+      id: media.id,
+      workOrderId: media.workOrderId,
+      mediaType: media.mediaType,
+      category: media.category,
+      description: media.description,
+      procedureStageId: media.procedureStageId,
+      capturedAt: inRange ? at : null,
+    },
+  };
 }
 
 function decoded(
@@ -241,6 +299,8 @@ export function typeLabel(raw: unknown): string {
       return 'create_comment';
     case 'CreateQuickWorkOrder':
       return 'create_quick_work_order';
+    case 'CreateMediaAsset':
+      return 'create_media_asset';
     default:
       return 'unknown';
   }
