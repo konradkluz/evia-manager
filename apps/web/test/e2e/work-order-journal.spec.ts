@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test';
+import { freezeClock, MIDNIGHT_WINDOW } from './clock.ts';
 import { expect, test } from './fixtures.ts';
 import type { MockApi } from './mock-api.ts';
 import { seedEvents, seedJournal } from './mock-journal.ts';
@@ -61,40 +62,67 @@ test.describe('journal of a work order (EVM-037)', () => {
     await expect(entries(page).nth(1).locator('svg.lucide-pencil')).toBeVisible();
   });
 
-  test('EVM-037 AC3 a correction is a new entry: the old one is collapsed with "Zastąpiony poprawką" and "Pokaż treść"', async ({
+  for (const { label, iso } of MIDNIGHT_WINDOW) {
+    test(`EVM-037 AC3 EVM-129 AC1 a correction is a new entry: the old one is collapsed with "Zastąpiony poprawką" and "Pokaż treść" (${label})`, async ({
+      page,
+      api,
+    }) => {
+      await freezeClock(page, api, iso);
+      const id = await openJournal(page);
+      // the entry is of the same business day as "now" whatever the hour (EVM-129 AC1): the test is about the correction, not about the day
+      seedJournal(api.journal, id, 1, () => 'Trasa kabla przez szacht A.', 0);
+      await page.reload();
+      await page.getByRole('tab', { name: 'Dziennik' }).click();
+      await page.getByRole('button', { name: /^Akcje wpisu/ }).click();
+      await page.getByRole('menuitem', { name: 'Popraw wpis' }).click();
+      const dialog = page.getByRole('dialog', { name: 'Popraw wpis' });
+      await expect(dialog.getByRole('textbox', { name: 'Treść poprawki' })).toHaveValue('Trasa kabla przez szacht A.');
+      await dialog.getByRole('textbox', { name: 'Treść poprawki' }).fill('Trasa kabla przez szacht B.');
+      await dialog.getByRole('button', { name: 'Zapisz poprawkę' }).click();
+      await expect(page.getByText('Dodano poprawkę wpisu.')).toBeVisible();
+      await expect(entries(page)).toHaveCount(2);
+      await expect(entries(page).first()).toContainText('Poprawka wpisu z dziś,');
+      await expect(entries(page).first()).toContainText('Trasa kabla przez szacht B.');
+      const old = entries(page).nth(1);
+      await expect(old).toContainText('Zastąpiony poprawką z dziś,');
+      await expect(old).not.toContainText('Trasa kabla przez szacht A.');
+      await old.getByRole('button', { name: 'Pokaż treść' }).click();
+      await expect(old).toContainText('Trasa kabla przez szacht A.');
+      // the body of the correction points at the old entry; nothing else of the old one was sent
+      expect(JSON.parse(posts(api)[0]?.postData ?? '{}')).toMatchObject({ supersedesEntryId: '01968f3e-0000-7000-8000-000000000001' });
+      // the newest version can be corrected again, the replaced one cannot (EVM-040: its menu holds no "Popraw wpis")
+      await old.getByRole('button', { name: /^Akcje wpisu/ }).click();
+      await expect(page.getByRole('menuitem', { name: 'Popraw wpis' })).toHaveCount(0);
+      await page.keyboard.press('Escape');
+      await expect(
+        entries(page)
+          .first()
+          .getByRole('button', { name: /^Akcje wpisu/ }),
+      ).toBeVisible();
+    });
+  }
+
+  test('EVM-037 AC3 EVM-129 AC1 a correction made one second after midnight points at the entry "z wczoraj, 23:59"', async ({
     page,
     api,
   }) => {
+    await freezeClock(page, api, '2026-03-10T00:00:00+01:00');
     const id = await openJournal(page);
-    seedJournal(api.journal, id, 1, () => 'Trasa kabla przez szacht A.');
+    seedJournal(api.journal, id, 1, () => 'Trasa kabla przez szacht A.', 1 / 60);
     await page.reload();
     await page.getByRole('tab', { name: 'Dziennik' }).click();
     await page.getByRole('button', { name: /^Akcje wpisu/ }).click();
     await page.getByRole('menuitem', { name: 'Popraw wpis' }).click();
     const dialog = page.getByRole('dialog', { name: 'Popraw wpis' });
-    await expect(dialog.getByRole('textbox', { name: 'Treść poprawki' })).toHaveValue('Trasa kabla przez szacht A.');
     await dialog.getByRole('textbox', { name: 'Treść poprawki' }).fill('Trasa kabla przez szacht B.');
     await dialog.getByRole('button', { name: 'Zapisz poprawkę' }).click();
-    await expect(page.getByText('Dodano poprawkę wpisu.')).toBeVisible();
     await expect(entries(page)).toHaveCount(2);
-    await expect(entries(page).first()).toContainText('Poprawka wpisu z dziś,');
-    await expect(entries(page).first()).toContainText('Trasa kabla przez szacht B.');
-    const old = entries(page).nth(1);
-    await expect(old).toContainText('Zastąpiony poprawką z dziś,');
-    await expect(old).not.toContainText('Trasa kabla przez szacht A.');
-    await old.getByRole('button', { name: 'Pokaż treść' }).click();
-    await expect(old).toContainText('Trasa kabla przez szacht A.');
-    // the body of the correction points at the old entry; nothing else of the old one was sent
-    expect(JSON.parse(posts(api)[0]?.postData ?? '{}')).toMatchObject({ supersedesEntryId: '01968f3e-0000-7000-8000-000000000001' });
-    // the newest version can be corrected again, the replaced one cannot (EVM-040: its menu holds no "Popraw wpis")
-    await old.getByRole('button', { name: /^Akcje wpisu/ }).click();
-    await expect(page.getByRole('menuitem', { name: 'Popraw wpis' })).toHaveCount(0);
-    await page.keyboard.press('Escape');
-    await expect(
-      entries(page)
-        .first()
-        .getByRole('button', { name: /^Akcje wpisu/ }),
-    ).toBeVisible();
+    await expect(entries(page).first()).toContainText('Poprawka wpisu z wczoraj, 23:59');
+    await expect(entries(page).nth(1)).toContainText(/Zastąpiony poprawką z dziś, 0?0:00/);
+    // (Chromium writes 0:00, Firefox 00:00 — the same instant, the hour of the browser's ICU)
+    // the two entries are two days of the business zone: "Dziś" and "Wczoraj", one section each
+    await expect(page.getByRole('heading', { level: 3, name: 'Dziś' })).toHaveCount(1);
+    await expect(page.getByRole('heading', { level: 3, name: 'Wczoraj' })).toHaveCount(1);
   });
 
   test('EVM-037 AC4 a script and a javascript: address are text; only https, tel and mailto are links; nothing runs', async ({
