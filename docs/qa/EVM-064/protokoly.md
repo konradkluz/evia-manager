@@ -2,20 +2,20 @@
 
 Historyjka: [EVM-064](../../backlog/M1/EVM-064-rodo-przed-startem.md). Przygotował: `security-engineer`, 2026-11-14. Czynności wykonuje Konrad (RR-93: agenci nie logują się na środowisko, nie czytają jego danych ani kont dostawców). **Wpisuj tylko daty, role, wyniki i liczby — bez danych osobowych, adresów e-mail, numerów umów i identyfikatorów kont** (repozytorium jest publiczne). Puste pole = czynność niewykonana.
 
-Kolejność: AC1 → AC2 → AC5 → AC4 → AC3 → AC7 → AC8 (zatwierdzenie DPIA na końcu). Szacowany czas łącznie: ok. 3–4 h.
+Kolejność: AC1 → AC2 → AC5 → AC4 → AC3 → AC7 → AC8 (zatwierdzenie DPIA na końcu; wcześniej podpisane wzory z [`wzory-dla-pracownikow.md`](../../security/wzory-dla-pracownikow.md) i krótkie spotkanie z technikami). Szacowany czas łącznie: ok. 4–5 h.
 
 ## AC1 — Umowy powierzenia, regiony i retencje
 Na koncie każdego dostawcy: umowa powierzenia zawarta albo warunki zaakceptowane, region UE, retencja, MFA. Wskazówki — [`rodo.md` → „Weryfikacja dostawców 2026-11-14”](../../security/rodo.md#weryfikacja-dostawców-2026-11-14-evm-064-ac1).
 
-| Dostawca | Co sprawdzić | Umowa (tak / nie, data dokumentu) | Region | Retencja | MFA | Data | Wynik |
-|---|---|---|---|---|---|---|---|
-| Hetzner | DPA (AVV) zawarta w koncie (accounts → DPA); VM w DE, Storage Box w FI; kopie VM 7 dni | | | | | | |
-| Scaleway (z TEM) | DPA zaakceptowana (konsola → kontrakty); projekt w `pl-waw`; TEM — Francja | | | | | | |
-| Grafana Labs | DPA (z SCC) zaakceptowana; stos w regionie UE; logi i metryki 14 dni | | | | | | |
-| GitHub | warunki z DPA (GitHub Customer Agreement); w repozytorium brak danych klientów | | — | — | | | |
-| OVH (rejestrator, DNS) | tylko MFA i blokada transferu — nie jest podmiotem przetwarzającym danych systemu | — | — | — | | | |
+| Dostawca | Co sprawdzić | Umowa (tak / nie, data dokumentu) | Kopia DPA i lista podprocesorów zapisane poza repozytorium (data) | Region | Retencja | MFA | Data | Wynik |
+|---|---|---|---|---|---|---|---|---|
+| Hetzner | DPA (AVV) zawarta w koncie (accounts → DPA); VM w DE, Storage Box w FI; kopie VM 7 dni | | | | | | | |
+| Scaleway (z TEM) | DPA zaakceptowana (konsola → kontrakty); projekt w `pl-waw`; TEM — Francja | | | | | | | |
+| Grafana Labs | DPA (z SCC) zaakceptowana; stos w regionie UE; logi i metryki 14 dni | | | | | | | |
+| GitHub | plan Free: umowa powierzenia **nie dotyczy** (GitHub — odrębny administrator danych kont; w repozytorium, zgłoszeniach i logach CI brak danych osobowych firmy); adres noreply w commitach | nie dotyczy (plan Free) | — | — | — | | | |
+| OVH (rejestrator, DNS) | tylko MFA i blokada transferu — nie jest podmiotem przetwarzającym danych systemu | — | — | — | — | | | |
 
-**Transfery do USA (pkt 10):** Grafana Labs i GitHub na liście Data Privacy Framework (https://www.dataprivacyframework.gov/list — wyszukaj nazwę, status „Active”): Grafana Labs _do wypełnienia_ · GitHub _do wypełnienia_ · data _do wypełnienia_.
+**Transfery do USA (pkt 10):** lista Data Privacy Framework (https://www.dataprivacyframework.gov/list) — **sprawdzone 2026-11-14, Tech Lead (przeglądarka):** „Grafana Labs” (New York, NY) — **Active**; „GitHub” (San Francisco, CA) — **Active**; oba w EU-U.S. DPF (oraz Swiss-U.S. i UK Extension), zakres „Non-HR Data”. Konrad nie musi tego powtarzać; następne sprawdzenie — przy przeglądzie z [`rodo.md`, pkt 10](../../security/rodo.md#decyzje-administratora-bez-prawnika-i-iod-evm-064) (co ≤ 6 miesięcy).
 
 ## AC2 — Rejestr czynności poza repozytorium
 | Pozycja | Wynik |
@@ -85,7 +85,14 @@ Wg [`checklista-wydania.md` → sekcja 1](../../security/checklista-wydania.md#1
 ## AC8 — Zatwierdzenie DPIA
 | Pole | Wynik |
 |---|---|
-| [`dpia.md`](../../security/dpia.md) przeczytana; decyzja (zatwierdzam / z warunkami / nie) | _do wypełnienia_ |
+| [`dpia.md`](../../security/dpia.md) przeczytana; decyzja (zatwierdzam / z warunkami / nie); wersja zmieniona na 1.0 | _do wypełnienia_ |
 | Punkt `[PRAWNIK/IOD]` 11 — rekomendacja przyjęta (uproszczona DPIA) | _tak / nie_ |
 | Punkt `[PRAWNIK/IOD]` 10 — rekomendacja przyjęta (podstawa transferów) | _tak / nie_ |
+| Czy przed zatwierdzeniem wprowadzono realne dane klientów (tak / nie; od kiedy) | _do wypełnienia_ |
+| Opinia techników (art. 35 ust. 9) — data spotkania | _do wypełnienia_ |
+| Warunek 1 — upoważnienia i zobowiązania do poufności ([wzór 1](../../security/wzory-dla-pracownikow.md#wzór-1--upoważnienie-do-przetwarzania-danych-osobowych-i-zobowiązanie-do-poufności)): liczba osób z kontem / liczba podpisanych, data | _do wypełnienia_ |
+| Warunek 2 — informacja o audycie ([wzór 3](../../security/wzory-dla-pracownikow.md#wzór-3--informacja-dla-osób-z-kontem-o-audycie-działań-w-systemie)): liczba osób / podpisanych, data; umowy o pracę — dotyczy / nie dotyczy; data obwieszczenia i dzień objęcia audytem (≥ 2 tygodnie później) | _do wypełnienia_ |
+| Warunek 3 — oświadczenia techników ([wzór 2](../../security/wzory-dla-pracownikow.md#wzór-2--oświadczenie-technika-prywatny-telefon-w-pracy-pilot-b)) przed pierwszym zdjęciem: liczba techników w pilocie B / liczba oświadczeń, data | _do wypełnienia_ |
+| Warunek 6 — oryginały dokumentów klientów także poza systemem do uruchomienia kopii (tak / nie) | _do wypełnienia_ |
+| Kopia DPA Grafany (z SCC) zapisana poza repozytorium (data) | _do wypełnienia_ |
 | Data | _do wypełnienia_ |

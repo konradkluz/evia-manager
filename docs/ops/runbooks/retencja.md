@@ -23,11 +23,11 @@ Okresy są **nazwanymi stałymi w kodzie** albo regułami IaC / ustawieniami u d
 | Kopie dysku systemowego VM | 7 dni | ustawienie Hetzner | konto Hetzner | sprawdza Konrad — [protokół AC1](../../qa/EVM-064/protokoly.md) |
 | Logi lokalne na VM | 7 dni | journald `MaxRetentionSec=7day` | `infra/tofu/modules/vm/templates/user-data.yaml.tftpl` (istniejąca VM — krok ręczny, RR-66) | ustawione w posiedzeniu A (EVM-084, krok A8) |
 | Logi i metryki (Grafana Cloud) | 14 dni | plan Grafana Cloud | konto Grafana | sprawdza Konrad — protokół AC1 |
-| Logi e-mail (Scaleway TEM) | dopóki domena TEM jest aktywna | ustawienie dostawcy | konto Scaleway | decyzja EVM-089 (bez skracania; usunięcie adresu na zgłoszenie) |
+| Logi e-mail (Scaleway TEM) | dopóki domena TEM jest aktywna | ustawienie dostawcy | konto Scaleway | decyzja EVM-089 (bez skracania; usunięcie adresu na zgłoszenie); raz w roku przegląd przy przeglądzie retencji (sekcja 2) — adresy osób, które odeszły albo zgłosiły żądanie: zgłoszenie usunięcia do wsparcia Scaleway |
 
 **Luki (do decyzji Konrada — sekcja 4):**
-- `sync.change_log` (P4: 90 dni) — **nie ma zadania usuwania**, a rola aplikacji ma na tabeli tylko `SELECT` (ADR-0021). Wiersze to identyfikatory i kody, bez danych osobowych.
-- `media.media_exports` — wiersze (zlecający, zlecenie, stan, rozmiar; bez danych klienta) bez terminu (opisane w `rodo.md`).
+- `sync.change_log` (P4: 90 dni) — **nie ma zadania usuwania**, a rola aplikacji ma na tabeli tylko `SELECT` (ADR-0021). Wiersze to identyfikatory encji i kody (migracja 0054) — bez danych klientów; identyfikatory pseudonimowe.
+- `media.media_exports` — wiersze (zlecający — identyfikator pracownika `requested_by`, zlecenie, stan, rozmiar; migracja 0063) bez terminu — bez danych klientów; identyfikatory pseudonimowe (opisane w `rodo.md`).
 - Poza P4, tylko identyfikatory i skróty: wiersze linków jednorazowych (aktywacja, reset hasła) i `platform.security_alert_outbox` — bez zadania usuwania; do ujęcia w zadaniu retencji M4 (Low).
 
 ## 2. Dane biznesowe — procedura ręczna do M4
@@ -53,4 +53,4 @@ Pełne usunięcie wierszy (purge) zleceń i klientów nie istnieje do M4 — pow
 
 ## 4. Pytania do decyzji Konrada (EVM-064, demo)
 1. **SR-PRIV-01 („konfiguracja, nie stałe w kodzie”).** Okresy są nazwanymi stałymi w kodzie i regułami IaC, nie zmiennymi środowiska. Rekomendacja: uznać to za „konfigurację jako kod” (jedno miejsce na okres, zmiana przez PR i `rodo.md`) i doprecyzować brzmienie SR-PRIV-01 — bez zmian kodu.
-2. **Luki `sync.change_log` i `media.media_exports`.** Rekomendacja: zaakceptować jako dług techniczny (wiersze bez danych osobowych) z historyjką w backlogu (`/refine`; razem z zadaniem retencji M4), nie warunek startu.
+2. **Luki `sync.change_log` i `media.media_exports`.** Rekomendacja: zaakceptować jako dług techniczny (bez danych klientów; identyfikatory pseudonimowe) z historyjką w backlogu (`/refine`), nie warunek startu. **Termin:** zadanie usuwania `sync.change_log` musi działać najpóźniej **2027-02-11** — środowisko przyjmuje realne dane od 2026-11-13 (RR-93), a tabela istnieje od migracji 0054 (na `main` od 2026-10-31), więc wtedy wiersze o realnych danych przekroczą deklarowane 90 dni; nie czekać na M4.

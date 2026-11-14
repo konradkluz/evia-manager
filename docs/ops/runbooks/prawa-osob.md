@@ -28,7 +28,7 @@
 ## 3. Terminy
 - Bez zbędnej zwłoki, najpóźniej **1 miesiąc** od wpływu (art. 12 ust. 3), bezpłatnie.
 - Przedłużenie o 2 miesiące tylko ze względu na złożoność lub liczbę żądań — informacja z powodem do osoby **w pierwszym miesiącu**.
-- Odmowa (np. żądanie ewidentnie nieuzasadnione, wyjątek z art. 17 ust. 3) — uzasadnienie i informacja o skardze do Prezesa UODO, też w terminie.
+- Odmowa (np. żądanie ewidentnie nieuzasadnione, wyjątek z art. 17 ust. 3) — uzasadnienie oraz informacja o możliwości skargi do Prezesa UODO i skorzystania ze środka ochrony prawnej przed sądem (art. 12 ust. 4), też w terminie.
 
 ## 4. Operacje w systemie (Administrator)
 Operacje ze step-upem wymagają potwierdzenia tożsamości w panelu (W-04). Przed operacją nieodwracalną sprawdź, czy nie zachodzi wyjątek z art. 17 ust. 3 (obowiązek prawny — np. dokumenty rozliczeń, lit. b; roszczenia z umowy — lit. e).
@@ -39,7 +39,7 @@ Procedura ręczna do M4 (funkcja eksportu danych klienta — M4):
 2. Dopisz: lokalizacje (adresy), zlecenia (numery, statusy, daty, transze), listę dokumentów i zdjęć, wpisy dziennika, które dotyczą osoby. **Fragmenty dotyczące innych osób pomiń** (np. dane sąsiada, pracowników poza imieniem).
 3. Kopie zdjęć: w zleceniu „Eksportuj zdjęcia (ZIP)” (step-up, maks. 5 dziennie, link 24 h — EVM-052). Kopie dokumentów: pobranie pliku (A, E).
 4. Przekaż kanałem z sekcji 2 (na zweryfikowany adres albo osobiście). Pobrane pliki i zestawienie usuń z komputera po wysłaniu (środki organizacyjne biura w `rodo.md`).
-5. Informacje z art. 15 ust. 1 (cele, odbiorcy, okresy, prawa, źródło) — odsyłacz do klauzuli w panelu (W-19).
+5. Informacje z art. 15 ust. 1 podaj **dla tej osoby**: konkretni odbiorcy jej danych (który OSD, która administracja lub wspólnota, który podwykonawca — z dokumentów jej zleceń; TSUE C-154/21), cele, okres przechowywania dla jej zleceń, źródło danych (gdy nie od niej), prawa i skarga do Prezesa UODO; klauzula w panelu (W-19) tylko jako uzupełnienie.
 
 ### Art. 16 — sprostowanie
 Edycja klienta (W-14), lokalizacji (W-20) albo strony — A lub E. Audyt `customer.updated`, `site.updated`, `party.updated` bez wartości. Nazwa ręcznie dodanego etapu nie jest edytowalna — usuń etap i dodaj nowy (RR-25).
