@@ -285,10 +285,15 @@ export function QuickOrderScreen({
           {origin === null ? null : (
             <InlineAlert
               tone="info"
-              body={[
-                t(origin.code === 'id_conflict' ? RECREATE_REASON_KEYS.id_conflict : RECREATE_REASON_KEYS.default),
-                ...(origin.dependents > 0 ? [t('quickOrder.recreate.dependents', { count: origin.dependents })] : []),
-              ].join('\n')}
+              body={t(origin.code === 'id_conflict' ? RECREATE_REASON_KEYS.id_conflict : RECREATE_REASON_KEYS.default)}
+              // a second text node (not a second line of the first): the entries that move with the order
+              action={
+                origin.dependents > 0 ? (
+                  <Text style={{ ...text.body, color: color.text.primary }}>
+                    {t('quickOrder.recreate.dependents', { count: origin.dependents })}
+                  </Text>
+                ) : undefined
+              }
               testID="quick-order-recreate-alert"
             />
           )}

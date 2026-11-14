@@ -15,7 +15,7 @@ describe('Maestro flows and scenarios agree (EVM-009 AC4)', () => {
     for (const flow of referenced) {
       const text = readFileSync(join(FLOWS, flow), 'utf8');
       assert.match(text, new RegExp(`^appId: ${APPLICATION_ID.replaceAll('.', String.raw`\.`)}$`, 'm'), flow);
-      assert.match(text, /^# EVM-(009|093|100|103|104|105|106|107) AC\d/m, flow);
+      assert.match(text, /^# EVM-(009|093|100|103|104|105|106|107|128) AC\d/m, flow);
     }
   });
 
@@ -110,6 +110,12 @@ describe('Maestro flows and scenarios agree (EVM-009 AC4)', () => {
         'm07-quick-order-needs-attention',
         'm07-quick-order-discard-dialog',
         'm02-templates-role',
+        // EVM-128: "Utwórz ponownie" of a rejected quick work order
+        'm07-quick-order-recreate-rejected',
+        'm10-quick-order-recreate-form',
+        'm10-quick-order-recreate-template-gone',
+        'm03-quick-order-recreated',
+        'm07-quick-order-recreate-discard-dialog',
       ].sort(),
     );
   });
@@ -390,5 +396,55 @@ describe('Maestro flows and scenarios agree (EVM-009 AC4)', () => {
     }
     for (const id of used) assert.ok(ids.has(id), `unknown testID ${id}`);
     assert.match(panel, /export const E2E_HOOKS_MARKER = 'evia-e2e-hooks-panel';/);
+  });
+  // EVM-128 AC1-AC4: "Utwórz ponownie" of a rejected quick work order
+  it('EVM-128 AC1, AC2, AC3: the recreate scenario rejects the first order with template_unavailable, recreates it offline, kills the app right after the save and expects 2 unique and 1 rejected after the return of the network', () => {
+    const scenario = SCENARIOS.find((candidate) => candidate.name === 'quick-order-recreate');
+    assert.ok(scenario !== undefined);
+    assert.deepEqual(
+      scenario.steps.map((step) => [step.flow, step.airplane, step.quick]),
+      [
+        ['70-recreate-sign-in.yaml', false, 'template_unavailable_first'],
+        ['71-recreate-offline.yaml', true, 'template_unavailable_first'],
+        ['72-recreate-rejected.yaml', false, 'template_unavailable_first'],
+        ['73-recreate-edit.yaml', true, 'template_unavailable_first'],
+        ['74-recreate-restart.yaml', true, 'template_unavailable_first'],
+        ['75-recreate-return.yaml', false, 'template_unavailable_first'],
+      ],
+    );
+    assert.deepEqual(scenario.steps[2]?.expectSync, { unique: 0, duplicates: 0, rejected: 1 });
+    assert.deepEqual(scenario.steps[3]?.after, ['force-stop']);
+    assert.equal(scenario.steps[5]?.background, true);
+    assert.deepEqual(scenario.steps[5].expectSync, { unique: 2, duplicates: 0, rejected: 1 });
+    const edit = readFileSync(join(FLOWS, '73-recreate-edit.yaml'), 'utf8');
+    assert.match(edit, /Zdjęcia i wpisy \\\(1\\\) przeniesiemy do nowego zlecenia\\\./);
+    assert.match(edit, /Poprzedni szablon nie jest już dostępny\\\. Wybierz nowy\\\./);
+    assert.match(edit, /Zapisano ponownie w telefonie\\\. Numer nadamy po synchronizacji\\\./);
+    assert.match(edit, /scrollUntilVisible/);
+    assert.match(edit, /centerElement: true/);
+    // the lessons of the earlier flows: the keyboard is hidden only right after a text was typed, the security banner is optional
+    assert.match(edit, /inputText: 'Zmieniona'\r?\n- hideKeyboard/);
+    assert.match(edit, /text: 'Rozumiem'\s+optional: true/);
+    assert.match(readFileSync(join(FLOWS, '74-recreate-restart.yaml'), 'utf8'), /visible: 'Offline · 2'/);
+    assert.match(readFileSync(join(FLOWS, '75-recreate-return.yaml'), 'utf8'), /ZL-E2E-3/);
+    assert.match(readFileSync(join(FLOWS, '71-recreate-offline.yaml'), 'utf8'), /common\/quick-order-create\.yaml/);
+  });
+
+  it('EVM-128 AC1, AC4: the discard scenario opens the rejected order in the form, changes a field and keeps the group after "Odrzuć"', () => {
+    const scenario = SCENARIOS.find((candidate) => candidate.name === 'quick-order-recreate-discard');
+    assert.ok(scenario !== undefined);
+    assert.deepEqual(
+      scenario.steps.map((step) => [step.flow, step.quick]),
+      [
+        ['76-recreate-discard-sign-in.yaml', 'quota_exceeded'],
+        ['77-recreate-discard.yaml', 'quota_exceeded'],
+      ],
+    );
+    assert.deepEqual(scenario.steps[1]?.expectSync, { unique: 0, duplicates: 0, rejected: 1 });
+    const flow = readFileSync(join(FLOWS, '77-recreate-discard.yaml'), 'utf8');
+    assert.match(flow, /Porzucić zmiany\\\?/);
+    assert.match(flow, /Odrzucone zlecenie zostanie w kolejce\\\./);
+    assert.match(flow, /quick-order-discard-confirm/);
+    assert.match(flow, /text: 'Rozumiem'\s+optional: true/);
   });
 });

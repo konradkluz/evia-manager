@@ -316,6 +316,32 @@ describe('templates and quick work orders of the scenario server (EVM-106)', () 
     assert.equal(stub.report().rejected, 0);
   });
 
+  it('EVM-128 AC1, AC3: in the mode "template_unavailable_first" the first order is rejected on every repeat, the order created again (other workOrderId) is applied and numbered', () => {
+    const stub = createSyncStub();
+    stub.setModes({ quick: 'template_unavailable_first' });
+    const FIRST = '0194c2a0-0000-7000-8000-0000000000e1';
+    const AGAIN = '0194c2a0-0000-7000-8000-0000000000e2';
+    for (let i = 0; i < 2; i += 1) {
+      const answer = send(stub, quick(A1, FIRST));
+      assert.equal(zSyncMutationsResponse.safeParse(answer.body).success, true);
+      assert.deepEqual(/** @type {{ results: unknown[] }} */ (answer.body).results, [
+        { mutationId: A1, outcome: 'rejected', code: 'template_unavailable' },
+      ]);
+    }
+    assert.deepEqual(stub.report(), { unique: 0, duplicates: 0, rejected: 1, received: 2, requests: 2, lastPendingItems: 1 });
+    // the order created again: a new mutation id and a new work order id
+    const B1 = '0194c2a0-0000-7000-8000-0000000000b9';
+    assert.equal(/** @type {{ results: { outcome: string }[] }} */ (send(stub, quick(B1, AGAIN)).body).results[0]?.outcome, 'applied');
+    assert.deepEqual(stub.report(), { unique: 1, duplicates: 0, rejected: 1, received: 3, requests: 3, lastPendingItems: 1 });
+    const page = /** @type {{ changes: { entity: Record<string, unknown> }[] }} */ (
+      changesPage(stub, 'e2e-cursor-after-snapshot-0001').body
+    );
+    assert.equal(page.changes.at(-1)?.entity['number'], 'ZL-E2E-3');
+    // reset forgets which order was the first
+    stub.reset();
+    assert.equal(/** @type {{ results: { outcome: string }[] }} */ (send(stub, quick(B1, AGAIN)).body).results[0]?.outcome, 'rejected');
+  });
+
   it('EVM-106 AC1: over HTTP the catalogue is a sync path (the bearer token is needed) and the modes are set on the stub', async () => {
     const stub = await startStubApi();
     /** @param {string} path @param {RequestInit} [init] */

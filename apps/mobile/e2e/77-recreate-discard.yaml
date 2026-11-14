@@ -1,0 +1,45 @@
+# EVM-128 AC1, AC4: the order created online is rejected (`quota_exceeded`) and stands in "Wymaga uwagi" with no entries behind it. "Utwórz
+# ponownie" opens the form with the data and the general reason (no sentence about moved entries); after a change the close asks
+# "Porzucić zmiany?" and "Odrzuć" leaves the rejected order in the queue untouched. The counters of the scenario server (0 unique,
+# 1 rejected) are asserted by tools/mobile-e2e after this flow. Synthetic data only.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- runFlow: common/quick-order-create.yaml
+- tapOn:
+    id: 'nav-queue'
+- extendedWaitUntil:
+    visible: 'Dziś założono zbyt wiele nowych klientów.*'
+    timeout: 60000
+- tapOn: 'Utwórz ponownie'
+- extendedWaitUntil:
+    visible: 'Zlecenie nie zostało utworzone.*'
+    timeout: 10000
+- assertNotVisible: 'Zdjęcia i wpisy.*'
+- scrollUntilVisible:
+    element:
+      id: 'quick-note'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'quick-note'
+- inputText: ' dopisek'
+- hideKeyboard
+- tapOn:
+    id: 'quick-order-close'
+- extendedWaitUntil:
+    visible: 'Porzucić zmiany\?'
+    timeout: 10000
+- assertVisible: 'Odrzucone zlecenie zostanie w kolejce\.'
+- takeScreenshot: m07-quick-order-recreate-discard-dialog
+- tapOn:
+    id: 'quick-order-discard-confirm'
+- extendedWaitUntil:
+    visible: 'Dziś założono zbyt wiele nowych klientów.*'
+    timeout: 10000
+- assertVisible: 'Utwórz ponownie'
+- assertVisible: 'Usuń z telefonu'

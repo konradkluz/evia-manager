@@ -1,0 +1,51 @@
+# EVM-128 AC1, AC2, AC3: in airplane mode "Utwórz ponownie" opens the form with the data of the rejected order, the reason and the number
+# of entries that will move; the template is deselected with its notice (the title stays). The technician corrects the last name, chooses
+# a template (the notice goes away) and saves: the order opens as "Oczekuje na numer" with the toast "Zapisano ponownie w telefonie…".
+# The scenario kills the app right after this flow. Rules of the earlier flows: below the fold is scrolled to first (the card under the
+# sticky bar is centred), hideKeyboard only right after a text was typed, regexes escaped. Synthetic data only.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible: 'Brak zasięgu.*'
+    timeout: 30000
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- tapOn:
+    id: 'nav-queue'
+- extendedWaitUntil:
+    visible: 'Wybrany szablon nie jest już dostępny\.'
+    timeout: 30000
+- tapOn: 'Utwórz ponownie'
+- extendedWaitUntil:
+    visible: 'Zlecenie nie zostało utworzone.*'
+    timeout: 10000
+- assertVisible: 'Zdjęcia i wpisy \(1\) przeniesiemy do nowego zlecenia\.'
+- takeScreenshot: m10-quick-order-recreate-form
+# the data of the rejected command are in the fields; the last name is corrected
+- tapOn:
+    id: 'quick-last-name'
+- eraseText: 40
+- inputText: 'Zmieniona'
+- hideKeyboard
+- scrollUntilVisible:
+    element: 'Poprzedni szablon nie jest już dostępny\. Wybierz nowy\.'
+    direction: DOWN
+    centerElement: true
+- takeScreenshot: m10-quick-order-recreate-template-gone
+- scrollUntilVisible:
+    element: '3 pozycje · 1 proces · 1 transza'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'quick-template-0194c2a0-0000-7000-8000-00000000e201'
+- assertNotVisible: 'Poprzedni szablon nie jest już dostępny.*'
+- tapOn:
+    id: 'quick-order-save'
+- extendedWaitUntil:
+    visible: 'Oczekuje na numer'
+    timeout: 10000
+- assertVisible: 'Zapisano ponownie w telefonie\. Numer nadamy po synchronizacji\.'
+- takeScreenshot: m03-quick-order-recreated

@@ -30,7 +30,9 @@ const REJECTED_TYPES = ['CreateNote', 'CreateComment'];
  * is `ok` (two synthetic templates), `none` (an empty catalogue) or `channel_not_allowed` (403: the read-only role with the phone token,
  * EVM-127); a quick work order is `ok` (applied once, the number `ZL-E2E-n` comes with the next changes page) or `quota_exceeded`
  * (rejected with that code on every repeat, counted as rejected). The stand-in is never part of a release build.
- * @typedef {{ templates: 'ok' | 'none' | 'channel_not_allowed', quick: 'ok' | 'quota_exceeded' }} SyncModes
+ * EVM-128: the quick mode `template_unavailable_first` rejects the FIRST quick work order it sees (by `workOrderId`, on every repeat of that
+ * mutation) with `template_unavailable`; a later command with another `workOrderId` (the order created again) is accepted.
+ * @typedef {{ templates: 'ok' | 'none' | 'channel_not_allowed', quick: 'ok' | 'quota_exceeded' | 'template_unavailable_first' }} SyncModes
  */
 export const TEMPLATE_HOUSE_ID = '0194c2a0-0000-7000-8000-00000000e201';
 export const TEMPLATE_GARAGE_ID = '0194c2a0-0000-7000-8000-00000000e202';
@@ -324,6 +326,9 @@ export function createSyncStub() {
   let created = [];
   /** @type {Set<string>} */
   let createdOrders = new Set();
+  /** EVM-128: the order of the quick work order that `template_unavailable_first` rejected. */
+  /** @type {string | null} */
+  let firstRejectedOrder = null;
   let cursorSerial = 0;
   let duplicates = 0;
   let received = 0;
@@ -354,6 +359,7 @@ export function createSyncStub() {
       rejectedIds = new Map();
       created = [];
       createdOrders = new Set();
+      firstRejectedOrder = null;
       cursorSerial = 0;
       duplicates = 0;
       received = 0;
@@ -422,6 +428,10 @@ export function createSyncStub() {
         let rejection = null;
         if (target === DELETED_ORDER_ID && REJECTED_TYPES.includes(type)) rejection = 'target_unavailable';
         else if (isQuick && modes.quick === 'quota_exceeded') rejection = 'quota_exceeded';
+        else if (isQuick && modes.quick === 'template_unavailable_first' && typeof target === 'string') {
+          firstRejectedOrder ??= target;
+          if (target === firstRejectedOrder) rejection = 'template_unavailable';
+        }
         ids.push({ mutationId, rejection, quick: isQuick ? /** @type {Record<string, unknown>} */ (payload) : null });
       }
       lastPendingItems = pendingItems;

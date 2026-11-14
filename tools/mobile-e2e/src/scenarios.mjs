@@ -13,7 +13,7 @@
  *   after?: import('./device.mjs').DeviceAction[],
  *   expectSync?: { unique: number, duplicates: number, rejected?: number },
  *   templates?: 'ok' | 'none' | 'channel_not_allowed',
- *   quick?: 'ok' | 'quota_exceeded',
+ *   quick?: 'ok' | 'quota_exceeded' | 'template_unavailable_first',
  * }} Step
  * `before` runs ahead of the flow (a failure skips it), `after` once the flow passed (EVM-093 device steps, src/device.mjs).
  * `auth` is the sign-in mode of the scenario server for the step (EVM-100; default `ok`).
@@ -253,6 +253,51 @@ export const SCENARIOS = [
     name: 'quick-order-role-without-access',
     ac: 'EVM-106 AC1',
     steps: [{ flow: '43-quick-order-forbidden.yaml', server: 'ok', airplane: false, templates: 'channel_not_allowed' }],
+  },
+  // EVM-128 AC1-AC3: the server rejects the FIRST quick work order with `template_unavailable`; the technician creates it again in
+  // airplane mode (the form with the data and the reason, a new template, one corrected field), kills the app right after the save, and
+  // after the return of the network the new order and its entry are sent once (2 unique; the rejected one stays counted: 1 rejected).
+  {
+    name: 'quick-order-recreate',
+    ac: 'EVM-128 AC1 AC2 AC3',
+    steps: [
+      { flow: '70-recreate-sign-in.yaml', server: 'ok', airplane: false, quick: 'template_unavailable_first' },
+      { flow: '71-recreate-offline.yaml', server: 'ok', airplane: true, quick: 'template_unavailable_first' },
+      {
+        flow: '72-recreate-rejected.yaml',
+        server: 'ok',
+        airplane: false,
+        background: true,
+        quick: 'template_unavailable_first',
+        expectSync: { unique: 0, duplicates: 0, rejected: 1 },
+      },
+      { flow: '73-recreate-edit.yaml', server: 'ok', airplane: true, quick: 'template_unavailable_first', after: ['force-stop'] },
+      { flow: '74-recreate-restart.yaml', server: 'ok', airplane: true, quick: 'template_unavailable_first' },
+      {
+        flow: '75-recreate-return.yaml',
+        server: 'ok',
+        airplane: false,
+        background: true,
+        quick: 'template_unavailable_first',
+        expectSync: { unique: 2, duplicates: 0, rejected: 1 },
+      },
+    ],
+  },
+  // EVM-128 AC4: the rejected order (`quota_exceeded`) opens in the form; closing after a change asks "Porzucić zmiany?", and after
+  // "Odrzuć" the rejected group is still in "Wymaga uwagi" (nothing was written: 0 unique, 1 rejected).
+  {
+    name: 'quick-order-recreate-discard',
+    ac: 'EVM-128 AC1 AC4',
+    steps: [
+      { flow: '76-recreate-discard-sign-in.yaml', server: 'ok', airplane: false, quick: 'quota_exceeded' },
+      {
+        flow: '77-recreate-discard.yaml',
+        server: 'ok',
+        airplane: false,
+        quick: 'quota_exceeded',
+        expectSync: { unique: 0, duplicates: 0, rejected: 1 },
+      },
+    ],
   },
   // Last: the held request keeps the app in its loading state (skeleton), and the first-flow retry of the runner is not affected.
   {
