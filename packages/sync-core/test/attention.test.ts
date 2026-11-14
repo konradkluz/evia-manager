@@ -29,7 +29,7 @@ const dependentNote = (h: ReturnType<typeof makeCore>, parent: QueueRecord, n: n
   });
 
 describe('attention plan (EVM-107 AC4)', () => {
-  it('EVM-107 AC4: rejection code -> reason and actions per the table of flow 16; "discard" is always last', () => {
+  it('EVM-107 AC4, EVM-106 AC5: rejection code -> reason and actions per the table of flow 16; "discard" is always last', () => {
     const plan = (type: MutationType, lastCode?: string) => attentionPlan({ type, ...(lastCode === undefined ? {} : { lastCode }) });
     for (const code of ['target_unavailable', 'forbidden']) {
       for (const type of ['CreateNote', 'CreateComment'] as const) {
@@ -43,6 +43,7 @@ describe('attention plan (EVM-107 AC4)', () => {
       reason: 'template_unavailable',
       actions: ['recreate', 'discard'],
     });
+    expect(plan('CreateQuickWorkOrder', 'quota_exceeded')).toEqual({ reason: 'quota_exceeded', actions: ['recreate', 'discard'] });
     expect(plan('CreateQuickWorkOrder', 'validation_failed')).toEqual({
       reason: 'validation_failed_quick',
       actions: ['recreate', 'discard'],

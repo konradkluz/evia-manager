@@ -58,6 +58,7 @@ export function QueueScreen({ onOpenQueue, now = Date.now }: { onOpenQueue: () =
     validation_failed_quick: t('attention.reasons.validation_failed_quick'),
     id_conflict: t('attention.reasons.id_conflict'),
     template_unavailable: t('attention.reasons.template_unavailable'),
+    quota_exceeded: t('attention.reasons.quota_exceeded'),
     unknown: t('attention.reasons.unknown'),
   };
   const actionLabels: Readonly<Record<string, string>> = {

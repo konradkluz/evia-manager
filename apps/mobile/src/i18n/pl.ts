@@ -344,6 +344,8 @@ export const pl = {
       validation_failed_quick: 'Zlecenie nie zostało utworzone — sprawdź dane klienta i adres.',
       id_conflict: 'Ten element nie mógł zostać zapisany — spróbuj utworzyć go ponownie.',
       template_unavailable: 'Wybrany szablon nie jest już dostępny.',
+      quota_exceeded:
+        'Dziś założono zbyt wiele nowych klientów i lokalizacji z tego telefonu. Spróbuj ponownie jutro albo usuń zlecenie z telefonu.',
       unknown: 'Serwer nie przyjął tego elementu. Możesz skopiować treść albo usunąć element z telefonu.',
     },
     actions: { retarget: 'Dodaj do innego zlecenia', copy: 'Kopiuj treść', recreate: 'Utwórz ponownie', discard: 'Usuń z telefonu' },
