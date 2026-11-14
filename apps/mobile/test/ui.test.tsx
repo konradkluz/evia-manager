@@ -12,6 +12,7 @@ import {
   FilterChip,
   InlineAlert,
   ListChecks,
+  SelectableCard,
   Skeleton,
   StatusBadge,
   SyncIndicator,
@@ -272,5 +273,61 @@ describe('list controls (EVM-103; styleguide § 3.7, § 3.9)', () => {
       autoComplete: 'email',
       textContentType: 'emailAddress',
     });
+  });
+});
+
+describe('fields of personal data and the card of choice (EVM-106; styleguide § 3.2, § 3.22)', () => {
+  it('EVM-106 AC6: a TextField with privateData switches off autofill, autocomplete and the content type (autocorrect and spell check are off in every field)', async () => {
+    await render(
+      <TextField label="Nazwisko" value="" onChangeText={() => undefined} privateData autoComplete="name" textContentType="name" />,
+    );
+    expect(screen.getByLabelText('Nazwisko').props).toMatchObject({
+      importantForAutofill: 'no',
+      autoComplete: 'off',
+      textContentType: 'none',
+      autoCorrect: false,
+      spellCheck: false,
+    });
+    // not a search: the return key stays the one the screen asks for
+    await screen.rerender(<TextField label="Nazwisko" value="" onChangeText={() => undefined} privateData returnKeyType="next" />);
+    expect(screen.getByLabelText('Nazwisko').props).toMatchObject({ returnKeyType: 'next' });
+  });
+
+  it('EVM-106 AC3: the error of a field is under it (text and icon, polite live region) and turns the frame to the error colour', async () => {
+    await render(<TextField label="Telefon" value="" onChangeText={() => undefined} error="Podaj numer telefonu." testID="phone" />);
+    expect(screen.getByTestId('phone-error')).toHaveTextContent('Podaj numer telefonu.');
+    expect(flat(screen.getByTestId('phone-frame')).borderColor).toBe(color.border.error);
+    expect(flat(screen.getByTestId('phone-frame')).borderWidth).toBe(2);
+    await screen.rerender(<TextField label="Telefon" value="" onChangeText={() => undefined} testID="phone" />);
+    expect(screen.queryByTestId('phone-error')).toBeNull();
+  });
+
+  it('EVM-106 AC2: SelectableCard is a radio with the whole card as the target (48 dp), the chosen one has the outline, the check and the selected background', async () => {
+    const onPress = jest.fn();
+    await render(
+      <SelectableCard
+        title="Dom"
+        description="3 pozycje"
+        accessibilityLabel="Dom, 3 pozycje"
+        selected={false}
+        onPress={onPress}
+        testID="card"
+      />,
+    );
+    const card = screen.getByRole('radio', { name: 'Dom, 3 pozycje' });
+    expect(card.props.accessibilityState).toMatchObject({ checked: false });
+    expect(flat(card).minHeight).toBeGreaterThanOrEqual(48);
+    expect(flat(card).backgroundColor).toBe(color.bg.surface);
+    await fireEvent.press(card);
+    expect(onPress).toHaveBeenCalledTimes(1);
+    await screen.rerender(<SelectableCard title="Dom" accessibilityLabel="Dom" selected onPress={onPress} testID="card" />);
+    const chosen = screen.getByTestId('card');
+    expect(chosen.props.accessibilityState).toMatchObject({ checked: true });
+    expect(flat(chosen)).toMatchObject({ borderColor: color.border.selected, borderWidth: 3, backgroundColor: color.bg.selected });
+    // focus: the ring around the whole card
+    await fireEvent(chosen, 'focus');
+    expect(flat(screen.getByTestId('card')).borderColor).toBe(color.focus.ring);
+    await fireEvent(screen.getByTestId('card'), 'blur');
+    expect(flat(screen.getByTestId('card')).borderColor).toBe(color.border.selected);
   });
 });
