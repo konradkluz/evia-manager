@@ -1,6 +1,6 @@
 # Runbook: aktywacja pierwszego Administratora i tryb awaryjny
 
-> Dokument żywy (EVM-016). Właściciel: `backend-developer`; przegląd: `security-engineer`. Wykonuje Konrad (osoba z dostępem SSH do serwera). Wymagania: SR-AUTH-12 (bootstrap), RR-16 (tryb awaryjny), SR-LOG-02, SR-LOG-07; polityki P1, P9.
+> Dokument żywy (EVM-016; procedura awaryjnego resetu MFA Administratora — EVM-064). Właściciel: `backend-developer`; przegląd: `security-engineer`. Wykonuje Konrad (osoba z dostępem SSH do serwera). Wymagania: SR-AUTH-12 (bootstrap), SR-AUTH-13, RR-16 (tryb awaryjny), SR-LOG-02, SR-LOG-07; polityki P1, P9.
 
 ## Kiedy użyć
 | Sytuacja | Polecenie | Skutek |
@@ -41,6 +41,20 @@ Powody (`--reason`, zamknięta lista; nie ma wolnego tekstu — dziennik audytu 
 - Nie zapisuj linku w plikach, notatkach, komunikatorach ani zgłoszeniach; po użyciu wyczyść ekran. Link jest jednorazowy, ale do czasu użycia daje przejęcie konta.
 - Podejrzewasz, że link wyciekł: uruchom polecenie ponownie — nowy link unieważnia wszystkie poprzednie oraz sesje, które na nich zbudowano.
 - Odmowa polecenia nie zostawia śladu w dzienniku audytu aplikacji (ryzyko rezydualne R3) — rozliczalność zapewniają logi SSH hosta.
+
+## Awaryjny reset MFA Administratora — procedura (SR-AUTH-13, P1 pkt 5; EVM-064 AC5)
+**Kiedy:** Administrator stracił klucze dostępu albo jest podejrzenie przejęcia jego konta, a **nie ma innego aktywnego Administratora**, który zresetuje drugi krok w panelu (sekcja „Reset drugiego kroku pracownika w panelu” niżej), i nie działają kody odzyskiwania (EVM-023). Wykonuje osoba z dostępem SSH do serwera (Konrad).
+
+1. **Tożsamość poza systemem.** Prośba o reset musi pochodzić od właściciela konta: potwierdzenie osobiście, rozmową wideo albo oddzwonieniem na znany numer — nigdy na podstawie samego e-maila lub komunikatora. Gdy wykonawca jest właścicielem konta, tożsamość potwierdza dostęp SSH z dozwolonego adresu kluczem tej osoby.
+2. **Przed uruchomieniem:** sprawdź w Administracja → Użytkownicy, czy są konta „Oczekuje na aktywację” — tryb awaryjny unieważnia **wszystkie** niewykorzystane linki aktywacyjne; po procedurze wyślij im zaproszenie ponownie.
+3. **Uruchom** polecenie z `--emergency --reason <powód>` wg sekcji „Jak uruchomić” (`suspected_compromise` przy podejrzeniu przejęcia — wtedy równolegle [runbook naruszeń](naruszenie-danych.md)).
+4. **Sprawdź zakończenie sesji:** w przeglądarce, w której konto było zalogowane, odśwież panel — ma pokazać logowanie (`401 session_revoked`).
+5. **Aktywuj od razu** (sekcja „Co dalej”): hasło, klucz dostępu; zaraz potem drugi klucz (Konto → Drugi krok logowania, EVM-028) i nowe kody odzyskiwania (EVM-023) — wydruk do sejfu.
+6. **Przegląd kont** (w ciągu godziny): Administracja → Użytkownicy — role (nikt nieoczekiwany z rolą Administrator), konta aktywne i zaproszone, sesje; lista urządzeń mobilnych; dziennik audytu (step-up) z ostatnich 7 dni — `account.emergency_reset`, `session.revoked`, `activation_link.issued`, zmiany ról, resety drugiego kroku, eksporty. Coś niewyjaśnionego → runbook naruszeń.
+7. **Alert do Administratorów:** potwierdź, że przyszedł e-mail alertu bezpieczeństwa z kodem `emergency_reset` ([alerty](alerty.md)). P1 pkt 5 wymaga e-maila do **wszystkich** Administratorów — punkt kontaktowy alertów w Grafanie musi mieć adresy każdego Administratora (dziś jeden odbiorca: Konrad; dopisać przy drugim koncie Administratora — EVM-061 AC1).
+8. **Zapisz** w rejestrze poza repozytorium ([`rodo.md` → „Rejestry poza repozytorium”](../../security/rodo.md#rejestry-poza-repozytorium)): data, kod powodu, kto wykonał, wynik kroków 4–7.
+
+**Ćwiczenie (AC5 — przed pierwszymi realnymi danymi klientów):** Konrad wykonuje kroki 1–8 z powodem `other` na **drugim koncie Administratora albo koncie awaryjnym** (EVM-061 AC1), gdy nie ma oczekujących zaproszeń; bez danych klientów. Gdy drugiego konta jeszcze nie ma, ćwiczenie na własnym koncie oznacza ponowną rejestrację kluczy i kodów — zaplanuj je na koniec dnia pracy. Wynik: [`docs/qa/EVM-064/protokoly.md` → „AC5”](../../qa/EVM-064/protokoly.md#ac5--awaryjny-reset-mfa-administratora-ćwiczenie).
 
 ## Środowisko lokalne (EVM-077)
 Lokalnie (Windows, Docker Desktop) procedurę wywołuje `pnpm run dev` (albo `pnpm run dev:admin`) — nie omija jej i nie powiela:
