@@ -118,7 +118,8 @@ test.describe('journal of a work order (EVM-037)', () => {
     await dialog.getByRole('button', { name: 'Zapisz poprawkę' }).click();
     await expect(entries(page)).toHaveCount(2);
     await expect(entries(page).first()).toContainText('Poprawka wpisu z wczoraj, 23:59');
-    await expect(entries(page).nth(1)).toContainText('Zastąpiony poprawką z dziś, 0:00');
+    await expect(entries(page).nth(1)).toContainText(/Zastąpiony poprawką z dziś, 0?0:00/);
+    // (Chromium writes 0:00, Firefox 00:00 — the same instant, the hour of the browser's ICU)
     // the two entries are two days of the business zone: "Dziś" and "Wczoraj", one section each
     await expect(page.getByRole('heading', { level: 3, name: 'Dziś' })).toHaveCount(1);
     await expect(page.getByRole('heading', { level: 3, name: 'Wczoraj' })).toHaveCount(1);

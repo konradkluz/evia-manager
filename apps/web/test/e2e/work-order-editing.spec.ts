@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
 import type { MockApi } from './mock-api.ts';
+import { editsOf, initialItems, SCOPE_ITEMS_LIMIT } from './mock-scope.ts';
 
 // The editing of the data and of the scope of an order in W-06 in a real browser against the synthetic API (EVM-035 AC1–AC8):
 // the dialog "Edytuj dane zlecenia" with If-Match and 412, the mode "Edytuj zakres", adding an item with its processes, the
@@ -221,17 +222,20 @@ test.describe('edit of the scope (EVM-035 AC2–AC6)', () => {
     expect(sent(api, 'PATCH')).toHaveLength(0);
   });
 
-  test('EVM-035 AC5 at 50 items the button of adding is disabled with the limit', async ({ page }) => {
-    await createOrder(page);
+  test('EVM-035 AC5 at 50 items the button of adding is disabled with the limit', async ({ page, api }) => {
+    const path = await createOrder(page);
+    // EVM-129 AC4: the synthetic server holds 49 items at once and the test adds the last one through the dialog. The earlier 41
+    // sequential dialogs took ~21 s in Firefox, so with several workers the 30 s limit of the test was exceeded (a cost of the
+    // loop, not a race): the rule under test — the 50th item closes the button — is the same and still goes through the UI.
+    editsOf(api.orders, path.split('/').at(-1) ?? '').items = initialItems(SCOPE_ITEMS_LIMIT - 1);
+    await page.reload();
+    await expect(page.getByRole('heading', { level: 2, name: /^Zakres \(49 pozycj/ })).toBeVisible();
     await page.getByRole('button', { name: 'Edytuj zakres' }).click();
-    // nine items from the template; add the rest one by one through the dialog (the synthetic server counts like the real one)
-    for (let count = 9; count < 50; count += 1) {
-      await page.getByRole('button', { name: 'Dodaj pozycję…' }).click();
-      const dialog = page.getByRole('dialog', { name: 'Dodaj pozycję zakresu' });
-      await dialog.getByLabel('Pozycja z katalogu').selectOption({ label: 'Pomiary i odbiór' });
-      await dialog.getByRole('button', { name: 'Dodaj pozycję' }).click();
-      await expect(page.getByRole('heading', { level: 2, name: new RegExp(`^Zakres — edycja \\(${String(count + 1)} `) })).toBeVisible();
-    }
+    await page.getByRole('button', { name: 'Dodaj pozycję…' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Dodaj pozycję zakresu' });
+    await dialog.getByLabel('Pozycja z katalogu').selectOption({ label: 'Pomiary i odbiór' });
+    await dialog.getByRole('button', { name: 'Dodaj pozycję' }).click();
+    await expect(page.getByRole('heading', { level: 2, name: /^Zakres — edycja \(50 / })).toBeVisible();
     const add = page.getByRole('button', { name: 'Dodaj pozycję…' });
     await expect(add).toHaveAttribute('aria-disabled', 'true');
     await expect(add).toHaveAttribute('title', 'Zlecenie ma już 50 pozycji zakresu — to limit.');
