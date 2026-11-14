@@ -149,6 +149,8 @@ export interface OrderDetail {
   readonly templateName?: string | null;
   /** The note typed with a quick order (shown only for an order that is not on the server yet). */
   readonly note?: string | null;
+  /** The mutation of the quick order in the queue: entries added to the order wait behind it (EVM-106). */
+  readonly pendingMutationId?: string;
   readonly customer: DetailCustomerView | null;
   readonly location: DetailLocationView | null;
   readonly scope: readonly { readonly id: string; readonly name: string; readonly quantity: number | null }[];
@@ -363,6 +365,7 @@ export function buildPendingOrderDetail(
     title,
     status: 'new',
     awaitingNumber: true,
+    pendingMutationId: command.mutationId,
     templateName,
     note: blank(str(payload['note'])),
     customer,

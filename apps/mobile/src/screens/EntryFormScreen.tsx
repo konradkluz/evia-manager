@@ -135,7 +135,15 @@ export function EntryFormScreen({ orderId, onClose, onSaved }: { orderId: string
   const save = (detail: OrderDetail): void => {
     if (busy.current) return;
     const built = buildEntryInput(
-      { kind, workOrderId: detail.id, category, stageId, stages: stageChoices(detail), body },
+      {
+        kind,
+        workOrderId: detail.id,
+        category,
+        stageId,
+        stages: stageChoices(detail),
+        body,
+        parentMutationId: detail.pendingMutationId ?? null,
+      },
       Date.now(),
       session.newId,
     );

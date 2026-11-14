@@ -76,6 +76,8 @@ export interface EntryDraft {
   readonly stageId: string | null;
   readonly stages: readonly StageChoice[];
   readonly body: string;
+  /** The quick work order in the queue this entry belongs to (EVM-106): the entry waits behind it and moves with it. */
+  readonly parentMutationId?: string | null;
 }
 
 export type BuildResult = { readonly ok: true; readonly input: EnqueueInput } | { readonly ok: false; readonly problem: BodyProblem };
@@ -87,8 +89,10 @@ export type BuildResult = { readonly ok: true; readonly input: EnqueueInput } | 
 export function buildEntryInput(draft: EntryDraft, now: number, newId: () => string): BuildResult {
   const body = normalizeBody(draft.body);
   if (!body.ok) return { ok: false, problem: body.problem };
+  const parent =
+    draft.parentMutationId === undefined || draft.parentMutationId === null ? {} : { parentMutationId: draft.parentMutationId };
   const base = { id: newId(), workOrderId: draft.workOrderId, body: body.value, capturedAt: new Date(now).toISOString() };
-  if (draft.kind === 'comment') return { ok: true, input: { type: 'CreateComment', commandVersion: 1, payload: base } };
+  if (draft.kind === 'comment') return { ok: true, input: { type: 'CreateComment', commandVersion: 1, payload: base, ...parent } };
   const stage = draft.stageId !== null && draft.stages.some((choice) => choice.id === draft.stageId) ? draft.stageId : null;
   return {
     ok: true,
@@ -96,6 +100,7 @@ export function buildEntryInput(draft: EntryDraft, now: number, newId: () => str
       type: 'CreateNote',
       commandVersion: 1,
       payload: { ...base, noteCategory: draft.category, ...(stage === null ? {} : { procedureStageId: stage }) },
+      ...parent,
     },
   };
 }

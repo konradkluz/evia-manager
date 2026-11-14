@@ -2,6 +2,8 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react-n
 import { AccessibilityInfo, BackHandler } from 'react-native';
 import { App } from '../src/App';
 import { pl } from '../src/i18n/pl';
+import { buildOrderList, queueFact } from '../src/orders/order-list-model';
+import type { QueueRecord } from '@evia/sync-core';
 import type { OrderDetail } from '../src/orders/order-detail-model';
 import type { QuickOrderSource } from '../src/orders/quick-order-model';
 import type { TemplateSet } from '../src/orders/templates';
@@ -632,5 +634,132 @@ describe('privacy (EVM-106 AC6; security K4-K7)', () => {
     await openForm(rig);
     expect(screen.getByTestId('quick-order-error')).toBeOnTheScreen();
     expect(screen.getByText(pl.quickOrder.loadFailed)).toBeOnTheScreen();
+  });
+});
+
+const WO = '0194c2a0-0000-7000-8000-0000000000c1';
+const PENDING: OrderDetail = {
+  id: WO,
+  number: null,
+  title: 'Dom — sam montaż',
+  status: 'new',
+  awaitingNumber: true,
+  templateName: 'Dom — sam montaż',
+  note: 'Oględziny w piątek',
+  pendingMutationId: '0194c2a0-0000-7000-8000-0000000000d1',
+  customer: { name: 'Anna Fikcyjna', phone: '600 000 009', dial: '600000009' },
+  location: { street: 'ul. Testowa 5', city: '05-500 Piaseczno', spot: null, level: null, powerKw: null, operator: null, manager: null },
+  scope: [],
+  processes: [],
+  journal: [
+    {
+      id: 'n1',
+      source: 'pending',
+      kind: 'note',
+      category: 'other',
+      author: null,
+      at: 5,
+      body: 'Wpis czeka',
+      redacted: false,
+      superseded: false,
+      correction: false,
+      awaitsOrder: true,
+    },
+  ],
+};
+const queued: QueueRecord = {
+  mutationId: PENDING.pendingMutationId ?? '',
+  type: 'CreateQuickWorkOrder',
+  commandVersion: 1,
+  payload: {
+    workOrderId: WO,
+    title: PENDING.title,
+    newCustomer: { displayName: 'Anna Fikcyjna' },
+    newSite: { street: 'ul. Testowa', buildingNumber: '5', city: 'Piaseczno' },
+  },
+  objectId: WO,
+  orderingKey: WO,
+  createdAt: 1,
+  ownerUserId: 'u1',
+  state: 'pending',
+  attempts: 0,
+};
+
+describe('the order waiting for its number (EVM-106 AC2, AC4)', () => {
+  const waiting = (): PortsRig => {
+    const rig = rigWith();
+    rig.sync.rows = buildOrderList({ orders: [], customers: [], sites: [], stages: [] }, [queueFact(queued, true)]);
+    rig.sync.details.set(WO, PENDING);
+    return rig;
+  };
+
+  it('EVM-106 AC2: the row on the list opens the details from the queue - the badge, the banner, the template, the note and the entry that waits for the order', async () => {
+    const rig = waiting();
+    await open(rig);
+    await fireEvent.press(screen.getByTestId(`order-row-${WO}`));
+    await settle();
+    expect(screen.getByTestId('order-detail-awaiting')).toBeOnTheScreen();
+    expect(screen.getByTestId('order-detail-pending-banner')).toBeOnTheScreen();
+    expect(screen.getByTestId('order-detail-template')).toHaveAccessibleName('Szablon: Dom — sam montaż');
+    expect(screen.getByTestId('order-detail-note')).toHaveAccessibleName('Notatka: Oględziny w piątek');
+    expect(screen.queryByTestId('order-detail-status')).toBeNull();
+    expect(screen.queryByTestId('order-detail-processes')).toBeNull();
+    expect(within(screen.getByTestId('order-detail-entry-n1')).getByText('Wyślemy po utworzeniu zlecenia')).toBeOnTheScreen();
+  });
+
+  it('EVM-106 AC2: an entry added to the waiting order waits in the queue behind the order (the parent is the mutation of the order)', async () => {
+    const rig = waiting();
+    await open(rig);
+    await fireEvent.press(screen.getByTestId(`order-row-${WO}`));
+    await settle();
+    await fireEvent.press(screen.getByTestId('order-detail-add-entry'));
+    await settle();
+    await fireEvent.changeText(screen.getByTestId('entry-body'), 'Wpis do nowego zlecenia');
+    await fireEvent.press(screen.getByTestId('entry-save'));
+    await settle();
+    expect(rig.sync.enqueued[0]).toMatchObject({
+      type: 'CreateNote',
+      parentMutationId: PENDING.pendingMutationId,
+      payload: { workOrderId: WO },
+    });
+  });
+
+  it('EVM-106 AC4: when the order gets its number the same screen turns into the synchronized order and the number is announced once, without data', async () => {
+    const rig = waiting();
+    await open(rig);
+    await fireEvent.press(screen.getByTestId(`order-row-${WO}`));
+    await settle();
+    expect(announce).not.toHaveBeenCalled();
+    rig.sync.details.set(WO, {
+      ...PENDING,
+      number: 'ZL-2026-0099',
+      awaitingNumber: false,
+      status: 'new',
+      note: null,
+      journal: [],
+    });
+    await act(() => {
+      rig.sync.set({ lastSuccessAt: 123_456 });
+    });
+    await settle();
+    expect(screen.queryByTestId('order-detail-awaiting')).toBeNull();
+    expect(screen.getByTestId('order-detail-status')).toBeOnTheScreen();
+    expect(announce).toHaveBeenCalledTimes(1);
+    expect(announce).toHaveBeenCalledWith('Zlecenie dostało numer ZL-2026-0099.');
+    // a further refresh does not announce it again
+    await act(() => {
+      rig.sync.set({ lastSuccessAt: 234_567 });
+    });
+    await settle();
+    expect(announce).toHaveBeenCalledTimes(1);
+  });
+
+  it('EVM-106 AC4: an order opened already numbered is not announced', async () => {
+    const rig = waiting();
+    rig.sync.details.set(WO, { ...PENDING, number: 'ZL-2026-0099', awaitingNumber: false, journal: [] });
+    await open(rig);
+    await fireEvent.press(screen.getByTestId(`order-row-${WO}`));
+    await settle();
+    expect(announce).not.toHaveBeenCalled();
   });
 });

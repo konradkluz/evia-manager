@@ -146,3 +146,17 @@ describe('stages (EVM-105 AC1)', () => {
     expect(stageChoices({ processes: [] })).toEqual([]);
   });
 });
+
+describe('entry for a quick order in the queue (EVM-106 AC2)', () => {
+  const PARENT = '0194c2a0-0000-7000-8000-0000000000d1';
+  it('EVM-106 AC2: a note and a comment carry the parent mutation (they wait behind the order); without a parent there is no such key', () => {
+    for (const kind of ['note', 'comment'] as const) {
+      const built = buildEntryInput(draft({ kind, parentMutationId: PARENT }), NOW, ids());
+      expect(built.ok && built.input.parentMutationId).toBe(PARENT);
+    }
+    for (const parentMutationId of [undefined, null]) {
+      const built = buildEntryInput(draft({ parentMutationId }), NOW, ids());
+      expect(built.ok && 'parentMutationId' in built.input).toBe(false);
+    }
+  });
+});
