@@ -10,6 +10,7 @@ import {
   type AttentionResult,
   type QueueItem,
   type QueueView,
+  type RecreateSource,
   type SyncPauseReason,
   type SyncRuntime,
   type SyncSnapshot,
@@ -131,8 +132,24 @@ export class FakeSync implements SyncRuntime {
     this.calls.push(`discard:${id}`);
     return Promise.resolve(this.result);
   }
-  recreate(id: string): Promise<AttentionResult> {
+  /** The sources of "Utwórz ponownie" by id (EVM-128; set by the test); an id that is not there = `null`. `recreateSourceHook` can hold the answer. */
+  recreateSources = new Map<string, RecreateSource>();
+  readonly recreateSourceRequests: string[] = [];
+  recreateSourceHook: ((id: string) => Promise<RecreateSource | null>) | undefined;
+  recreateSource(id: string): Promise<RecreateSource | null> {
+    this.recreateSourceRequests.push(id);
+    if (this.recreateSourceHook !== undefined) return this.recreateSourceHook(id);
+    return Promise.resolve(this.recreateSources.get(id) ?? null);
+  }
+  /** What was passed to `recreate` with data (EVM-128), in order; `recreateHook` lets a test hold or fail the call. */
+  readonly recreated: { id: string; payload: Record<string, unknown> }[] = [];
+  recreateHook: ((id: string, payload: Record<string, unknown>) => Promise<AttentionResult>) | undefined;
+  recreate(id: string, payload?: Record<string, unknown>): Promise<AttentionResult> {
     this.calls.push(`recreate:${id}`);
+    if (payload !== undefined) {
+      this.recreated.push({ id, payload });
+      if (this.recreateHook !== undefined) return this.recreateHook(id, payload);
+    }
     return Promise.resolve(this.result);
   }
   retarget(id: string, workOrderId: string): Promise<AttentionResult> {

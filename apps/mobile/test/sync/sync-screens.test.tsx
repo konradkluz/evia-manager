@@ -460,10 +460,11 @@ describe('Kolejka and "Wymaga uwagi" (EVM-107 AC3, AC4)', () => {
     const handled: string[] = [];
     const second = stubPorts();
     second.sync.items = [
+      // a quick work order has its own form since EVM-128 (its own test file); a note or a comment goes through the injected handler
       item({
-        code: 'template_unavailable',
-        reason: 'template_unavailable',
-        type: 'CreateQuickWorkOrder',
+        code: 'id_conflict',
+        reason: 'id_conflict',
+        type: 'CreateComment',
         actions: ['recreate', 'discard'],
       }),
     ];

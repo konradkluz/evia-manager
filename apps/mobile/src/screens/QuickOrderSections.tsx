@@ -481,6 +481,7 @@ export function TemplateSection({
   onShowAll,
   onPick,
   error,
+  notice,
 }: {
   templates: readonly PhoneTemplate[];
   /** Whether the type of the site hides some templates ("Pokaż wszystkie" is offered only then). */
@@ -491,11 +492,14 @@ export function TemplateSection({
   onShowAll: () => void;
   onPick: (template: PhoneTemplate) => void;
   error: string | undefined;
+  /** A line under the heading (EVM-128: the template of a rejected order is no longer available); it goes away with the choice. */
+  notice?: string | undefined;
 }) {
   const { t } = useTranslation();
   return (
     <View style={{ rowGap: space.stack.sm }} testID="quick-template">
       <Heading title={t('quickOrder.template')} />
+      {notice === undefined ? null : <InlineAlert tone="info" body={notice} testID="quick-template-gone" />}
       {all === 0 ? (
         <InlineAlert tone="info" body={t('quickOrder.noTemplates')} testID="quick-no-templates" />
       ) : (

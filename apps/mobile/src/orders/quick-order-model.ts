@@ -274,7 +274,7 @@ export function validateQuickOrder(
 }
 
 export type BuildQuickResult =
-  | { readonly ok: true; readonly input: EnqueueInput; readonly workOrderId: string }
+  | { readonly ok: true; readonly input: EnqueueInput; readonly payload: Record<string, unknown>; readonly workOrderId: string }
   | { readonly ok: false; readonly errors: readonly QuickError[] };
 
 /**
@@ -322,7 +322,7 @@ export function buildQuickOrderInput(
   }
   const note = cleanNote(draft.note) ?? '';
   if (note !== '') payload['note'] = note;
-  return { ok: true, workOrderId, input: { type: 'CreateQuickWorkOrder', commandVersion: 1, payload } };
+  return { ok: true, workOrderId, payload, input: { type: 'CreateQuickWorkOrder', commandVersion: 1, payload } };
 }
 
 const asRecord = (value: unknown): Record<string, unknown> =>
@@ -371,6 +371,11 @@ export function draftFromQuickPayload(
     title: asText(payload['title']),
     note: asText(payload['note']),
   };
+}
+
+/** Whether the technician changed anything since the form opened (the question "Porzucić zmiany?" of a form that starts full). */
+export function draftChanged(draft: QuickOrderDraft, start: QuickOrderDraft): boolean {
+  return (Object.keys(EMPTY_DRAFT) as (keyof QuickOrderDraft)[]).some((key) => draft[key] !== start[key]);
 }
 
 /** The name of a customer the way the search compares it: no case, no Polish letters, one space. */

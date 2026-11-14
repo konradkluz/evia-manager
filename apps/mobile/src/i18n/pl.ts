@@ -267,6 +267,17 @@ export const pl = {
       too_large: 'Zlecenie jest zbyt duże, żeby je zapisać w telefonie. Skróć notatkę — zlecenie zostaje w formularzu.',
       failed: 'Nie udało się zapisać zlecenia. Spróbuj ponownie — zlecenie zostaje w formularzu.',
     },
+    // "Utwórz ponownie" odrzuconego szybkiego zlecenia (EVM-128)
+    recreate: {
+      reasonDefault: 'Zlecenie nie zostało utworzone — sprawdź dane klienta i adres.',
+      reasonIdConflict: 'Ten element nie mógł zostać zapisany — zapisz go jeszcze raz.',
+      dependents: 'Zdjęcia i wpisy ({{count}}) przeniesiemy do nowego zlecenia.',
+      templateGone: 'Poprzedni szablon nie jest już dostępny. Wybierz nowy.',
+      failed: 'Nie udało się zapisać ponownie. Odrzucone zlecenie zostało bez zmian.',
+      discardTitle: 'Porzucić zmiany?',
+      discardBody: 'Odrzucone zlecenie zostanie w kolejce.',
+      saved: 'Zapisano ponownie w telefonie. Numer nadamy po synchronizacji.',
+    },
   },
   localData: {
     lostTitle: 'Dane zapisane na tym telefonie, które nie zostały wysłane, są niedostępne.',
@@ -462,6 +473,8 @@ export const pl = {
     group_few: 'Czekają z nim {{count}} elementy.',
     group_many: 'Czeka z nim {{count}} elementów.',
     hiddenActions: 'Dane zleceń są ukryte. Akcje wrócą po ponownym zalogowaniu.',
+    // EVM-128: "Utwórz ponownie" szybkiego zlecenia w trybie ukrytych danych
+    recreateHidden: 'Zaloguj się ponownie, aby poprawić dane.',
     copied: 'Skopiowano.',
     copyFailed: 'Nie udało się skopiować.',
     failed: 'Nie udało się wykonać operacji. Spróbuj ponownie.',
