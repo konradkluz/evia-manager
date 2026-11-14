@@ -143,14 +143,15 @@ const sessionRow = async (sessionId: string) =>
 
 /** The whole flow on the phone for one file; returns what the tests look at. */
 async function phoneUpload(who: Phone, orderId: string, mediaId: string, body: Buffer) {
-  const created = await openSession(who, orderId, mediaId, { file: declaration(body) });
+  const file = declaration(body);
+  const created = await openSession(who, orderId, mediaId, { file });
   expect(created.status, JSON.stringify(created.body)).toBe(201);
   const sessionId = (created.body as { id: string }).id;
   const list = await call(who, 'get', `${sessionPath(orderId, mediaId, sessionId)}/parts`);
   const url = await call(who, 'get', `${sessionPath(orderId, mediaId, sessionId)}/parts/1/url`);
   current.storage.putPart(await uploadIdOf(sessionId), 1, body);
   const complete = await call(who, 'post', `${sessionPath(orderId, mediaId, sessionId)}/complete`);
-  return { created, sessionId, list, url, complete };
+  return { created, sessionId, list, url, complete, file };
 }
 
 describe('EVM-131 AC1 - the five operations of the upload session on the phone, the same answers as the panel (SR-FILE-02, SR-API-05)', () => {
@@ -161,7 +162,7 @@ describe('EVM-131 AC1 - the five operations of the upload session on the phone, 
       const who = await phone(role);
       const mediaId = await phoneMedium(orderId, who.user.id);
       const body = jpeg(3000);
-      const { created, sessionId, list, url, complete } = await phoneUpload(who, orderId, mediaId, body);
+      const { created, sessionId, list, url, complete, file: declared } = await phoneUpload(who, orderId, mediaId, body);
 
       expect(created.headers['cache-control']).toBe('no-store');
       expect(created.body).toMatchObject({ id: sessionId, mediaAssetId: mediaId, state: 'active', partCount: 1 });
@@ -179,6 +180,13 @@ describe('EVM-131 AC1 - the five operations of the upload session on the phone, 
       expect(complete.body).toMatchObject({ id: mediaId, fileState: 'uploaded' });
       expect(JSON.stringify(complete.body)).not.toMatch(/object_?key|media\/20|upload_?id|sha256/i);
 
+      // the address of the part, the key of the object and the name of the file are never logged (SR-LOG-02)
+      const signed = (url.body as { url: string }).url;
+      const [stored] = await fileOf(mediaId);
+      for (const secret of [signed, signed.split('?')[0] ?? signed, stored?.object_key ?? '', declared.fileName]) {
+        expect(secret.length).toBeGreaterThan(8);
+        expect(current.logs.text).not.toContain(secret);
+      }
       const [file] = await fileOf(mediaId);
       expect(file).toMatchObject({ state: 'uploaded', declared_size_bytes: String(body.length), declared_sha256: sha256Of(body) });
       expect(await current.app.get(MediaScanService, { strict: false }).runOnce()).toBe(1);

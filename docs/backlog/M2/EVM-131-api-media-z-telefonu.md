@@ -84,3 +84,4 @@ Zmiana czasu ważności adresu części (zostaje ≤ 60 min; kryterium „≤ 15
 - 2026-11-14 — utworzono (product-owner) po konsultacji architekta (luka: serwer nie obsługuje mediów z telefonu); 6 AC
 - 2026-11-14 — draft → ready: kryteria zatwierdzone przez Tech Leada z delegacji Konrada (pytanie przed nocą 2026-11-14); Konrad przegląda je rano w PR
 - 2026-11-14 — start realizacji w kolejce nocnej `/noc-2026-11-14` (Tech Lead): status `in-progress`, gałąź `feature/queue-2026-11-14-api-media-i-drobne`
+- 2026-11-14 — plan gotowy (backend-developer)
