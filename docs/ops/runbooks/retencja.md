@@ -42,9 +42,9 @@ Zadanie retencji danych biznesowych powstaje w M4 (SR-DATA-07, „polityki reten
 | Strona — osoba fizyczna lub osoba kontaktowa — 2 lata od ostatniego zlecenia | strony powiązane tylko ze starymi zleceniami | edycja strony: dane osoby zastąpione wartościami neutralnymi („Osoba usunięta”, puste telefon, e-mail i notatki) |
 | Konto pracownika — 2 lata od dezaktywacji | Administracja → Użytkownicy, „Dezaktywowane” | do M4 bez operacji anonimizacji konta — zapis w karcie przeglądu „czeka na M4” |
 
-Pełne usunięcie wierszy (purge) zleceń i klientów nie istnieje do M4 — powyższe operacje usuwają dane osób, a struktura (identyfikatory, kody, kwoty) zostaje. Kopie zapasowe wygasają same (do 37 dni — RR-14).
+Pełne usunięcie wierszy (purge) zleceń i klientów nie istnieje do M4 — powyższe operacje usuwają dane osób, a struktura (identyfikatory, kody, kwoty) zostaje. Kopie zapasowe wygasają same (do 37 dni — RR-14). Do rejestru usunięć trafiają tylko redakcja wpisu, trwałe usunięcie pliku i anonimizacja klienta; edycje na wartości neutralne (tytuł i opis zlecenia, strony, lokalizacje) i „Usuń zlecenie” nie. Dlatego w karcie przeglądu zapisz identyfikatory edytowanych obiektów, a po odtworzeniu bazy z kopii przejrzyj rejestr żądań i karty przeglądów retencji od punktu odtworzenia i powtórz operacje ręczne (neutralizacja lokalizacji i stron, soft delete z art. 18) — [restore](restore.md).
 
-**Karta przeglądu** (poza repozytorium, w rejestrze żądań i przeglądów — [`rodo.md` → „Rejestry poza repozytorium”](../../security/rodo.md#rejestry-poza-repozytorium)): data · kto · kategoria · liczba obiektów · wykonane operacje (bez nazw i danych osób) · co czeka na M4.
+**Karta przeglądu** (poza repozytorium, w rejestrze żądań i przeglądów — [`rodo.md` → „Rejestry poza repozytorium”](../../security/rodo.md#rejestry-poza-repozytorium)): data · kto · kategoria · liczba obiektów · identyfikatory obiektów edytowanych ręcznie (do powtórzenia po odtworzeniu kopii) · wykonane operacje (bez nazw i danych osób) · co czeka na M4.
 
 ## 3. Sprawdzenie zgodności (przy zmianie okresu i przed wydaniem)
 1. `rodo.md` „Retencja” i P4 mają ten sam okres.

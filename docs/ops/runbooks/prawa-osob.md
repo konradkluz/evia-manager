@@ -14,7 +14,7 @@
 | Rodzaj | art. 15 / 16 / 17 / 18 / 20 / 21 (może być kilka) |
 | Termin | data wpływu + 1 miesiąc; przedłużenie (+2 mies.) — data i powód przekazany osobie |
 | Weryfikacja tożsamości | sposób (bez kopii dokumentów), data, kto |
-| Obiekty w systemie | identyfikatory (klient, zlecenia) — bez nazw |
+| Obiekty w systemie | identyfikatory (klient, zlecenia; edytowane lokalizacje i strony, obiekty usunięte w trybie art. 18 — do powtórzenia po odtworzeniu kopii) — bez nazw |
 | Decyzja i podstawa | wykonano / częściowo (wyjątek z art. 17 ust. 3 albo 21) / odmowa z uzasadnieniem |
 | Wykonane operacje | kody operacji z sekcji 4 i data |
 | Odpowiedź | data i kanał |
@@ -58,9 +58,11 @@ Kolejność (najpierw elementy powiązane, na końcu klient — po anonimizacji 
 5. **Strony** będące osobą fizyczną lub osobą kontaktową — edycja na wartości neutralne („Osoba usunięta”, puste telefon, e-mail, notatki).
 6. **Klient** — anonimizacja (EVM-041, step-up; wymaga zamkniętych zleceń — `409 has_active_dependents`). Nieodwracalna.
 7. **Pracownik** — dezaktywacja konta; anonimizacja konta — M4; zgłoszenie do wsparcia Scaleway o usunięcie logów TEM z adresem osoby (decyzja EVM-089).
-8. **Kopie zapasowe** — dane zostają w kopiach do 37 dni i wracają do usunięcia przez rejestr usunięć po odtworzeniu (RR-14); powiedz o tym osobie.
+8. **Kopie zapasowe** — dane zostają w kopiach do 37 dni (RR-14); powiedz o tym osobie. Po odtworzeniu bazy z kopii:
+   - kroki 1, 2, 3 i 6 (redakcja wpisu, trwałe usunięcie zdjęcia lub dokumentu, anonimizacja klienta) są w **rejestrze usunięć** i wracają do usunięcia przez jego ponowne zastosowanie ([rejestr usunięć](rejestr-usuniec.md));
+   - kroki 4–5 (neutralizacja lokalizacji i stron) oraz ograniczenie z art. 18 (soft delete) **nie trafiają do rejestru** — po odtworzeniu trzeba je powtórzyć ręcznie. Dlatego w karcie żądania, w polu „Obiekty w systemie”, zapisz identyfikatory każdej edytowanej lokalizacji i strony oraz każdego obiektu usuniętego w trybie art. 18.
 
-Anonimizacja (krok 6) i redakcja (krok 1) zapisują identyfikatory do rejestru usunięć; gdy panel zwróci błąd niedostępności rejestru (`503`), operacja się nie wykonała — zgłoś to `devops-engineer` i powtórz.
+Anonimizacja (krok 6), redakcja (krok 1) i trwałe usunięcie pliku (kroki 2–3) zapisują identyfikatory do rejestru usunięć; gdy panel zwróci błąd niedostępności rejestru (`503`), operacja się nie wykonała — zgłoś to `devops-engineer` i powtórz.
 
 ### Art. 19 — powiadomienie odbiorców
 Odbiorcy danych z dokumentów zlecenia (OSD, administracja, projektant) — powiadomienie o sprostowaniu, usunięciu lub ograniczeniu poza systemem (e-mail, pismo); odnotuj w karcie.
