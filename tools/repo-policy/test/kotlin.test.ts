@@ -121,7 +121,21 @@ describe('EVM-109 AC5, AC7: thresholds and exclusions on the real files', () => 
     expect(upload).toEqual([
       'apps/mobile/modules/evia-keystore/android/src/main/java/pl/eviacharge/keystore/EviaKeystoreModule.kt',
       'apps/mobile/modules/evia-clipboard/android/src/main/java/pl/eviacharge/clipboard/EviaClipboardModule.kt',
+      // EVM-130 (A2): the glue of the background upload, one reason per file; the decisions are in the pure engine
+      'apps/mobile/modules/evia-upload/android/src/main/java/pl/eviacharge/upload/android/UploadJobService.kt',
+      'apps/mobile/modules/evia-upload/android/src/main/java/pl/eviacharge/upload/android/EviaUploadModule.kt',
+      'apps/mobile/modules/evia-upload/android/src/main/java/pl/eviacharge/upload/android/TokenKeystore.kt',
+      'apps/mobile/modules/evia-upload/android/src/main/java/pl/eviacharge/upload/android/UploadNotifications.kt',
+      'apps/mobile/modules/evia-upload/android/src/main/java/pl/eviacharge/upload/android/AndroidSystemJobs.kt',
+      'apps/mobile/modules/evia-upload/android/src/main/java/pl/eviacharge/upload/android/UploadRuntime.kt',
     ]);
+    // every glue file on disk is on the list and has a reason, and no pure file of the engine is (a new glue file must be added on purpose)
+    const glue = filesBelow('apps/mobile/modules/evia-upload/android', (path) => path.endsWith('.kt') || path.endsWith('.java'));
+    expect(glue.toSorted()).toEqual(upload.filter((pattern) => pattern.includes('/evia-upload/')).toSorted());
+    const entries = record(json('packages/config/coverage-exclusions.json'))['exclude'] as Array<Record<string, string>>;
+    expect(
+      entries.filter((entry) => (entry['pattern'] ?? '').includes('/android/')).every((entry) => (entry['reason'] ?? '').length > 80),
+    ).toBe(true);
     expect(upload.some((pattern) => pattern.includes('*'))).toBe(false);
     expect(patterns.some((pattern) => /(^|\/)engine(\/|$)/.test(pattern))).toBe(false);
   });
