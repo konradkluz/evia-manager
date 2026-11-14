@@ -146,6 +146,41 @@ describe('EVM-131 AC4 AC6 - the If-Match of the panel does not see a change of t
   });
 });
 
+describe('EVM-131 AC3 - the batch of the panel and the command of the phone judge the description by ONE function', () => {
+  it('EVM-131 AC3 the batch of the panel refuses a description with a control character at /items/N/description, keeps none for a blank one and the text normalised for a real one - nothing is written on a refusal', async () => {
+    const orderId = await order();
+    const editor = await web('editor');
+    const item = (description: string | undefined) => ({
+      id: uuidv7(),
+      category: 'other',
+      fileName: 'IMG_5.JPG',
+      declaredSize: 2048,
+      contentType: 'image/jpeg',
+      sha256: 'a'.repeat(64),
+      ...(description === undefined ? {} : { description }),
+    });
+    const post = (items: unknown[]) => editor.panel.post(`${BASE}/${orderId}/media-assets`, { items }, { 'Idempotency-Key': uuidv7() });
+    const bad = await post([item('ok'), item('a\u0000b')]);
+    expect(bad.status).toBe(400);
+    expect((bad.body as { errors: Array<{ pointer: string }> }).errors.map((error) => error.pointer)).toEqual(['/items/1/description']);
+    const written = await sql<{ n: string }>`select count(*)::text as n from media.media_assets where work_order_id = ${orderId}`.execute(
+      admin(),
+    );
+    expect(written.rows[0]?.n).toBe('0');
+
+    const blank = item('   ');
+    const real = item('  Skrzynka  ' + String.fromCharCode(13, 10) + ' po remoncie ');
+    expect((await post([blank, real])).status).toBe(201);
+    const rows = await sql<{
+      id: string;
+      description: string | null;
+    }>`select id, description from media.media_assets where work_order_id = ${orderId}`.execute(admin());
+    const byId = new Map(rows.rows.map((row) => [row.id, row.description]));
+    expect(byId.get(blank.id)).toBeNull();
+    expect(byId.get(real.id)).toBe('Skrzynka  \n po remoncie');
+  });
+});
+
 describe('EVM-131 AC1 AC4 - a medium of the phone that has no file yet breaks nothing (ADR-0021 D4)', () => {
   it('EVM-131 AC4 the list of the panel does not show it, and the filter of unfinished uploads never shows a medium of the phone - with a file or without (the banner counts the batches of the panel)', async () => {
     const orderId = await order();

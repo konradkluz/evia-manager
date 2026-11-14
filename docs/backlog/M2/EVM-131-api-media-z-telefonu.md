@@ -85,3 +85,4 @@ Zmiana czasu ważności adresu części (zostaje ≤ 60 min; kryterium „≤ 15
 - 2026-11-14 — draft → ready: kryteria zatwierdzone przez Tech Leada z delegacji Konrada (pytanie przed nocą 2026-11-14); Konrad przegląda je rano w PR
 - 2026-11-14 — start realizacji w kolejce nocnej `/noc-2026-11-14` (Tech Lead): status `in-progress`, gałąź `feature/queue-2026-11-14-api-media-i-drobne`
 - 2026-11-14 — plan gotowy (backend-developer)
+- 2026-11-14 — implementacja gotowa na gałęzi (backend-developer): kontrakt (5 operacji `[web, mobile]`, `CreateMediaAsset`, `file` w sesji, stany `clean`/`quarantined`), migracja `0065_media_sync`, replikacja `media_asset`, komenda, testy AC1–AC6 w kontenerze; czeka na przegląd (code-reviewer, security-engineer) i bramkę orkiestratora

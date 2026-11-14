@@ -186,6 +186,8 @@ describe('CreateMediaAsset creates the medium once (EVM-131 AC3; SR-SYNC-03)', (
     for (const payload of [
       { category: 'selfie' },
       { description: 'x'.repeat(1001) },
+      // passes the schema, fails the rules of the text of `media` (a control character) - after the order was judged
+      { description: 'a\u0000b' },
       { id: 'nope' },
       { origin: 'web' },
       { createdBy: uuidv7() },

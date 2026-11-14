@@ -11,6 +11,7 @@ import {
   procedureStageChange,
   scopeItemChange,
   siteChange,
+  mediaAssetChange,
   timelineEntryChange,
   userChange,
   workOrderChange,
@@ -282,6 +283,100 @@ describe('the serializers of the remaining types list the fields of the contract
     expect(JSON.stringify(all)).not.toMatch(/SENTINEL|example\.invalid|payment_milestone|administrator|lastLoginAt/);
     expect(named).toEqual({ op: 'upsert', entity: { type: 'user', id, version: 3, displayName: 'Jan Testowy' } });
     expect(stage).toMatchObject({ entity: { startedAt: NOW.toISOString(), procedureCode: 'connection' } });
+  });
+});
+
+describe('the serializer of a medium for the phone (EVM-131 AC4; SR-SYNC-04, SR-MOB-10, CWE-213)', () => {
+  const id = randomUUID();
+  const leaks = {
+    description: 'SENTINEL-DESCRIPTION',
+    capturedAt: NOW,
+    originalFilename: 'SENTINEL-NAME.JPG',
+    objectKey: 'media/2026/11/SENTINEL/original',
+    sha256: 'SENTINEL-SHA',
+    quarantineReasonCode: 'malware_detected',
+    sizeBytes: 123,
+    createdBy: id,
+  };
+
+  it('EVM-131 AC4 a row with more fields than the projection keeps only the listed ones; the fields of the contract that are not part of the minimal payload are null; the strict check passes', () => {
+    const change = mediaAssetChange({
+      id,
+      version: 5,
+      workOrderId: randomUUID(),
+      mediaType: 'video',
+      category: 'defect',
+      procedureStageId: null,
+      fileState: 'quarantined',
+      fileStateReasonCode: null,
+      ...leaks,
+    });
+    expect(assertSyncProjectionStrict(change)).toEqual({ ok: true });
+    expect(change).toMatchObject({
+      op: 'upsert',
+      entity: {
+        type: 'media_asset',
+        id,
+        version: 5,
+        mediaType: 'video',
+        category: 'defect',
+        procedureStageId: null,
+        fileState: 'quarantined',
+        fileStateReasonCode: null,
+        description: null,
+        capturedAt: null,
+        sizeBytes: null,
+        durationSeconds: null,
+        widthPx: null,
+        heightPx: null,
+      },
+    });
+    expect(JSON.stringify(change)).not.toMatch(/SENTINEL|malware_detected|media\/2026|123/);
+    expect(Object.keys(change.entity as Record<string, unknown>).sort()).toEqual(
+      [
+        'type',
+        'id',
+        'version',
+        'workOrderId',
+        'mediaType',
+        'category',
+        'description',
+        'procedureStageId',
+        'capturedAt',
+        'fileState',
+        'fileStateReasonCode',
+        'sizeBytes',
+        'durationSeconds',
+        'widthPx',
+        'heightPx',
+      ].sort(),
+    );
+  });
+
+  it('EVM-131 AC4 every state the phone knows and every reason of the allow-list passes the strict check of the contract', () => {
+    for (const [fileState, fileStateReasonCode] of [
+      ['pending', null],
+      ['uploading', null],
+      ['clean', null],
+      ['processing', null],
+      ['ready', null],
+      ['quarantined', null],
+      ['failed', 'checksum_mismatch'],
+      ['failed', 'processing_error'],
+      ['failed', 'abandoned'],
+    ] as const) {
+      const change = mediaAssetChange({
+        id,
+        version: 1,
+        workOrderId: id,
+        mediaType: 'photo',
+        category: 'other',
+        procedureStageId: id,
+        fileState,
+        fileStateReasonCode,
+      });
+      expect(assertSyncProjectionStrict(change), `${fileState} ${String(fileStateReasonCode)}`).toEqual({ ok: true });
+    }
   });
 });
 

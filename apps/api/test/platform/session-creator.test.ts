@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { creatorOf } from '../../src/modules/media/application/media-support.ts';
+import { sessionCreatorOf as creatorOf } from '../../src/platform/http/principal.ts';
 import { ProblemException } from '../../src/platform/http/problem.ts';
 import type { Principal } from '../../src/platform/http/principal.ts';
 

@@ -70,8 +70,8 @@ export async function insertMediaAsset(db: MediaDb, asset: NewMediaAsset, now: D
   return result !== undefined;
 }
 
-/** @returns whether the file was inserted (`false`: the medium has a file already - the unique `media_asset_id`; a parallel declaration of the file by the phone, EVM-131) */
-export async function insertStoredFile(db: MediaDb, file: NewStoredFile, now: Date): Promise<boolean> {
+/** @returns the file inserted (`undefined`: the medium has a file already - the unique `media_asset_id`; a parallel declaration of the file by the phone, EVM-131) */
+export async function insertStoredFile(db: MediaDb, file: NewStoredFile, now: Date): Promise<StoredFileRow | undefined> {
   const inserted = await db
     .insertInto('media.stored_files')
     .values({
@@ -98,9 +98,9 @@ export async function insertStoredFile(db: MediaDb, file: NewStoredFile, now: Da
       created_by: file.createdBy,
     })
     .onConflict((conflict) => conflict.column('media_asset_id').doNothing())
-    .returning('id')
+    .returningAll()
     .executeTakeFirst();
-  return inserted !== undefined;
+  return inserted;
 }
 
 /** The medium of THIS order (live) that has NO file yet - created on the phone, the file is declared in the upload session (EVM-131). Call after {@link lockLiveAsset}. */

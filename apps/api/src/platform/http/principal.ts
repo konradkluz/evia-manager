@@ -10,6 +10,7 @@
 import type { Channel, UserRole } from '@evia/contracts';
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import type { Logger } from '../logging/logger.ts';
+import { ProblemException } from './problem.ts';
 
 export type SessionState = 'mfa_enrollment' | 'active';
 
@@ -74,6 +75,17 @@ export const bearerPrincipalOf = (request: Request): Principal | null => bearerA
 export function dualChannelPrincipalOf(request: Request): Principal | null {
   const cookie = principalOf(request);
   return cookie !== null && cookie.channel === 'web' ? cookie : bearerPrincipalOf(request);
+}
+
+/**
+ * The creator of an upload session (EVM-131; SR-SYNC-08, SR-API-05, CWE-639): the user and the device. The device is ONLY the one of the session of the phone (`principal.deviceId`, set by
+ * the resolver from the Bearer token) - never a header or a field of the body; the panel has none (`null`, whatever a session of the panel carries). A session of the phone without a device
+ * is not a case that exists: it fails closed (`403`) rather than becoming the creator of the panel.
+ */
+export function sessionCreatorOf(principal: Principal): { readonly userId: string; readonly deviceId: string | null } {
+  if (principal.channel !== 'mobile') return { userId: principal.userId, deviceId: null };
+  if (principal.deviceId === undefined) throw new ProblemException('forbidden');
+  return { userId: principal.userId, deviceId: principal.deviceId };
 }
 
 export function resolveAuthentication(resolver: SessionResolver, logger: Logger): RequestHandler {

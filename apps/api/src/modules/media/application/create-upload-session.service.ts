@@ -40,7 +40,6 @@ import {
   creatorOfOwner,
   fileOfOwner,
   findActiveSession,
-  findAssetWithFile,
   findAssetWithoutFile,
   findOwnerWithFile,
   findSessionChain,
@@ -70,6 +69,12 @@ const documentBodySchema = strictObjects(zCreateDocumentUploadSessionBody);
 const RETRY_AFTER_SECONDS = 60;
 const sessionIsGone = (session: { state: string; expires_at: Date }, now: Date): boolean =>
   session.state === 'aborted' || session.state === 'expired' || (session.state === 'active' && session.expires_at <= now);
+
+/** A declaration of a file that passed the checks: what the client sent and what the rules made of it. */
+interface Declaration {
+  readonly file: FileDeclaration;
+  readonly checked: CheckedDeclaration;
+}
 
 export interface CreatedSession {
   readonly session: UploadSession | DocumentUploadSession;
@@ -150,7 +155,8 @@ export class CreateUploadSessionService {
         const file =
           found !== undefined
             ? fileOfOwner(found)
-            : await this.#declareFile(tables, order.id, owner.id, principal.userId, declaration, now);
+            : // no file: `#declaration` has refused the request already unless it carries the declaration
+              await this.#declareFile(tables, order.id, owner.id, principal.userId, declaration as Declaration, now);
         if (file.state === 'failed' && (file.state_reason_code === 'checksum_mismatch' || file.state_reason_code === 'abandoned')) {
           await transitionFile(
             tables,
@@ -238,12 +244,13 @@ export class CreateUploadSessionService {
     declared: FileDeclaration | undefined,
     existing: StoredFileRow | undefined,
     mediaType: 'photo' | 'video' | undefined,
-  ): { readonly file: FileDeclaration; readonly checked: CheckedDeclaration } | undefined {
+  ): Declaration | undefined {
     if (declared === undefined) {
       if (existing === undefined) throw new ProblemException('validation_failed', { errors: [{ pointer: '/file', code: 'required' }] });
       return undefined;
     }
-    const checked = checkSessionDeclaration(declared, mediaType ?? 'photo');
+    // `file` exists only in the schema of a medium (a document refuses it), so the kind of the medium is known here
+    const checked = checkSessionDeclaration(declared, mediaType as 'photo' | 'video');
     if (!checked.ok) throw new ProblemException('validation_failed', { errors: [...checked.issues] });
     if (existing !== undefined) {
       const stored = {
@@ -270,10 +277,9 @@ export class CreateUploadSessionService {
     workOrderId: string,
     mediaAssetId: string,
     userId: string,
-    declaration: { readonly file: FileDeclaration; readonly checked: CheckedDeclaration } | undefined,
+    declaration: Declaration,
     now: Date,
   ): Promise<StoredFileRow> {
-    if (declaration === undefined) throw new ProblemException('not_found');
     await checkPendingLimits(tables, this.#limits, userId, workOrderId, 1);
     const [fileId] = await newFileIds(tables, 1);
     const inserted = await insertStoredFile(
@@ -290,9 +296,7 @@ export class CreateUploadSessionService {
       },
       now,
     );
-    if (!inserted) throw new ProblemException('id_conflict');
-    const stored = await findAssetWithFile(tables, workOrderId, mediaAssetId, true);
-    if (stored === undefined) throw new ProblemException('not_found');
-    return stored.file;
+    if (inserted === undefined) throw new ProblemException('id_conflict');
+    return inserted;
   }
 }
