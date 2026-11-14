@@ -82,3 +82,4 @@ Raportowanie błędów do dostawcy (Sentry i podobni), biblioteka telemetrii, ma
 - 2026-11-14 — refinement do DoR (product-owner): 6 AC wg konsultacji UX i security (źródło klauzul, odmowa podpisu, statyczna kontrola telemetrii); ścieżka `lekka` ujednolicona w README planu
 - 2026-11-14 — draft → ready: kryteria zatwierdzone przez Tech Leada z delegacji Konrada (pytanie przed nocą 2026-11-14); Konrad przegląda je rano w PR
 - 2026-11-14 — start realizacji w kolejce nocnej `/noc-2026-11-14` (Tech Lead): status `in-progress`, gałąź `feature/queue-2026-11-14-api-media-i-drobne`
+- 2026-11-15 — implementacja (mobile-developer): M-11 z kopią klauzul W-19 i testem równości, kontakt ze zmiennych budowania, wejścia M-01/M-02/M-12/„Więcej”, kontrola telemetrii w `verify` i odmowa `sign` przy klauzulach w stanie projektu, przepływy Maestro 78–79 (E2E czeka na orkiestratora)

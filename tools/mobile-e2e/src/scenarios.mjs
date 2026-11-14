@@ -299,6 +299,16 @@ export const SCENARIOS = [
       },
     ],
   },
+  // EVM-102 AC1-AC4: M-11 "Prywatność i pomoc" - before the sign-in in airplane mode (no contact in this build, no last synchronization,
+  // the statement about crash reports, licences) and from "Więcej" of a signed-in phone (the last synchronization, the build).
+  {
+    name: 'privacy-and-help',
+    ac: 'EVM-102 AC1 AC2 AC3 AC4',
+    steps: [
+      { flow: '78-privacy-before-sign-in.yaml', server: 'ok', airplane: true },
+      { flow: '79-privacy-more.yaml', server: 'ok', airplane: false },
+    ],
+  },
   // Last: the held request keeps the app in its loading state (skeleton), and the first-flow retry of the runner is not affected.
   {
     name: 'loading',

@@ -15,7 +15,7 @@ describe('Maestro flows and scenarios agree (EVM-009 AC4)', () => {
     for (const flow of referenced) {
       const text = readFileSync(join(FLOWS, flow), 'utf8');
       assert.match(text, new RegExp(`^appId: ${APPLICATION_ID.replaceAll('.', String.raw`\.`)}$`, 'm'), flow);
-      assert.match(text, /^# EVM-(009|093|100|103|104|105|106|107|128) AC\d/m, flow);
+      assert.match(text, /^# EVM-(009|093|100|103|104|105|106|107|128|102) AC\d/m, flow);
     }
   });
 
@@ -101,6 +101,9 @@ describe('Maestro flows and scenarios agree (EVM-009 AC4)', () => {
         'm07-entry-moved',
         // EVM-106: the quick work order (M-10), the order waiting for its number (M-03, M-05) and the rejected one (M-07)
         'm10-quick-order-templates',
+        'm11-before-sign-in',
+        'm11-from-more',
+        'm11-licenses',
         'm10-quick-order-no-templates',
         'm03-quick-order-entry-waiting',
         'm05-quick-order-awaiting-number',
@@ -446,5 +449,31 @@ describe('Maestro flows and scenarios agree (EVM-009 AC4)', () => {
     assert.match(flow, /Odrzucone zlecenie zostanie w kolejce\\\./);
     assert.match(flow, /quick-order-discard-confirm/);
     assert.match(flow, /text: 'Rozumiem'\s+optional: true/);
+  });
+});
+
+describe('the scenario of M-11 "Prywatność i pomoc" (EVM-102 AC1-AC4)', () => {
+  it('EVM-102 AC2: the first flow runs in airplane mode on a fresh install, the second online; both keep the lessons of the earlier flows', () => {
+    const scenario = SCENARIOS.find((candidate) => candidate.name === 'privacy-and-help');
+    assert.ok(scenario !== undefined);
+    assert.deepEqual(
+      scenario.steps.map((step) => [step.flow, step.airplane]),
+      [
+        ['78-privacy-before-sign-in.yaml', true],
+        ['79-privacy-more.yaml', false],
+      ],
+    );
+    const before = readFileSync(join(FLOWS, '78-privacy-before-sign-in.yaml'), 'utf8');
+    assert.match(before, /Kontakt z administratorem: zapytaj przełożonego\\./);
+    assert.match(before, /assertNotVisible: 'Ostatnia synchronizacja\.\*'/);
+    assert.match(before, /Aplikacja nie wysyła raportów awarii\.\*/);
+    assert.match(before, /SQLCipher\.\*/);
+    assert.match(before, /text: 'Rozumiem'\n\s+optional: true/);
+    assert.match(before, /scrollUntilVisible/);
+    assert.doesNotMatch(before, /hideKeyboard/);
+    const more = readFileSync(join(FLOWS, '79-privacy-more.yaml'), 'utf8');
+    assert.match(more, /id: 'more-privacy'/);
+    assert.match(more, /Ostatnia synchronizacja\.\*/);
+    assert.match(more, /id: 'more-help'/);
   });
 });

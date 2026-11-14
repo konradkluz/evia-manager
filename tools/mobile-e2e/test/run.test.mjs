@@ -515,7 +515,10 @@ describe('smoke test run (EVM-009 AC4; ADR-0015)', () => {
     // EVM-105 adds "entries-offline": one more offline stretch
     // EVM-106 adds "quick-order-offline" and "quick-order-rejected": two more offline stretches
     // EVM-128 adds "quick-order-recreate": two more offline stretches (the order is created offline, the form is saved offline)
+    // EVM-102 adds "privacy-and-help": one more offline stretch (M-11 before the sign-in)
     assert.deepEqual(machine.airplane(), [
+      'enable',
+      'disable',
       'enable',
       'disable',
       'enable',
