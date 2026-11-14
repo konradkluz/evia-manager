@@ -172,6 +172,49 @@ class EngineBehaviorTest {
     }
 
     @Test
+    fun `EVM-130 AC2 a cancel of the work passes through the engine untouched and the saved progress stays`() {
+        val harness = Harness()
+        val engine =
+            UploadEngine(
+                UploadEngineDeps(
+                    api = harness.server,
+                    transport = { throw UploadCancelledException() },
+                    store = harness.store,
+                    allowedHosts = listOf("store.example.test"),
+                    sleeper = { },
+                    random = { 0.0 },
+                    ids = { "id-1" },
+                ),
+            )
+        assertThrows(UploadCancelledException::class.java) { engine.run(ASSET, SIZE) }
+        assertEquals(JobState.ACTIVE, harness.store.snapshot?.state)
+        assertNotNull(harness.store.snapshot?.partCount)
+    }
+
+    @Test
+    fun `EVM-130 AC5 a stop signal means device_wipe before the first call and between calls, and the instance stays stopped`() {
+        val harness = Harness()
+        var stopped = true
+        val engine =
+            UploadEngine(
+                UploadEngineDeps(
+                    harness.server,
+                    harness.server,
+                    harness.store,
+                    listOf("store.example.test"),
+                    { },
+                    { 0.0 },
+                    { "id-1" },
+                    stop = { stopped },
+                ),
+            )
+        assertEquals(Outcome.DeviceWipe, engine.run(ASSET, SIZE))
+        stopped = false
+        assertEquals(Outcome.DeviceWipe, engine.run(ASSET, SIZE))
+        assertTrue(harness.server.calls.isEmpty())
+    }
+
+    @Test
     fun `EVM-109 AC2 device_wipe stops the engine for good, zero further calls`() {
         val faults = listOf(mapOf("op" to "createSession", "effect" to "http:401:device_wipe_required", "times" to 1L))
         val harness = Harness(faults = faults)

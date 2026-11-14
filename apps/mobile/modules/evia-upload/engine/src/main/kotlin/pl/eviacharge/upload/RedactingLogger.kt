@@ -16,8 +16,6 @@ private val AUTHORIZATION = Regex("(?i)\\bauthorization\\b\\s*[=:][^\\r\\n]*")
 private val AMZ_NAME = Regex("(?i)x-amz-[a-z0-9\\-]+")
 private val TOKEN_LIKE = Regex("[A-Za-z0-9_+/\\-]{32,}")
 private val UUID = Regex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
-private const val MAX_CAUSES = 10
-private const val MAX_FRAMES = 5
 private const val ASCII_PRINTABLE_FROM = 0x20
 private const val ASCII_PRINTABLE_TO = 0x7e
 
@@ -43,8 +41,8 @@ object Redactor {
 }
 
 /**
- * The only way the engine logs (EVM-109 AC3). It takes an event code and fields from an allowlist, never free text; every value, message,
- * cause and stack frame still goes through [Redactor]. Exceptions of HTTP clients often carry the signed address in their message.
+ * The only way the engine logs (EVM-109 AC3). It takes an event code and fields from an allowlist, never free text; every value still
+ * goes through [Redactor]. Exceptions of HTTP clients often carry the signed address in their message, so they are logged by class only.
  */
 class RedactingLogger(
     private val sink: LogSink,
@@ -57,19 +55,24 @@ class RedactingLogger(
         sink.write((listOf(Redactor.redact(code)) + allowed).joinToString(" "))
     }
 
+    /**
+     * An exception is logged as the name of its class and, for [UploadFailure], the code of the failure (`network`, or the HTTP status and
+     * the problem `code`) - NEVER its message, its `toString`, its cause or its stack: messages of I/O exceptions can carry the whole
+     * signed address (security 5, CWE-532). This method does not read them at all.
+     */
     fun error(
         code: String,
         error: Throwable,
     ) {
-        sink.write(Redactor.redact(code))
-        val seen = mutableSetOf<Throwable>()
-        var current: Throwable? = error
-        while (current != null && seen.add(current) && seen.size <= MAX_CAUSES) {
-            sink.write(Redactor.redact("${current.javaClass.simpleName}: ${current.message.orEmpty()}"))
-            current.stackTrace.take(MAX_FRAMES).forEach { sink.write(Redactor.redact("  at $it")) }
-            current = current.cause
-        }
+        val detail = if (error is UploadFailure) " failure=${describe(error.failure)}" else ""
+        sink.write(Redactor.redact("$code error=${error.javaClass.name.substringAfterLast('.')}$detail"))
     }
+
+    private fun describe(failure: Failure): String =
+        when (failure) {
+            is Failure.Network -> "network"
+            is Failure.Http -> listOfNotNull("http", failure.status.toString(), failure.code).joinToString(" ")
+        }
 
     companion object {
         val FIELD_ALLOWLIST: Set<String> = setOf("asset", "session", "part", "attempt", "delayMs", "outcome", "reason", "status", "code")

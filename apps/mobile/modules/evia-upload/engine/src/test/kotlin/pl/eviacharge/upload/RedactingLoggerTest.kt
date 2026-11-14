@@ -57,39 +57,47 @@ class RedactingLoggerTest {
     }
 
     @Test
-    fun `EVM-109 AC3 the message, the whole cause chain and the stack trace of an exception are redacted`() {
+    fun `EVM-109 AC3 EVM-130 AC5 an exception is logged by its class only, never by message, cause or stack`() {
         val cause = IOException("connect failed for $SIGNED")
         val failure = IllegalStateException("upload failed: Bearer topsecret123 at $SIGNED", cause)
         logger.error("part_failed", failure)
-        assertTrue(lines.size > 3)
+        assertEquals(listOf("part_failed error=IllegalStateException"), lines)
         lines.forEach { assertFalse(FORBIDDEN.containsMatchIn(it), it) }
-        assertTrue(lines.any { it.startsWith("IllegalStateException:") })
-        assertTrue(lines.any { it.startsWith("IOException:") })
-        assertTrue(lines.any { it.startsWith("  at ") })
     }
 
     @Test
-    fun `EVM-109 AC3 a cyclic cause chain terminates`() {
-        val first = RuntimeException("first")
-        val second = RuntimeException("second", first)
-        first.initCause(second)
-        logger.error("cycle", first)
-        assertEquals(2, lines.count { it.startsWith("RuntimeException:") })
+    fun `EVM-130 AC5 the logger never reads the message or toString of an exception`() {
+        val untouchable =
+            object : RuntimeException() {
+                override val message: String get() = throw AssertionError("message was read")
+
+                override fun toString(): String = throw AssertionError("toString was read")
+            }
+        logger.error("never_read", untouchable)
+        assertEquals(1, lines.size)
+        assertTrue(lines.single().startsWith("never_read error="))
     }
 
     @Test
-    fun `EVM-109 AC3 a very long cause chain is cut off instead of flooding the log`() {
-        var error: Throwable = IllegalStateException("root")
-        repeat(30) { error = IllegalStateException("level $it", error) }
-        logger.error("deep", error)
-        assertTrue(lines.count { it.startsWith("IllegalStateException:") } <= 11)
+    fun `EVM-130 AC5 an upload failure is logged with its code, a network failure without any`() {
+        logger.error("api", UploadFailure(Failure.Http(401, "session_revoked")))
+        logger.error("api", UploadFailure(Failure.Http(503)))
+        logger.error("part", UploadFailure(Failure.Network))
+        assertEquals(
+            listOf(
+                "api error=UploadFailure failure=http 401 session_revoked",
+                "api error=UploadFailure failure=http 503",
+                "part error=UploadFailure failure=network",
+            ),
+            lines,
+        )
     }
 
     @Test
-    fun `EVM-109 AC3 a missing message and keys outside the allowlist are dropped`() {
+    fun `EVM-109 AC3 keys outside the allowlist are dropped`() {
         logger.error("no_message", RuntimeException())
         logger.event("custom", mapOf("filename" to "kitchen.jpg", "owner" to "Jan Kowalski", "part" to "2"))
-        assertTrue(lines.contains("RuntimeException: "))
+        assertEquals("no_message error=RuntimeException", lines.first())
         assertEquals("custom part=2", lines.last())
         assertTrue(RedactingLogger.FIELD_ALLOWLIST.none { it in setOf("filename", "owner", "url", "token", "description") })
     }
