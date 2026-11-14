@@ -4,7 +4,7 @@ title: Stabilne testy: okno północy i obciążenie
 type: bug
 milestone: M0
 epic: E00 Fundamenty
-status: ready
+status: in-progress
 priority: P1
 path: lekka
 owner: web-developer
@@ -105,3 +105,4 @@ _Uzupełnia wykonawca przed implementacją (ścieżka lekka — krótka notatka 
 ## Dziennik
 - 2026-11-14 — utworzono (product-owner) na podstawie obserwacji z nocnej kolejki 13/14.11 (PR #137, przebieg 43523376456)
 - 2026-11-14 — akceptacja Konrada (czat nocny: „Niech ruszy tor stabilności testów”) — zakres: testy dziennika w oknie północy, session-activity EVM-067 AC5, dwa testy Firefoksa; status `ready` (Tech Lead)
+- 2026-11-14 — start realizacji w kolejce nocnej (Tech Lead): status `in-progress`, gałąź `feature/EVM-129-stabilne-testy-okno-polnocy`
