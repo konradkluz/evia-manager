@@ -56,11 +56,11 @@ Stara domena TEM i rekordy `staging.eviacharge.pl` (`v=spf1 -all`, DMARC `p=reje
 ## Dziennik wykonania (wypełnia Tech Lead z Konradem; bez adresów i kluczy)
 | Krok | Data | Wynik |
 |---|---|---|
-| 1 OpenTofu (`panel_origin`, `tem_panel`) | | |
-| 2 OVH: SPF, DKIM, DMARC `p=none` | | |
-| 3 Pliki sekretów, przegląd W-16 | | |
-| 4 Wdrożenie, przekierowanie 308, certyfikat | | |
-| 5 Nagłówki `pass`, DMARC `p=reject` | | |
-| 6 Passkey na nowym RP ID | | |
-| 7 Tryb `otwarty`, zaproszenie biura | | |
-| 8 `EVIA_API_BASE_URL` i nowy APK | | |
+| 1 OpenTofu (`panel_origin`, `tem_panel`) | 2026-11-13 | `apply`: 1 dodany, 2 zmienione (domena TEM, CORS, SSH na czas sesji) |
+| 2 OVH: SPF, DKIM, DMARC `p=none` | 2026-11-13 | rekordy widoczne publicznie, DKIM zgodny; TEM po „Check status”: zweryfikowana (MX pominięty — niewymagany) |
+| 3 Pliki sekretów, przegląd W-16 | 2026-11-13 | aplikacja IAM `evia-staging-tem`; 4 pliki `0600 root`; lista dozwolonych poprawiona po przechwyceniach `not_on_list` |
+| 4 Wdrożenie, przekierowanie 308, certyfikat | 2026-11-13 | krok 3b (kopie w `/root/evia-rollback-089/`), #133 → `ed75050f`; 308 ze `staging`, HSTS; `staging-verify` zielony (po ponowieniu niestabilnego testu EVM-016) |
+| 5 Nagłówki `pass`, DMARC `p=reject` | 2026-11-13 | `spf=pass`, `dkim=pass` (2048-bit), `dmarc=pass`, TLS 1.3 → `p=reject; sp=reject` |
+| 6 Passkey na nowym RP ID | 2026-11-13 | tryb awaryjny (link użyty dopiero po wdrożeniu), nowy klucz zarejestrowany |
+| 7 Tryb `otwarty`, zaproszenie biura | 2026-11-13 | tryb `otwarty`, pierwsze zaproszenie wysłane |
+| 8 `EVIA_API_BASE_URL` i nowy APK | — | odłożone (aplikacja mobilna jeszcze nieużywana) |
