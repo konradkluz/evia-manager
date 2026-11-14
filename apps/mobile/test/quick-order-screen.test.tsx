@@ -457,8 +457,11 @@ describe('validation and similar customers (EVM-106 AC3)', () => {
     // nothing was queued: the question comes first
     expect(rig.sync.enqueued).toEqual([]);
     expect(within(screen.getByTestId('quick-similar-c-1')).getByText(pl.quickOrder.similarConfirm)).toBeOnTheScreen();
+    // the screen reader gets the question in the focused summary, not an empty element
+    expect(within(screen.getByTestId('quick-order-summary')).getByText(pl.quickOrder.similarConfirm)).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId('quick-similar-pick-c-1'));
     await save();
+    expect(screen.queryByTestId('quick-order-summary-similar')).toBeNull();
     expect(rig.sync.enqueued).toHaveLength(1);
     expect(payloadOf(rig)).toMatchObject({ customerId: 'c-1' });
     expect(payloadOf(rig)).not.toHaveProperty('newCustomer');

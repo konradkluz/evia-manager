@@ -225,6 +225,8 @@ export function QuickOrderScreen({ onClose, onSaved }: { onClose: () => void; on
           <View ref={summary} accessible={lines.length > 0 || hasSimilar} testID="quick-order-summary">
             {lines.length > 0 ? (
               <InlineAlert tone="error" title={t('quickOrder.summaryTitle')} body={lines.join('\n')} testID="quick-order-errors" />
+            ) : hasSimilar ? (
+              <InlineAlert tone="info" body={t('quickOrder.similarConfirm')} testID="quick-order-summary-similar" />
             ) : null}
           </View>
           <Text style={{ ...text.body, color: color.text.secondary }}>{t('quickOrder.numberInfo')}</Text>
