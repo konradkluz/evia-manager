@@ -13,6 +13,7 @@ import { parseNumstat, parseUnifiedDiff, unaccounted } from './diff.mjs';
 import { evaluate, isSourceFile, meets } from './evaluate.mjs';
 import { mergeCoverage, parseLcov } from './lcov.mjs';
 import { koverToLcov, KoverReportError } from './kover.mjs';
+import { kotlinGate, realRun } from './kotlin-gate.mjs';
 import { EXTRA_REPORT_DIRECTORIES, normalizeSource, workspaceOfReport } from './paths.mjs';
 
 /** Changed-code threshold in percent (docs/process/testing-strategy.md → Progi). */
@@ -25,7 +26,8 @@ const WORKSPACE_ROOTS = ['apps', 'packages', 'services', 'tools'];
  * diff.mnemonicPrefix of the developer's git config, which would otherwise hide every file from the parser.
  */
 const DIFF_OPTIONS = ['--no-color', '--no-ext-diff', '--no-textconv', '--find-renames', '--src-prefix=a/', '--dst-prefix=b/'];
-const USAGE = 'Użycie: node tools/diff-coverage/cli.mjs [clean | --local | kover-to-lcov <raport.xml> <katalog źródeł> <wynik.info>]';
+const USAGE =
+  'Użycie: node tools/diff-coverage/cli.mjs [clean | --local | kover-to-lcov <raport.xml> <katalog źródeł> <wynik.info> | kotlin-gate]';
 
 class ToolError extends Error {}
 
@@ -46,6 +48,10 @@ export function main(argv, io) {
     if (argv.length === 0) return check(io, false);
     if (argv.length === 1 && argv[0] === '--local') return check(io, true);
     if (argv.length === 1 && argv[0] === 'clean') return clean(io);
+    if (argv.length === 1 && argv[0] === 'kotlin-gate') {
+      const root = repositoryRoot(io.cwd);
+      return kotlinGate({ root, env: process.env, platform: process.platform, run: realRun, stdout: io.stdout, stderr: io.stderr });
+    }
     if (argv[0] === 'kover-to-lcov' && argv.length === 4) return convertKover(io, argv[1] ?? '', argv[2] ?? '', argv[3] ?? '');
     io.stderr.write(`${USAGE}\n`);
     return 2;
