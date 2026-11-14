@@ -11,11 +11,24 @@ const EXCLUDE = ['**/test/**', '**/*.test.*', '**/*.config.*', '**/dist/**'];
 
 describe('changed-code coverage (EVM-006 AC3)', () => {
   it('EVM-109 AC5: Kotlin sources (.kt) count, Gradle scripts (.kts) and the Android glue do not', () => {
-    const exclude = [...EXCLUDE, 'apps/mobile/modules/*/android/**'];
+    const exclude = [...EXCLUDE, 'apps/mobile/modules/evia-upload/android/src/main/kotlin/G.kt'];
     assert.equal(isSourceFile('apps/mobile/modules/evia-upload/engine/src/main/kotlin/pl/eviacharge/upload/A.kt', exclude), true);
     assert.equal(isSourceFile('apps/mobile/modules/evia-upload/engine/src/test/kotlin/pl/eviacharge/upload/ATest.kt', exclude), false);
     assert.equal(isSourceFile('apps/mobile/modules/evia-upload/engine/build.gradle.kts', exclude), false);
     assert.equal(isSourceFile('apps/mobile/modules/evia-upload/android/src/main/kotlin/G.kt', exclude), false);
+  });
+
+  it('EVM-130: a new .kt in an Android module outside the explicit glue list is measured by coverage:diff, listed glue is not', () => {
+    /** @type {unknown} */
+    const parsed = JSON.parse(readFileSync(new URL('../../../packages/config/coverage-exclusions.json', import.meta.url), 'utf8'));
+    const exclude = /** @type {{ exclude: { pattern: string }[] }} */ (parsed).exclude.map((item) => item.pattern);
+    assert.equal(isSourceFile('apps/mobile/modules/evia-upload/android/src/main/kotlin/pl/eviacharge/upload/NewLogic.kt', exclude), true);
+    assert.equal(isSourceFile('apps/mobile/modules/evia-keystore/android/src/main/java/pl/eviacharge/keystore/Extra.kt', exclude), true);
+    assert.equal(isSourceFile('apps/mobile/modules/evia-clipboard/android/src/main/java/pl/eviacharge/clipboard/Extra.kt', exclude), true);
+    assert.equal(
+      isSourceFile('apps/mobile/modules/evia-keystore/android/src/main/java/pl/eviacharge/keystore/EviaKeystoreModule.kt', exclude),
+      false,
+    );
   });
 
   it('EVM-109 AC5: .kt glue of every Android module (keystore, clipboard) is excluded, an engine .kt without a report fails closed', () => {
@@ -23,8 +36,14 @@ describe('changed-code coverage (EVM-006 AC3)', () => {
     const parsed = JSON.parse(readFileSync(new URL('../../../packages/config/coverage-exclusions.json', import.meta.url), 'utf8'));
     const exclusions = /** @type {{ exclude: { pattern: string }[] }} */ (parsed);
     const exclude = exclusions.exclude.map((item) => item.pattern);
-    assert.equal(isSourceFile('apps/mobile/modules/evia-keystore/android/src/main/kotlin/K.kt', exclude), false);
-    assert.equal(isSourceFile('apps/mobile/modules/evia-clipboard/android/src/main/kotlin/C.kt', exclude), false);
+    assert.equal(
+      isSourceFile('apps/mobile/modules/evia-keystore/android/src/main/java/pl/eviacharge/keystore/EviaKeystoreModule.kt', exclude),
+      false,
+    );
+    assert.equal(
+      isSourceFile('apps/mobile/modules/evia-clipboard/android/src/main/java/pl/eviacharge/clipboard/EviaClipboardModule.kt', exclude),
+      false,
+    );
     const path = 'apps/mobile/modules/evia-upload/engine/src/main/kotlin/pl/eviacharge/upload/A.kt';
     assert.equal(isSourceFile(path, exclude), true);
     const result = evaluate({ changed: new Map([[path, [1]]]), coverage: new Map(), exclude, readLines: () => null, threshold: 90 });

@@ -117,7 +117,12 @@ describe('EVM-109 AC5, AC7: thresholds and exclusions on the real files', () => 
       (entry) => entry['pattern'] ?? '',
     );
     const upload = patterns.filter((pattern) => pattern.includes('/android/'));
-    expect(upload).toEqual(['apps/mobile/modules/*/android/**']);
+    // EVM-130: an explicit list of glue files, never a glob over android/** (a new file there is measured by coverage:diff)
+    expect(upload).toEqual([
+      'apps/mobile/modules/evia-keystore/android/src/main/java/pl/eviacharge/keystore/EviaKeystoreModule.kt',
+      'apps/mobile/modules/evia-clipboard/android/src/main/java/pl/eviacharge/clipboard/EviaClipboardModule.kt',
+    ]);
+    expect(upload.some((pattern) => pattern.includes('*'))).toBe(false);
     expect(patterns.some((pattern) => /(^|\/)engine(\/|$)/.test(pattern))).toBe(false);
   });
 
