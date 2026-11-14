@@ -416,12 +416,18 @@ describe('the command CreateMediaAsset (EVM-131 AC3; SR-SYNC-01, SR-SYNC-02, SR-
     ]) {
       expect(decodeMutation(media(bad), NOW), JSON.stringify(bad)).toEqual({ ok: false });
     }
-    for (const key of ['id', 'workOrderId', 'mediaType', 'category', 'capturedAt']) {
+    for (const key of ['id', 'workOrderId', 'mediaType', 'category']) {
       const payload = without(media()['payload'] as Record<string, unknown>, key);
       expect(decodeMutation({ ...media(), payload }, NOW), key).toEqual({ ok: false });
     }
     expect(decodeMutation(media({}, { commandVersion: 2 }), NOW)).toEqual({ ok: false });
     expect(decodeMutation(media({ description: 'x'.repeat(70_000) }), NOW)).toEqual({ ok: false });
+  });
+
+  it('EVM-131 AC3 capturedAt is optional: a command without it is decoded with no moment and no warning', () => {
+    const payload = without(media()['payload'] as Record<string, unknown>, 'capturedAt');
+    const decodedWithout = decodeMutation({ ...media(), payload }, NOW);
+    expect(decodedWithout).toMatchObject({ ok: true, capturedAtOutOfRange: false, media: { capturedAt: null } });
   });
 
   it('EVM-131 AC3 capturedAt is judged like the one of a note: out of range is kept as no moment with a warning, never an error', () => {

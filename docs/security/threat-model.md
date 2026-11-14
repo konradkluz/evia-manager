@@ -1536,6 +1536,17 @@ Przyrost 2026-11-14 (EVM-127, szablony zleceń dla telefonu — pierwsza operacj
 - **Właściciel:** `security-engineer` (rekomendacje), Konrad (decyzje).
 - **Decyzja Konrada:** **przyjęte z warunkami** — klauzule informacyjne w wersji ostatecznej, upoważnienia i informacja o audycie — przed wpisaniem pierwszych realnych danych klientów (nowe osoby — przed pierwszym dostępem); umowa powierzenia przed przekazaniem danych pierwszemu podwykonawcy; jednorazowa konsultacja prawna przy naruszeniu obejmującym numer PESEL. 2026-11-14 — decyzja Tech Leada z delegacji Konrada (demo EVM-064: wybór wariantu najbezpieczniejszego przekazany Tech Leadowi); Konrad potwierdza ją scaleniem PR z tą zmianą.
 
+### RR-96 — Medium bez pliku: opis z telefonu bez dostępu w panelu, bez retencji i bez limitu (EVM-131; ASVS V8.3.1, V8.3.8, V11.1.4; CWE-770; RODO art. 5 ust. 1 lit. e, art. 15 i 17)
+- **Opis:** komenda `CreateMediaAsset` tworzy medium bez pliku (plik dochodzi dopiero w sesji wysyłania). Opis może zawierać dane osobowe. Takie wiersze nie są widoczne w panelu (zapytania łączą `media_assets` z `stored_files`), nie obejmuje ich zadanie sprzątania przerwanych wysyłań, a limit `checkPendingLimits` liczy tylko pliki w `pending_upload`. Twórca z telefonu (Edytor lub Administrator) może więc zostawić dowolnie wiele wierszy z opisami po „Usuń z kolejki” albo po wyczyszczeniu telefonu; biuro nie znajdzie ich przy żądaniu z art. 15 i nie usunie przy art. 17 (runbook `prawa-osob.md`). Wiersze są replikowane na telefony mające zlecenie w zakresie (bez opisu: ładunek serwera jest minimalny).
+- **Źródło:** przegląd bezpieczeństwa EVM-131, runda 1 (2026-11-14).
+- **Mitygacje (obecne):** zakaz dystrybucji paczki z aparatem lub wysyłaniem do EVM-112 (brak ruchu z realnych telefonów); komenda tylko dla Administratora i Edytora na dostępnym zleceniu; dedykowany limit żądań partii synchronizacji; opis poza logami i audytem.
+- **Mitygacje (warunki sign-offu EVM-112):** przed wydaniem aplikacji z wysyłaniem (1) panel pokazuje Administratorowi media „Czeka na plik z telefonu” z możliwością usunięcia (także opisu); (2) zadanie retencji czyści opis albo miękko usuwa media bez pliku starsze niż N dni (propozycja: 30); (3) limit liczby mediów bez pliku na twórcę i zlecenie liczony razem z `checkPendingLimits` przy `CreateMediaAsset`, odrzucenie kodem ze słownika mutacji. Realizacja — historyjka z `/refine` (zgłoszona w raporcie EVM-131).
+- **Ryzyko po mitygacjach obecnych:** **P1 × W2 = 2 Low** (brak dystrybucji aplikacji z wysyłaniem); po wydaniu bez warunków: P2 × W2 = 4 Medium.
+- **Rekomendacja:** akceptuj do sign-offu EVM-112; warunki (1)–(3) blokują wydanie aplikacji z wysyłaniem.
+- **Konsekwencja innego wyboru:** zmiana kodu w EVM-131 (poza AC) — rozszerzenie zakresu historyjki.
+- **Właściciel:** `security-engineer` (sign-off), `backend-developer` i `web-developer` (realizacja).
+- **Decyzja Konrada:** oczekuje — akceptacja ryzyka do EVM-112 albo historyjka z warunkami (1)–(3).
+
 ## 9. Aktualizacja modelu
 - **Kiedy:** przy `/milestone close` każdego kamienia milowego; przy nowej integracji, roli lub kanale (np. Monter, portal klienta, iOS); przy zmianie architektury (nowy ADR); po incydencie bezpieczeństwa; przy zmianie dostawcy.
 - **Kto:** `security-engineer`; przegląd `solution-architect` i `devops-engineer`; akceptacja nowych ryzyk rezydualnych — Konrad.

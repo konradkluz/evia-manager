@@ -817,7 +817,7 @@ CreateMediaAssetPayload:
     `createdBy`, `fileState`, `version`) w ładunku dają `rejected validation_failed`. Opis może zawierać dane osobowe — nie trafia
     do logów ani audytu.
   additionalProperties: false
-  required: [id, workOrderId, mediaType, category, capturedAt]
+  required: [id, workOrderId, mediaType, category]
   properties:
     id:
       $ref: '#/SyncClientId'

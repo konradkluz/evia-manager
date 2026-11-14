@@ -3287,8 +3287,7 @@
           "id",
           "workOrderId",
           "mediaType",
-          "category",
-          "capturedAt"
+          "category"
         ],
         "type": "object"
       },

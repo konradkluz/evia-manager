@@ -123,7 +123,8 @@ describe('sync-core fixtures pass the contract schemas (EVM-107 AC7)', () => {
       required: string[];
       properties: Record<string, unknown>;
     };
-    for (const field of ['id', 'workOrderId', 'mediaType', 'category', 'capturedAt']) expect(payload.required).toContain(field);
+    for (const field of ['id', 'workOrderId', 'mediaType', 'category']) expect(payload.required).toContain(field);
+    expect(payload.required).not.toContain('capturedAt');
     expect(Object.keys(payload.properties).sort()).toEqual([
       'capturedAt',
       'category',

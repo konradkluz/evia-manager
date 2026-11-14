@@ -51,7 +51,7 @@ export type RawMutation = Envelope['mutations'][number];
 const capturedAt = z.iso.datetime({ offset: true }).max(40);
 const notePayload = strictObjects(zCreateNotePayload.extend({ body: z.string(), capturedAt }));
 const commentPayload = strictObjects(zCreateCommentPayload.extend({ body: z.string(), capturedAt }));
-const mediaPayload = strictObjects(zCreateMediaAssetPayload.extend({ capturedAt }));
+const mediaPayload = strictObjects(zCreateMediaAssetPayload.extend({ capturedAt: capturedAt.optional() }));
 const mutationShape = z.strictObject({ mutationId: zSyncClientId, type: z.string(), commandVersion: z.int(), payload: z.unknown() });
 
 interface NotePayload {
@@ -194,15 +194,15 @@ function decodeMediaAsset(payload: unknown, hash: string, now: Date): DecodedMut
     category: string;
     description?: string;
     procedureStageId?: string;
-    capturedAt: string;
+    capturedAt?: string;
   };
-  const at = new Date(media.capturedAt);
-  const inRange = capturedAtInRange(at, now);
+  const at = media.capturedAt === undefined ? null : new Date(media.capturedAt);
+  const inRange = at !== null && capturedAtInRange(at, now);
   return {
     ok: true,
     type: 'CreateMediaAsset',
     hash,
-    capturedAtOutOfRange: !inRange,
+    capturedAtOutOfRange: at !== null && !inRange,
     media: {
       id: media.id,
       workOrderId: media.workOrderId,
@@ -210,7 +210,7 @@ function decodeMediaAsset(payload: unknown, hash: string, now: Date): DecodedMut
       category: media.category,
       description: media.description,
       procedureStageId: media.procedureStageId,
-      capturedAt: inRange ? at : null,
+      capturedAt: at !== null && inRange ? at : null,
     },
   };
 }
