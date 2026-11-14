@@ -5,10 +5,13 @@
  * - a release build fails when the API address is not HTTPS (SR-COMM-04); plain HTTP to the emulator host exists in the e2e variant only;
  * - no permission is requested (INTERNET is added by the platform template) and risky defaults are blocked (SR-MOB-02);
  * - no OTA updates, no dev client, no analytics SDK (SR-MOB-09);
- * - the local database is SQLCipher only (EVM-093 AC1): expo-sqlite with `useSQLCipher`, there is no build without the cipher.
+ * - the local database is SQLCipher only (EVM-093 AC1): expo-sqlite with `useSQLCipher`, there is no build without the cipher;
+ * - the background upload (EVM-130 AC7, plugins/with-upload.ts) is configured from the SAME API address and from `EVIA_STORAGE_HOSTS` (the
+ *   hosts of the part storage, a comma separated list of host names); a release without it carries no upload (fail closed).
  */
 import type { ExpoConfig } from 'expo/config';
 import { parseApiBaseUrl, resolveBuildVariant } from '../src/config/api-base-url.ts';
+import { parseStorageHosts } from './with-upload.ts';
 
 export const APP_VERSION = '0.1.0';
 /** Permanent application id: changing it creates a different app on the phones (confirmed by Konrad before the first sideload). */
@@ -54,6 +57,13 @@ export function buildExpoConfig(env: Readonly<Record<string, string | undefined>
         (variant === 'e2e' ? ' or http://10.0.2.2:<port>.' : '.'),
     );
   }
+  const authority = url.url.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '').replace(/\/.*$/, '');
+  const storageHosts = parseStorageHosts(env['EVIA_STORAGE_HOSTS'], variant, authority);
+  // the upload client builds `<origin>/api/v1/...` itself: an address with a path would make every request wrong, so the build says so
+  if (storageHosts !== null && url.url.replace(/^[a-z][a-z0-9+.-]*:\/\/[^/]+/i, '') !== '')
+    throw new Error(
+      `EXPO_PUBLIC_API_BASE_URL with a path is not supported by the background upload in the ${variant} build: use the origin only.`,
+    );
   return {
     name: 'EVia Manager',
     slug: 'evia-manager',
@@ -68,7 +78,12 @@ export function buildExpoConfig(env: Readonly<Record<string, string | undefined>
       blockedPermissions: [...BLOCKED_ANDROID_PERMISSIONS],
     },
     // EVM-093 (ADR-0007): expo-sqlite compiled with SQLCipher (community 4.17, OpenSSL from expo-sqlite's Gradle dependency).
-    plugins: ['expo-secure-store', ['expo-sqlite', { useSQLCipher: true }], ['./plugins/with-hardening.ts', { variant }]],
+    plugins: [
+      'expo-secure-store',
+      ['expo-sqlite', { useSQLCipher: true }],
+      ['./plugins/with-hardening.ts', { variant }],
+      ['./plugins/with-upload.ts', { variant, apiBaseUrl: url.url, storageHosts }],
+    ],
     extra: { buildVariant: variant },
   };
 }
