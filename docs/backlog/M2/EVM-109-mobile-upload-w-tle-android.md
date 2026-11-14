@@ -4,7 +4,7 @@ title: "Aplikacja: silnik wysyłania plików (Kotlin), model referencyjny i bram
 type: story
 milestone: M2
 epic: E11 Zdjęcia i filmy
-status: ready
+status: in-progress
 priority: P1
 path: pelna             # pliki, uwierzytelnianie workera (czysta logika), nowe bramki jakości i zależności Kotlin
 owner: mobile-developer
@@ -89,3 +89,4 @@ Zadanie systemowe Androida, natywny właściciel tokenów, trwała kolejka plik�
 - 2026-11-12 — dołączono bramki Kotlin z EVM-113 jako AC6; `depends_on`: usunięto EVM-113, dodano EVM-009 (decyzja Tech Leada z delegacji Konrada „tanio, szybko, bezpiecznie”)
 - 2026-11-14 — refinement do DoR (product-owner): podział na EVM-109 (silnik, model referencyjny, bramki; 7 AC) i EVM-130 (Android, tokeny, kolejka); `depends_on` bez EVM-084 (przeszła do EVM-112); decyzje Konrada: JUnit tylko testowo, ważność adresu części bez zmian, zakaz dystrybucji, decyzja 17 potwierdzona
 - 2026-11-14 — draft → ready: kryteria zatwierdzone przez Tech Leada z delegacji Konrada (pytanie przed nocą 2026-11-14); Konrad przegląda je rano w PR
+- 2026-11-14 — start realizacji w kolejce nocnej `/noc-2026-11-14` (Tech Lead): status `in-progress`, gałąź `feature/queue-2026-11-14-mobile-media`
