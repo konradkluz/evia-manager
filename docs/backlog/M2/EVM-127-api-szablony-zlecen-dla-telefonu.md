@@ -4,7 +4,7 @@ title: "API: szablony zleceń dostępne dla telefonu"
 type: story
 milestone: M2
 epic: E13 Nowe zlecenie z telefonu
-status: in-progress
+status: in-review
 priority: P1
 path: pelna             # zmiana uprawnień i kanału endpointu
 owner: backend-developer
@@ -51,3 +51,4 @@ Jako **technik** chcę, aby **telefon mógł pobrać aktywne szablony zleceń**,
 - 2026-11-14 — implementacja (backend-developer): `listWorkOrderTemplates` w kanałach `[web, mobile]`, wersja klienta tylko dla Bearer, poprawka strażnika (powód z ciasteczka dla operacji dwukanałowej), testy AC1–AC3, baseline przesunięty z aneksem ADR-0021; Tylko odczyt na tokenie: `403 forbidden` (zob. raport)
 - 2026-11-14 — poprawki rundy 1 (backend-developer): strażnik zwraca `403 channel_not_allowed` dla roli bez kanału mobilnego (Tylko odczyt) z tokenem telefonu; AC2 spełnione literalnie, testy zaktualizowane
 - 2026-11-14 — przegląd uzupełniający po poprawkach rundy 1–2 (security-engineer): APPROVE; `channel_not_allowed` zmienia tylko kod odmowy dla operacji dwukanałowej (fail-closed, kolejność kontroli bez zmian), macierz ról nieosłabiona, W1 pokryte; dokumentacja bezpieczeństwa uzupełniona (requirements, api-guidelines, threat-model)
+- 2026-11-14 — workflow `deliver-story` (pelna) `passed` po 3 rundach: QA pass (AC1–AC3); runda 1 — QA fail i code-reviewer `changes_required` (AC2: kod odmowy dla Tylko odczyt), poprawka: `403 channel_not_allowed` tylko na operacji dwukanałowej; rundy 2–3 — approve. Przegląd uzupełniający security-engineer po poprawkach: APPROVE. Bramka orkiestratora `pnpm run gate` zielona (pokrycie zmienionego kodu gałęzi 99,4% linii, 97,4% gałęzi; kod zależny od bazy mierzy CI). Uwagi nieblokujące (tytuł problemu `channel_not_allowed`, opis operacji w OpenAPI, brak asercji „ciasteczko + Bearer wipe”) w raporcie nocnym. Koszt: 13 agentów, ok. 844 tys. tokenów, 3 h 24 min (z oczekiwaniem na semafor). Status `in-review` (Tech Lead, kolejka nocna)
