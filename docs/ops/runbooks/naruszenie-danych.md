@@ -24,7 +24,7 @@ Kartę zakładasz w **rejestrze naruszeń** poza repozytorium ([`rodo.md` → �
 | Telefon z aplikacją mobilną (M2) | Urządzenia → „Zablokuj i wyczyść” (P2, P7) |
 | Podejrzenie przejęcia konta albo były pracownik | dezaktywacja konta (sesje kończą się od razu) |
 | Utrata dostępu Administratora | [tryb awaryjny](aktywacja-i-tryb-awaryjny.md) |
-| Zdjęcia klientów w prywatnej chmurze technika (warunek 5 [DPIA](../../security/dpia.md#5-wniosek)) | karta w rejestrze naruszeń; technik usuwa kopie z chmury i kosza w obecności Administratora i potwierdza to na oświadczeniu; ocena ryzyka (kto ma dostęp do konta chmury, czy były udostępniane) |
+| Zdjęcia klientów w prywatnej chmurze technika (warunek 6 [DPIA](../../security/dpia.md#5-wniosek)) | karta w rejestrze naruszeń; technik usuwa kopie z chmury i kosza w obecności Administratora i potwierdza to na oświadczeniu; ocena ryzyka (kto ma dostęp do konta chmury, czy były udostępniane) |
 | Wyciek sekretu, klucza lub tokenu | [rotacja sekretów](../rotacja-sekretow.md), [rotacja sekretów kanału](rotacja-sekretow-kanalu.md) |
 | Zabezpieczenie dowodów | dziennik audytu (Administrator, step-up): logowania, pobrania, eksporty od chwili utraty; logi na VM rotują po 7 dniach, w Grafanie po 14 — `devops-engineer` eksportuje je przed rotacją (bez kopiowania do repozytorium i do agentów — RR-93) |
 
@@ -50,7 +50,7 @@ Jedna strona przygotowana przez Konrada, **wydrukowana w biurze** i zapisana jak
 | Data ostatniej aktualizacji | w dokumencie — przegląd co 12 miesięcy i przy zmianie dostawcy |
 
 ## 5. Spotkanie z checklistą (AC3)
-Jedno spotkanie przed pierwszymi realnymi danymi klientów (decyzja 2026-11-12 — zamiast ćwiczenia tabletop). Uczestnicy: Konrad (prowadzi), osoba z biura; ok. 45 minut. Protokół: [`docs/qa/EVM-064/protokoly.md` → „AC3”](../../qa/EVM-064/protokoly.md#ac3--spotkanie-z-checklistą-naruszenia); wnioski Konrad lub orkiestrator wpisuje do historyjki EVM-064.
+Jedno spotkanie — niezwłocznie, najpóźniej do 2026-11-28 (środowisko przyjmuje realne dane od 2026-11-13 — RR-93; decyzja 2026-11-12 — zamiast ćwiczenia tabletop). Uczestnicy: Konrad (prowadzi), osoba z biura; ok. 45 minut. Protokół: [`docs/qa/EVM-064/protokoly.md` → „AC3”](../../qa/EVM-064/protokoly.md#ac3--spotkanie-z-checklistą-naruszenia); wnioski Konrad lub orkiestrator wpisuje do historyjki EVM-064.
 
 **Scenariusz:** piątek, 17:00. Pracownik biura (Edytor) zgłasza, że zostawił laptop firmowy w pociągu. W przeglądarce była otwarta karta panelu (sesja do 60 min bezczynności, najwyżej 12 h), Windows Hello jest kluczem dostępu konta, w „Pobranych” może być pełnomocnictwo klienta i eksport ZIP zdjęć.
 

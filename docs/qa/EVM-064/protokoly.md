@@ -2,7 +2,7 @@
 
 Historyjka: [EVM-064](../../backlog/M1/EVM-064-rodo-przed-startem.md). Przygotował: `security-engineer`, 2026-11-14. Czynności wykonuje Konrad (RR-93: agenci nie logują się na środowisko, nie czytają jego danych ani kont dostawców). **Wpisuj tylko daty, role, wyniki i liczby — bez danych osobowych, adresów e-mail, numerów umów i identyfikatorów kont** (repozytorium jest publiczne). Puste pole = czynność niewykonana.
 
-Kolejność: AC1 → AC2 → AC5 → AC4 → AC3 → AC7 → AC8 (zatwierdzenie DPIA na końcu; wcześniej podpisane wzory z [`wzory-dla-pracownikow.md`](../../security/wzory-dla-pracownikow.md) i krótkie spotkanie z technikami). Szacowany czas łącznie: ok. 4–5 h.
+Kolejność: AC1 → AC2 → AC5 → AC4 → AC3 → AC7 → AC8 (DPIA zatwierdzona 2026-11-14 z warunkami — Konrad wpisuje ich wykonanie: podpisane wzory z [`wzory-dla-pracownikow.md`](../../security/wzory-dla-pracownikow.md), a przed startem pilota B spotkanie z technikami). Terminy: AC3, AC4, AC5, AC7 i warunki 1–3 DPIA — niezwłocznie, najpóźniej do 2026-11-28. Szacowany czas łącznie: ok. 4–5 h.
 
 ## AC1 — Umowy powierzenia, regiony i retencje
 Na koncie każdego dostawcy: umowa powierzenia zawarta albo warunki zaakceptowane, region UE, retencja, MFA. Wskazówki — [`rodo.md` → „Weryfikacja dostawców 2026-11-14”](../../security/rodo.md#weryfikacja-dostawców-2026-11-14-evm-064-ac1).
@@ -15,7 +15,7 @@ Na koncie każdego dostawcy: umowa powierzenia zawarta albo warunki zaakceptowan
 | GitHub | plan Free: umowa powierzenia **nie dotyczy** (GitHub — odrębny administrator danych kont; w repozytorium, zgłoszeniach i logach CI brak danych osobowych firmy); adres noreply w commitach | nie dotyczy (plan Free) | — | — | — | | | |
 | OVH (rejestrator, DNS) | tylko MFA i blokada transferu — nie jest podmiotem przetwarzającym danych systemu | — | — | — | — | | | |
 
-**Transfery do USA (pkt 10):** lista Data Privacy Framework (https://www.dataprivacyframework.gov/list) — **sprawdzone 2026-11-14, Tech Lead (przeglądarka):** „Grafana Labs” (New York, NY) — **Active**; „GitHub” (San Francisco, CA) — **Active**; oba w EU-U.S. DPF (oraz Swiss-U.S. i UK Extension), zakres „Non-HR Data”. Konrad nie musi tego powtarzać; następne sprawdzenie — przy przeglądzie z [`rodo.md`, pkt 10](../../security/rodo.md#decyzje-administratora-bez-prawnika-i-iod-evm-064) (co ≤ 6 miesięcy).
+**Transfery do USA (pkt 10):** lista Data Privacy Framework (https://www.dataprivacyframework.gov/list) — **sprawdzone 2026-11-14, Tech Lead (przeglądarka):** „Grafana Labs” (New York, NY) — **Active**; „GitHub” (San Francisco, CA) — **Active**; oba w EU-U.S. DPF (oraz Swiss-U.S. i UK Extension), zakres „Non-HR Data”. Konrad zapisuje wydruk albo zrzut wpisów z datą poza repozytorium i sprawdza, że nazwa wpisu odpowiada stronie DPA Grafany — data, kto: _do wypełnienia_. Następne sprawdzenie — przy przeglądzie z [`rodo.md`, pkt 10](../../security/rodo.md#decyzje-administratora-bez-prawnika-i-iod-evm-064) (co ≤ 6 miesięcy).
 
 ## AC2 — Rejestr czynności poza repozytorium
 | Pozycja | Wynik |
@@ -37,7 +37,7 @@ Checklista i scenariusz: [`naruszenie-danych.md` → sekcja 5](../../ops/runbook
 | Wnioski (krótko, bez danych) — przenieść do historyjki EVM-064 | _do wypełnienia_ |
 
 ## AC4 — Prawa osób (ćwiczenie)
-Na danych syntetycznych wg [`prawa-osob.md` → sekcja 5](../../ops/runbooks/prawa-osob.md#5-ćwiczenie-ac4--przed-pierwszymi-realnymi-danymi-klientów).
+Na danych syntetycznych wg [`prawa-osob.md` → sekcja 5](../../ops/runbooks/prawa-osob.md#5-ćwiczenie-ac4--niezwłocznie-najpóźniej-do-2026-11-28).
 
 | Krok | Wynik (OK / problem) | Uwagi |
 |---|---|---|
@@ -66,10 +66,14 @@ Wg [`aktywacja-i-tryb-awaryjny.md` → „Awaryjny reset MFA Administratora”](
 | Data, kto, konto (rola: drugi Administrator / konto awaryjne / własne) | | |
 
 ## AC6 — Decyzje o retencji
-Pytania z [`retencja.md` → sekcja 4](../../ops/runbooks/retencja.md#4-pytania-do-decyzji-konrada-evm-064-demo): 1 (SR-PRIV-01) _decyzja i data_ · 2 (luki `sync.change_log`, `media.media_exports`) _decyzja i data_.
+Pytania z [`retencja.md` → sekcja 4](../../ops/runbooks/retencja.md#4-pytania-do-decyzji-konrada-evm-064-demo):
+- **1 (SR-PRIV-01):** przyjęte — okresy jako nazwane stałe w kodzie i reguły IaC to „konfiguracja jako kod”; brzmienie SR-PRIV-01 doprecyzowane w `requirements.md`.
+- **2 (luki `sync.change_log`, `media.media_exports`):** przyjęte z warunkiem — zadanie usuwania obu tabel działa najpóźniej 2027-02-11; historyjka przez `/refine`.
+
+Obie: 2026-11-14 — decyzja Tech Leada z delegacji Konrada (demo EVM-064: wybór wariantu najbezpieczniejszego przekazany Tech Leadowi); Konrad potwierdza ją scaleniem PR z tą zmianą.
 
 ## AC7 — Przegląd próbek logów
-Wg [`checklista-wydania.md` → sekcja 1](../../security/checklista-wydania.md#1-przegląd-próbek-logów-sr-priv-09--konrad); wykonać przed wpisaniem pierwszych realnych danych klientów.
+Wg [`checklista-wydania.md` → sekcja 1](../../security/checklista-wydania.md#1-przegląd-próbek-logów-sr-priv-09--konrad); wykonać niezwłocznie, najpóźniej do 2026-11-28 (środowisko przyjmuje realne dane od 2026-11-13 — RR-93).
 
 | Zapytanie | Liczba trafień | Usługa (gdy > 0) | Wynik |
 |---|---|---|---|
@@ -85,14 +89,19 @@ Wg [`checklista-wydania.md` → sekcja 1](../../security/checklista-wydania.md#1
 ## AC8 — Zatwierdzenie DPIA
 | Pole | Wynik |
 |---|---|
-| [`dpia.md`](../../security/dpia.md) przeczytana; decyzja (zatwierdzam / z warunkami / nie); wersja zmieniona na 1.0 | _do wypełnienia_ |
-| Punkt `[PRAWNIK/IOD]` 11 — rekomendacja przyjęta (uproszczona DPIA) | _tak / nie_ |
-| Punkt `[PRAWNIK/IOD]` 10 — rekomendacja przyjęta (podstawa transferów) | _tak / nie_ |
-| Czy przed zatwierdzeniem wprowadzono realne dane klientów (tak / nie; od kiedy) | _do wypełnienia_ |
-| Opinia techników (art. 35 ust. 9) — data spotkania | _do wypełnienia_ |
-| Warunek 1 — upoważnienia i zobowiązania do poufności ([wzór 1](../../security/wzory-dla-pracownikow.md#wzór-1--upoważnienie-do-przetwarzania-danych-osobowych-i-zobowiązanie-do-poufności)): liczba osób z kontem / liczba podpisanych, data | _do wypełnienia_ |
-| Warunek 2 — informacja o audycie ([wzór 3](../../security/wzory-dla-pracownikow.md#wzór-3--informacja-dla-osób-z-kontem-o-audycie-działań-w-systemie)): liczba osób / podpisanych, data; umowy o pracę — dotyczy / nie dotyczy; data obwieszczenia i dzień objęcia audytem (≥ 2 tygodnie później) | _do wypełnienia_ |
-| Warunek 3 — oświadczenia techników ([wzór 2](../../security/wzory-dla-pracownikow.md#wzór-2--oświadczenie-technika-prywatny-telefon-w-pracy-pilot-b)) przed pierwszym zdjęciem: liczba techników w pilocie B / liczba oświadczeń, data | _do wypełnienia_ |
-| Warunek 6 — oryginały dokumentów klientów także poza systemem do uruchomienia kopii (tak / nie) | _do wypełnienia_ |
-| Kopia DPA Grafany (z SCC) zapisana poza repozytorium (data) | _do wypełnienia_ |
-| Data | _do wypełnienia_ |
+Decyzje (pola wypełnione): 2026-11-14 — decyzja Tech Leada z delegacji Konrada (demo EVM-064: wybór wariantu najbezpieczniejszego przekazany Tech Leadowi); Konrad potwierdza ją scaleniem PR z tą zmianą. Pozostałe pola i warunki wypełnia Konrad; terminy — [`dpia.md` § 5](../../security/dpia.md#5-wniosek).
+
+| Pole | Wynik |
+|---|---|
+| [`dpia.md`](../../security/dpia.md) — decyzja | zatwierdzona z warunkami, wersja 1.0 (decyzja jak wyżej) |
+| Punkt `[PRAWNIK/IOD]` 11 — rekomendacja (uproszczona DPIA) | przyjęta (decyzja jak wyżej) |
+| Punkt `[PRAWNIK/IOD]` 10 — rekomendacja (podstawa transferów) | przyjęta z warunkami z `rodo.md` (decyzja jak wyżej) |
+| Czy przed zatwierdzeniem wprowadzono realne dane klientów (tak / nie; od kiedy) — środowisko przyjmuje realne dane od 2026-11-13 (RR-93) | _do wypełnienia_ |
+| Warunek 1 — klauzule informacyjne w wersji ostatecznej w panelu (do 2026-11-28): data | _do wypełnienia_ |
+| Warunek 2 — upoważnienia i zobowiązania do poufności ([wzór 1](../../security/wzory-dla-pracownikow.md#wzór-1--upoważnienie-do-przetwarzania-danych-osobowych-i-zobowiązanie-do-poufności); do 2026-11-28): liczba osób z kontem / liczba podpisanych, data | _do wypełnienia_ |
+| Warunek 3 — informacja o audycie ([wzór 3](../../security/wzory-dla-pracownikow.md#wzór-3--informacja-dla-osób-z-kontem-o-audycie-działań-w-systemie); do 2026-11-28): liczba osób / podpisanych, data; umowy o pracę — dotyczy / nie dotyczy; data obwieszczenia | _do wypełnienia_ |
+| Warunek 4 — oświadczenia techników ([wzór 2](../../security/wzory-dla-pracownikow.md#wzór-2--oświadczenie-technika-prywatny-telefon-w-pracy-pilot-b)) przed pierwszym logowaniem na telefonie: liczba techników w pilocie B / liczba oświadczeń, data | _do wypełnienia_ |
+| Warunek 5 — środek techniczny dla `identity_data` wdrożony (historyjka EVM-…, data) — dopiero potem start pilota B | _do wypełnienia_ |
+| Opinia techników (art. 35 ust. 9) — data spotkania (przed startem pilota B) | _do wypełnienia_ |
+| Warunek 7 — oryginały dokumentów klientów także poza systemem do uruchomienia kopii (tak / nie) | _do wypełnienia_ |
+| Kopia DPA Grafany (z SCC) i data jej akceptacji zapisane poza repozytorium (data) | _do wypełnienia_ |

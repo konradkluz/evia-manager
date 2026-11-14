@@ -3,7 +3,7 @@
 > Dokument żywy (EVM-064 AC6). Właściciel: `security-engineer`; konfiguracja: `devops-engineer`; procedurę ręczną wykonuje Administrator (Konrad). Wymagania: SR-PRIV-01, SR-DATA-07; okresy: [`policies.md` → P4](../../security/policies.md#p4--retencja-mediów-dokumentów-dzienników-audytu-logów-i-kopii) i [`rodo.md` → „Retencja”](../../security/rodo.md#retencja) (źródło prawdy — zmiana okresu = zmiana `rodo.md` zaakceptowana przez Konrada i zmiana w miejscu z kolumny „Gdzie”). Stan sprawdzony w kodzie i IaC gałęzi 2026-11-14.
 
 ## 1. Dane techniczne — usuwane automatycznie
-Okresy są **nazwanymi stałymi w kodzie** albo regułami IaC / ustawieniami u dostawcy — każdy okres w jednym miejscu, zmiana przez PR (pytanie do Konrada o brzmienie SR-PRIV-01 — sekcja 4).
+Okresy są **nazwanymi stałymi w kodzie** albo regułami IaC / ustawieniami u dostawcy — każdy okres w jednym miejscu, zmiana przez PR („konfiguracja jako kod” — SR-PRIV-01, decyzja w sekcji 4).
 
 | Dane (P4) | Okres | Mechanizm | Gdzie | Stan |
 |---|---|---|---|---|
@@ -52,5 +52,6 @@ Pełne usunięcie wierszy (purge) zleceń i klientów nie istnieje do M4 — pow
 3. Zmiana okresu = jeden PR ze zmianą `rodo.md`, P4 i stałej / reguły; test zadania z kontrolowanym zegarem (SR-DATA-07).
 
 ## 4. Pytania do decyzji Konrada (EVM-064, demo)
-1. **SR-PRIV-01 („konfiguracja, nie stałe w kodzie”).** Okresy są nazwanymi stałymi w kodzie i regułami IaC, nie zmiennymi środowiska. Rekomendacja: uznać to za „konfigurację jako kod” (jedno miejsce na okres, zmiana przez PR i `rodo.md`) i doprecyzować brzmienie SR-PRIV-01 — bez zmian kodu.
-2. **Luki `sync.change_log` i `media.media_exports`.** Rekomendacja: zaakceptować jako dług techniczny (bez danych klientów; identyfikatory pseudonimowe) z historyjką w backlogu (`/refine`), nie warunek startu. **Termin:** zadanie usuwania `sync.change_log` musi działać najpóźniej **2027-02-11** — środowisko przyjmuje realne dane od 2026-11-13 (RR-93), a tabela istnieje od migracji 0054 (na `main` od 2026-10-31), więc wtedy wiersze o realnych danych przekroczą deklarowane 90 dni; nie czekać na M4.
+Decyzje: 2026-11-14 — decyzja Tech Leada z delegacji Konrada (demo EVM-064: wybór wariantu najbezpieczniejszego przekazany Tech Leadowi); Konrad potwierdza ją scaleniem PR z tą zmianą.
+1. **SR-PRIV-01 („konfiguracja, nie stałe w kodzie”).** Okresy są nazwanymi stałymi w kodzie i regułami IaC, nie zmiennymi środowiska. Rekomendacja: uznać to za „konfigurację jako kod” (jedno miejsce na okres, zmiana przez PR i `rodo.md`) i doprecyzować brzmienie SR-PRIV-01 — bez zmian kodu. **Decyzja: przyjęte** — brzmienie SR-PRIV-01 doprecyzowane w [`requirements.md`](../../security/requirements.md).
+2. **Luki `sync.change_log` i `media.media_exports`.** Rekomendacja: zaakceptować jako dług techniczny (bez danych klientów; identyfikatory pseudonimowe) z historyjką w backlogu (`/refine`), nie warunek startu. **Decyzja: przyjęte z warunkiem — zadanie usuwania `sync.change_log` i `media.media_exports` działa najpóźniej 2027-02-11; historyjka przez `/refine`.** **Termin:** zadanie usuwania `sync.change_log` musi działać najpóźniej **2027-02-11** — środowisko przyjmuje realne dane od 2026-11-13 (RR-93), a tabela istnieje od migracji 0054 (na `main` od 2026-10-31), więc wtedy wiersze o realnych danych przekroczą deklarowane 90 dni; nie czekać na M4.

@@ -70,7 +70,7 @@ Odbiorcy danych z dokumentów zlecenia (OSD, administracja, projektant) — powi
 ### Art. 21 — sprzeciw
 Dotyczy danych przetwarzanych na podstawie prawnie uzasadnionego interesu (osoby kontaktowe stron, osoby na zdjęciach, dokumentacja po realizacji). Bez nadrzędnych podstaw — kroki jak w art. 17 dla danych objętych sprzeciwem.
 
-## 5. Ćwiczenie (AC4 — przed pierwszymi realnymi danymi klientów)
+## 5. Ćwiczenie (AC4 — niezwłocznie, najpóźniej do 2026-11-28)
 Na jedynym środowisku, **wyłącznie na danych syntetycznych** (reguła 4 RR-93: nazwa z prefiksem „TEST”, adres `@example.test`); wykonuje Konrad, agenci nie biorą udziału. Wynik — [`docs/qa/EVM-064/protokoly.md` → „AC4”](../../qa/EVM-064/protokoly.md#ac4--prawa-osób-ćwiczenie).
 1. Załóż klienta „TEST Prawa osób” z lokalizacją, stroną (osoba fizyczna „TEST Kontakt”), zleceniem, wpisem, zdjęciem i dokumentem `standard`.
 2. Kartę żądania „ćwiczenie” załóż w rejestrze żądań (sekcja 1) — sprawdzasz, czy rejestr istnieje i ma pola.
