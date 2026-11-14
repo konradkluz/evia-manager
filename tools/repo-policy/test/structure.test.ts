@@ -275,6 +275,7 @@ describe('quality gate of every workspace (EVM-006 AC2, AC3; W2, W3)', () => {
       'packages-not-to-apps-or-services',
       'tools-not-to-apps-or-services',
       'sync-core-portable', // EVM-091 AC1
+      'sync-core-upload-isolated', // EVM-109 (architect 10)
     ]) {
       expect(config).toContain(`name: '${rule}'`);
     }

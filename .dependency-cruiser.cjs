@@ -39,6 +39,14 @@ module.exports = {
       to: { pathNot: '^packages/sync-core/src/' },
     },
     {
+      name: 'sync-core-upload-isolated',
+      comment:
+        'EVM-109 (architect 10): the upload reference model (src/upload) imports only itself — never the mutation queue, the replicas or the pull engine of sync-core; the file upload protocol must stay a separate, testable unit shared with the Kotlin engine through the conformance vectors.',
+      severity: 'error',
+      from: { path: '^packages/sync-core/src/upload/' },
+      to: { pathNot: '^packages/sync-core/src/upload/' },
+    },
+    {
       name: 'deploy-agent-self-contained',
       comment:
         'EVM-007 (architect 1): the deployment verifier runs on the VM from its own image — it never imports applications, shared packages or tools (only node:* and yaml).',
