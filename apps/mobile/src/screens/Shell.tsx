@@ -185,13 +185,14 @@ export function Shell() {
           ) : (
             <MoreScreen onOpenQueue={openQueue} onSignOut={signOut.ask} onWipe={wipe.ask} />
           )}
+          {/* the toast sits at the bottom of the content, right above the navigation; the overlay has the real size of the content
+              (a zero-height host would put the toast outside its parent, where Android drops it from the accessibility tree) */}
+          {saved ? (
+            <View style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }} pointerEvents="none">
+              <Toast message={t('entryForm.saved')} onDismiss={dismissSaved} testID="entry-toast" />
+            </View>
+          ) : null}
         </View>
-        {/* the toast sits right above the navigation: a zero-height anchor, the toast grows upwards from it */}
-        {saved ? (
-          <View style={{ height: 0 }} pointerEvents="none">
-            <Toast message={t('entryForm.saved')} onDismiss={dismissSaved} testID="entry-toast" />
-          </View>
-        ) : null}
         <BottomNav
           accessibilityLabel={t('shell.nav.label')}
           items={[

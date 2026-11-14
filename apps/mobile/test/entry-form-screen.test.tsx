@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
-import { AccessibilityInfo, BackHandler, TextInput } from 'react-native';
+import { AccessibilityInfo, BackHandler, StyleSheet, TextInput, type StyleProp, type ViewStyle } from 'react-native';
 import { App } from '../src/App';
 import { pl } from '../src/i18n/pl';
 import { buildOrderList, type OrderListSource, type OrderRow } from '../src/orders/order-list-model';
@@ -186,6 +186,25 @@ describe('note offline (EVM-105 AC1)', () => {
     expect(within(screen.getByTestId('entry-toast')).getByText(pl.entryForm.saved)).toBeOnTheScreen();
     expect(pl.entryForm.saved).toBe('Zapisano w telefonie. Wyślemy, gdy wróci zasięg.');
     expect(announce).toHaveBeenCalledWith(pl.entryForm.saved);
+  });
+
+  it('EVM-105 AC1: the toast is hosted in a container with a real size (not a zero-height anchor) and does not take touches', async () => {
+    // a zero-height host puts the absolute toast outside its parent: Android clips it from the accessibility tree, so UiAutomator and TalkBack miss it
+    const rig = rigWith();
+    await openForm(rig);
+    await type('Treść do zapisu');
+    await save();
+    let node = screen.getByTestId('entry-toast').parent;
+    let blocksTouches = false;
+    let depth = 0;
+    while (node && depth < 4) {
+      const style = StyleSheet.flatten(node.props.style as StyleProp<ViewStyle>) ?? {};
+      expect(style.height).not.toBe(0);
+      if (node.props.pointerEvents === 'none') blocksTouches = true;
+      node = node.parent;
+      depth += 1;
+    }
+    expect(blocksTouches).toBe(true);
   });
 
   it('EVM-105 AC1: the form closes only AFTER the queue confirmed the write (the file is durable before the user is told)', async () => {
