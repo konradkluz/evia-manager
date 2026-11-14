@@ -107,6 +107,8 @@ services:
       - ./packages:/src/packages:ro
       - ./tools:/src/tools:ro
       - ./design/tokens:/src/design/tokens:ro
+      # EVM-066 AC6: the panel imports the source of the office guide (`?raw`); only this subdirectory, only the panel build
+      - ./docs/user:/src/docs/user:ro
 
   # PostgreSQL 18 for integration tests (EVM-008 AC1; ADR-0003, ADR-0015) — ephemeral (tmpfs), internal network, no
   # ports. Image and initdb arguments = apps/api/test/support/postgres.ts (Testcontainers in CI); repo-policy checks

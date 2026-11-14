@@ -94,6 +94,7 @@ describe('konfiguracja reguł lokalizacji (EVM-012)', () => {
       ['docs/product/vision.md', 16, 'living'],
       ['docs/process/document-lifecycle.md', 16, 'living'],
       ['docs/ux/styleguide.md', 16, 'living'],
+      ['docs/user/instrukcja-dla-biura.md', 16, 'living'],
       ['design/tokens/README.md', 16, 'living'],
       ['tools/docs-lifecycle/README.md', 17, 'living'],
       ['.github/pull_request_template.md', 17, 'living'],

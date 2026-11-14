@@ -78,6 +78,7 @@
         "docs/security/**/*.md",
         "docs/ux/**/*.md",
         "docs/ops/**/*.md",
+        "docs/user/**/*.md",
         "design/**/*.md"
       ],
       "class": "living",

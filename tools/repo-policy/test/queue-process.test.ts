@@ -78,6 +78,17 @@ describe('web-e2e-linux service (EVM-087 AC4)', () => {
     expect(read('compose.yaml')).not.toMatch(/docker\.sock/);
   });
 
+  it('EVM-066 AC6: web-e2e-linux sees the source of the office guide (docs/user only, read-only); backend-tests never sees docs', () => {
+    const mounts = list(e2e['volumes']).map(String);
+    expect(mounts).toContain('./docs/user:/src/docs/user:ro');
+    expect(mounts.filter((mount) => mount.includes('docs'))).toEqual(['./docs/user:/src/docs/user:ro']);
+    const guide = read('apps/web/src/guide/guide-sections.tsx');
+    expect(guide).toContain('docs/user/instrukcja-dla-biura.md?raw');
+    expect(exists('docs/user/instrukcja-dla-biura.md')).toBe(true);
+    const backend = list(record(record(compose['services'])['backend-tests'])['volumes']).map(String);
+    expect(backend.some((mount) => mount.includes('docs'))).toBe(false);
+  });
+
   it('EVM-087 AC4: the image pins the Playwright base by digest and its tag equals @playwright/test; source mounts are read-only', () => {
     const image = read('infra/docker/web-e2e/Dockerfile');
     const version = text(record(record(json('apps/web/package.json'))['devDependencies'])['@playwright/test']);

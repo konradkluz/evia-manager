@@ -64,6 +64,8 @@ export const pl = {
     loading: 'Ładowanie treści…',
     help: {
       title: 'Pomoc',
+      guideLink: 'Instrukcja dla biura',
+      guideIntro: '— krok po kroku: logowanie, zlecenia, zdjęcia i zasady bezpiecznej pracy.',
       contact: 'Kontakt z administratorem:',
       contactMissing: 'Kontakt z administratorem: zapytaj przełożonego.',
       mailSuffix: '— napisz do administratora',
@@ -90,6 +92,11 @@ export const pl = {
       errorDescription: 'Spróbuj ponownie za chwilę.',
       retry: 'Spróbuj ponownie',
     },
+  },
+  guide: {
+    title: 'Instrukcja dla biura',
+    toc: 'Spis treści',
+    tableCaption: 'Szablony zleceń w typowych sytuacjach',
   },
   secondStep: {
     title: 'Potwierdź logowanie',

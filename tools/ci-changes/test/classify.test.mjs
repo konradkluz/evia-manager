@@ -225,6 +225,24 @@ describe('EVM-086 AC2: fail-closed', () => {
   });
 });
 
+describe('EVM-066 AC6: the source of the office guide (docs/user) is a build input of the web panel', () => {
+  it('EVM-066 AC6: docs/user/** is not documentation-only: it runs e2e-web and coverage in a pull request, not the API integration', () => {
+    assert.equal(isDocumentation('docs/user/instrukcja-dla-biura.md'), false);
+    assert.equal(isNotRelevantToE2e('docs/user/instrukcja-dla-biura.md'), false);
+    assert.equal(isNotRelevantToIntegration('docs/user/instrukcja-dla-biura.md'), true);
+    assert.equal(isDocumentation('docs/user-notes/a.md'), true);
+    const result = detect({ eventName: 'pull_request', baseSha: BASE, diff: list('docs/user/instrukcja-dla-biura.md') });
+    assert.deepEqual([result.heavy, result.e2e, result.integration], [true, true, false]);
+  });
+
+  it('EVM-066 AC6: a change of docs/user/** publishes the images on a push to main; other documentation does not', () => {
+    assert.equal(isPublishInput('docs/user/instrukcja-dla-biura.md'), true);
+    assert.equal(isPublishInput('docs/user-notes/a.md'), false);
+    assert.equal(deployment('push', 'docs/user/instrukcja-dla-biura.md').publish, true);
+    assert.equal(deployment('push', 'docs/a.md').publish, false);
+  });
+});
+
 /** @param {string} eventName @param {...string} files */
 const deployment = (eventName, ...files) => detectDeployment({ eventName, baseSha: BASE, diff: list(...files) });
 
