@@ -49,7 +49,7 @@ export function OrderStatusBadge({ status, testID }: { status: string; testID?: 
 /**
  * One work order of "Moje zlecenia" (EVM-103 AC1, AC3; EVM-104 AC1; styleguide § 3.8). With `onOpen` the card is active: the role of
  * a button, a pressed state and a chevron, the name starts with the number (the whole row is the target, at least 48 dp). A row
- * "Oczekuje na numer" has no `onOpen` until EVM-106 and stays one read-only block. Text only - names and addresses are rendered by
+ * A row "Oczekuje na numer" (EVM-106) opens its details from the queue like any other. Text only - names and addresses are rendered by
  * `Text` and never as markup (security K9).
  */
 const box = {
@@ -73,7 +73,7 @@ export function OrderCard({ row, onOpen }: { row: OrderRow; onOpen?: (id: string
   const label = [heading, row.awaitingNumber ? '' : statusLabel, row.customer, address, spot, stage, unsent]
     .filter((part) => part !== '')
     .join(', ');
-  const active = onOpen !== undefined && !row.awaitingNumber;
+  const active = onOpen !== undefined;
   const content = (
     <>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: space.inline.sm }}>

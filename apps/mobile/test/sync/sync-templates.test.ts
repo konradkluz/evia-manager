@@ -49,7 +49,7 @@ describe('templates after a cycle (EVM-106 AC1)', () => {
     const service = await started(server);
     expect(await names(service)).toEqual(['Wallbox w domu', 'Garaż']);
     expect(must(await service.templates()).items[1]?.siteTypeHint).toBe('multi_family_garage');
-    expect(server.order.at(-1)).toBe('templates');
+    expect(server.templateCalls).toBe(1);
     phone.online = false;
     expect(must(await service.templates()).items).toHaveLength(2);
   });

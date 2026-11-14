@@ -10,6 +10,7 @@ import { EntryTargetPicker } from './EntryTargetPicker';
 import { MoreScreen, useSignOutFlow } from './MoreScreen';
 import { OrderDetailScreen } from './OrderDetailScreen';
 import { OrdersScreen } from './OrdersScreen';
+import { QuickOrderScreen } from './QuickOrderScreen';
 import { QueueScreen } from './QueueScreen';
 import { UpdateRequiredScreen } from './UpdateRequiredScreen';
 import { WipeDialog } from './WipeDialogs';
@@ -17,8 +18,14 @@ import { useGuard, useSession } from './session-context';
 
 type Tab = 'orders' | 'queue' | 'more';
 
-/** The entry form (EVM-105): the picker of the order, or the form of one order. The only datum is the id of the order (never the text). */
-type Entry = { readonly stage: 'pick' } | { readonly stage: 'form'; readonly orderId: string };
+/**
+ * The forms opened over the shell: the picker of the order and the entry form (EVM-105; the only datum is the id of the order, never the
+ * text) and the quick work order form (EVM-106; no datum at all - the typed data live in the state of the form).
+ */
+type Entry = { readonly stage: 'pick' } | { readonly stage: 'form'; readonly orderId: string } | { readonly stage: 'quick' };
+
+/** The text of the toast hosted by the shell (fixed texts; no data of the user): the key of the catalogue. */
+type ToastKey = 'entryForm.saved' | 'quickOrder.saved';
 
 /** "Wyczyść dane firmowe" (EVM-101 AC4): the number of unsent items is read when the dialog opens; the wipe runs after the confirmation. */
 function useWipeFlow() {
@@ -86,20 +93,32 @@ export function Shell() {
   const [adding, setAdding] = useState(false);
   // The entry form (EVM-105): the text lives in the state of the form only, so closing this state drops it (no draft, nothing stored)
   const [entry, setEntry] = useState<Entry | null>(null);
-  const [saved, setSaved] = useState(false);
+  const [toast, setToast] = useState<ToastKey | null>(null);
   const hidden = guard.hidden !== null;
   const closeEntry = useCallback(() => {
     setEntry(null);
   }, []);
   const dismissSaved = useCallback(() => {
-    setSaved(false);
+    setToast(null);
   }, []);
   const entrySaved = useCallback(() => {
     setEntry(null);
-    setSaved(true);
+    setToast('entryForm.saved');
     // a fixed text: no content of the entry and no number of the order (security plan, check 1)
     AccessibilityInfo.announceForAccessibility(t('entryForm.saved'));
   }, [t]);
+  // the quick order is saved in the queue: the form closes, the new order opens in its details (the id is the only datum; the number
+  // comes after the synchronization); fixed text again - no name, phone or address
+  const quickSaved = useCallback(
+    (workOrderId: string) => {
+      setEntry(null);
+      setToast('quickOrder.saved');
+      AccessibilityInfo.announceForAccessibility(t('quickOrder.saved'));
+      setTab('orders');
+      setOpenOrderId(workOrderId);
+    },
+    [t],
+  );
   // the hidden-data mode closes the form and the picker and so drops the typed text (AC4); the render below does not draw them in the
   // same pass either (fail-closed)
   useEffect(() => {
@@ -187,9 +206,13 @@ export function Shell() {
           )}
           {/* the toast sits at the bottom of the content, right above the navigation; the overlay has the real size of the content
               (a zero-height host would put the toast outside its parent, where Android drops it from the accessibility tree) */}
-          {saved ? (
+          {toast !== null ? (
             <View style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }} pointerEvents="none">
-              <Toast message={t('entryForm.saved')} onDismiss={dismissSaved} testID="entry-toast" />
+              <Toast
+                message={t(toast)}
+                onDismiss={dismissSaved}
+                testID={toast === 'quickOrder.saved' ? 'quick-order-toast' : 'entry-toast'}
+              />
             </View>
           ) : null}
         </View>
@@ -234,6 +257,11 @@ export function Shell() {
           <EntryFormScreen orderId={shownEntry.orderId} onClose={closeEntry} onSaved={entrySaved} />
         </View>
       ) : null}
+      {shownEntry?.stage === 'quick' ? (
+        <View style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}>
+          <QuickOrderScreen onClose={closeEntry} onSaved={quickSaved} />
+        </View>
+      ) : null}
       {shownEntry?.stage === 'pick' ? (
         <EntryTargetPicker
           onPick={(orderId) => {
@@ -249,6 +277,7 @@ export function Shell() {
           onPick={(target) => {
             setAdding(false);
             if (target === 'entry') setEntry({ stage: 'pick' });
+            else if (target === 'newOrder') setEntry({ stage: 'quick' });
             else session.openAddTarget(target);
           }}
           onClose={() => {

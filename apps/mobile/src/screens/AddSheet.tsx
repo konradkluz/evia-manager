@@ -49,9 +49,15 @@ export function AddSheet({ hidden, onPick, onClose }: { hidden: boolean; onPick:
       }
     >
       {hidden ? (
-        <Text style={{ ...text.body, color: color.text.secondary }} testID="add-hidden-reason">
-          {t('add.hiddenReason')}
-        </Text>
+        <>
+          <Text style={{ ...text.body, color: color.text.secondary }} testID="add-hidden-reason">
+            {t('add.hiddenReason')}
+          </Text>
+          {/* EVM-106 AC6: the new order form is unavailable in the mode - and what still works */}
+          <Text style={{ ...text.body, color: color.text.secondary }} testID="add-hidden-quick">
+            {t('quickOrder.hidden')}
+          </Text>
+        </>
       ) : null}
     </AlertDialog>
   );

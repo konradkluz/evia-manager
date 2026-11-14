@@ -8,6 +8,8 @@
  * - the number for the dialer is `+` (first position only) and digits, at most 15; anything else (MMI/USSD codes, pauses) is refused.
  */
 import type { QueueRecord } from '@evia/sync-core';
+import type { QuickOrderSource } from './quick-order-model';
+import type { TemplateSet } from './templates';
 
 export interface DetailOrder {
   readonly id: string;
@@ -133,12 +135,20 @@ export interface JournalItem {
   readonly superseded: boolean;
   /** Corrects an earlier entry. */
   readonly correction: boolean;
+  /** A queue item that waits for the work order it belongs to to be created ("Wyślemy po utworzeniu zlecenia"; EVM-106 AC2). */
+  readonly awaitsOrder?: boolean;
 }
 export interface OrderDetail {
   readonly id: string;
   readonly number: string | null;
   readonly title: string;
   readonly status: string;
+  /** The order is a quick one still in the queue: no number yet ("Oczekuje na numer"; EVM-106 AC2). */
+  readonly awaitingNumber?: boolean;
+  /** The name of the template of an order that is not on the server yet (from the templates of the phone). */
+  readonly templateName?: string | null;
+  /** The note typed with a quick order (shown only for an order that is not on the server yet). */
+  readonly note?: string | null;
   readonly customer: DetailCustomerView | null;
   readonly location: DetailLocationView | null;
   readonly scope: readonly { readonly id: string; readonly name: string; readonly quantity: number | null }[];
@@ -278,5 +288,87 @@ export function buildOrderDetail(
       .map((item) => ({ id: item.id, name: item.name, quantity: item.quantity })),
     processes: processesOf(source.stages, parties, customer?.name ?? null),
     journal: [...pending.sort(newestFirst), ...synced.sort(newestFirst)],
+  };
+}
+
+const str = (value: unknown): string => (typeof value === 'string' ? value : '');
+const obj = (value: unknown): Record<string, unknown> =>
+  typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
+
+/**
+ * The details of a quick work order that is only in the queue (EVM-106 AC2; security K3, K4): built from the `CreateQuickWorkOrder` of
+ * the owner (title, new customer and place or the chosen ones of the replica, template by name from the templates of the phone) and the
+ * entries waiting behind it ("Wyślemy po utworzeniu zlecenia"). No number is invented. `null` when there is no such command or its
+ * payload is damaged (the screen then says the order is unavailable; nothing is logged).
+ */
+export function buildPendingOrderDetail(
+  workOrderId: string,
+  records: readonly QueueRecord[],
+  source: QuickOrderSource,
+  templates: TemplateSet | null,
+): OrderDetail | null {
+  const command = records.find((record) => record.type === 'CreateQuickWorkOrder' && record.objectId === workOrderId);
+  if (command === undefined) return null;
+  const payload = command.payload;
+  const title = blank(str(payload['title']));
+  if (title === null) return null;
+  const fresh = obj(payload['newCustomer']);
+  const knownCustomer = source.customers.find((customer) => customer.id === str(payload['customerId']));
+  const customerSource =
+    typeof payload['newCustomer'] === 'object' ? { displayName: str(fresh['displayName']), phone: str(fresh['phone']) } : knownCustomer;
+  const customer = customerView(
+    customerSource === undefined ? null : { id: '', displayName: customerSource.displayName, phone: customerSource.phone },
+  );
+  const place = obj(payload['newSite']);
+  const knownSite = source.sites.find((site) => site.id === str(payload['siteId']));
+  const siteSource = typeof payload['newSite'] === 'object' ? place : knownSite === undefined ? null : { ...knownSite };
+  const location =
+    siteSource === null
+      ? null
+      : locationView(
+          {
+            id: '',
+            street: str(siteSource['street']),
+            buildingNumber: str(siteSource['buildingNumber']),
+            postalCode: str(siteSource['postalCode']),
+            city: str(siteSource['city']),
+            parkingSpot: str(siteSource['parkingSpotNumber']),
+            garageLevel: '',
+            connectionPowerKw: null,
+            managerPartyId: null,
+            operatorPartyId: null,
+          },
+          new Map(),
+        );
+  const templateName = templates?.items.find((template) => template.id === str(payload['templateId']))?.name ?? null;
+  const journal: JournalItem[] = records
+    .filter((record) => (record.type === 'CreateNote' || record.type === 'CreateComment') && record.orderingKey === workOrderId)
+    .map((record) => ({
+      id: record.objectId,
+      source: record.state === 'needs_attention' || record.state === 'blocked' ? ('attention' as const) : ('pending' as const),
+      kind: record.type === 'CreateComment' ? ('comment' as const) : ('note' as const),
+      category: record.type === 'CreateNote' ? asText(record.payload['noteCategory']) : null,
+      author: null,
+      at: record.createdAt,
+      body: blank(asText(record.payload['body']) ?? ''),
+      redacted: false,
+      superseded: false,
+      correction: false,
+      awaitsOrder: true,
+    }))
+    .sort((a, b) => b.at - a.at || a.id.localeCompare(b.id));
+  return {
+    id: workOrderId,
+    number: null,
+    title,
+    status: 'new',
+    awaitingNumber: true,
+    templateName,
+    note: blank(str(payload['note'])),
+    customer,
+    location,
+    scope: [],
+    processes: [],
+    journal,
   };
 }

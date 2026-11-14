@@ -18,6 +18,8 @@ export { InlineAlert } from './InlineAlert';
 export type { AlertTone, InlineAlertProps } from './InlineAlert';
 export { ProgressBar } from './ProgressBar';
 export type { ProgressBarProps, ProgressTone } from './ProgressBar';
+export { SelectableCard } from './SelectableCard';
+export type { SelectableCardProps } from './SelectableCard';
 export { Skeleton } from './Skeleton';
 export { StatusBadge } from './StatusBadge';
 export type { BadgeTone, StatusBadgeProps } from './StatusBadge';

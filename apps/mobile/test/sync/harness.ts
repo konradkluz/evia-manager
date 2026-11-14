@@ -125,7 +125,6 @@ export class ScriptedServer implements Transport, PullTransport {
   }
 
   async listWorkOrderTemplates(): Promise<TransportResponse> {
-    this.order.push('templates');
     this.templateCalls += 1;
     return typeof this.templates === 'function' ? this.templates() : this.templates;
   }

@@ -211,7 +211,13 @@ export function JournalEntry({ item, onOpenQueue }: { item: JournalItem; onOpenQ
     <View style={card} testID={`order-detail-entry-${item.id}`}>
       {item.superseded ? <Text style={{ ...text.bodySm, color: color.text.secondary }}>{t('orderDetail.superseded')}</Text> : null}
       {item.correction ? <Text style={{ ...text.bodySm, color: color.text.secondary }}>{t('orderDetail.correction')}</Text> : null}
-      {item.source === 'pending' ? <StatusBadge icon={Clock} label={t('orderDetail.pending')} tone={color.sync.queued} /> : null}
+      {item.source === 'pending' ? (
+        <StatusBadge
+          icon={Clock}
+          label={item.awaitsOrder === true ? t('orderDetail.afterCreate') : t('orderDetail.pending')}
+          tone={color.sync.queued}
+        />
+      ) : null}
       {item.source === 'attention' ? <StatusBadge icon={CircleAlert} label={t('orderDetail.attention')} tone={color.sync.error} /> : null}
       <Text style={{ ...text.bodySm, color: color.text.secondary }}>{meta.join(' · ')}</Text>
       {body === null ? null : <Text style={{ ...text.body, color: color.text.primary }}>{body}</Text>}

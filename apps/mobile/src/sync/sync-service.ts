@@ -32,7 +32,7 @@ import {
   type Transport,
   type TransportResponse,
 } from '@evia/sync-core';
-import { buildOrderDetail, type OrderDetail, type OrderDetailSource } from '../orders/order-detail-model';
+import { buildOrderDetail, buildPendingOrderDetail, type OrderDetail, type OrderDetailSource } from '../orders/order-detail-model';
 import { buildOrderList, queueFact, type OrderListSource, type OrderRow } from '../orders/order-list-model';
 import { EMPTY_QUICK_SOURCE, type QuickOrderSource } from '../orders/quick-order-model';
 import { parseStoredTemplates, parseTemplateResponse, type TemplateSet } from '../orders/templates';
@@ -598,7 +598,14 @@ export class SyncService implements SyncControl {
       this.#records(),
       this.#deps.owner.currentUserId(),
     ]);
-    return buildOrderDetail(source, records, userId ?? '');
+    if (source !== null) return buildOrderDetail(source, records, userId ?? '');
+    // not on the server yet: a quick work order that waits in the queue (EVM-106 AC2)
+    if (!records.some((record) => record.type === 'CreateQuickWorkOrder' && record.objectId === workOrderId)) return null;
+    const [places, templates] = await Promise.all([
+      this.#deps.store.replicaExtras.readQuickOrderSource().catch(() => EMPTY_QUICK_SOURCE),
+      this.templates(),
+    ]);
+    return buildPendingOrderDetail(workOrderId, records, places, templates);
   }
 
   /** The templates kept on the phone (replica only); a damaged or missing document is `null`. */

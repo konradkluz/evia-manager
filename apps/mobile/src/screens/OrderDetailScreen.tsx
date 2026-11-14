@@ -1,7 +1,8 @@
+import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FlatList, Text, View } from 'react-native';
+import { AccessibilityInfo, FlatList, Text, View } from 'react-native';
 import type { JournalItem, OrderDetail } from '../orders/order-detail-model';
-import { AppBar, Button, EmptyState, Inbox, Skeleton } from '../ui';
+import { AppBar, Button, Clock, EmptyState, Inbox, InlineAlert, Skeleton, StatusBadge } from '../ui';
 import { color, space, text } from '../ui/theme';
 import { ConnectionNotices } from './ConnectionNotices';
 import { HiddenDataNotice } from './DeviceNotices';
@@ -12,18 +13,67 @@ import { useOrderDetail } from './order-detail-hooks';
 import { useSession } from './session-context';
 
 function DetailHeader({ detail }: { detail: OrderDetail }) {
+  const { t } = useTranslation();
+  const waiting = detail.awaitingNumber === true;
   return (
     <View style={{ rowGap: space.stack.sm }}>
       <View style={{ rowGap: space.stack.xs }} accessible accessibilityRole="header" testID="order-detail-header">
         <Text style={{ ...text.heading3, color: color.text.primary }}>{detail.title}</Text>
       </View>
-      <OrderStatusBadge status={detail.status} testID="order-detail-status" />
+      {waiting ? (
+        <>
+          <StatusBadge icon={Clock} label={t('shell.orders.awaitingNumber')} tone={color.sync.queued} testID="order-detail-awaiting" />
+          <InlineAlert tone="info" body={t('orderDetail.pendingBanner')} testID="order-detail-pending-banner" />
+        </>
+      ) : (
+        <OrderStatusBadge status={detail.status} testID="order-detail-status" />
+      )}
       <CustomerCard customer={detail.customer} />
       <LocationCard location={detail.location} />
-      <ScopeSection scope={detail.scope} />
-      <ProcessesSection processes={detail.processes} />
+      {waiting ? (
+        <>
+          {detail.templateName === null || detail.templateName === undefined ? null : (
+            <View accessible accessibilityLabel={`${t('orderDetail.template')}: ${detail.templateName}`} testID="order-detail-template">
+              <Text style={{ ...text.bodySm, color: color.text.secondary }}>{t('orderDetail.template')}</Text>
+              <Text style={{ ...text.body, color: color.text.primary }}>{detail.templateName}</Text>
+            </View>
+          )}
+          {detail.note === null || detail.note === undefined ? null : (
+            <View accessible accessibilityLabel={`${t('orderDetail.note')}: ${detail.note}`} testID="order-detail-note">
+              <Text style={{ ...text.bodySm, color: color.text.secondary }}>{t('orderDetail.note')}</Text>
+              <Text style={{ ...text.body, color: color.text.primary }}>{detail.note}</Text>
+            </View>
+          )}
+        </>
+      ) : (
+        <>
+          <ScopeSection scope={detail.scope} />
+          <ProcessesSection processes={detail.processes} />
+        </>
+      )}
     </View>
   );
+}
+
+/**
+ * "Zlecenie dostało numer ZL-…" (EVM-106 AC4): one polite announcement when the order that was open without a number is given one
+ * (the same screen switches from the variant of the queue to the synchronized one). A fixed sentence with the number only - no name,
+ * address or title; no dialog and no change of the focus.
+ */
+function useNumberAnnouncement(detail: OrderDetail | null): void {
+  const { t } = useTranslation();
+  const waitedFor = useRef<string | null>(null);
+  const number = detail?.number ?? null;
+  const id = detail?.id ?? null;
+  useEffect(() => {
+    if (detail === null) return;
+    if (detail.awaitingNumber === true) {
+      waitedFor.current = detail.id;
+    } else if (number !== null && waitedFor.current === id) {
+      waitedFor.current = null;
+      AccessibilityInfo.announceForAccessibility(t('quickOrder.numberGiven', { number }));
+    }
+  }, [detail, id, number, t]);
 }
 
 /**
@@ -48,6 +98,7 @@ export function OrderDetailScreen({
   const { t } = useTranslation();
   const session = useSession();
   const { state, retry } = useOrderDetail(orderId);
+  useNumberAnnouncement(state.kind === 'ready' ? state.detail : null);
 
   const content = () => {
     switch (state.kind) {
