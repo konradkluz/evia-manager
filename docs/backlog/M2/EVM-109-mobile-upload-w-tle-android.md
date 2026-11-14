@@ -79,11 +79,11 @@ Zadanie systemowe Androida, natywny właściciel tokenów, trwała kolejka plik�
 - Dysk: architekt zaleca ≥ 20 GB wolnego (cache Gradle); po kompaktowaniu VHDX Dockera 2026-11-14 jest 14,8 GB — komenda nocna ma próg: poniżej 10 GB tor B staje, tor A jedzie dalej.
 
 **Uwagi nieblokujące z przeglądów (2026-11-14) — do EVM-130 albo backlogu:**
-- redakcja logów: wzorzec tokenu przepuszcza ciągi 32+ znaków bez cyfr () — poprawić razem z adapterem HTTP w EVM-130;
-- EVM-130: zawęzić wykluczenie pokrycia  do czystego kleju, logikę tokenów i polityki HTTP trzymać w module JVM z progiem 95%; transport części bez przekierowań, lista hostów tylko z konfiguracji builda, wariant http wyłącznie w paczce e2e;
-- EVM-130: kontrakt zatrzymania zadania (przerwanie wątku, jedna instancja silnika na zadanie), odmowa wznowienia migawki  bez pełnego logowania, potwierdzenie pola z kodem 422 w adapterze;
-- dokumentacja: odniesienia SR-SESS-09 / TM-130 do EVM-109 zamienić na EVM-130 (ADR-0020a); mapa modułów i  §3 — w EVM-130;
-- backlog:  i reguła Renovate dla silnika, reguła logowania także dla , wyłączenie statystyk FUS wtyczki Kotlin, osobny job CI ; ryzyko rezydualne CVE-2026-53914 (wtyczka Kotlin 2.2.21, build cache wyłączony) — do akceptacji Konrada w PR.
+- redakcja logów: wzorzec tokenu przepuszcza ciągi 32+ znaków bez cyfr (`RedactingLogger.kt`) — poprawić razem z adapterem HTTP w EVM-130;
+- EVM-130: zawęzić wykluczenie pokrycia `apps/mobile/modules/*/android/**` do czystego kleju, logikę tokenów i polityki HTTP trzymać w module JVM z progiem 95%; transport części bez przekierowań, lista hostów tylko z konfiguracji builda, wariant http wyłącznie w paczce e2e;
+- EVM-130: kontrakt zatrzymania zadania (przerwanie wątku, jedna instancja silnika na zadanie), odmowa wznowienia migawki `PAUSED_REVOKED` bez pełnego logowania, potwierdzenie pola z kodem 422 w adapterze;
+- dokumentacja: odniesienia SR-SESS-09 / TM-130 do EVM-109 zamienić na EVM-130 (ADR-0020a); mapa modułów i `media-pipeline.md` §3 — w EVM-130;
+- backlog: `gradle.lockfile` i reguła Renovate dla silnika, reguła logowania także dla `.java`, wyłączenie statystyk FUS wtyczki Kotlin, osobny job CI `mobile-kotlin`; ryzyko rezydualne CVE-2026-53914 (wtyczka Kotlin 2.2.21, build cache wyłączony) — do akceptacji Konrada w PR.
 
 ## Definition of Done
 - [ ] Wszystkie AC pokryte testami oznaczonymi `EVM-109 AC#`; `pnpm run gate` i `npm run docs:check` zielone; testy Kotlin w CI (job `mobile-apk`) zielone.
