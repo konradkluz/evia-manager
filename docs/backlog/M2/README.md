@@ -51,7 +51,7 @@ Technik dokumentuje zlecenie zdjęciami, filmami i wpisami także bez zasięgu; 
 | [EVM-110](EVM-110-mobile-filmy-i-wifi.md) | Aplikacja: filmy i „filmy tylko przez Wi-Fi” | E11 | story | P1 | pelna | EVM-108, EVM-046, EVM-130, EVM-131 | 4 |
 | [EVM-111](EVM-111-mobile-media-zlecenia.md) | Aplikacja: status każdego pliku w kolejce telefonu | E11 | story | P2 | lekka (zawężona 2026-11-12) | EVM-108, EVM-131 | 4 |
 | [EVM-112](EVM-112-test-terenowy-i-masvs.md) | Test terenowy w garażu i dystrybucja (po podziale 2026-11-15; plik zachował nazwę) | E11/E14 | story | P1 | pelna | EVM-105, EVM-106, EVM-110, EVM-130, EVM-131 | 5 |
-| [EVM-132](EVM-132-sign-off-wydania-aplikacji.md) | Sign-off wydania aplikacji: checklista MASVS L1, warunek RR-96, utrata telefonu — **nowa 2026-11-15** | E14 | story | P1 | lekka | EVM-112 | 5 (po teście) |
+| [EVM-132](EVM-132-sign-off-wydania-aplikacji.md) | Sign-off wydania aplikacji: checklista MASVS L1, warunek RR-96, utrata telefonu — **nowa 2026-11-15** | E14 | story | P1 | pelna (mała zmiana API, RR-96 wariant B) | EVM-112 | 5 (po teście) |
 | ~~[EVM-113](EVM-113-bramki-kotlin.md)~~ | Bramki Kotlin — **połączona z EVM-109 (AC6), 2026-11-12** | E14 | enabler | — | — | — | — |
 
 Zmiany po konsultacjach (2026-10-27): EVM-109 decyzja o właścicielu odświeżania tokenów; EVM-104 zostaje `lekka`; EVM-103 po refinemencie z 2026-11-12: `pelna`, 7 AC. Zmiany z 2026-11-12: EVM-109 przejmuje bramki Kotlin (AC6), `depends_on` bez EVM-113; EVM-111 zawężona i `lekka` (bez EVM-045/068); EVM-112 bez zależności od EVM-102. EVM-100 zależy od EVM-009 (`in-review`) — **start toru C wymaga akceptacji EVM-009**. EVM-096 i EVM-097 wymagają ADR-0021 Zaakceptowanej.
@@ -193,7 +193,7 @@ Odpowiedzi wpisujemy tu po decyzji Konrada (stan: otwarte; pytanie 9 zastąpione
 | 7 | Wyszukiwanie offline ignoruje polskie znaki? | Tak |
 | 8 | Limit 2 aktywnych telefonów na użytkownika (SR-SESS-04) wystarcza? | Tak na pilotaż; podnieść konfiguracją |
 | 9 | Liczba niewysłanych elementów urządzenia widoczna dla Administratora (ADR-0007) — osobna historyjka po M2-faza 3? | Tak, poza fazami 1–3 |
-| 10 | Test terenowy (EVM-112): kto i jaki telefon? | Konrad + technik; Samsung SM-G781B (Android 13) z EVM-011 oraz drugi model z Androidem 14+ |
+| 10 | Test terenowy (EVM-112): kto i jaki telefon? | **Rozstrzygnięte 2026-11-15:** uczestnicy to członkowie zarządu, prywatne telefony (BYOD), maks. 3 w spisie testu; rekomendacja: Samsung SM-G781B (Android 13) z EVM-011 oraz drugi model z Androidem 14+. Warunki dla pracowników — przed udostępnieniem aplikacji komukolwiek spoza zarządu (EVM-132 AC5) |
 
 ## Dziennik
 - 2026-10-27 — szkic planu M2 i historyjek EVM-090…112 w `draft` (product-owner)
@@ -201,4 +201,5 @@ Odpowiedzi wpisujemy tu po decyzji Konrada (stan: otwarte; pytanie 9 zastąpione
 - 2026-11-12 — uproszczenia (decyzja Konrada 2026-11-12 / Tech Lead z delegacji Konrada „tanio, szybko, bezpiecznie”): bez Sentry (EVM-102 tylko M-11); EVM-113 → EVM-109 AC6; EVM-111 zawężona; EVM-112 MASVS L1 w sign-offie; EVM-106 zostaje w 1.1; poprawki po refinemencie EVM-103 (`pelna`, 7 AC, decyzja 12 → AC3, BYOD) (product-owner)
 - 2026-11-13 — refinement EVM-104/105/106 do DoR (kolejka nocna 104 → 105 → 127 → 106): EVM-104 `lekka` → `pelna` (dane osobowe na urządzeniu), po 6 AC; podział EVM-106: nowa EVM-127 (telefon nie ma źródła szablonów — endpoint tylko web) i EVM-128 („Utwórz ponownie”); pytania do Konrada w raporcie (product-owner)
 - 2026-11-14 — refinement kolejki nocnej po konsultacjach (architekt, security, UX) i decyzjach Konrada (product-owner): podział EVM-109 → 109 + 130; nowa EVM-131; EVM-084 z `depends_on` EVM-109 do EVM-112; decyzje 6, 13, 17 potwierdzone, nowe 18–24; EVM-109, 130, 131, 128, 102 → `ready` (kryteria zatwierdzone przez Tech Leada z delegacji Konrada; Konrad przegląda je rano w PR); EVM-108, 110, 111, 112 zostają `draft` z uzupełnionymi zależnościami i decyzjami
+- 2026-11-15 — decyzje Konrada w `/refine`: limit filmu 5 min (720p, 5 Mb/s, ok. 190 MB), brak progu 500 MB, „tylko Wi-Fi” domyślnie, test na zleceniu testowym, telefony prywatne (maks. 3), uczestnicy testu = zarząd, RR-96 wariant B, klucz podpisu do wygenerowania; EVM-110 `ready` po `done` EVM-108, EVM-112 po EVM-110 (Tech Lead)
 - 2026-11-15 — refinement EVM-110 (8 AC, etapy, pytania do Konrada) i podział EVM-112 (decyzja Konrada „podziel 112 na dwie”): EVM-112 = test terenowy i dystrybucja (7 AC, lista sprawdzeń `manual` M1–M19), nowa EVM-132 = sign-off wydania (MASVS L1, RR-96, utrata telefonu; 5 AC, szkic ramowy); EVM-084 usunięta z tabeli i grafu jako zależność EVM-112; wszystko `draft` (product-owner)

@@ -6,16 +6,16 @@ milestone: M2
 epic: E14 Dystrybucja i utrzymanie
 status: draft
 priority: P1
-path: lekka             # dokumentacja, ocena i ćwiczenie; kod tylko w osobnej historyjce (wariant A RR-96)
+path: pelna             # dokumentacja i ocena plus mała zmiana API (walidacja kanału mobile, RR-96 wariant B) — obszar ryzyka
 owner: security-engineer
-contributors: [qa-engineer]
-reviewers: [solution-architect]
+contributors: [qa-engineer, backend-developer]
+reviewers: [solution-architect, code-reviewer]
 depends_on: [EVM-112]
 ---
 
 # EVM-132: Sign-off wydania aplikacji — checklista MASVS L1, warunek RR-96, utrata telefonu
 
-> **Szkic ramowy z danymi do uzupełnienia** — wydzielona 2026-11-15 z EVM-112 (decyzja Konrada „podziel 112 na dwie”). Brakuje: decyzji Konrada o RR-96 i o źródle spisu floty (pytania w raporcie), listy dowodów z przeglądów do checklisty (przygotuje security-engineer po EVM-112) i numeru wydania. Wzór: [EVM-070](../M1/EVM-070-security-sign-off-1-0.md).
+> **Szkic ramowy z danymi do uzupełnienia** — wydzielona 2026-11-15 z EVM-112 (decyzja Konrada „podziel 112 na dwie”). Brakuje: decyzji Konrada o źródle spisu floty (rekomendacja: lista urządzeń w panelu), listy dowodów z przeglądów do checklisty (przygotuje security-engineer po EVM-112) i numeru wydania. Wzór: [EVM-070](../M1/EVM-070-security-sign-off-1-0.md).
 
 ## Cel
 Jako **Konrad** chcę **formalnego security sign-offu wydania aplikacji (1.1)**, aby **technicy mogli jej używać na stałe, mając pewność, że znane ryzyka są zamknięte albo świadomie zaakceptowane, a utrata telefonu ma przećwiczoną procedurę**. Test praktyczny i dystrybucja na telefony testowe nie czekają na tę historyjkę ([EVM-112](EVM-112-test-terenowy-i-masvs.md)).
@@ -30,7 +30,7 @@ Jako **Konrad** chcę **formalnego security sign-offu wydania aplikacji (1.1)**,
 **AC2 — Warunek RR-96 (media bez pliku)**
 - Zakładając ryzyko RR-96 (komenda `CreateMediaAsset` tworzy medium bez pliku, niewidoczne w panelu, bez retencji i limitu) i decyzję Konrada o wariancie
 - Gdy sprawdzam warunek przed wydaniem aplikacji z wysyłaniem
-- Wtedy spełniony jest wariant wybrany przez Konrada: **(B, rekomendowany przez security-engineera i product-ownera — zmienia wcześniejszą decyzję Konrada z 2026-11-15 o warunkach (1)–(3), więc czeka na jego potwierdzenie)** — mała zmiana backendowa (serwer odrzuca `description` w `CreateMediaAsset` z kanału `mobile` kodem ze słownika mutacji; zmiana kontraktu i walidacji, test macierzy kanałów) oraz zapisana akceptacja ryzyka dla warunków (1)–(3) z przeglądem przy zamknięciu M3 albo najpóźniej **2027-02-15**; do tego czasu Konrad sam liczy media bez pliku starsze niż 7 dni, a przy > 50 albo pierwszym żądaniu z art. 15/17 realizujemy warunki (1)–(3); albo **(A)** dostarczone w osobnej historyjce (API + panel): panel pokazuje Administratorowi media „Czeka na plik z telefonu” z możliwością usunięcia (także opisu), zadanie retencji czyści opis albo miękko usuwa media bez pliku starsze niż 30 dni, a limit liczby mediów bez pliku na twórcę i zlecenie obowiązuje przy `CreateMediaAsset`; w obu wariantach sign-off wskazuje, który zastosowano.
+- Wtedy spełniony jest **wariant B (decyzja Konrada 2026-11-15; zastępuje jego decyzję z 2026-11-14/15 o warunkach (1)–(3) blokujących wydanie)**: serwer odrzuca `description` w `CreateMediaAsset` z kanału `mobile` kodem ze słownika mutacji (zmiana kontraktu i jednej walidacji, test macierzy kanałów, `backend-developer`) oraz jest zapisana akceptacja ryzyka dla warunków (1)–(3) z przeglądem przy zamknięciu M3 albo najpóźniej **2027-02-15**; do tego czasu Konrad sam liczy media bez pliku starsze niż 7 dni, a przy > 50 albo pierwszym żądaniu z art. 15/17 realizujemy warunki (1)–(3) (panel „Czeka na plik z telefonu” z usuwaniem, retencja 30 dni, limit przy `CreateMediaAsset`) w osobnej historyjce.
 
 **AC3 — Utrata telefonu i spis floty**
 - Zakładając fizyczny telefon z zalogowaną aplikacją i niewysłanymi elementami oraz spis floty zawierający poziom poprawek każdego telefonu (źródło spisu: decyzja Konrada)
@@ -45,18 +45,20 @@ Jako **Konrad** chcę **formalnego security sign-offu wydania aplikacji (1.1)**,
 **AC5 — Decyzja o stałym używaniu**
 - Zakładając AC1–AC4 spełnione
 - Gdy Konrad przegląda sign-off
-- Wtedy zapisuje decyzję „stałe używanie przez techników: tak / nie” z listą warunków; do tego czasu technicy mają paczkę wyłącznie na test (decyzja 2026-11-15), a przy „nie” lista braków trafia do backlogu.
+- Wtedy zapisuje decyzję „stałe używanie przez techników: tak / nie” z listą warunków; do tego czasu aplikację ma wyłącznie zarząd na test (EVM-112), a przed udostępnieniem jej komukolwiek spoza zarządu spełnione są warunki dla pracowników (przeniesione z EVM-112): klauzula informacyjna o aplikacji (checklista wydania S8), upoważnienie i poufność, informacja o audycie, oświadczenie o prywatnym telefonie (wzór 2) — każdy element z datą i dowodem; przy „nie” lista braków trafia do backlogu.
 
 ## Poza zakresem
-Test terenowy, dystrybucja paczki i lista sprawdzeń `manual` (EVM-112); realizacja wariantu A RR-96 w kodzie (osobna historyjka, jeśli Konrad go wybierze); test MASTG i pentest; RESILIENCE; MDM i zdalne zarządzanie telefonem; Google Play; iOS.
+Test terenowy, dystrybucja paczki i lista sprawdzeń `manual` (EVM-112); warunki (1)–(3) RR-96 w kodzie (osobna historyjka dopiero po przekroczeniu progu z AC2); test MASTG i pentest; RESILIENCE; MDM i zdalne zarządzanie telefonem; Google Play; iOS.
 
 ## Decyzje i ograniczenia
 - **Przeniesione z EVM-112 (2026-11-15):** AC2 (MASVS L1) i AC4 (utrata telefonu, spis floty) w całości; warunek sign-offu RR-96 (przegląd EVM-131, 2026-11-14: przed wydaniem aplikacji z wysyłaniem panel pokazuje media „Czeka na plik z telefonu” z usuwaniem, retencja 30 dni, limit — wariant zastępczy: zapisana akceptacja ryzyka Konrada; RR-96 zaakceptowane 2026-11-15 do sign-offu); „stałe używanie aplikacji przez techników — po sign-offie”; uproszczenie 2026-11-12 (MASVS L1 jako checklista w sign-offie wydania 1.1, bez testu i pentestu).
 - **Powiązania do poprawienia przy scaleniu:** odwołania do „sign-offu EVM-112” poza `docs/backlog/` (m.in. `threat-model.md` RR-96, RR-98, `requirements.md`, `rodo.md`, `workflow.md`, `docs/ops/dystrybucja-apk-android.md`) oraz w EVM-109, 130, 131 i 108 powinny wskazywać EVM-132 (tam, gdzie chodzi o sign-off, nie o test).
-- **UX / UI:** brak nowego UI (wariant A RR-96 dodałby ekran w panelu — osobna historyjka z konsultacją UX).
+- **Ścieżka i wykonawcy:** zmiana backendowa z AC2 (jedna walidacja i kontrakt) zostaje w tej historyjce (`backend-developer` w `contributors`, ścieżka `pelna` — API i kanały to obszar ryzyka), bo osobne ID dodałoby plik, wiersz i cykl za jedną walidację.
+- **UX / UI:** brak nowego UI (warunki (1)–(3) RR-96 dodałyby ekran w panelu — osobna historyjka z konsultacją UX).
 - **Bezpieczeństwo i prywatność:** obszar security-engineera; spis floty to dane o telefonach prywatnych (model, system, poprawki — bez numerów seryjnych, IMEI i lokalizacji, P7); lista telefonów z nazwiskami nie trafia do repozytorium. Konsultacja security — wyniki wklei Tech Lead.
 - **Telefony prywatne (BYOD):** decyzja 4; tryb „blokuj” (P7) wymaga decyzji po spisie floty.
 
 ## Dziennik
+- 2026-11-15 — decyzje Konrada: RR-96 wariant B (zastępuje decyzję o warunkach (1)–(3) blokujących wydanie), warunki dla pracowników przeniesione z EVM-112 do AC5 (uczestnicy testu to zarząd); `backend-developer` w `contributors`, ścieżka `pelna` (Tech Lead)
 - 2026-11-15 — naniesiono konsultację security: wariant B RR-96 z terminem przeglądu 2027-02-15 (pytanie do Konrada), rozszerzone AC4 (pomiar czasu oczekiwania, odwołania w dokumentach, `policies.md` P7) (product-owner)
 - 2026-11-15 — wydzielona z EVM-112 (decyzja Konrada „podziel 112 na dwie”): AC2→AC1, AC4→AC3, warunek RR-96→AC2, nowe AC4 (ponowna ocena RR-07/98, RR-97, RR-100, dokumenty) i AC5 (decyzja o stałym używaniu); status `draft`, szkic ramowy (product-owner)
