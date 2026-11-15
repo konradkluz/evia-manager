@@ -94,7 +94,8 @@ export function buildExpoConfig(env: Readonly<Record<string, string | undefined>
     plugins: ['expo-secure-store', ['expo-sqlite', { useSQLCipher: true }], ['./plugins/with-hardening.ts', { variant }]],
     extra: {
       buildVariant: variant,
-      // EVM-102: contact of the office (never in the repository: the build variables EVIA_CONTACT_EMAIL / EVIA_CONTACT_PHONE; not public)
+      // EVM-102: contact of the office (not in the repository: the build variables EVIA_CONTACT_EMAIL / EVIA_CONTACT_PHONE; visible in the CI artifact and in the APK, so only a functional
+      // address and number of the office, never of a person)
       contactEmail: contactFrom('EVIA_CONTACT_EMAIL', parseContactEmail, env['EVIA_CONTACT_EMAIL']),
       contactPhone: contactFrom('EVIA_CONTACT_PHONE', parseContactPhone, env['EVIA_CONTACT_PHONE']),
       privacyClauses: privacyClausesState(),
