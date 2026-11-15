@@ -130,12 +130,25 @@ class EngineBehaviorTest {
         assertEquals(Outcome.Uploaded, harness.engine().run(ASSET, declare(SIZE)))
         // one NEW session for the same asset, the parts of the abandoned one are not counted: all three parts go once
         assertEquals(1, harness.server.sessionsCreated)
-        assertEquals(listOf(1, 2, 3), harness.server.puts.keys.toList())
-        assertTrue(harness.server.puts.values.all { it == 1 })
+        assertEquals(
+            listOf(1, 2, 3),
+            harness.server.puts.keys
+                .toList(),
+        )
+        assertTrue(
+            harness.server.puts.values
+                .all { it == 1 },
+        )
         assertEquals(1, harness.server.objects)
         assertEquals(listOf(0L, 16L, 32L), harness.requests.map { it.offset })
         // the declaration is the same file (same digest and size) as before
-        assertEquals(1, harness.server.declarations.map { it.sha256 }.toSet().size)
+        assertEquals(
+            1,
+            harness.server.declarations
+                .map { it.sha256 }
+                .toSet()
+                .size,
+        )
         assertEquals(ASSET, harness.saved.last().assetId)
         assertFalse(harness.saved.last().uploadSessionId == "sess-old")
     }
