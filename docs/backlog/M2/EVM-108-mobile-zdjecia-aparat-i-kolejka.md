@@ -96,6 +96,16 @@ EVM-108 pokazuje w Kolejce **minimum**: wiersz pliku, 4 etykiety stanu, licznik,
 5. **Retencja rekordów wysłanych plików 7 dni** — rekomendacja konsultacji, do przeglądu; **przeniesione do EVM-111** (tam powstaje „wysłano n z m”).
 6. **Jeden komponent listy plików** — rekomendacja konsultacji, do przeglądu (granica wyżej).
 
+### Decyzje z realizacji (2026-11-15)
+- **Akcje dla „Wymaga uwagi” (AC6) — decyzja Konrada:** „Ponów” z EVM-130 zostaje tam, gdzie już jest; „Usuń z telefonu” (z potwierdzeniem) dostają tylko pliki, których nie da się ponowić (`quarantined`, `id_conflict`, `missing_original`).
+- **Zakazane grupy w paczce (AC8) — Tech Lead, wariant bezpieczny z konsultacji security, do potwierdzenia przez Konrada w demo:** do czterech grup z AC8 dochodzą `com.google.android.odml` i `androidx.camera.mlkit` (części ML Kit); trafienie w nie też uruchamia warunek zatrzymania.
+- **`expo-camera` budowane ze źródeł (AC8) — do potwierdzenia przez Konrada w demo:** gotowy artefakt biblioteki niesie ML Kit i usługi Google w swoim opisie zależności, a przełączniki skanerów działają tylko przy budowie ze źródeł, dlatego `apps/mobile/package.json` ustawia `expo.autolinking.android.buildFromSource: ["expo-camera"]`. Po tym ustawieniu drzewo zależności paczki nie zawiera żadnej zakazanej grupy; biblioteka i kontrole pozostają bez zmian.
+- **Progi miejsca (AC4) — Tech Lead:** ostrzeżenie poniżej 2 GB, blokada zdjęcia poniżej 100 MB, jedna stała do korekty po teście terenowym.
+- **Wyszukiwanie w wyborze zlecenia (AC5) — Tech Lead:** po numerze i tytule, bez adresu i nazwiska (jak EVM-105); w trybie ukrytych danych wyłącznie po numerze (wymaganie security).
+- **„Jedna transakcja” (AC1) — interpretacja potwierdzona przez security:** komenda i wiersz pliku w jednej transakcji lokalnej bazy, plik utrwalony przed nią; przy niepowodzeniu sprzątanie oraz odśmiecacz po zabiciu procesu.
+- **Latarka z makiety:** poza wersją 1 (nie ma jej w AC) — propozycja do backlogu.
+- Wymagania security przed implementacją (22 punkty, konsultacja 2026-11-15): obowiązują wykonawców wszystkich etapów; ustalenia zmieniające dokumenty trafiają do `threat-model.md`, `requirements.md` i `rodo.md` w etapie 4.
+
 ### Kryteria `manual` przekazane do EVM-112 (bez zmian w pliku EVM-112)
 30 zdjęć prawdziwym aparatem; kontrast panelu aparatu w słońcu; spust w rękawicy; układ 360 dp i poziomy; monity systemowe aparatu i powiadomień; odmowa trwała i powrót z ustawień; analiza ruchu sieciowego całej sesji (brak usług analitycznych, ML Kit, Firebase); brak zdjęć w galerii telefonu i brak GPS w EXIF zdjęcia z prawdziwego aparatu; TalkBack (ogłoszenie „Zapisano zdjęcie n”), 200% czcionki.
 
@@ -133,3 +143,4 @@ EVM-108 pokazuje w Kolejce **minimum**: wiersz pliku, 4 etykiety stanu, licznik,
 - 2026-11-15 — start realizacji (`/deliver`, ścieżka `pelna`, etapami: AC8 → AC1–AC4 → AC5–AC6 → AC7; gałąź `feature/EVM-108-zdjecia-aparat-i-kolejka`); z tytułu usunięto „opis” (poza wersją 1); **status `in-progress`** (Tech Lead)
 - 2026-11-15 — plan gotowy, cztery etapy (mobile-developer)
 - 2026-11-15 — etap 1 (AC8) zrealizowany (mobile-developer)
+- 2026-11-15 — po etapie 1: scalono `main` (EVM-121, #143) do gałęzi; zapisano decyzje z realizacji (AC6 — decyzja Konrada: „Ponów” zostaje; pozostałe Tech Lead, część do potwierdzenia w demo) (Tech Lead)
