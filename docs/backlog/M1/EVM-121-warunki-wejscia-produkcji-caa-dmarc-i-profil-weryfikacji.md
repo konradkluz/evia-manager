@@ -4,7 +4,7 @@ title: Rekordy CAA i rua oraz profil strict w staging-verify dla jedynego środo
 type: enabler
 milestone: M1
 epic: E8 Gotowość produkcyjna
-status: ready
+status: in-review
 priority: P1
 path: lekka            # narzędzie, CI i DNS; bez uwierzytelniania, danych osobowych i mediów; jeden recenzent (zmiana .github/** → security-engineer)
 owner: devops-engineer
@@ -62,9 +62,21 @@ Stan na 2026-11-15 (publiczny DNS): `panel.eviacharge.pl` ma CAA `0 issue "letse
 - Ryzyka RR-40 i RR-41 zostały zaakceptowane tylko dla stagingu z danymi syntetycznymi; przy realnych danych (RR-93) wymagają zamknięcia, nie ponownej akceptacji.
 - Uzasadnienie ścieżki `lekka`: narzędzie i CI bez obszarów ryzyka z tabeli; 4 AC; jedyny recenzent `security-engineer` z powodu zmiany `.github/**` (workflow „Ścieżki realizacji”).
 
+## Notatki
+- Przegląd `security-engineer` (2026-11-15): APPROVE, bez blocker/major; brak `issuewild` akceptowalny (RFC 8659 §4.3; wildcard Let's Encrypt tylko po DNS-01), wariant zapasowy zbędny. Uwagi minor w `docs/security` naniesione (`threat-model.md`, `requirements.md`, `policies.md`).
+- **RR-99 (nowe, Low, do akceptacji Konrada):** `staging.eviacharge.pl` (samo przekierowanie 308) nie ma CAA; rekomendacja: dodać `0 issue "letsencrypt.org"` na tym węźle przy najbliższej wizycie w OVH.
+- Propozycja do backlogu (`/refine`): kontrola `dns` przyjmuje DMARC `p=none`, nie sprawdza `sp=` i przepuszcza kilka rekordów DMARC — wymagać dokładnie jednego rekordu z `p=reject` (albo `quarantine`), `sp=reject` i `rua` (kod sprzed tej historyjki).
+- Nit: komunikat „brak SPF dla staging” w `checks.mjs` — poprawić przy EVM-125 (przemianowanie staging → produkcja).
+- Dowód AC2 (zielony `staging-verify` na `main` po scaleniu) i odwołanie do niego z RR-40/RR-41 (AC4) trafią do `docs/qa/EVM-121/` w następnym PR, razem ze statusem `done`.
+
 ## Dziennik
 - 2026-10-27 — utworzono (product-owner) z zamknięcia EVM-007
 - 2026-10-28 — decyzja Konrada (pytania po nocnej kolejce): bez zależności od EVM-061; rekord CAA Let's Encrypt (RR-40) dopiero przed produkcją.
 - 2026-11-13 — triage wg decyzji „jedno środowisko” (product-owner): „produkcja” = jedyne środowisko (obecny staging), więc **warunek startu realnych danych** (EVM-061 AC2; `depends_on` w EVM-061 dodane mimo decyzji z 2026-10-28, bo osobnej produkcji nie ma); „łagodzenie stagingu” (RR-40/41) przestaje obowiązywać — profil `strict` i CAA/`rua` dotyczą tego środowiska; AC1 (DNS w OVH) robić w tej samej sesji co EVM-089 AC3 (jedna wizyta w OVH); AC2–AC3 czytaj bez rozróżnienia staging/prod; AC bez zmian, do akceptacji Konrada
 - 2026-11-15 — przepisano dla jedynego środowiska (product-owner): sprawdzono publiczny DNS i kod `evaluateDns` — brakuje tylko `issuewild ";"`; `rua` i `issue` są; usunięto `prod-verify` i „produkcję” z AC; 4 AC; profil `staging` do usunięcia z narzędzia zamiast reguły `repo-policy`; dodano kolejność realizacji; `depends_on` rozszerzone o EVM-089 (done); status `draft` do akceptacji Konrada
 - 2026-11-15 — akceptacja Konrada (DoR): panel OVH nie przyjął `issuewild ";"`, więc z delegacji Konrada AC1 zmienione z rekordu DNS na kontrolę przyjmującą brak `issuewild` (RFC 8659); bez kroków ręcznych; profil `staging` usuwany z narzędzia, bez `accounturi`, RR-40 i RR-41 zamyka `security-engineer`; ścieżka `lekka`; **status `ready`** (Tech Lead)
+- 2026-11-15 — start realizacji (`/deliver`, ścieżka `lekka`, gałąź `feature/EVM-121-caa-i-profil-strict`); **status `in-progress`** (Tech Lead)
+- 2026-11-15 — implementacja (devops-engineer): kontrola `dns` bez profili (brak `issuewild` albo jedno `";"`, osobne testy negatywne AC1, `VERIFY_PROFILE` ustawiona = czerwono), `ci.yml` bez `VERIFY_PROFILE`, README, runbook (krok 4 i 6), RR-40/RR-41 oznaczone jako zamknięte do oceny `security-engineer`, CHANGELOG; publiczny DNS potwierdzony (CAA jeden `issue letsencrypt.org`, DMARC z `rua`); dowód AC2 (zielony `staging-verify` na `main`, bez adresów e-mail) do zapisania w `docs/qa/EVM-121/` po scaleniu PR
+- 2026-11-15 — uwagi minor z przeglądu naniesione w docs/security (security-engineer)
+- 2026-11-15 — weryfikacja orkiestratora (ścieżka `lekka`): tabela AC → test sprawdzona (AC1: 9 testów `EVM-121 AC1`; AC2 i AC3: test podsumowania i przypadek DMARC bez `rua`; AC4: dokumenty), `pnpm run gate` zielona (pokrycie zmienionego kodu 100% linii i gałęzi), `npm run test:tools` zielone, `npm run docs:check` 0 błędów, `pnpm run scan` zielony (zizmor i actionlint bez ustaleń), publiczny DNS zgodny z rygorem; **status `in-review`** (Tech Lead)
+- 2026-11-15 — Koszt: bez rozbicia w $ (nieodczytane w sesji) — ok. 0,21 mln tokenów subagentów (workflow 0,14 mln + poprawka dokumentów 0,07 mln); wywołania agentów 3; rundy poprawek 0; ścieżka lekka; sonnet; plik historyjki ok. 12 KB; vs baseline: szacunkowo wyraźnie poniżej celu ścieżki lekkiej

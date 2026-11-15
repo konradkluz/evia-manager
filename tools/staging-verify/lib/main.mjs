@@ -121,13 +121,15 @@ export async function main(command, io) {
     return check.passed ? 0 : 1;
   }
   if (command === 'checks') {
-    // VERIFY_PROFILE: unset = strict (production-grade); only the staging job sets "staging"; an unknown value is red.
+    // There is one rigor (strict). Any VERIFY_PROFILE, even an empty one, is red: no softer profile can return unnoticed (EVM-121 AC3).
     const checks = [
       await checkPorts(io.probe),
       await tlsCheck(io),
       await headersCheck(io),
       await legacyRedirectCheck(io),
-      evaluateDns(await io.dns(), io.env['VERIFY_PROFILE'] ?? 'strict'),
+      io.env['VERIFY_PROFILE'] === undefined
+        ? evaluateDns(await io.dns())
+        : { id: 'dns', passed: false, details: ['niedozwolona zmienna VERIFY_PROFILE (jedyny rygor to strict; usuń zmienną)'] },
       bucketCheck(),
     ];
     save(io, 'checks.json', checks);
