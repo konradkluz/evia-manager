@@ -41,11 +41,6 @@ export class CameraRequests {
     return true;
   }
 
-  /** The id of the first order of the replica (the e2e hook only; no screen calls it). */
-  async firstOrderId(): Promise<string | null> {
-    return (await this.#source.orders().catch(() => []))[0]?.id ?? null;
-  }
-
   close = (): void => {
     this.#set(null);
   };

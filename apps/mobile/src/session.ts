@@ -215,7 +215,7 @@ export function createSessionPorts(
 }
 
 /** The queue of files of the process (for the e2e hook only; `null` before the session ports exist). */
-export function sessionMediaUploads(): Pick<MediaUploads, 'add'> | null {
+export function sessionMediaUploads(): Pick<MediaUploads, 'add' | 'capturePipeline'> | null {
   sessionPorts();
   return mediaUploads;
 }

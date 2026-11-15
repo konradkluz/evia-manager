@@ -166,12 +166,6 @@ describe('the port openCamera (EVM-108; security 18)', () => {
     await expect(broken.open('a')).resolves.toBe(false);
     expect(broken.getSnapshot()).toBeNull();
   });
-
-  it('EVM-108: the first order of the replica for the e2e hook; none = null, an unreadable replica = null', async () => {
-    await expect(new CameraRequests(source(['a', 'b'])).firstOrderId()).resolves.toBe('a');
-    await expect(new CameraRequests(source([])).firstOrderId()).resolves.toBeNull();
-    await expect(new CameraRequests(source(['a'], true)).firstOrderId()).resolves.toBeNull();
-  });
 });
 
 describe('the free space in words (EVM-108 AC4)', () => {
