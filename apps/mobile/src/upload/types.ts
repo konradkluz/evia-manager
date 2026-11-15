@@ -65,8 +65,10 @@ export interface MediaControl {
   videoWifiOnly(): boolean;
   /** Stores the setting (the module hands the unfinished films to the system again) and refreshes the rows; `false` = the value was not stored. */
   setVideoWifiOnly(value: boolean): Promise<boolean>;
-  /** EVM-110 AC3: `true` once after a start that found a recording killed with the process (the marker is removed at the same time). */
+  /** EVM-110 AC3: `true` when a start found a recording killed with the process (reading does not remove the marker). */
   consumeInterruptedRecording(): Promise<boolean>;
+  /** The notice of the killed recording was shown: removes the marker (reading it does not). */
+  dismissInterruptedRecording(): Promise<void>;
   /** EVM-110 AC3: keeps the screen on while a film is recorded (`true`) and lets it sleep again (`false`). */
   keepScreenOn(on: boolean): void;
   /** Free bytes of the storage of the app (`null` = unknown) for the warning of the camera. */

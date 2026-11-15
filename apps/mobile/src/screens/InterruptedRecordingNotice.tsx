@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { View } from 'react-native';
-import { Button, InlineAlert } from '../ui';
+import { Button, InlineAlert, Info } from '../ui';
 import { space } from '../ui/theme';
 import { useSession } from './session-context';
 
@@ -23,11 +23,16 @@ export function InterruptedRecordingNotice() {
       active = false;
     };
   }, [media]);
+  // the marker goes only AFTER the notice is on the screen: a screen that went away before that leaves it for the next start
+  useEffect(() => {
+    if (shown) void media.dismissInterruptedRecording();
+  }, [shown, media]);
   if (!shown) return null;
   return (
     <View style={{ paddingHorizontal: space.inset.md, paddingTop: space.stack.sm }}>
       <InlineAlert
         tone="info"
+        icon={Info}
         body={t('camera.previousInterrupted')}
         action={
           <Button

@@ -92,7 +92,14 @@ describe('Maestro flows 90-9x and the video scenarios agree (EVM-110)', () => {
     assert.equal(record.airplane, true);
     // the emulator is given a location first, so a camera that WOULD write one has something to write; then the file itself is judged (SEC-110-04, SEC-110-08)
     assert.deepEqual(record.before, ['camera-grant', 'camera-geo-fix']);
-    assert.deepEqual(record.after, ['video-no-audio-no-location:1', 'video-gallery-unchanged', 'permissions-minimal', 'upload-none-yet']);
+    assert.deepEqual(record.after, [
+      'video-no-audio-no-location:1',
+      'video-gallery-unchanged',
+      'permissions-minimal',
+      'upload-none-yet',
+      'logcat-clean',
+    ]);
+    assert.deepEqual(record.onFail, ['video-last-error']);
     assert.deepEqual(scenario.steps[0]?.after, ['video-gallery-baseline']);
     const text = flowText('90-video-record.yaml');
     for (const part of [
@@ -267,9 +274,9 @@ describe('Maestro flows 90-9x and the video scenarios agree (EVM-110)', () => {
       scenario?.steps.map((step) => [step.flow, step.after ?? []]),
       [
         ['80-camera-sign-in.yaml', []],
-        ['100-video-interrupt-home.yaml', ['upload-none-yet']],
+        ['100-video-interrupt-home.yaml', ['upload-none-yet', 'logcat-clean']],
         ['101-video-kill-recording.yaml', ['kill-9']],
-        ['102-video-kill-after.yaml', ['upload-none-yet']],
+        ['102-video-kill-after.yaml', ['upload-none-yet', 'logcat-clean']],
       ],
     );
     assert.match(flowText('100-video-interrupt-home.yaml'), /pressKey: Home/);

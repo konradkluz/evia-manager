@@ -57,7 +57,7 @@ export function CameraShutter({
         backgroundColor: recording ? color.action.danger.bg : pressed || focused ? color.bg.brand : 'transparent',
       })}
     >
-      <Icon icon={recording ? Square : Circle} color={disabled ? color.icon.disabled : color.icon.inverse} iconSize="xl" />
+      <Icon icon={recording ? Square : Circle} color={color.icon.inverse} iconSize="xl" />
     </Pressable>
   );
 }

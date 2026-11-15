@@ -52,6 +52,8 @@ export interface MediaUploadsDeps {
    * EVM-110 AC3: a marker that outlives the process while a film is recorded (a tiny file, no data in it): present at the next start = the recording was
    * killed with the process ("Poprzednie nagranie zostało przerwane i nie zostało zapisane."), shown once. Without it the notice is never shown.
    */
+  /** EVM-110: the code of the last failed save of a film (the e2e variant writes it to a file for the tool; absent in the app proper). */
+  readonly filmFailure?: (code: string) => void;
   readonly recordingMarker?: {
     readonly set: () => Promise<void>;
     readonly clear: () => Promise<void>;
@@ -279,18 +281,25 @@ export class MediaUploads implements MediaControl {
     this.#markerChain = this.#markerChain.then(() => (recording ? marker.set() : marker.clear())).catch(() => undefined);
   }
 
-  /** EVM-110 AC3: `true` once after a start that found the marker of a recording that was killed with the process; the marker goes at the same time. */
+  /**
+   * EVM-110 AC3: `true` when a start found the marker of a recording that was killed with the process. It only READS: the marker goes with
+   * `dismissInterruptedRecording`, called when the notice was SHOWN - a screen that went away before that leaves it for the next one.
+   */
   async consumeInterruptedRecording(): Promise<boolean> {
     const marker = this.#deps.recordingMarker;
     if (marker === undefined || this.#recording !== null) return false;
     try {
       await this.#markerChain;
-      const found = await marker.present();
-      if (found) await marker.clear();
-      return found;
+      return await marker.present();
     } catch {
       return false;
     }
+  }
+
+  /** The notice of the killed recording was shown: the marker goes, so a later start shows nothing. */
+  async dismissInterruptedRecording(): Promise<void> {
+    await this.#markerChain;
+    await this.#deps.recordingMarker?.clear().catch(() => undefined);
   }
 
   videoWifiOnly(): boolean {
@@ -332,7 +341,8 @@ export class MediaUploads implements MediaControl {
         : {
             video,
             registerVideo: (recorded: CapturedVideo, digest: OriginalDigest) => this.addCapturedVideo(recorded, digest),
-            sessionActive: () => this.#deps.store() !== null,
+            sessionUser: () => this.#deps.store()?.userId ?? null,
+            ...(this.#deps.filmFailure === undefined ? {} : { onFailure: this.#deps.filmFailure }),
             onRecording: (recording: VideoRecording | null) => {
               this.#recording = recording;
               this.#mark(recording !== null);

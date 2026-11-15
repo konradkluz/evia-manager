@@ -38,8 +38,13 @@ export interface CapturePorts {
   readonly video?: VideoSource;
   /** EVM-110: the registration of a film (`MediaUploads.addCapturedVideo`): the command with 5 keys and the row of the file in one transaction. */
   registerVideo?(video: CapturedVideo, digest: OriginalDigest): Promise<AddMediaResult>;
-  /** EVM-110 (SEC-110-12): `false` once the session ended - a recording that finishes then is NOT imported. */
-  sessionActive?(): boolean;
+  /**
+   * EVM-110 (SEC-110-12): the user of the session now, `null` without one. The user is noted when the recording starts and compared when the file is saved: a
+   * recording that finishes after the session ended - or after another user signed in - is NOT imported (a film never reaches the queue of somebody else).
+   */
+  sessionUser?(): string | null;
+  /** EVM-110: a film could not be started or saved - the CODE of the step (never a path or a message); the e2e variant keeps it for the tool, a release build ignores it. */
+  onFailure?(reason: string): void;
   /** EVM-110: the recording in progress (or `null` when it is over); the session owner stops it before a sign-out or a wipe. */
   onRecording?(recording: VideoRecording | null): void;
   /** A new UUIDv7 (the CSPRNG of the session). */
@@ -83,50 +88,67 @@ export class CapturePipeline {
     const { disk, video } = this.#ports;
     if (this.#saving !== null) return { ok: false, code: 'busy' };
     if (video === undefined || this.#ports.registerVideo === undefined) return { ok: false, code: 'camera_failed' };
-    if (this.#ports.sessionActive?.() === false) return { ok: false, code: 'no_session' };
+    const user = this.#ports.sessionUser === undefined ? null : this.#ports.sessionUser();
+    if (this.#ports.sessionUser !== undefined && user === null) return { ok: false, code: 'no_session' };
     const free = disk.freeBytes();
-    if (videoDiskLevel(free) === 'blocked') return { ok: false, code: 'no_space' };
+    if (videoDiskLevel(free) === 'blocked') {
+      this.#ports.onFailure?.('start_no_space');
+      return { ok: false, code: 'no_space' };
+    }
     const recording = new VideoRecording({
       source: video,
       disk,
       now: () => this.#ports.now(),
       maxFileSize: videoSizeLimit(free),
-      save: (uri, end, durationMs, startedAt) => this.#saveVideo(request, startedAt, uri, end, durationMs),
+      save: (uri, end, durationMs, startedAt) => this.#saveVideo(request, user, startedAt, uri, end, durationMs),
     });
-    const finished = recording.done.finally(() => {
-      this.#saving = null;
-      this.#ports.onRecording?.(null);
-    });
+    const finished = recording.done
+      .then((result) => {
+        if (!result.ok && result.code !== 'busy' && result.code !== 'no_session') this.#ports.onFailure?.(result.reason ?? result.code);
+        return result;
+      })
+      .finally(() => {
+        this.#saving = null;
+        this.#ports.onRecording?.(null);
+      });
     this.#saving = finished;
     this.#ports.onRecording?.(recording);
     return { ok: true, recording };
   }
 
-  async #saveVideo(request: CaptureRequest, startedAt: number, uri: string, end: VideoEnd, durationMs: number): Promise<VideoResult> {
+  async #saveVideo(
+    request: CaptureRequest,
+    user: string | null,
+    startedAt: number,
+    uri: string,
+    end: VideoEnd,
+    durationMs: number,
+  ): Promise<VideoResult> {
     const { native } = this.#ports;
     // SEC-110-12: the session ended while the film was recorded (sign-out, wipe): the file is not imported, the cleaning of the cache takes it
-    if (this.#ports.sessionActive?.() === false) return { ok: false, code: 'no_session' };
-    if (!Number.isFinite(startedAt)) return { ok: false, code: 'save_failed' };
+    if (this.#ports.sessionUser !== undefined && this.#ports.sessionUser() !== user)
+      return { ok: false, code: 'no_session', reason: 'session_changed' };
+    if (!Number.isFinite(startedAt)) return { ok: false, code: 'save_failed', reason: 'bad_time' };
     const capturedAt = new Date(startedAt).toISOString();
     const assetId = this.#ports.newId();
     const imported = await native.importOriginal(assetId, uri, 'video').catch(() => 'io_error' as const);
-    if (imported === 'no_space') return { ok: false, code: 'no_space' };
-    if (imported !== 'ok') return { ok: false, code: 'save_failed' };
+    if (imported === 'no_space') return { ok: false, code: 'no_space', reason: 'import_no_space' };
+    if (imported !== 'ok') return { ok: false, code: 'save_failed', reason: `import_${imported}` };
     const digest = await native.digestOriginal(assetId).catch(() => null);
-    if (digest === null || digest.sizeBytes <= 0) return this.#undoVideo(assetId);
+    if (digest === null || digest.sizeBytes <= 0) return this.#undoVideo(assetId, 'digest');
     const ports = this.#ports;
     const added = await (
       ports.registerVideo === undefined
         ? Promise.resolve({ ok: false } as const)
         : ports.registerVideo({ assetId, workOrderId: request.workOrderId, category: request.category, capturedAt, durationMs }, digest)
     ).catch(() => ({ ok: false }) as const);
-    if (!added.ok) return this.#undoVideo(assetId);
+    if (!added.ok) return this.#undoVideo(assetId, `register_${'code' in added ? added.code : 'failed'}`);
     return { ok: true, assetId, sizeBytes: digest.sizeBytes, durationMs, end };
   }
 
-  async #undoVideo(assetId: string): Promise<VideoResult> {
+  async #undoVideo(assetId: string, reason: string): Promise<VideoResult> {
     await this.#ports.native.cancelUpload(assetId, true).catch(() => false);
-    return { ok: false, code: 'save_failed' };
+    return { ok: false, code: 'save_failed', reason };
   }
 
   /** Takes one picture and saves it durably; never throws. A second call while a save is in progress answers `busy` and takes no picture. */

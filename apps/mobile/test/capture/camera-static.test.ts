@@ -61,7 +61,7 @@ describe('the source of the camera (EVM-108 AC1, AC3; security 16)', () => {
       .replace(/\/\/.*$/gm, '');
     expect(screen).toMatch(/mode=\{mode === 'video' \? 'video' : 'picture'\}/);
     expect(screen).toMatch(/facing="back"/);
-    expect(screen).toMatch(/active=\{focused && foreground && !locked\}/);
+    expect(screen).toMatch(/active=\{\(focused && foreground && !locked\) \|\| recording\}/);
     expect(screen).not.toMatch(/barcodeScannerSettings|onBarcodeScanned|\bmicrophone\b/i);
     expect(screen).not.toMatch(/ActivityIndicator|Spinner|Skeleton/);
   });

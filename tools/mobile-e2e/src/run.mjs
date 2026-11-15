@@ -265,6 +265,16 @@ export async function runE2e({ skipBuild, port, only = null }, host) {
         }
         rebooted = false;
         let passed = outcome.status === 0;
+        if (!passed) {
+          for (const action of step.onFail ?? []) {
+            try {
+              const note = await act(action);
+              host.log(`DIAGNOSIS ${action}: ${note.detail}`);
+            } catch {
+              host.log(`DIAGNOSIS ${action}: not available`);
+            }
+          }
+        }
         if (passed) {
           for (const action of step.after ?? []) {
             const check = await act(action);

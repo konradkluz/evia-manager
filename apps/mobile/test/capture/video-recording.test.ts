@@ -39,7 +39,7 @@ describe('the recording on its own (EVM-110 AC2, AC3)', () => {
       },
       save,
     );
-    expect(await failing.done).toEqual({ ok: false, code: 'camera_failed' });
+    expect(await failing.done).toEqual({ ok: false, code: 'camera_failed', reason: 'record_rejected' });
     await failing.recorded;
     expect(save).not.toHaveBeenCalled();
   });

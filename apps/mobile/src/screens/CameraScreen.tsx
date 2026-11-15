@@ -23,21 +23,22 @@ import {
   TriangleAlert,
   VolumeOff,
 } from '../ui';
-import { color, space, text } from '../ui/theme';
+import { color, radius, space, text } from '../ui/theme';
 import { MEDIA_CATEGORIES, type MediaCategory } from '../upload/create-media-asset';
 import { CameraPermissionScreen } from './CameraPermissionScreen';
 import { NotificationConsentSheet } from './NotificationConsentSheet';
 import { SyncCapsule } from './SyncCapsule';
 import { useGuard, useMediaSnapshot, useSession } from './session-context';
 
-type Problem = 'noSpace' | 'saveFailed' | 'videoSaveFailed';
+type Problem = 'noSpace' | 'saveFailed' | 'videoSaveFailed' | 'videoNoSpace';
 type Mode = 'photo' | 'video';
 type CameraState = 'starting' | 'ready' | 'failed';
 
-const PROBLEM_KEY: Readonly<Record<Problem, 'camera.noSpace' | 'camera.saveFailed' | 'camera.videoSaveFailed'>> = {
+const PROBLEM_KEY: Readonly<Record<Problem, 'camera.noSpace' | 'camera.saveFailed' | 'camera.videoSaveFailed' | 'camera.videoNoSpace'>> = {
   noSpace: 'camera.noSpace',
   saveFailed: 'camera.saveFailed',
   videoSaveFailed: 'camera.videoSaveFailed',
+  videoNoSpace: 'camera.videoNoSpace',
 };
 
 /** The toast of the end of a film: the way it ended decides the words (EVM-110 AC2, AC3). */
@@ -51,6 +52,16 @@ const VIDEO_END_KEY: Readonly<Record<VideoEnd, string>> = {
 
 const MAX_CLOCK = formatDuration(VIDEO_MAX_SECONDS * 1000);
 
+/** After this a camera that restarted for another mode and sent no `onCameraReady` is taken as ready (a long start of the camera shows "Uruchamianie aparatu…" longer). */
+const MODE_RESTART_MS = 6000;
+
+/** The marker and the counter sit on the preview, which can be any colour: each on its own dark chip (as the Toast). */
+const overlayChip = {
+  backgroundColor: color.bg.inverse,
+  borderRadius: radius.control,
+  padding: space.inset.sm,
+} as const;
+
 const CATEGORY_KEY: Readonly<Record<MediaCategory, string>> = {
   site_survey: 'camera.categories.site_survey',
   before_work: 'camera.categories.before_work',
@@ -62,16 +73,18 @@ const CATEGORY_KEY: Readonly<Record<MediaCategory, string>> = {
 };
 
 /** `true` while the app is in the foreground (the camera is released in the background and while the app is locked); the screen opens in the foreground. */
-function useForeground(): boolean {
+function useForeground(onLoseForeground: () => void): boolean {
   const [active, setActive] = useState(true);
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (next) => {
+      // EVM-110 AC3: a recording is told to stop BEFORE the view is deactivated (the same turn), so the library ends the file instead of losing it
+      if (next !== 'active') onLoseForeground();
       setActive(next === 'active');
     });
     return () => {
       subscription.remove();
     };
-  }, []);
+  }, [onLoseForeground]);
   return active;
 }
 
@@ -144,7 +157,11 @@ function CameraCapture({ orderId, onClose, focused }: { orderId: string; onClose
   const { media } = useSession();
   const snapshot = useMediaSnapshot();
   const locked = useGuard().locked;
-  const foreground = useForeground();
+  const loseForeground = useRef<() => void>(() => undefined);
+  const onLoseForeground = useCallback(() => {
+    loseForeground.current();
+  }, []);
+  const foreground = useForeground(onLoseForeground);
   const cameraRef = useRef<CameraView | null>(null);
   // the last view that existed: the screen going away detaches `cameraRef` BEFORE its cleanup runs, and that cleanup must still be able to stop a recording
   const lastCameraRef = useRef<CameraView | null>(null);
@@ -175,7 +192,7 @@ function CameraCapture({ orderId, onClose, focused }: { orderId: string; onClose
   const [free, setFree] = useState<number | null>(() => media.freeDiskBytes());
   const [finishing, setFinishing] = useState(false);
   const [consent, setConsent] = useState(false);
-  const [toast, setToast] = useState<{ readonly key: number; readonly message: string } | null>(null);
+  const [toast, setToast] = useState<{ readonly key: number; readonly message: string; readonly spoken?: boolean } | null>(null);
   // the film: the recording in progress, its seconds (from the progress of the view), and the save after the end ("Zapisywanie filmu…")
   const recordingRef = useRef<VideoRecording | null>(null);
   // the announcement of the last minute is made once per recording
@@ -183,6 +200,8 @@ function CameraCapture({ orderId, onClose, focused }: { orderId: string; onClose
   const [recording, setRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const [savingVideo, setSavingVideo] = useState(false);
+  // the stop was asked for (the shutter, the foreground, the lock): the shutter does nothing more until the film is saved
+  const [stopping, setStopping] = useState(false);
   // the latest values for the handlers that outlive a render (the system "back")
   const taken = count + videoCount;
   const queued = snapshot.files.some((file) => file.status !== 'sent');
@@ -195,7 +214,7 @@ function CameraCapture({ orderId, onClose, focused }: { orderId: string; onClose
   }, []);
   const say = useCallback((message: string): void => {
     AccessibilityInfo.announceForAccessibility(message);
-    setToast((current) => ({ key: (current?.key ?? 0) + 1, message }));
+    setToast((current) => ({ key: (current?.key ?? 0) + 1, message, spoken: true }));
   }, []);
 
   const shoot = useCallback(() => {
@@ -221,6 +240,7 @@ function CameraCapture({ orderId, onClose, focused }: { orderId: string; onClose
     (result: VideoResult): void => {
       recordingRef.current = null;
       setRecording(false);
+      setStopping(false);
       setSavingVideo(false);
       setSeconds(0);
       media.keepScreenOn(false);
@@ -228,8 +248,8 @@ function CameraCapture({ orderId, onClose, focused }: { orderId: string; onClose
       if (result.ok) {
         setVideoCount((current) => current + 1);
         say(t(VIDEO_END_KEY[result.end], { duration: formatDuration(result.durationMs) }));
-      } else if (result.code === 'no_space' || result.code === 'camera_failed' || result.code === 'save_failed')
-        setProblem('videoSaveFailed');
+      } else if (result.code === 'no_space') setProblem('videoNoSpace');
+      else if (result.code === 'camera_failed' || result.code === 'save_failed') setProblem('videoSaveFailed');
     },
     [media, say, t],
   );
@@ -241,7 +261,8 @@ function CameraCapture({ orderId, onClose, focused }: { orderId: string; onClose
     const started = pipeline.startVideo({ workOrderId: orderId, category });
     if (!started.ok) {
       setFree(media.freeDiskBytes());
-      if (started.code !== 'busy' && started.code !== 'no_session') setProblem('videoSaveFailed');
+      if (started.code === 'no_space') setProblem('videoNoSpace');
+      else if (started.code !== 'busy' && started.code !== 'no_session') setProblem('videoSaveFailed');
       return;
     }
     const current = started.recording;
@@ -261,10 +282,14 @@ function CameraCapture({ orderId, onClose, focused }: { orderId: string; onClose
 
   /** The technician (the shutter) or the app (the foreground was lost, back, the lock) ends the recording; the file is saved like any other film. */
   const stopRecording = useCallback((reason: 'user' | 'interrupted') => {
+    if (recordingRef.current !== null) setStopping(true);
     recordingRef.current?.stop(reason);
   }, []);
   const stopRef = useRef(stopRecording);
   stopRef.current = stopRecording;
+  loseForeground.current = () => {
+    stopRef.current('interrupted');
+  };
 
   // AC3: the foreground, the lock and the screen going away stop a recording (a toast for the screen that stays, the file is saved either way)
   useEffect(() => {
@@ -303,6 +328,30 @@ function CameraCapture({ orderId, onClose, focused }: { orderId: string; onClose
     };
   }, []);
 
+  /** A change of the mode restarts the camera: the shutter waits for `onCameraReady` again (with a limit, so a camera that says nothing does not block it for good). */
+  const changeMode = useCallback((next: Mode) => {
+    setMode((current) => {
+      if (current === next) return current;
+      setCameraState('starting');
+      return next;
+    });
+  }, []);
+  useEffect(() => {
+    if (cameraState !== 'starting') return undefined;
+    const timer = setTimeout(() => {
+      setCameraState((now) => (now === 'starting' ? 'ready' : now));
+    }, MODE_RESTART_MS);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [cameraState, mode]);
+
+  // a film that took the free space below 200 MB leaves the film mode (the chip is off): the technician is back at the picture, which still works
+  const roomForVideo = videoDiskLevel(free) !== 'blocked';
+  useEffect(() => {
+    if (!roomForVideo && mode === 'video' && !recording && !savingVideo) changeMode('photo');
+  }, [roomForVideo, mode, recording, savingVideo, changeMode]);
+
   const retry = useCallback(() => {
     setCameraState('starting');
     setAttempt((n) => n + 1);
@@ -328,15 +377,12 @@ function CameraCapture({ orderId, onClose, focused }: { orderId: string; onClose
   const needsCategory = category === null;
   const warn = recording && seconds >= VIDEO_WARN_AT_SECONDS;
   const notice =
-    problem !== null || level !== 'ok' || needsCategory || warn ? (
+    problem !== null || level !== 'ok' || needsCategory ? (
       <View style={{ rowGap: space.stack.sm }}>
         {problem !== null ? (
           <InlineAlert tone="error" body={t(PROBLEM_KEY[problem])} live="assertive" testID="camera-problem" />
         ) : level !== 'ok' && free !== null ? (
           <InlineAlert tone="warning" body={t('camera.lowSpace', { free: formatFreeSpace(free) })} testID="camera-low-space" />
-        ) : null}
-        {warn ? (
-          <InlineAlert tone="warning" icon={TriangleAlert} body={t('camera.warnMinute')} live="assertive" testID="camera-warn-minute" />
         ) : null}
         {needsCategory ? (
           <Text style={{ ...text.body, color: color.text.onBrand }} testID="camera-choose-category">
@@ -375,7 +421,8 @@ function CameraCapture({ orderId, onClose, focused }: { orderId: string; onClose
               AccessibilityInfo.announceForAccessibility(t('camera.warnMinute'));
             }
           }}
-          active={focused && foreground && !locked}
+          // the view stays active until the recording is over (EVM-110 AC3): a view switched off under a recording may lose the file
+          active={(focused && foreground && !locked) || recording}
           onCameraReady={() => {
             setCameraState('ready');
           }}
@@ -403,20 +450,26 @@ function CameraCapture({ orderId, onClose, focused }: { orderId: string; onClose
             }}
             pointerEvents="none"
           >
-            <View style={{ flexDirection: 'row', alignItems: 'center', columnGap: space.inline.sm }} testID="camera-muted">
+            <View style={{ ...overlayChip, flexDirection: 'row', alignItems: 'center', columnGap: space.inline.sm }} testID="camera-muted">
               <Icon icon={VolumeOff} color={color.icon.inverse} iconSize="md" />
-              <Text style={{ ...text.body, color: color.text.onBrand }}>{t('camera.muted')}</Text>
+              <Text style={{ ...text.body, color: color.text.inverse }}>{t('camera.muted')}</Text>
             </View>
             {recording ? (
-              <Text
-                accessibilityRole="timer"
-                accessibilityLabel={t('camera.timerA11y', { elapsed: formatDuration(seconds * 1000), max: MAX_CLOCK })}
-                accessibilityLiveRegion="none"
-                style={{ ...text.numeric, color: color.text.onBrand }}
-                testID="camera-timer"
-              >
-                {t('camera.timer', { elapsed: formatDuration(seconds * 1000), max: MAX_CLOCK })}
-              </Text>
+              <View style={overlayChip}>
+                <Text
+                  accessibilityRole="timer"
+                  accessibilityLabel={t('camera.timerA11y', { elapsed: formatDuration(seconds * 1000), max: MAX_CLOCK })}
+                  accessibilityLiveRegion="none"
+                  style={{ ...text.numeric, color: color.text.inverse }}
+                  testID="camera-timer"
+                >
+                  {t('camera.timer', { elapsed: formatDuration(seconds * 1000), max: MAX_CLOCK })}
+                </Text>
+              </View>
+            ) : null}
+            {warn ? (
+              // on the preview, under the counter: the panel does not grow while the camera records, so the shutter stays where the thumb is; the one announcement is the one of the progress
+              <InlineAlert tone="warning" icon={TriangleAlert} body={t('camera.warnMinute')} live="none" testID="camera-warn-minute" />
             ) : null}
           </View>
         ) : null}
@@ -430,7 +483,13 @@ function CameraCapture({ orderId, onClose, focused }: { orderId: string; onClose
         ) : null}
         {toast !== null ? (
           <View style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }} pointerEvents="none">
-            <Toast key={toast.key} message={toast.message} onDismiss={dismissSaved} testID="camera-toast" />
+            <Toast
+              key={toast.key}
+              message={toast.message}
+              onDismiss={dismissSaved}
+              testID="camera-toast"
+              {...(toast.spoken === true ? { announce: false, fullText: true } : {})}
+            />
           </View>
         ) : null}
       </View>
@@ -463,7 +522,7 @@ function CameraCapture({ orderId, onClose, focused }: { orderId: string; onClose
               onDark
               disabled={recording}
               onPress={() => {
-                setMode('photo');
+                changeMode('photo');
               }}
               testID="camera-mode-photo"
             />
@@ -475,7 +534,7 @@ function CameraCapture({ orderId, onClose, focused }: { orderId: string; onClose
               onDark
               disabled={recording || noRoomForVideo}
               onPress={() => {
-                setMode('video');
+                changeMode('video');
               }}
               testID="camera-mode-video"
             />
@@ -504,7 +563,7 @@ function CameraCapture({ orderId, onClose, focused }: { orderId: string; onClose
                   ? t('camera.recordHint')
                   : t('camera.shutterHint')
             }
-            disabled={recording ? false : needsCategory || busy || cameraState !== 'ready'}
+            disabled={recording ? stopping : needsCategory || busy || cameraState !== 'ready'}
             recording={recording}
             onPress={
               video

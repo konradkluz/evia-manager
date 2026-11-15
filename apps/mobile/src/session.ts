@@ -25,7 +25,7 @@ import {
 } from './device-guard/native';
 import { overrideAuthenticator, overrideBootClock, overrideLock, overrideSessionClock } from './device-guard/overrides';
 import { createSensitiveClipboard } from './clipboard/clipboard';
-import { deviceOverrides } from './e2e-hooks';
+import { deviceOverrides, reportFilmFailure } from './e2e-hooks';
 import { i18next } from './i18n';
 import { logDiagnostic } from './logging/log';
 import { CompanyDataWipe, type WipeConfirmClient } from './wipe/company-wipe';
@@ -168,6 +168,8 @@ export function createSessionPorts(
     capture: { disk: expoDiskSpace, newId },
     // EVM-110 AC3: the marker of a recording in progress (a tiny file in the files of the app; nothing sensitive in it)
     recordingMarker,
+    // EVM-110: the e2e variant keeps the code of a failed save of a film for the tool; in every other bundle the slot does nothing
+    filmFailure: reportFilmFailure,
   });
   media.start();
   mediaUploads = media;

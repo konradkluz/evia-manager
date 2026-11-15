@@ -1,7 +1,7 @@
 // The camera screen in the FILM mode (EVM-110 AC1, AC2, AC3, AC6, AC7): the switch, the recording, the counter, the limits, the interruptions.
 // The film goes through the REAL `CapturePipeline` and `VideoRecording` on in-memory ports of a phone; `expo-camera` is the stand-in of test/mocks.
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
-import { AccessibilityInfo, AppState, BackHandler } from 'react-native';
+import { AccessibilityInfo, AppState, BackHandler, StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import type { CapturePorts } from '../../src/capture/capture-pipeline';
 import { consentMemory } from '../../src/capture/camera-options';
@@ -73,7 +73,7 @@ function phone() {
       videos.push(video);
       return Promise.resolve({ ok: true });
     },
-    sessionActive: () => state.session,
+    sessionUser: () => (state.session ? 'user-a' : null),
     now: () => Date.UTC(2026, 10, 15, 8, 0, 0),
     newId: () => `0194c2a0-0000-7000-8000-${String((n += 1)).padStart(12, '0')}`,
   };
@@ -342,12 +342,18 @@ describe('a recording from start to the toast (EVM-110 AC1, AC2)', () => {
   });
 
   it('EVM-110 AC2: a film that cannot be saved says so in words and leaves the counter and the queue as they were - no half film, no row without a file', async () => {
-    for (const fault of [{ importResult: 'io_error' as const }, { registerOk: false }, { importResult: 'no_space' as const }]) {
+    const words = 'Nie udało się zapisać filmu. Nagraj go ponownie.';
+    const noRoom = 'Za mało miejsca na film. Zwolnij miejsce w telefonie.';
+    for (const [fault, message] of [
+      [{ importResult: 'io_error' as const }, words],
+      [{ registerOk: false }, words],
+      [{ importResult: 'no_space' as const }, noRoom],
+    ] as const) {
       const { rig, videos, originals } = setup(fault);
       const { view } = await mount(rig);
       await startRecording();
       await press('camera-shutter');
-      expect(screen.getByText('Nie udało się zapisać filmu. Nagraj go ponownie.')).toBeOnTheScreen();
+      expect(screen.getByText(message)).toBeOnTheScreen();
       expect(screen.getByTestId('camera-problem')).toBeOnTheScreen();
       expect(count()).toBe('0 filmów');
       expect(videos).toEqual([]);
@@ -511,5 +517,139 @@ describe('roles and states of the app around the film (EVM-110 AC6)', () => {
     expect(screen.getByText('Zapisano film w telefonie')).toBeOnTheScreen();
     expect(JSON.stringify(screen.toJSON())).not.toMatch(/ZL-|10000000-0000-4000/);
     expect(asked).not.toHaveBeenCalled();
+  });
+});
+
+describe('the view, the lock and the layout during a recording (EVM-110 AC3, AC6; review round 1)', () => {
+  const active = (): unknown => cameraMock.props?.['active'];
+
+  it('EVM-110 AC3: the view stays ACTIVE until the film is saved - losing the foreground asks for the stop in the same turn, the view is switched off only afterwards', async () => {
+    const emit = foregroundEvents();
+    const { rig, videos } = setup();
+    await mount(rig);
+    await startRecording();
+    // the library ends the file a moment later than the request (it does not end it by the stop alone in this test)
+    cameraMock.endsOnStop = false;
+    await progress(20, 6 * MB);
+    await act(() => {
+      emit('background');
+    });
+    // asked in the same turn as the loss (and, idempotently, again by the effect that follows it)
+    expect(cameraMock.stopCalls).toBeGreaterThanOrEqual(1);
+    expect(active()).toBe(true);
+    await act(() => {
+      cameraMock.finishRecording();
+    });
+    await settle();
+    expect(videos).toHaveLength(1);
+    expect(active()).toBe(false);
+  });
+
+  it('EVM-110 AC3: the lock of the app during a recording stops it, the film is saved, and only then the view is released (active = false)', async () => {
+    const { rig, videos } = setup();
+    await mount(rig);
+    await startRecording();
+    await progress(33, 9 * MB);
+    expect(active()).toBe(true);
+    await act(() => {
+      rig.device.guard.signedOut();
+    });
+    await settle();
+    expect(cameraMock.stopCalls).toBeGreaterThanOrEqual(1);
+    expect(videos).toHaveLength(1);
+    expect(videos[0]?.durationMs).toBe(33_000);
+    expect(active()).toBe(false);
+    expect(rig.media.keepAwake.at(-1)).toBe(false);
+  });
+
+  it('EVM-110 AC2: a second press of the shutter while the stop is under way does nothing more - no second stop', async () => {
+    const { rig } = setup();
+    await mount(rig);
+    await startRecording();
+    cameraMock.endsOnStop = false;
+    await press('camera-shutter');
+    expect(cameraMock.stopCalls).toBe(1);
+    expect(shutter()).toBeDisabled();
+    await fireEvent.press(shutter());
+    expect(cameraMock.stopCalls).toBe(1);
+    await act(() => {
+      cameraMock.finishRecording();
+    });
+    await settle();
+    expect(shutter()).toBeEnabled();
+  });
+
+  it('EVM-110 AC2: the warning of the last minute is on the PREVIEW, not in the panel - the panel does not grow, the shutter stays where the thumb is - and it is announced once', async () => {
+    const { rig } = setup();
+    await mount(rig);
+    await startRecording();
+    announce.mockClear();
+    await progress(240);
+    await progress(250);
+    const warning = screen.getByTestId('camera-warn-minute');
+    expect(warning).toHaveProp('accessibilityLiveRegion', 'none');
+    expect(announce.mock.calls.filter(([text]) => text === pl.camera.warnMinute)).toHaveLength(1);
+    // it sits in the overlay of the preview, next to the counter - not in the panel with the chips and the shutter
+    expect(warning.parent).toBe(screen.getByTestId('camera-timer').parent?.parent);
+  });
+
+  it('EVM-110 AC6: the marker "Film bez dźwięku" and the counter sit on a dark chip of their own (readable on any preview)', async () => {
+    const { rig } = setup();
+    await mount(rig);
+    await startRecording();
+    const chip = screen.getByTestId('camera-muted');
+    const timerChip = screen.getByTestId('camera-timer').parent;
+    const bg = (node: { props: { style?: unknown } } | null | undefined): unknown =>
+      (StyleSheet.flatten(node?.props.style as never) as { backgroundColor?: unknown } | undefined)?.backgroundColor;
+    expect(bg(chip)).toBe(bg(timerChip));
+    expect(bg(chip)).toBeTruthy();
+  });
+
+  it('EVM-110 AC2: the messages of the end of a recording are shown whole - no limit of lines, no second announcement from the toast', async () => {
+    const { rig } = setup();
+    await mount(rig);
+    await startRecording();
+    await progress(133.4, 40 * MB);
+    announce.mockClear();
+    await press('camera-shutter');
+    const toast = screen.getByTestId('camera-toast');
+    expect(toast).toHaveProp('accessibilityLiveRegion', 'none');
+    expect(toast.props.accessibilityRole).toBeUndefined();
+    expect(screen.getByText('Zapisano film w telefonie').props.numberOfLines).toBeUndefined();
+    // spoken once, by the screen
+    expect(announce.mock.calls.filter(([text]) => text === 'Zapisano film w telefonie')).toHaveLength(1);
+  });
+
+  it('EVM-110 AC2: a film that took the free space below 200 MB leaves the film mode - the picture is chosen, the chip says why it is off', async () => {
+    const { rig, state } = setup();
+    await mount(rig);
+    await startRecording();
+    await progress(10, 3 * MB);
+    state.free = VIDEO_BLOCK_BELOW_BYTES - 10 * MB;
+    await press('camera-shutter');
+    expect(screen.getByRole('radio', { name: 'Zdjęcie' })).toBeChecked();
+    expect(screen.getByTestId('camera-mode-video')).toBeDisabled();
+    expect(screen.getByTestId('camera-video-no-room')).toBeOnTheScreen();
+    expect(cameraMock.props).toMatchObject({ mode: 'picture' });
+  });
+
+  it('EVM-110 AC6: the camera restarts for another mode - the shutter waits for the camera to be ready again, and a camera that stays silent does not block it for good', async () => {
+    jest.useFakeTimers();
+    try {
+      const { rig } = setup();
+      await mount(rig);
+      await press('camera-category-defect');
+      cameraMock.readyOnRestart = false;
+      await press('camera-mode-video');
+      expect(screen.getByTestId('camera-loading')).toBeOnTheScreen();
+      expect(shutter()).toBeDisabled();
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(6100);
+      });
+      expect(screen.queryByTestId('camera-loading')).toBeNull();
+      expect(shutter()).toBeEnabled();
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

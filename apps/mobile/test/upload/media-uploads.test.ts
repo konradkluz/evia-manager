@@ -334,6 +334,9 @@ describe('adding a file and arming it after applied (EVM-130 AC1; architect 7)',
     expect(await r.store.media.list()).toMatchObject([
       { assetId: asset(1), mutationId: asset(601), state: 'pending', mime: 'video/mp4', createdAt: 77, sizeBytes: 1001 },
     ]);
+    // a film that was repaired from its command has no stored length: the row shows type and size only (documented, not guessed)
+    expect((await r.store.media.list())[0]).not.toHaveProperty('durationMs');
+    expect(r.uploads.getSnapshot().files[0]?.durationMs ?? null).toBeNull();
     // the command is applied later: the repaired row follows
     await r.queue.settle(asset(601), { outcome: 'applied', warnings: [] });
     await r.uploads.reconcile();

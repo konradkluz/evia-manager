@@ -62,7 +62,7 @@ export function FilterChip({
     >
       {selected ? <Icon icon={Check} color={color.icon.primary} iconSize="md" /> : null}
       <Text
-        style={{ ...text.labelLg, color: disabled ? color.text.disabled : onDark && !selected ? color.text.onBrand : color.text.primary }}
+        style={{ ...text.labelLg, color: onDark && !selected ? color.text.onBrand : disabled ? color.text.disabled : color.text.primary }}
       >
         {label}
       </Text>

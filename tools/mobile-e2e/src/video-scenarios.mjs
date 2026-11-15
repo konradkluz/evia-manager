@@ -55,7 +55,8 @@ export const VIDEO_SCENARIOS = [
         airplane: true,
         upload: true,
         before: ['camera-grant', 'camera-geo-fix'],
-        after: ['video-no-audio-no-location:1', 'video-gallery-unchanged', 'permissions-minimal', 'upload-none-yet'],
+        onFail: ['video-last-error'],
+        after: ['video-no-audio-no-location:1', 'video-gallery-unchanged', 'permissions-minimal', 'upload-none-yet', 'logcat-clean'],
       },
     ],
   },
@@ -178,7 +179,7 @@ export const VIDEO_SCENARIOS = [
         airplane: true,
         upload: true,
         before: ['camera-grant'],
-        after: ['upload-none-yet'],
+        after: ['upload-none-yet', 'logcat-clean'],
       },
       {
         flow: '101-video-kill-recording.yaml',
@@ -188,7 +189,7 @@ export const VIDEO_SCENARIOS = [
         before: ['camera-grant'],
         after: ['kill-9'],
       },
-      { flow: '102-video-kill-after.yaml', server: 'ok', airplane: true, upload: true, after: ['upload-none-yet'] },
+      { flow: '102-video-kill-after.yaml', server: 'ok', airplane: true, upload: true, after: ['upload-none-yet', 'logcat-clean'] },
     ],
   },
 ];

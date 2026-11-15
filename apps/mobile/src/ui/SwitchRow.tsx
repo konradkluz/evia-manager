@@ -49,8 +49,9 @@ export function SwitchRow({ label, description, value, onValueChange, disabled =
         columnGap: space.inline.md,
         paddingVertical: space.inset.sm,
         borderRadius: radius.control,
-        borderWidth: focused ? size.focusRing.width : 0,
-        borderColor: color.focus.ring,
+        // a constant width: the focus ring changes the colour only, so the row does not jump
+        borderWidth: size.focusRing.width,
+        borderColor: focused ? color.focus.ring : 'transparent',
       }}
     >
       <View

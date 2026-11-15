@@ -63,6 +63,7 @@ export {
   Ellipsis,
   HardDrive,
   Inbox,
+  Info,
   KeyRound,
   ListChecks,
   Lock,

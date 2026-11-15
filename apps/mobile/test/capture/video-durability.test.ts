@@ -2,7 +2,7 @@
 // camera and native file system. A film is one file, one command of 5 keys and one row together - or nothing. "Kill" = the process disappears while the
 // camera records: the promise of the recording never resolves and nothing is saved.
 import type { EnqueueInput, QueueRecord } from '@evia/sync-core';
-import type { VideoRecording, VideoResult, VideoSource } from '../../src/capture/capture-pipeline';
+import type { VideoRecording, VideoResult } from '../../src/capture/capture-pipeline';
 import { VIDEO_BLOCK_BELOW_BYTES, VIDEO_STOP_BELOW_BYTES } from '../../src/capture/disk-space';
 import type { UnlockedStore } from '../../src/storage';
 import type { Database } from '../../src/storage/database';
@@ -10,16 +10,14 @@ import { SqlMediaFileStore } from '../../src/storage/media-file-store';
 import { SqlQueueStore } from '../../src/storage/queue-store';
 import { SqlReplicaStore } from '../../src/storage/replica-store';
 import { MediaUploads } from '../../src/upload/media-uploads';
-import type { NativeUpload } from '../../src/upload/native-upload';
 import { migratedDatabase } from '../storage/harness';
 import { newDisk, removeDisk, type TestDisk } from '../storage/node-sqlite-engine';
+import { MB, PhoneFiles, ScriptedCamera, nativeOf } from './video-harness';
 
 const MEDIA_COMMAND = 'CreateMediaAsset' as unknown as QueueRecord['type'];
 const USER = '90000000-0000-4000-8000-0000000000aa';
 const DEVICE = '7a000000-0000-4000-8000-000000000001';
 const WO = '10000000-0000-4000-8000-000000000001';
-const SHA = 'f'.repeat(64);
-const MB = 1024 * 1024;
 const request = { workOrderId: WO, category: 'defect' as const };
 
 let disk: TestDisk;
@@ -30,98 +28,13 @@ afterEach(() => {
   removeDisk(disk);
 });
 
-/** The camera: `record` hands the test the way to end the recording; `stop` is what the library's `stopRecording` does (ends the file and resolves). */
-class ScriptedCamera implements VideoSource {
-  readonly options: unknown[] = [];
-  stops = 0;
-  #finish: ((value: { uri: string } | null) => void) | undefined;
-  #fail: ((error: Error) => void) | undefined;
-  /** When `false` the library does not end the recording on `stop` (a stuck recorder): the test ends it. */
-  endsOnStop = true;
-
-  record(options: Readonly<{ maxDuration: number; maxFileSize: number }>): Promise<{ uri: string } | null> {
-    this.options.push(options);
-    return new Promise((resolve, reject) => {
-      this.#finish = resolve;
-      this.#fail = reject;
-    });
-  }
-
-  stop(): void {
-    this.stops += 1;
-    if (this.endsOnStop) this.end();
-  }
-
-  /** The library resolves with the file (at a limit, at `stopRecording`). */
-  end(uri: string | null = 'file:///cache/Camera/3f2b9c1e-5d4a-4e8f-9a7b-1c2d3e4f5a6b.mp4'): void {
-    this.#finish?.(uri === null ? null : { uri });
-  }
-
-  crash(): void {
-    this.#fail?.(new Error('synthetic recorder failure'));
-  }
-}
-
-/** The files of the phone for a film: the cache of the camera and the private folder of the originals. */
-class PhoneFiles {
-  readonly cache = new Map<string, number>([['file:///cache/Camera/3f2b9c1e-5d4a-4e8f-9a7b-1c2d3e4f5a6b.mp4', 78 * MB]]);
-  readonly originals = new Map<string, number>();
-  readonly imports: { assetId: string; mediaType: string }[] = [];
-  importResult: 'ok' | 'no_space' | 'io_error' = 'ok';
-  digestNull = false;
-
-  native(): Pick<NativeUpload, 'importOriginal' | 'sweepOriginals' | 'cancelUpload' | 'digestOriginal'> {
-    return {
-      importOriginal: (assetId, uri, mediaType) => {
-        this.imports.push({ assetId, mediaType });
-        if (this.importResult !== 'ok') {
-          this.cache.delete(uri);
-          return Promise.resolve(this.importResult);
-        }
-        const size = this.cache.get(uri);
-        if (size === undefined) return Promise.resolve('source_missing');
-        this.originals.set(assetId, size);
-        this.cache.delete(uri);
-        return Promise.resolve('ok');
-      },
-      digestOriginal: (assetId) => {
-        const size = this.originals.get(assetId);
-        return Promise.resolve(size === undefined || this.digestNull ? null : { sizeBytes: size, sha256: SHA });
-      },
-      cancelUpload: (assetId, deleteOriginal) => {
-        if (deleteOriginal) this.originals.delete(assetId);
-        return Promise.resolve(true);
-      },
-      sweepOriginals: () => Promise.resolve(0),
-    };
-  }
-}
-
-const nativeOf = (phone: PhoneFiles): NativeUpload => ({
-  ...phone.native(),
-  reconcile: (items) => Promise.resolve(Object.fromEntries(items.map((item) => [item.assetId, 'armed' as const]))),
-  retryUpload: () => Promise.resolve('armed'),
-  setKeepScreenOn: () => true,
-  getVideoWifiOnly: () => true,
-  setVideoWifiOnly: () => Promise.resolve(true),
-  completeUpload: () => Promise.resolve('keep'),
-  uploadStatuses: () => Promise.resolve([]),
-  wipeUploads: () => Promise.resolve(true),
-  notificationPermission: () => 'granted',
-  requestNotificationPermission: () => Promise.resolve('granted'),
-  openNotificationSettings: () => Promise.resolve(true),
-  launchTarget: () => null,
-  e2eInjectFile: () => Promise.resolve(null),
-  addListener: () => ({ remove: (): void => undefined }),
-});
-
 interface World {
   readonly db: Database;
   readonly queue: SqlQueueStore;
   readonly phone: PhoneFiles;
   readonly store: UnlockedStore;
   readonly enqueued: EnqueueInput[];
-  readonly state: { free: number | null; session: boolean; enqueueFails: boolean; marker: boolean; markerOps: string[] };
+  readonly state: { free: number | null; session: boolean; enqueueFails: boolean; marker: boolean; markerOps: string[]; user: string };
   /** A new service over the same database and files (a restart of the app); `camera` is the one the pipeline records with. */
   boot(camera?: ScriptedCamera): { uploads: MediaUploads; camera: ScriptedCamera; pipeline: ReturnType<MediaUploads['capturePipeline']> };
 }
@@ -131,7 +44,14 @@ async function world(): Promise<World> {
   const queue = new SqlQueueStore(db);
   const replica = new SqlReplicaStore(db);
   const phone = new PhoneFiles();
-  const state = { free: (10 * 1024 ** 3) as number | null, session: true, enqueueFails: false, marker: false, markerOps: [] as string[] };
+  const state = {
+    free: (10 * 1024 ** 3) as number | null,
+    session: true,
+    enqueueFails: false,
+    marker: false,
+    markerOps: [] as string[],
+    user: USER,
+  };
   const store = {
     userId: USER,
     queue,
@@ -147,7 +67,8 @@ async function world(): Promise<World> {
   const boot: World['boot'] = (camera = new ScriptedCamera()) => {
     const uploads = new MediaUploads({
       native: nativeOf(phone),
-      store: () => (state.session ? store : null),
+      // another user signed in after the recording started: the same queue, a different user of the session
+      store: () => (state.session ? (state.user === USER ? store : { ...store, userId: state.user }) : null),
       enqueue: async (input) => {
         enqueued.push(input);
         if (state.enqueueFails) return { ok: false };
@@ -243,17 +164,17 @@ describe('a recorded film is a file, a command of 5 keys and a row together (EVM
   });
 
   it.each([
-    ['the import fails', (w: World) => (w.phone.importResult = 'io_error')],
-    ['the digest of the original is empty', (w: World) => (w.phone.digestNull = true)],
-    ['the command cannot be queued', (w: World) => (w.state.enqueueFails = true)],
+    ['the import fails', 'import_io_error', (w: World) => (w.phone.importResult = 'io_error')],
+    ['the digest of the original is empty', 'digest', (w: World) => (w.phone.digestNull = true)],
+    ['the command cannot be queued', 'register_enqueue_failed', (w: World) => (w.state.enqueueFails = true)],
   ])(
-    'EVM-110 AC1 AC2: when %s there is no row, no command in the queue and no original (a failure leaves nothing behind)',
-    async (_name, fault) => {
+    'EVM-110 AC1 AC2: when %s there is no row, no command in the queue and no original (a failure leaves nothing behind) and the step is named',
+    async (_name, reason, fault) => {
       const w = await world();
       fault(w);
       const { recording, camera } = started(w);
       camera.end();
-      expect(await done(recording)).toEqual({ ok: false, code: 'save_failed' });
+      expect(await done(recording)).toEqual({ ok: false, code: 'save_failed', reason });
       expect(await rows(w)).toEqual([]);
       expect(await entries(w)).toEqual([]);
       expect([...w.phone.originals.keys()]).toEqual([]);
@@ -264,10 +185,10 @@ describe('a recorded film is a file, a command of 5 keys and a row together (EVM
     const w = await world();
     const crashing = started(w);
     crashing.camera.crash();
-    expect(await done(crashing.recording)).toEqual({ ok: false, code: 'camera_failed' });
+    expect(await done(crashing.recording)).toEqual({ ok: false, code: 'camera_failed', reason: 'record_rejected' });
     const empty = started(w);
     empty.camera.end(null);
-    expect(await done(empty.recording)).toEqual({ ok: false, code: 'camera_failed' });
+    expect(await done(empty.recording)).toEqual({ ok: false, code: 'camera_failed', reason: 'record_empty' });
     expect(await rows(w)).toEqual([]);
     expect(w.phone.imports).toEqual([]);
   });
@@ -358,6 +279,10 @@ describe('interruptions, a kill and the end of the session (EVM-110 AC3)', () =>
     // the process dies here: the recording never resolves, nothing else runs; the marker stays on the disk
     const restarted = w.boot();
     expect(await restarted.uploads.consumeInterruptedRecording()).toBe(true);
+    // reading does not remove the marker: a screen that goes away before the notice is shown leaves it for the next start
+    expect(w.state.marker).toBe(true);
+    expect(await restarted.uploads.consumeInterruptedRecording()).toBe(true);
+    await restarted.uploads.dismissInterruptedRecording();
     expect(w.state.marker).toBe(false);
     expect(await restarted.uploads.consumeInterruptedRecording()).toBe(false);
     expect(await rows(w)).toEqual([]);
@@ -374,7 +299,7 @@ describe('interruptions, a kill and the end of the session (EVM-110 AC3)', () =>
     expect(w.state.marker).toBe(true);
     first.camera.end();
     await done(first.recording);
-    await first.uploads.consumeInterruptedRecording();
+    await new Promise((resolve) => setTimeout(resolve, 0));
     expect(w.state.marker).toBe(false);
     expect(w.state.markerOps).toEqual(['set', 'clear']);
     const failing = started(w);
@@ -427,7 +352,20 @@ describe('interruptions, a kill and the end of the session (EVM-110 AC3)', () =>
     const { recording, camera } = started(w);
     w.state.session = false;
     camera.end();
-    expect(await done(recording)).toEqual({ ok: false, code: 'no_session' });
+    expect(await done(recording)).toEqual({ ok: false, code: 'no_session', reason: 'session_changed' });
+    expect(w.phone.imports).toEqual([]);
+    expect(await rows(w)).toEqual([]);
+    expect(await entries(w)).toEqual([]);
+    expect(w.enqueued).toEqual([]);
+  });
+
+  it('EVM-110 AC3 SEC-110-12: a film that finishes after ANOTHER user signed in is not imported - it never reaches the queue of somebody else', async () => {
+    const w = await world();
+    const { recording, camera } = started(w);
+    // the stop took longer than the next sign-in: the session now belongs to somebody else
+    w.state.user = '90000000-0000-4000-8000-0000000000bb';
+    camera.end();
+    expect(await done(recording)).toEqual({ ok: false, code: 'no_session', reason: 'session_changed' });
     expect(w.phone.imports).toEqual([]);
     expect(await rows(w)).toEqual([]);
     expect(await entries(w)).toEqual([]);

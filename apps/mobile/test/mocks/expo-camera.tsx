@@ -1,7 +1,7 @@
 // A stand-in for `expo-camera` (EVM-108): the view records its props and answers `takePictureAsync` from the test; the permission hook is steered by
 // the test. Every OTHER surface of the library (the microphone, the scanners, the direct permission calls) is a spy that fails the test when touched:
 // the app asks for the camera through `useCameraPermissions` only (AC3) and never for the microphone.
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { View } from 'react-native';
 
 export interface Answer {
@@ -27,6 +27,8 @@ export const cameraMock = {
   prompts: 0,
   reads: 0,
   readyOnMount: true,
+  /** The restart for another mode reports ready again (the real view does); `false` = it stays silent (the limit of the screen then takes over). */
+  readyOnRestart: true,
   mountError: false,
   mounts: 0,
   props: null as Record<string, unknown> | null,
@@ -59,6 +61,7 @@ export const cameraMock = {
     cameraMock.prompts = 0;
     cameraMock.reads = 0;
     cameraMock.readyOnMount = true;
+    cameraMock.readyOnRestart = true;
     cameraMock.mountError = false;
     cameraMock.mounts = 0;
     cameraMock.props = null;
@@ -75,6 +78,7 @@ export const cameraMock = {
 interface ViewProps {
   readonly onCameraReady?: () => void;
   readonly onMountError?: (event: { message: string }) => void;
+  readonly mode?: string;
 }
 
 export const CameraView = forwardRef<
@@ -110,6 +114,13 @@ export const CameraView = forwardRef<
     else if (cameraMock.readyOnMount) onCameraReady?.();
     // the mount only: the real view reports once per start
   }, []);
+  // a change of the mode restarts the camera of the real view, which reports `onCameraReady` again (EVM-110)
+  const restartedFor = useRef(props.mode);
+  useEffect(() => {
+    if (restartedFor.current === props.mode) return;
+    restartedFor.current = props.mode;
+    if (cameraMock.readyOnRestart) onCameraReady?.();
+  }, [props.mode, onCameraReady]);
   return <View testID="camera-view" />;
 });
 

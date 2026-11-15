@@ -146,7 +146,22 @@ export class MobileSessionOwner implements SessionOwner {
     };
   }
 
+  /**
+   * The tasks that must FINISH go first (EVM-110 AC3: a recording is stopped and its file saved - the save writes to the queue of the synchronization), and only then
+   * the listeners that stop the synchronization and the rest: `SyncHost.stop()` would make the save of the film fail and the film would be removed.
+   */
   async #stopListeners(): Promise<void> {
+    if (this.#beforeEndAsync.size > 0) {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      await Promise.race([
+        Promise.all([...this.#beforeEndAsync].map((listener) => listener().catch(() => undefined))),
+        new Promise<void>((resolve) => {
+          timer = setTimeout(resolve, BEFORE_END_ASYNC_MS);
+        }),
+      ]).finally(() => {
+        clearTimeout(timer);
+      });
+    }
     for (const listener of [...this.#beforeEnd]) {
       try {
         listener();
@@ -154,16 +169,6 @@ export class MobileSessionOwner implements SessionOwner {
         // stopping a service must not break the end of a session
       }
     }
-    if (this.#beforeEndAsync.size === 0) return;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    await Promise.race([
-      Promise.all([...this.#beforeEndAsync].map((listener) => listener().catch(() => undefined))),
-      new Promise<void>((resolve) => {
-        timer = setTimeout(resolve, BEFORE_END_ASYNC_MS);
-      }),
-    ]).finally(() => {
-      clearTimeout(timer);
-    });
   }
 
   /** The capability of the store for the synchronization service; null without a session. Composition only (security S3). */

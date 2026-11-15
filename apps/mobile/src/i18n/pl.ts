@@ -650,6 +650,7 @@ export const pl = {
     limitSpace: 'Brak miejsca — nagranie zatrzymano i zapisano.',
     interrupted: 'Nagrywanie przerwane — zapisano {{duration}} filmu.',
     videoSaveFailed: 'Nie udało się zapisać filmu. Nagraj go ponownie.',
+    videoNoSpace: 'Za mało miejsca na film. Zwolnij miejsce w telefonie.',
     videoCount_one: '{{count}} film',
     videoCount_few: '{{count}} filmy',
     videoCount_many: '{{count}} filmów',

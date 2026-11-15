@@ -90,6 +90,38 @@ describe('the notice of a recording killed with the process (EVM-110 AC3)', () =
     expect(rig.media.interrupted).toBe(false);
   });
 
+  it('EVM-110 AC3: the notice has the info icon of its own (not the "offline" icon the Banner would draw by default) - in the source and in the library of icons', () => {
+    const source = readFileSync(join(__dirname, '..', '..', 'src', 'screens', 'InterruptedRecordingNotice.tsx'), 'utf8');
+    expect(source).toMatch(/icon=\{Info\}/);
+    expect(readFileSync(join(__dirname, '..', '..', 'src', 'ui', 'icons.ts'), 'utf8')).toMatch(
+      /default as Info \} from 'lucide-react-native\/icons\/info'/,
+    );
+  });
+
+  it('EVM-110 AC3: the marker is removed only AFTER the notice was shown - a screen that goes away before it is shown leaves the marker for the next start', async () => {
+    const early = actionsFor(true);
+    let release: (value: boolean) => void = () => undefined;
+    early.rig.media.consumeInterruptedRecording = () =>
+      new Promise<boolean>((resolve) => {
+        release = resolve;
+      });
+    await render(
+      <SessionContext.Provider value={early.actions}>
+        <InterruptedRecordingNotice />
+      </SessionContext.Provider>,
+    );
+    await screen.unmount();
+    release(true);
+    await settle();
+    expect(early.rig.media.dismissed).toBe(0);
+    expect(early.rig.media.interrupted).toBe(true);
+    // shown: the marker goes at once, and only once
+    const shown = actionsFor(true);
+    await mount(shown.actions);
+    expect(screen.getByTestId('interrupted-recording')).toBeOnTheScreen();
+    expect(shown.rig.media.dismissed).toBe(1);
+  });
+
   it('EVM-110 AC3: nothing is shown when no recording was killed', async () => {
     const { actions } = actionsFor(false);
     await mount(actions);

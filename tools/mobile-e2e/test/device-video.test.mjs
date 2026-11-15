@@ -76,6 +76,7 @@ describe('the commands of the video steps (EVM-110)', () => {
       'video-no-audio-no-location:1',
       'upload-part-puts:3',
       'upload-part-puts-hold',
+      'video-last-error',
     ])
       assert.equal(isVideoAction(name), true, name);
     for (const name of ['kill-9', 'camera-grant', 'upload-checkpoint-many:3']) assert.equal(isVideoAction(name), false, name);
@@ -209,8 +210,8 @@ describe('the films of the app judged for sound and place (EVM-110 AC1; SEC-110-
       'video-no-audio-no-location:1',
       fake({ 'pm list features': out(0, 'feature:android.hardware.wifi\n') }).context,
     );
-    assert.equal(noCamera.ok, true);
-    assert.equal(noCamera.skipped, true);
+    assert.equal(noCamera.ok, false);
+    assert.equal(noCamera.skipped, undefined);
     assert.match(noCamera.detail, /NOT PERFORMED/);
   });
 
@@ -306,6 +307,16 @@ describe('the parts the server received (EVM-110 AC4, AC5)', () => {
     assert.match(grew.detail, /parts received 4 -> 5/);
     const down = /** @type {never} */ ({ adb: () => out(0), sleep: () => Promise.resolve(), uploadControl: () => Promise.resolve(null) });
     assert.equal((await runVideoAction('upload-part-puts-hold', down)).ok, false);
+  });
+
+  it('EVM-110 AC1: the diagnosis of the last failed film prints the code the app left, and says so when there is none or when the text is not a code', async () => {
+    const found = await runVideoAction('video-last-error', fake({ 'e2e-last-film-error.txt': out(0, 'import_io_error\n') }).context);
+    assert.equal(found.ok, true);
+    assert.match(found.detail, /import_io_error/);
+    const none = await runVideoAction('video-last-error', fake({ 'e2e-last-film-error.txt': out(1, '', 'No such file') }).context);
+    assert.match(none.detail, /no code/);
+    const odd = await runVideoAction('video-last-error', fake({ 'e2e-last-film-error.txt': out(0, '/data/user/0/secret path') }).context);
+    assert.match(odd.detail, /no code/);
   });
 
   it('EVM-110 AC8: an unknown video step is a failure', async () => {

@@ -72,9 +72,15 @@ export class FakeMedia implements MediaControl {
   readonly keepAwake: boolean[] = [];
 
   consumeInterruptedRecording(): Promise<boolean> {
-    const was = this.interrupted;
+    return Promise.resolve(this.interrupted);
+  }
+
+  /** How many times the marker was removed (the notice was shown). */
+  dismissed = 0;
+  dismissInterruptedRecording(): Promise<void> {
     this.interrupted = false;
-    return Promise.resolve(was);
+    this.dismissed += 1;
+    return Promise.resolve();
   }
 
   keepScreenOn(on: boolean): void {

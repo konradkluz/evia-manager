@@ -7,6 +7,7 @@
  * The labels are fixed codes of a test instrument, not UI text of the app (no i18n on purpose: they never reach a field phone).
  */
 import type { QueueRecord } from '@evia/sync-core';
+import { File as AppFile, Paths } from 'expo-file-system';
 import { useCallback, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -28,6 +29,21 @@ import { borderWidth, color, size, space, text } from '../ui/theme';
 
 /** Unique marker of the hooks in a bundle (also the testID of the toggle): tools/mobile-apk/src/contents.mjs E2E_HOOKS_MARKER. */
 export const E2E_HOOKS_MARKER = 'evia-e2e-hooks-panel';
+
+/** The file of the last failed save of a film (e2e only; `tools/mobile-e2e` reads it with `run-as` after a failed flow): one code, no path, no data. */
+export const FILM_ERROR_FILE = 'e2e-last-film-error.txt';
+
+/** The slot function of the release bundle, here with an effect: the code (a short word) is written, never a message. */
+export function reportFilmFailure(code: string): void {
+  const safe = /^[a-z0-9_]{1,60}$/.test(code) ? code : 'invalid_code';
+  try {
+    const file = new AppFile(Paths.document, FILM_ERROR_FILE);
+    if (!file.exists) file.create();
+    void Promise.resolve(file.write(safe)).catch(() => undefined);
+  } catch {
+    // a diagnostic only: it must never break the screen
+  }
+}
 
 /**
  * Answers of the device controls that the scenarios move (EVM-101; security K7): the screen lock, the time without contact with the

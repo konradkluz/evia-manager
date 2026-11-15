@@ -20,7 +20,12 @@ export type VideoEnd = 'time_limit' | 'size_limit' | 'no_space' | 'stopped' | 'i
 
 export type VideoResult =
   | { readonly ok: true; readonly assetId: string; readonly sizeBytes: number; readonly durationMs: number; readonly end: VideoEnd }
-  | { readonly ok: false; readonly code: 'no_space' | 'save_failed' | 'camera_failed' | 'busy' | 'no_session' };
+  | {
+      readonly ok: false;
+      readonly code: 'no_space' | 'save_failed' | 'camera_failed' | 'busy' | 'no_session';
+      /** Which step said no (`import_io_error`, `digest`, `register_enqueue_failed`, `record_rejected`, ...): a code, never a path or a message (the e2e variant shows it). */
+      readonly reason?: string;
+    };
 
 /** The progress of the library (`onRecordingProgress`): seconds and bytes recorded so far. */
 export interface VideoProgress {
@@ -80,8 +85,10 @@ export class VideoRecording {
     }
     return recording.finally(recorded).then(
       (file) =>
-        file === null ? ({ ok: false, code: 'camera_failed' } as const) : save(file.uri, this.#end(), this.durationMs(), this.startedAt),
-      () => ({ ok: false, code: 'camera_failed' }) as const,
+        file === null
+          ? ({ ok: false, code: 'camera_failed', reason: 'record_empty' } as const)
+          : save(file.uri, this.#end(), this.durationMs(), this.startedAt),
+      () => ({ ok: false, code: 'camera_failed', reason: 'record_rejected' }) as const,
     );
   }
 

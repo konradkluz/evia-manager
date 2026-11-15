@@ -790,6 +790,22 @@ describe('upload scenarios in the run (EVM-130 stage C, AC1, AC5, AC6, AC8)', ()
     return { machine, calls };
   }
 
+  it('EVM-110 AC1: a failed film flow asks the device for the code of the film that was not saved (a diagnosis; the verdict stays red)', async () => {
+    const { machine } = uploadMachine();
+    const run = machine.host.run;
+    machine.host.run = (command, args, options) => {
+      const text = args.join(' ');
+      if (args.some((arg) => arg.endsWith('90-video-record.yaml'))) return { status: 1, stdout: '', stderr: 'failed' };
+      // the baseline of the gallery (the first step of the scenario): an empty gallery
+      if (text.includes('content query')) return { status: 0, stdout: 'No result found.\n', stderr: '' };
+      if (text.includes('ls -d /sdcard/DCIM') || text.includes('find /sdcard/DCIM')) return { status: 0, stdout: '', stderr: '' };
+      return run(command, args, options);
+    };
+    assert.equal(await runE2e({ skipBuild: true, port: 3199, only: ['video-record'] }, machine.host), 1);
+    assert.ok(machine.processes.some((process) => process.args.join(' ').includes('e2e-last-film-error.txt')));
+    assert.ok(machine.logs.some((line) => line.startsWith('DIAGNOSIS video-last-error')));
+  });
+
   it('EVM-130 AC1: --only runs the chosen upload scenario; the sign-in of the run is switched to the upload part first, through the control port of the scenario server', async () => {
     const { machine, calls } = uploadMachine();
     const code = await runE2e({ skipBuild: true, port: 3199, only: ['upload-notification'] }, machine.host);

@@ -33,7 +33,7 @@ export const QUIET_MS = 8000;
 export const PARTS_WAIT_MS = 180_000;
 
 /**
- * @typedef {'network-metered' | 'network-unmetered' | 'video-gallery-baseline' | 'video-gallery-unchanged' | 'upload-part-puts-hold'
+ * @typedef {'network-metered' | 'network-unmetered' | 'video-gallery-baseline' | 'video-gallery-unchanged' | 'upload-part-puts-hold' | 'video-last-error'
  *   | `video-no-audio-no-location:${string}` | `upload-part-puts:${string}`} VideoAction
  * @typedef {import('./device-upload.mjs').UploadContext} VideoContext
  * @typedef {import('./device-upload.mjs').Outcome} Outcome
@@ -48,6 +48,7 @@ export const VIDEO_ACTION_NAMES = new Set([
   'video-no-audio-no-location',
   'upload-part-puts',
   'upload-part-puts-hold',
+  'video-last-error',
 ]);
 
 /** @param {string} action @returns {boolean} */
@@ -65,6 +66,8 @@ export const videoCommands = {
   features: () => ['shell', 'pm', 'list', 'features'],
   /** The rows of the video table of MediaStore. */
   mediaVideos: () => ['shell', 'content', 'query', '--uri', 'content://media/external/video/media', '--projection', '_id'],
+  /** The code the app wrote for the last film that was not saved (a hook of the e2e build only; a code, never a path). */
+  lastFilmError: () => ['shell', `run-as ${APPLICATION_ID} cat files/e2e-last-film-error.txt`],
   galleryFolders: () => ['shell', 'ls', '-d', '/sdcard/DCIM'],
   galleryFiles: () => ['shell', 'find /sdcard/DCIM /sdcard/Pictures /sdcard/Movies -type f 2>/dev/null; true'],
   /** The originals with their sizes (the film is `<assetId>.mp4`). */
@@ -215,18 +218,22 @@ export async function runVideoAction(action, context) {
       const judged = judgeVideoGallery(before, after);
       return check(judged.ok, judged.detail);
     }
+    case 'video-last-error': {
+      const answer = context.adb(...videoCommands.lastFilmError());
+      const code = answer.stdout.trim();
+      if (answer.status !== 0 || !/^[a-z0-9_]{1,60}$/.test(code)) return check(true, 'no code of a failed film was left by the app');
+      return check(true, `the app reports the last failed film as: ${code}`);
+    }
     case 'video-no-audio-no-location': {
       const expected = whole(first);
       if (expected === null || expected === 0)
         return check(false, 'video-no-audio-no-location needs the number of films (video-no-audio-no-location:1)');
+      // without a back camera the check proves nothing about the camera: it FAILS (a green step that checked nothing is worse than a red one)
       if (!/android\.hardware\.camera\b/.test(context.adb(...videoCommands.features()).stdout))
-        return {
-          action,
-          ok: true,
-          skipped: true,
-          detail:
-            'NOT PERFORMED: the emulator reports no back camera (android.hardware.camera); a synthetic film has no moov and proves nothing about the camera',
-        };
+        return check(
+          false,
+          'NOT PERFORMED: the emulator reports no back camera (android.hardware.camera); a synthetic film has no moov and proves nothing about the camera',
+        );
       const listing = context.adb(...videoCommands.listOriginals());
       if (listing.status !== 0) return check(false, 'the originals of the app could not be listed');
       /** @type {Record<string, Buffer>} */
