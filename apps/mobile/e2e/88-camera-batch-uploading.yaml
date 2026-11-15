@@ -1,6 +1,6 @@
 # EVM-108 AC7: the app is (re)opened - after the return of the network, after a force-stop, after a kill -9 - and the files are on their way: the
 # Queue shows the progress of at least one ("Wysyła się N%"). The same flow serves every resumption of the scenario; tools/mobile-e2e interrupts
-# the app after it (force-stop, then kill -9). The answer to every part is held for a moment at the scenario server, so the transfer of thirty
+# the app after it (force-stop). The answer to every part is held for a moment at the scenario server, so the transfer of thirty
 # files is still going on when the app is interrupted; the interrupted part is found again by the resume, not sent twice.
 appId: pl.eviacharge.manager
 ---

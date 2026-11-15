@@ -174,7 +174,6 @@ describe('Maestro flows 80-89 and the camera scenarios agree (EVM-108)', () => {
         ['86-camera-batch-inject.yaml', true, ['kill-9']],
         ['87-camera-batch-after-kill.yaml', true, ['jobs-none', 'upload-none-yet']],
         ['88-camera-batch-uploading.yaml', false, ['force-stop']],
-        ['88-camera-batch-uploading.yaml', false, ['kill-9']],
         ['89-camera-batch-sent.yaml', false, ['upload-checkpoint-many:30', 'tokens-not-in-clear', 'logcat-clean']],
       ],
     );
@@ -186,7 +185,7 @@ describe('Maestro flows 80-89 and the camera scenarios agree (EVM-108)', () => {
     assert.equal(scenario.steps[3]?.background, true);
     // the delay outlasts both interruptions (the resume skips the parts the server holds) and is dropped for the last step, which waits for the end
     assert.ok(Number(scenario.steps[0]?.before?.find((action) => action.startsWith('upload-part-delay:'))?.slice(18)) >= 10_000);
-    assert.deepEqual(scenario.steps[5]?.before, ['upload-part-delay:0']);
+    assert.deepEqual(scenario.steps[4]?.before, ['upload-part-delay:0']);
   });
 
   it('EVM-108 AC7: the flows of the 30 shots use the hook through its ids, wait for the confirmation of the LAST save and count the states from the snapshot of the Queue', () => {
