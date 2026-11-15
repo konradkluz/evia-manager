@@ -195,6 +195,10 @@ export async function runE2e({ skipBuild, port, only = null }, host) {
       host.log(`INSTALL: adb install failed: ${`${installed.stderr} ${installed.stdout}`.trim().slice(0, 300)}`);
       return 1;
     }
+    // EVM-130: the store updates WebView or Play services in the middle of a flow and the install kills every app that holds the package
+    // ("Killing pl.eviacharge.manager: stop com.google.android.webview due to installPackageLI"); the flow then ends on the launcher.
+    // The scenario server is the only network the run needs, so the store goes off for this user (the setting survives a restart).
+    adb(...adbArgs(serial, 'shell', 'pm', 'disable-user', '--user', '0', 'com.android.vending'));
     for (const scenario of scenarios) {
       if (state.aborted) {
         for (const step of scenario.steps) results.push({ scenario: scenario.name, flow: step.flow, status: 'skipped', seconds: 0 });

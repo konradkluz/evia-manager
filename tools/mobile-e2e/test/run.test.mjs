@@ -328,6 +328,15 @@ describe('smoke test run (EVM-009 AC4; ADR-0015)', () => {
     assert.equal(machine.stubPort(), 3199);
   });
 
+  it('EVM-130 AC1: the Play Store is switched off after the install, so that no background update of WebView kills the app in a flow', async () => {
+    const machine = fakeMachine();
+    await runE2e({ skipBuild: false, port: 3199 }, machine.host);
+    const names = machine.processes.map((entry) => entry.args.join(' '));
+    const install = names.findIndex((line) => line.includes(' install -r '));
+    const disable = names.findIndex((line) => line.includes('shell pm disable-user --user 0 com.android.vending'));
+    assert.ok(install >= 0 && disable > install, names.join('|'));
+  });
+
   it('EVM-009 AC4: no token of the host reaches any process', async () => {
     const machine = fakeMachine();
     await runE2e({ skipBuild: false, port: 3199 }, machine.host);
