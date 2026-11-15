@@ -1,6 +1,7 @@
 // The native step of the wipe and the unsent files (EVM-130 AC4, AC5; architect 8; security A3).
 import type { QueueRecord } from '@evia/sync-core';
 import { WIPE_MARKER_FILE, type OpenResult, type UnlockedStore } from '../../src/storage/local-data';
+import { CompanyDataWipe } from '../../src/wipe/company-wipe';
 import { boot, newDevice, type Device } from './fakes';
 import { newDisk, removeDisk, type TestDisk } from './node-sqlite-engine';
 
@@ -127,5 +128,52 @@ describe('unsent files (EVM-130 AC4; offline-sync.md, pkt 7)', () => {
     expect(await store.unsentItemCount()).toBe(1);
     await store.media.setState(id(1), 'clean', null, 4);
     expect(await store.unsentItemCount()).toBe(0);
+  });
+});
+
+describe('the chain of the server-ordered wipe (EVM-130 AC5; architect 8)', () => {
+  const chain = async (nativeSteps: (() => Promise<void>)[]) => {
+    device.identity = { deviceId: 'device-synthetic-a', secret: 'secret-synthetic-a' };
+    const order: string[] = [];
+    const { host } = boot(device);
+    unlocked(await host.openForUser(USER));
+    const attempts = [...nativeSteps];
+    host.registerWipeStep(
+      'native_uploads',
+      () => {
+        order.push('native');
+        return attempts.shift()?.() ?? Promise.resolve();
+      },
+      { first: true },
+    );
+    const wipe = new CompanyDataWipe({
+      host,
+      client: {
+        confirmWipe: () => {
+          order.push(`confirmDeviceWipe (identity gone: ${String(device.identity === null)}, key gone: ${String(device.key === null)})`);
+          return Promise.resolve({ kind: 'confirmed' as const });
+        },
+      },
+      now: () => 0,
+    });
+    return { wipe, order, host };
+  };
+
+  it('EVM-130 AC5: device_wipe_required — ONE native call first, then the rest of the wipe, and only then confirmDeviceWipe', async () => {
+    const { wipe, order } = await chain([() => Promise.resolve()]);
+    expect(await wipe.runRequired()).toBe('done');
+    expect(order).toEqual(['native', 'confirmDeviceWipe (identity gone: true, key gone: true)']);
+  });
+
+  it('EVM-130 AC5: an interrupted native step — nothing is confirmed to the server and the data are not touched; the next start repeats the step first and then confirms', async () => {
+    const { wipe, order } = await chain([() => Promise.reject(new Error('native wipe unfinished'))]);
+    expect(await wipe.runRequired()).toBe('incomplete');
+    expect(order).toEqual(['native']);
+    expect(device.key).not.toBeNull();
+    expect(device.files.has(WIPE_MARKER_FILE)).toBe(true);
+    // the next start of the app: the step runs again (first), the wipe finishes, the owed confirmation goes
+    await wipe.resume();
+    expect(order).toEqual(['native', 'native', 'confirmDeviceWipe (identity gone: true, key gone: true)']);
+    expect(device.files.has(WIPE_MARKER_FILE)).toBe(false);
   });
 });

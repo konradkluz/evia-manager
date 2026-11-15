@@ -555,6 +555,20 @@ describe('the state of a file in the view (EVM-130 AC4)', () => {
     expect(await states(r)).toEqual(['01:clean']);
   });
 
+  it('EVM-130 AC5: in the hidden-data mode the upload goes on — an applied file is armed and its progress is followed, only the replica is not read', async () => {
+    const r = await rig();
+    hold(r, 1);
+    await r.uploads.add(photo(1));
+    await idle(r);
+    await apply(r, 1);
+    r.state.visible = false;
+    r.native.armed.length = 0;
+    r.native.statuses = [{ assetId: asset(1), state: 'uploading', partsDone: 1, partCount: 4, percent: 25, sizeBytes: 1001 }];
+    await r.uploads.reconcile();
+    expect(r.native.armed.map((item) => item.assetId)).toEqual([asset(1)]);
+    expect(r.uploads.getSnapshot().files).toMatchObject([{ status: 'uploading', percent: 25 }]);
+  });
+
   it('EVM-130 AC4, AC5: the view carries no order, path, digest or description — the same in the hidden-data mode', async () => {
     const r = await armed();
     r.native.statuses = [{ assetId: asset(1), state: 'uploading', partsDone: 1, partCount: 2, percent: 50, sizeBytes: 1001 }];
