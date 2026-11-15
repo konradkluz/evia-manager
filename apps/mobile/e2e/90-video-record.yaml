@@ -1,0 +1,87 @@
+# EVM-110 AC1 AC2 AC6 (smoke): the film mode with the real camera of the emulator (the virtual scene; the permission for the camera is granted by
+# tools/mobile-e2e, there is no microphone and the app asks for none). No network (airplane mode). In the order the camera opens in "Zdjęcie";
+# "Film" shows the marker "Film bez dźwięku"; the shutter is blocked with the hint "Wybierz kategorię przed nagraniem." until a category is chosen;
+# the start shows the counter of the recording (role timer, "0:05 / 5:00" and later); after about five seconds the stop saves the film
+# ("Zapisano film w telefonie", the counter "1 film" only AFTER the durable save); "Gotowe" goes back to the ORDER; the Queue has one waiting file
+# which is a film (its length and size in the row, no customer, no address). The content of the MP4 and the sending are not judged here (stage 4).
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- extendedWaitUntil:
+    visible: 'Brak zasięgu.*'
+    timeout: 30000
+- runFlow: common/camera-from-order.yaml
+# the camera opens in the picture mode; the film is one tap away
+- assertVisible:
+    id: 'camera-mode-photo'
+- assertNotVisible: 'Film bez dźwięku'
+- tapOn:
+    id: 'camera-mode-video'
+- extendedWaitUntil:
+    visible: 'Film bez dźwięku'
+    timeout: 10000
+- assertVisible: 'Wybierz kategorię przed nagraniem\.'
+- assertVisible:
+    id: 'camera-shutter'
+    enabled: false
+- takeScreenshot: m06-video-choose-category
+- tapOn:
+    id: 'camera-category-in_progress'
+- assertNotVisible: 'Wybierz kategorię przed nagraniem\.'
+- tapOn:
+    id: 'camera-shutter'
+# the recording runs: the counter is there
+- extendedWaitUntil:
+    visible:
+      id: 'camera-timer'
+    timeout: 30000
+- takeScreenshot: m06-video-recording
+# a few real seconds of the film: the counter reads at least 0:05
+- extendedWaitUntil:
+    visible:
+      id: 'camera-timer'
+      text: '0:(0[5-9]|[1-5][0-9]) / 5:00'
+    timeout: 60000
+- tapOn:
+    id: 'camera-shutter'
+- extendedWaitUntil:
+    visible: 'Zapisano film w telefonie'
+    timeout: 60000
+- extendedWaitUntil:
+    visible:
+      id: 'camera-count'
+      text: '1 film'
+    timeout: 20000
+- assertNotVisible:
+    id: 'camera-timer'
+- takeScreenshot: m06-video-saved
+- tapOn:
+    id: 'camera-done'
+# back at the order, not at the Queue
+- extendedWaitUntil:
+    visible: 'Zlecenie testowe 1'
+    timeout: 30000
+- tapOn:
+    id: 'order-detail-back'
+- tapOn:
+    id: 'nav-queue'
+- extendedWaitUntil:
+    visible:
+      id: 'files-summary'
+      text: '1 do wysłania'
+    timeout: 30000
+- scrollUntilVisible:
+    element: 'W trakcie prac, Film · 0:[0-9]{2} · [0-9]+ MB, .*, Oczekuje'
+    direction: DOWN
+    centerElement: true
+- assertNotVisible: 'Klient Testowy.*'
+- assertNotVisible: 'Testowa.*'
+- takeScreenshot: m07-queue-one-film
+- runFlow:
+    file: common/media-status.yaml
+    env:
+      STATUS: 'files=1;waiting=1;uploading=0;sent=0;failed=0;attention=0;notifications=[a-z_]+'
