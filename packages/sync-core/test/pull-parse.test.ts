@@ -188,3 +188,24 @@ describe('reader of server data (EVM-092 AC6)', () => {
     expect(parseClientConfig({ scopeRuleVersion: 'v-1.2' }).scopeRuleVersion).toBe('v-1.2');
   });
 });
+
+describe('state of a file in the replica (EVM-130 AC4; contract of EVM-131)', () => {
+  const stateOf = (fileState: string, fileStateReasonCode: string | null): unknown => {
+    const parsed = parseChange(upsert('media_asset', 1, 1, { fileState, fileStateReasonCode }));
+    if (parsed.kind !== 'upsert') throw new Error('expected an upsert');
+    return { fileState: parsed.entity.fields['fileState'], reason: parsed.entity.fields['fileStateReasonCode'] };
+  };
+
+  it('EVM-130 AC4: clean and quarantined are read as they are — the phone deletes the original after clean only', () => {
+    expect(stateOf('clean', null)).toEqual({ fileState: 'clean', reason: null });
+    expect(stateOf('quarantined', null)).toEqual({ fileState: 'quarantined', reason: null });
+  });
+
+  it('EVM-130 AC4: failed carries the reason of the allow-list (checksum_mismatch, processing_error, abandoned); another reason or state is unknown, never copied', () => {
+    for (const reason of ['checksum_mismatch', 'processing_error', 'abandoned']) {
+      expect(stateOf('failed', reason)).toEqual({ fileState: 'failed', reason });
+    }
+    expect(stateOf('failed', 'malware_detected')).toEqual({ fileState: 'failed', reason: 'unknown' });
+    expect(stateOf('scanning', null)).toEqual({ fileState: 'unknown', reason: null });
+  });
+});
