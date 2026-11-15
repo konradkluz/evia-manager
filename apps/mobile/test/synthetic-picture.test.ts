@@ -50,7 +50,25 @@ const sha = (bytes: Uint8Array): string => createHash('sha256').update(bytes).di
 
 describe('the synthetic picture of the e2e hook (EVM-108 AC7; security requirement 20)', () => {
   it('EVM-108 AC7: it is a JPEG marker structure of the requested size — SOI, JFIF, comments, EOI — with no EXIF (APP1) segment, hence no GPS', () => {
-    for (const size of [SYNTHETIC_PICTURE_BYTES, 70_000, 65_600, 65_545, 65_546, 65_547, 65_548, 65_549, 1000, 26, 10]) {
+    for (const size of [
+      SYNTHETIC_PICTURE_BYTES,
+      70_000,
+      65_600,
+      65_545,
+      65_546,
+      65_547,
+      65_548,
+      65_549,
+      65_559,
+      65_560,
+      65_561,
+      65_562,
+      65_563,
+      65_564,
+      1000,
+      26,
+      10,
+    ]) {
       const bytes = syntheticJpeg(7, size);
       expect(bytes.length).toBe(Math.max(size, 26));
       const found = markers(bytes);
@@ -62,6 +80,11 @@ describe('the synthetic picture of the e2e hook (EVM-108 AC7; security requireme
     const first = syntheticJpeg(1);
     expect([first[0], first[1], first[2]]).toEqual([0xff, 0xd8, 0xff]);
     expect(new TextDecoder('latin1').decode(first)).not.toMatch(/Exif|GPS|http:\/\/ns\.adobe\.com\/xap/);
+  });
+
+  it('EVM-108 AC7: a seed whose mixed value would be zero still gives a live stream (never a file of one repeated byte)', () => {
+    const bytes = syntheticJpeg(-1_640_531_527, 1000);
+    expect(new Set(bytes.slice(40, 900)).size).toBeGreaterThan(50);
   });
 
   it('EVM-108 AC7: the content depends on the seed only — the same seed gives the same bytes, a different seed a different SHA-256 (30 shots, 30 digests)', () => {

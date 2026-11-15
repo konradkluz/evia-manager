@@ -104,7 +104,7 @@ describe('Maestro flows 80-89 and the camera scenarios agree (EVM-108)', () => {
   });
 
   it('EVM-108 AC1: the real shots are judged for the location (EXIF, gallery, permissions) with the emulator given a location first', () => {
-    for (const [name, flow] of [
+    for (const [name = '', flow = ''] of [
       ['camera-capture', '82-camera-capture.yaml'],
       ['camera-series-offline', '83-camera-series-offline.yaml'],
     ]) {

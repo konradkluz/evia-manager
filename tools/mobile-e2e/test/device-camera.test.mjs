@@ -432,7 +432,10 @@ describe('camera device steps (EVM-108 AC1, AC3, AC7)', () => {
       false,
     );
     // through the dispatcher of the run, the verdict keeps the mark
-    const viaRun = await runDeviceAction('original-exif-clean:1', device.context);
+    const viaRun = await runDeviceAction(
+      'original-exif-clean:1',
+      /** @type {import('../src/device.mjs').DeviceContext} */ (/** @type {unknown} */ (device.context)),
+    );
     assert.equal(viaRun.skipped, true);
   });
 
