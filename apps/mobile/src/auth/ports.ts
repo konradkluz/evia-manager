@@ -60,6 +60,7 @@ export type NativeSession = Pick<
   | 'flushPendingRevocations'
   | 'sessionState'
   | 'clearWipeMarkerAfterLogin'
+  | 'clearCaptureCache'
   | 'lastContact'
   | 'addListener'
 >;
@@ -82,8 +83,6 @@ export interface SessionEnded {
   readonly reason: SessionEndReason;
   /** Unsent items of the local queue, counted before the replica was removed (AC4: "Niewysłane elementy (N)"). */
   readonly unsentItems: number;
-  /** Only in the result of `signOut`: the capture cache or the temporary files of an import could not be removed (EVM-108 pkt 13); the module retries. */
-  readonly cleaningUnfinished?: true;
 }
 
 /**

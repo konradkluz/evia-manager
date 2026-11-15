@@ -53,9 +53,6 @@ export interface SessionOwnerDeps {
   readonly fetch?: (request: Request) => Promise<Response>;
 }
 
-/** How many more times the cleaning of the capture cache is tried when the module says that something stayed (EVM-108 pkt 13). */
-const CLEANING_RETRIES = 2;
-
 /** An access token is renewed this long before its end (clock skew, a request on the way). */
 export const ACCESS_SKEW_MS = 30_000;
 
@@ -569,27 +566,20 @@ export class MobileSessionOwner implements SessionOwner {
       if (this.#meta !== null) {
         await this.#deps.tokens.set('sessionMeta', JSON.stringify({ ...this.#meta, ending: true })).catch(() => undefined);
       }
-      // the module is always asked: with no session it only finishes the cleaning of the capture cache (EVM-108 pkt 13), it asks no server
-      const nativeDone = this.#call(() => this.#deps.native.signOut(online), false);
+      // without a session there is nothing to sign out of (the module is not asked: its state, e.g. a revoked session, stays as it is)
+      const nativeDone = this.#userId === null ? Promise.resolve(false) : this.#call(() => this.#deps.native.signOut(online), false);
+      // the capture cache of the camera goes with the session, session or not (EVM-108 pkt 13); this call touches no token and no state; a cleaning
+      // that leaves something is retried by the module at the next start and at the next return of the network (`flushPendingRevocations`)
+      const cacheDone = this.#call(() => this.#deps.native.clearCaptureCache(), false);
       const store = this.#store;
       const unsentItems = store === null ? 0 : await store.unsentItemCount().catch(() => 0);
       if (store !== null) await store.endSession().catch(() => undefined);
       await this.#clearSession();
       const ended: SessionEnded = { reason: 'signed_out', unsentItems };
       this.#emit(ended);
-      // the screens heard first; the cleaning of the capture cache that stays unfinished is retried and, if it still stays, told in the result
-      // (the module retries again at the next start and at the next return of the network)
-      const cleaned = (await nativeDone) || (await this.#retryCleaning());
-      return cleaned ? ended : { ...ended, cleaningUnfinished: true };
+      await Promise.all([nativeDone, cacheDone]);
+      return ended;
     });
-  }
-
-  /** The module signed out but said that something of the capture cache stayed: the call is repeated (it asks no server, it only cleans). */
-  async #retryCleaning(): Promise<boolean> {
-    for (let attempt = 0; attempt < CLEANING_RETRIES; attempt += 1) {
-      if (await this.#call(() => this.#deps.native.signOut(false), false)) return true;
-    }
-    return false;
   }
 
   /** Sends the pending revocations (after a sign-in, at start and whenever the network returns); never during a sign-in commit. */

@@ -174,6 +174,11 @@ export interface EviaUploadModule {
   flushPendingRevocations(): Promise<boolean>;
   sessionState(): Promise<SessionStateResult>;
   clearWipeMarkerAfterLogin(): Promise<boolean>;
+  /**
+   * Sign-out (EVM-108, security pkt 13): the capture cache of the camera and the temporary files of the import go. Touches no token and no state
+   * of the session. `true` when nothing stayed; `false` = something stayed (the module retries at the next start and the next return of the network).
+   */
+  clearCaptureCache(): Promise<boolean>;
   // files and jobs
   originalPath(assetId: string): Promise<string | null>;
   digestOriginal(assetId: string): Promise<OriginalDigest | null>;
@@ -230,6 +235,7 @@ export const EVIA_UPLOAD_FUNCTIONS = [
   'flushPendingRevocations',
   'sessionState',
   'clearWipeMarkerAfterLogin',
+  'clearCaptureCache',
   'originalPath',
   'digestOriginal',
   'importOriginal',

@@ -60,7 +60,13 @@ describe('EviaUpload binding (EVM-130 AC2, AC3; SR-SESS-09)', () => {
     expect(EVIA_UPLOAD_FUNCTIONS).toContain('sweepOriginals');
     expect(CODE).toMatch(/AsyncFunction\("importOriginal"\)\s*\{[^}]*rt\.importer\.import\(assetId, sourceUri\)\.wire/);
     expect(CODE).toMatch(/AsyncFunction\("sweepOriginals"\)\s*\{[^}]*rt\.importer\.sweep\(/);
-    expect(CODE).toMatch(/AsyncFunction\("signOut"\)[\s\S]*?rt\.importer\.clearLeftovers\(\)/);
+    // the cleaning is its own call (it touches no token); sign-out of the tokens does not clean, and the retry runs only for a signed-out phone
+    expect(EVIA_UPLOAD_FUNCTIONS).toContain('clearCaptureCache');
+    expect(CODE).toMatch(/AsyncFunction\("clearCaptureCache"\)[\s\S]*?rt\.importer\.clearLeftovers\(\)/);
+    expect(CODE).not.toMatch(/AsyncFunction\("signOut"\)(?:(?!AsyncFunction)[\s\S])*?clearLeftovers/);
+    expect(CODE).toMatch(
+      /AsyncFunction\("flushPendingRevocations"\)[\s\S]*?clearLeftoversIfSignedOut \{ rt\.tokens\.state\(\) == SessionState\.SIGNED_OUT \}/,
+    );
     // the capture cache of the app is the only source the module is told about; no external or shared storage
     const runtime = readFileSync(
       join(MODULE_DIR, 'android', 'src', 'main', 'java', 'pl', 'eviacharge', 'upload', 'android', 'UploadRuntime.kt'),

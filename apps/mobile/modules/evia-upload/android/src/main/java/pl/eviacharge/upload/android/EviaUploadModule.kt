@@ -210,17 +210,21 @@ class EviaUploadModule : Module() {
       }
     }
 
-    /**
-     * "Log out": the session ends at once; online, the server is asked to end it (pending revocations are kept). Resolves `true` when the cleaning
-     * of the capture cache and of the temporary files of the import is complete, `false` when something stayed (the JavaScript side retries; the
-     * next start and the next return of the network retry as well, through `flushPendingRevocations`).
-     */
+    /** "Log out": the session ends at once; online, the server is asked to end it (pending revocations are kept). Resolves `true` | `false`. */
     AsyncFunction("signOut") { online: Boolean ->
       withRuntime(false) { rt ->
         rt.tokens.signOut(online)
-        // the pictures the camera left in the cache and the leftovers of an import go with the session (EVM-108; fail closed: `false` = something stayed)
-        rt.importer.clearLeftovers()
+        true
       }
+    }
+
+    /**
+     * Sign-out, with or without a session (EVM-108, security pkt 13): the pictures the camera left in the cache and the temporary files of an import
+     * go. It touches no token and no state of the session. Resolves `true` when nothing stayed, `false` when something did (fail closed: the retry
+     * is `flushPendingRevocations` at the next start and the next return of the network).
+     */
+    AsyncFunction("clearCaptureCache") {
+      withRuntime(false) { rt -> rt.importer.clearLeftovers() }
     }
 
     /** Sends the pending revocations (start, return of the network, after a sign-in). Resolves `true` | `false`. */

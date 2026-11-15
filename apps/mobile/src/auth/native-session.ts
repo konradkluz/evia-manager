@@ -19,6 +19,8 @@ export const UNAVAILABLE_SESSION: NativeSession = {
   flushPendingRevocations: () => Promise.resolve(false),
   sessionState: () => Promise.resolve({ state: 'unavailable', ownerId: null }),
   clearWipeMarkerAfterLogin: () => Promise.resolve(false),
+  // no module, no camera cache of this app: nothing to clean, and no retry to make
+  clearCaptureCache: () => Promise.resolve(true),
   lastContact: () => Promise.resolve(null),
   addListener: () => NOBODY,
 };
