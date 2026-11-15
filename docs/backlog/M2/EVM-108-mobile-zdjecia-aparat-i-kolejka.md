@@ -151,3 +151,4 @@ EVM-108 pokazuje w Kolejce **minimum**: wiersz pliku, 4 etykiety stanu, licznik,
 - 2026-11-15 — etap 4 (AC7, hak e2e przez ścieżkę aparatu, przepływy Maestro 80–89, dokumenty) zrealizowany (mobile-developer)
 - 2026-11-15 — dokumenty bezpieczeństwa uzupełnione: threat-model, requirements, rodo (security-engineer)
 - 2026-11-15 — poprawki po przebiegu scenariuszy aparatu na emulatorze i po uwagach security (mobile-developer)
+- 2026-11-15 — weryfikacja QA (qa-engineer): PASS z zastrzeżeniem — AC1–AC6 i AC8 spełnione; AC7 bez zielonego przebiegu emulatora `camera-batch-30` po `b3281dec` (w toku), raport: docs/qa/EVM-108/raport-qa.md
