@@ -18,7 +18,8 @@ object AtomicFiles {
         target: File,
         bytes: ByteArray,
     ) {
-        val parent = target.absoluteFile.parentFile
+        // a file system root has no parent: nothing to write next to (the stricter Android compiler flags the platform type)
+        val parent = target.absoluteFile.parentFile ?: throw IOException("atomic write failed")
         val temp = File(parent, target.name + TEMP_SUFFIX)
         try {
             Files.createDirectories(parent.toPath())

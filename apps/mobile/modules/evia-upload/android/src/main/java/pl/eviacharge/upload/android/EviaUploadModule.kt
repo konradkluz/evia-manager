@@ -13,6 +13,7 @@ import expo.modules.kotlin.modules.ModuleDefinition
 import pl.eviacharge.upload.files.UploadFiles
 import pl.eviacharge.upload.runner.JobOutcomes
 import pl.eviacharge.upload.runner.JobStatus
+import pl.eviacharge.upload.http.UploadUnavailable
 import pl.eviacharge.upload.schedule.JobArming
 import pl.eviacharge.upload.schedule.SyntheticFile
 import pl.eviacharge.upload.schedule.wire
@@ -53,6 +54,12 @@ class EviaUploadModule : Module() {
       fallback
     }
   }
+
+  /** For the functions that send files: without storage hosts in the build the answer is [fallback] and nothing touches the network. */
+  private fun <T> withUpload(
+    fallback: T,
+    block: (UploadRuntime) -> T,
+  ): T = withRuntime(fallback) { rt -> if (rt.uploadEnabled) block(rt) else fallback }
 
   private fun JobStatus.toMap(): Map<String, Any?> =
     mapOf(
@@ -237,15 +244,15 @@ class EviaUploadModule : Module() {
 
     /**
      * Arms the job of a file once the server applied `CreateMediaAsset` (idempotent). Resolves `armed_user_initiated` | `armed` |
-     * `already_armed` | `missing_original` | `invalid` | `wipe_active` | `failed` | `unavailable`.
+     * `already_armed` | `missing_original` | `invalid` | `wipe_active` | `failed` | `upload_unavailable` (no storage hosts in the build) | `unavailable`.
      */
     AsyncFunction("armUpload") { assetId: String, workOrderId: String, userId: String, deviceId: String, wifiOnly: Boolean ->
-      withRuntime("unavailable") { rt -> rt.arming.arm(JobArming.Item(assetId, workOrderId, userId, deviceId), wifiOnly).wire() }
+      withUpload(UploadUnavailable.WIRE) { rt -> rt.arming.arm(JobArming.Item(assetId, workOrderId, userId, deviceId), wifiOnly).wire() }
     }
 
     /** Arms every file of the list (start, return to the foreground, after a sign-in). Items: `{assetId, workOrderId, userId, deviceId}`. */
     AsyncFunction("reconcile") { items: List<Map<String, String>>, wifiOnly: Boolean ->
-      withRuntime<Map<String, String>>(emptyMap()) { rt ->
+      withUpload(UploadUnavailable.reconcile(items.map { it["assetId"].orEmpty() })) { rt ->
         val list = items.map { JobArming.Item(it["assetId"].orEmpty(), it["workOrderId"].orEmpty(), it["userId"].orEmpty(), it["deviceId"].orEmpty()) }
         rt.arming.reconcile(list, wifiOnly).mapValues { it.value.wire() }
       }
@@ -253,7 +260,7 @@ class EviaUploadModule : Module() {
 
     /** "Ponów": the same job is handed to the system again. Same answers as `armUpload`. */
     AsyncFunction("retryUpload") { assetId: String, wifiOnly: Boolean ->
-      withRuntime("unavailable") { rt -> rt.arming.retry(assetId, wifiOnly).wire() }
+      withUpload(UploadUnavailable.WIRE) { rt -> rt.arming.retry(assetId, wifiOnly).wire() }
     }
 
     /** The user cancels a file: the job stops and goes; the original only when [deleteOriginal]. Resolves `true` when everything was removed. */
@@ -283,7 +290,7 @@ class EviaUploadModule : Module() {
 
     /** The status of every file on the native side: `{assetId, state, partsDone, partCount, percent, sizeBytes}`. */
     AsyncFunction("uploadStatuses") {
-      withRuntime<List<Map<String, Any?>>>(emptyList()) { rt -> rt.worker.statuses().map { it.toMap() } }
+      withUpload<List<Map<String, Any?>>>(emptyList()) { rt -> rt.worker.statuses().map { it.toMap() } }
     }
 
     /** The whole step of the wipe before `confirmDeviceWipe`: marker, jobs, files, token store and key. Resolves `true` when everything is gone. */

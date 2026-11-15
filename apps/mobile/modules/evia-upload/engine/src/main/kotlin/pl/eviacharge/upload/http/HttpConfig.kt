@@ -21,6 +21,8 @@ class HttpConfig(
     val connectTimeoutMs: Int = DEFAULT_CONNECT_TIMEOUT_MS,
     val readTimeoutMs: Int = DEFAULT_READ_TIMEOUT_MS,
     val maxJsonBytes: Int = MAX_JSON_BYTES,
+    /** `false` only for a session-only setup ([UploadSetup.SessionOnly]): the API is configured, the storage is not (and nothing is sent to it). */
+    requireStorage: Boolean = true,
 ) {
     /** `scheme://host[:port]` of the API, in lower case, without a trailing slash. */
     val apiOrigin: String
@@ -33,7 +35,9 @@ class HttpConfig(
 
     init {
         require(CLIENT_VERSION.matches(clientVersion)) { "invalid client version" }
-        require(this.storageHosts.isNotEmpty() && this.storageHosts.all { STORAGE_HOST.matches(it) }) { "invalid storage hosts" }
+        require(this.storageHosts.all { STORAGE_HOST.matches(it) } && (this.storageHosts.isNotEmpty() || !requireStorage)) {
+            "invalid storage hosts"
+        }
         require(connectTimeoutMs > 0 && readTimeoutMs > 0 && maxJsonBytes > 0) { "invalid limits" }
         val uri =
             try {
@@ -88,10 +92,62 @@ class HttpConfig(
                 e2eCleartext,
             )
 
+        /**
+         * The setup of the build for the module: the session (sign-in, tokens) needs only the API address, the upload also needs the storage
+         * hosts. A release built without `EVIA_STORAGE_HOSTS` has no upload service but must still sign in, so a missing or corrupt host list
+         * is [UploadSetup.SessionOnly]; a missing or unusable API address is [UploadSetup.NotConfigured]. No value ends up in a message.
+         */
+        fun setupFromMetaData(
+            apiBaseUrl: String?,
+            storageHosts: String?,
+            versionName: String?,
+            e2eCleartext: Boolean,
+        ): UploadSetup {
+            try {
+                return UploadSetup.Ready(fromMetaData(apiBaseUrl, storageHosts, versionName, e2eCleartext))
+            } catch (error: IllegalArgumentException) {
+                // the API address alone decides whether the session is possible
+            }
+            val version = versionName?.takeIf { CLIENT_VERSION.matches(it) } ?: UNKNOWN_CLIENT_VERSION
+            return try {
+                UploadSetup.SessionOnly(HttpConfig(apiBaseUrl.orEmpty().trim(), emptyList(), version, e2eCleartext, requireStorage = false))
+            } catch (error: IllegalArgumentException) {
+                UploadSetup.NotConfigured
+            }
+        }
+
         const val DEFAULT_CONNECT_TIMEOUT_MS = 15_000
         const val DEFAULT_READ_TIMEOUT_MS = 30_000
 
         /** The longest answer of the API that is read (the answers are small: a session, a list of parts, an address). */
         const val MAX_JSON_BYTES = 1024 * 1024
     }
+}
+
+/** What the build configures: the session and the upload, the session only, or nothing (see [HttpConfig.setupFromMetaData]). */
+sealed interface UploadSetup {
+    val config: HttpConfig?
+    val hasSession: Boolean get() = config != null
+    val uploadEnabled: Boolean get() = false
+
+    data class Ready(
+        override val config: HttpConfig,
+    ) : UploadSetup {
+        override val uploadEnabled: Boolean get() = true
+    }
+
+    data class SessionOnly(
+        override val config: HttpConfig,
+    ) : UploadSetup
+
+    data object NotConfigured : UploadSetup {
+        override val config: HttpConfig? get() = null
+    }
+}
+
+/** The answer of the functions that send files when the build has no storage hosts: by name, without an exception and without a request. */
+object UploadUnavailable {
+    const val WIRE = "upload_unavailable"
+
+    fun reconcile(assetIds: List<String>): Map<String, String> = assetIds.associateWith { WIRE }
 }

@@ -21,6 +21,7 @@ import pl.eviacharge.upload.files.WipeMarker
 import pl.eviacharge.upload.http.HttpAuthApi
 import pl.eviacharge.upload.http.HttpConfig
 import pl.eviacharge.upload.http.HttpCore
+import pl.eviacharge.upload.http.UploadSetup
 import pl.eviacharge.upload.runner.EngineFactory
 import pl.eviacharge.upload.runner.JobOutcomes
 import pl.eviacharge.upload.runner.JobResult
@@ -77,8 +78,9 @@ internal class AndroidClockReadings(
  * Everything of the upload in this process, built once (EVM-130 AC2): ONE [TokenOwner], one lock, shared by the module for the app and by
  * the job service (the foreground and the job never refresh twice); the queue of files in `noBackupFilesDir` (credential-encrypted
  * storage, never device-protected, external or MediaStore); the build configuration from the manifest meta-data. This is wiring only:
- * every object is a pure class of the engine with a port filled in here. A bad or missing configuration throws
- * [IllegalStateException] without the value (fail closed: the service does nothing, the module answers "unavailable").
+ * every object is a pure class of the engine with a port filled in here. A missing API address throws [IllegalStateException] without
+ * the value (fail closed: the service does nothing, the module answers "unavailable"); missing storage hosts only switch the upload off
+ * ([uploadEnabled]) - the session keeps working.
  * Logs: none. The engine writes through the redacting logger and this glue gives it no sink (a sink needs an exception in
  * `tools/repo-policy` and a review); `android.util.Log` is forbidden in module sources.
  */
@@ -92,7 +94,12 @@ class UploadRuntime private constructor(
   val ids = JobIdRegistry(files.jobIdsFile)
   val jobs = JobFileStore(files)
   val running = RunningJobs()
-  val config: HttpConfig = readConfig(app)
+  /** What the build configures (the pure `HttpConfig.setupFromMetaData`): the session needs the API address, the upload also the storage hosts. */
+  private val setup: UploadSetup = readSetup(app)
+  val config: HttpConfig = setup.config ?: throw IllegalStateException("upload is not configured")
+
+  /** `false` in a build without storage hosts: the session works, the functions that send files answer "upload_unavailable". */
+  val uploadEnabled: Boolean = setup.uploadEnabled
   val keys = TokenKeystore()
   val system = AndroidSystemJobs(app)
   val notifications = UploadNotifications(app)
@@ -194,7 +201,7 @@ class UploadRuntime private constructor(
         instance ?: UploadRuntime(context).also { instance = it }
       }
 
-    private fun readConfig(app: Context): HttpConfig {
+    private fun readSetup(app: Context): UploadSetup {
       try {
         val manager = app.packageManager
         val info =
@@ -212,7 +219,7 @@ class UploadRuntime private constructor(
             manager.getPackageInfo(app.packageName, 0).versionName
           }
         val meta = info.metaData
-        return HttpConfig.fromMetaData(
+        return HttpConfig.setupFromMetaData(
           meta?.get(BuildConfigNames.API_BASE_URL)?.toString(),
           meta?.get(BuildConfigNames.STORAGE_HOSTS)?.toString(),
           version,

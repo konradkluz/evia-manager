@@ -47,6 +47,12 @@ class FilesTest {
     // ---- AtomicFiles
 
     @Test
+    fun `EVM-130 AC1 a target without a parent directory (a file system root) is an IOException, not a NullPointerException`() {
+        val top = root.toPath().root.toFile()
+        assertThrows(IOException::class.java) { AtomicFiles.write(top, byteArrayOf(1)) }
+    }
+
+    @Test
     fun `EVM-130 AC3 an atomic write creates the directories, replaces the content and leaves no temporary file`() {
         val target = File(root, "a/b/file.bin")
         AtomicFiles.write(target, byteArrayOf(1, 2, 3))

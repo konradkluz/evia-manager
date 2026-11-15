@@ -9,6 +9,8 @@ import org.junit.jupiter.api.Test
 import pl.eviacharge.upload.files.BootIds
 import pl.eviacharge.upload.files.JobFileCodec
 import pl.eviacharge.upload.http.HttpConfig
+import pl.eviacharge.upload.http.UploadSetup
+import pl.eviacharge.upload.http.UploadUnavailable
 import pl.eviacharge.upload.notification.NotificationText
 import pl.eviacharge.upload.session.AppAccess
 import pl.eviacharge.upload.session.LoginInput
@@ -35,6 +37,49 @@ class GluePortsTest {
             HttpConfig.UNKNOWN_CLIENT_VERSION,
             HttpConfig.fromMetaData("https://api.example.test", "a.example.test", "1 2", false).clientVersion,
         )
+    }
+
+    @Test
+    fun `EVM-130 AC2 an API address without storage hosts is a session-only setup - sign-in works, uploading is off`() {
+        for (hosts in listOf(null, "", " , ")) {
+            val setup = HttpConfig.setupFromMetaData("https://api.example.test", hosts, "1.0.0", false)
+            assertTrue(setup is UploadSetup.SessionOnly)
+            assertFalse(setup.uploadEnabled)
+            assertTrue(setup.hasSession)
+            assertEquals("https://api.example.test", (setup as UploadSetup.SessionOnly).config.apiOrigin)
+            assertTrue(setup.config.storageHosts.isEmpty())
+        }
+        // hosts that are present but corrupt never enable uploading either, yet the session stays possible
+        val bad = HttpConfig.setupFromMetaData("https://api.example.test", "https://x.example.test", "1.0.0", false)
+        assertTrue(bad is UploadSetup.SessionOnly)
+    }
+
+    @Test
+    fun `EVM-130 AC2 with both the API address and hosts the setup is complete`() {
+        val setup = HttpConfig.setupFromMetaData("https://api.example.test", "a.example.test", "1.0.0", false)
+        assertTrue(setup is UploadSetup.Ready)
+        assertTrue(setup.uploadEnabled)
+        assertTrue(setup.hasSession)
+        assertEquals(listOf("a.example.test"), setup.config?.storageHosts)
+    }
+
+    @Test
+    fun `EVM-130 AC2 without a usable API address nothing is configured, and the e2e rules still apply`() {
+        for (api in listOf(null, "", "http://api.example.test", "https://u:p@api.example.test", "https://api.example.test/x")) {
+            val setup = HttpConfig.setupFromMetaData(api, "a.example.test", "1.0.0", false)
+            assertEquals(UploadSetup.NotConfigured, setup)
+            assertFalse(setup.hasSession)
+            assertFalse(setup.uploadEnabled)
+            assertEquals(null, setup.config)
+        }
+        assertTrue(HttpConfig.setupFromMetaData("http://10.0.2.2:8787", null, "1.0.0", true) is UploadSetup.SessionOnly)
+    }
+
+    @Test
+    fun `EVM-130 AC2 an unavailable upload answers by name, for every file of a reconcile, and nothing is asked of the network`() {
+        assertEquals("upload_unavailable", UploadUnavailable.WIRE)
+        assertEquals(mapOf("a" to "upload_unavailable", "b" to "upload_unavailable"), UploadUnavailable.reconcile(listOf("a", "b")))
+        assertEquals(emptyMap<String, String>(), UploadUnavailable.reconcile(emptyList()))
     }
 
     @Test
