@@ -167,6 +167,8 @@ class OriginalImporter(
      * semantics). A hard link is created by the system in one step and fails with [FileAlreadyExistsException] when the name exists, even if it
      * was created a moment ago; a rename would replace it silently. When the file system has no hard links, the move without replacing is used
      * (it fails on an existing target too; its own check is the only window left).
+     * Durability: the content was fsynced in the temporary file before the link; the directory entry of the new name is not fsynced separately (assumption:
+     * the journal of the file system orders the link after the content; a power loss before it leaves the source in the camera cache).
      */
     private fun placeWithoutReplacing(
         temp: Path,
