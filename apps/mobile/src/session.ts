@@ -64,6 +64,8 @@ const NO_SYNC_TRANSPORT = {
 };
 
 let makeId: (() => string) | undefined;
+/** The queue of files of the session, for the e2e hook that adds a synthetic file (`src/e2e-hooks/panel.tsx`); screens use `ports.media`. */
+let mediaUploads: MediaUploads | null = null;
 
 export function createSessionPorts(
   config: RuntimeConfig | null = readRuntimeConfig(),
@@ -156,6 +158,7 @@ export function createSessionPorts(
     },
   });
   media.start();
+  mediaUploads = media;
   // a session starts, a cycle ends, something settles or the replica changes: the rows are reconciled again (single-flight)
   let seen = { active: false, last: null as number | null, unsent: -1 };
   sync.subscribe(() => {
@@ -207,6 +210,12 @@ export function createSessionPorts(
     openHelp: () => undefined,
     appVersion: config?.appVersion ?? 'unknown',
   };
+}
+
+/** The queue of files of the process (for the e2e hook only; `null` before the session ports exist). */
+export function sessionMediaUploads(): Pick<MediaUploads, 'add'> | null {
+  sessionPorts();
+  return mediaUploads;
 }
 
 let ports: SessionPorts | undefined;

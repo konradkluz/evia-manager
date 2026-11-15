@@ -290,3 +290,75 @@ describe('e2e hooks of the synchronization (EVM-107 AC6)', () => {
     expect(status()).not.toMatch(/e2e note|body|token/);
   });
 });
+
+describe('e2e hooks of the files (EVM-130 AC1, AC8; media block)', () => {
+  const asset = '0194c2a0-0000-7000-8000-0000000000a1';
+  const mediaDeps = (overrides: Partial<ReturnType<NonNullable<E2eHooksDeps['media']>>> = {}) => {
+    const added: unknown[] = [];
+    const injected: { assetId: string; sizeBytes: number; seed: number }[] = [];
+    const media: NonNullable<E2eHooksDeps['media']> = () => ({
+      newId: () => asset,
+      inject: (assetId, sizeBytes, seed) => {
+        injected.push({ assetId, sizeBytes, seed });
+        return Promise.resolve({ sizeBytes, sha256: 'd'.repeat(64) });
+      },
+      add: (item) => {
+        added.push(item);
+        return Promise.resolve({ ok: true as const });
+      },
+      view: {
+        getSnapshot: () => ({
+          notifications: 'denied' as const,
+          files: [
+            { assetId: asset, status: 'waiting' as const, percent: null, sizeBytes: 1, actions: [], code: null, updatedAt: 1 },
+            { assetId: asset, status: 'uploading' as const, percent: 3, sizeBytes: 1, actions: [], code: null, updatedAt: 1 },
+            { assetId: asset, status: 'sent' as const, percent: null, sizeBytes: 1, actions: [], code: null, updatedAt: 1 },
+          ],
+        }),
+      },
+      ...overrides,
+    });
+    return { deps: { ...depsOf(), media } satisfies E2eHooksDeps, added, injected };
+  };
+
+  it('EVM-130 AC1: the hook writes a synthetic file of the requested size (random content made natively), then the command; the status carries codes and numbers only', async () => {
+    const { deps, added, injected } = mediaDeps();
+    await opened(deps);
+    await type('e2e-media-mib', '40');
+    await tap('e2e-media-inject');
+    await expectStatus(`media_added=1;asset=${asset};bytes=${String(40 * 1024 * 1024)}`);
+    expect(injected).toHaveLength(1);
+    expect(injected[0]).toMatchObject({ assetId: asset, sizeBytes: 40 * 1024 * 1024 });
+    expect(added).toEqual([{ assetId: asset, workOrderId: '30000000-0000-4000-8000-000000000001', mediaType: 'photo', category: 'other' }]);
+    await type('e2e-media-mib', 'x');
+    await tap('e2e-media-inject');
+    expect(injected[1]?.sizeBytes).toBe(1024 * 1024);
+    await type('e2e-media-mib', '9999');
+    await tap('e2e-media-inject');
+    expect(injected[2]?.sizeBytes).toBe(256 * 1024 * 1024);
+  });
+
+  it('EVM-130 AC8: the states of the files are one line of counts; a package without the hook, a failing add or a missing session say so by a code', async () => {
+    const { deps } = mediaDeps();
+    await opened(deps);
+    await tap('e2e-media-status');
+    await expectStatus('files=3;waiting=1;uploading=1;sent=1;failed=0;attention=0;notifications=denied');
+
+    const nohook = mediaDeps({ inject: () => Promise.resolve(null) });
+    await opened(nohook.deps);
+    await tap('e2e-media-inject');
+    await expectStatus('error=no_media_hook');
+    expect(nohook.added).toEqual([]);
+
+    const refusing = mediaDeps({ add: () => Promise.resolve({ ok: false as const, code: 'enqueue_failed' as const }) });
+    await opened(refusing.deps);
+    await tap('e2e-media-inject');
+    await expectStatus('error=enqueue_failed');
+  });
+
+  it('EVM-130 AC8: the slot of every other package carries no media hook (only the panel of the e2e variant calls the native injection)', async () => {
+    await render(<Slot />);
+    expect(screen.toJSON()).toBeNull();
+    expect(releaseOverrides).toBeNull();
+  });
+});
