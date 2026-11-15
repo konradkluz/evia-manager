@@ -213,7 +213,8 @@ class EviaUploadModule : Module() {
     AsyncFunction("signOut") { online: Boolean ->
       withRuntime(false) { rt ->
         rt.tokens.signOut(online)
-        true
+        // the pictures the camera left in the cache and the leftovers of an import go with the session (EVM-108; fail closed: `false` = something stayed)
+        rt.importer.clearLeftovers()
       }
     }
 
@@ -248,6 +249,22 @@ class EviaUploadModule : Module() {
     /** The private place of the original of [assetId] (a lower-case UUID): where the camera writes it. `null` for a bad identifier. */
     AsyncFunction("originalPath") { assetId: String ->
       withRuntime<String?>(null) { rt -> rt.lifecycle.originalFile(assetId).absolutePath }
+    }
+
+    /**
+     * EVM-108: the picture the camera wrote becomes the durable original of [assetId] (checked, copied with fsync, the source removed).
+     * Resolves `ok` | `invalid` | `source_missing` | `no_space` | `io_error` | `wipe_active` | `exists` | `unavailable`; never a path or a message.
+     */
+    AsyncFunction("importOriginal") { assetId: String, sourceUri: String ->
+      withRuntime("unavailable") { rt -> rt.importer.import(assetId, sourceUri).wire }
+    }
+
+    /**
+     * EVM-108: the sweep of originals nobody knows (not in [keepAssetIds], older than [olderThanMs]), of import leftovers and of old pictures
+     * in the camera cache. Resolves how many files went (`0` when unavailable).
+     */
+    AsyncFunction("sweepOriginals") { keepAssetIds: List<String>, olderThanMs: Double ->
+      withRuntime(0) { rt -> rt.importer.sweep(keepAssetIds.toSet(), olderThanMs.toLong()) }
     }
 
     /** `{sizeBytes, sha256}` of the original, computed natively as a stream; `null` when there is none. */

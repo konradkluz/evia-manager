@@ -7,6 +7,9 @@ import type { EviaUploadModule } from '../../modules/evia-upload/src';
 export type NativeUpload = Pick<
   EviaUploadModule,
   | 'digestOriginal'
+  | 'importOriginal'
+  | 'sweepOriginals'
+  | 'cancelUpload'
   | 'reconcile'
   | 'retryUpload'
   | 'completeUpload'
@@ -23,6 +26,9 @@ export type NativeUpload = Pick<
 /** Without the module (Jest, a platform without it) there is nothing to upload with: the files wait, nothing is lost. */
 export const UNAVAILABLE_UPLOAD: NativeUpload = {
   digestOriginal: () => Promise.resolve(null),
+  importOriginal: () => Promise.resolve('unavailable'),
+  sweepOriginals: () => Promise.resolve(0),
+  cancelUpload: () => Promise.resolve(false),
   reconcile: () => Promise.resolve({}),
   retryUpload: () => Promise.resolve('unavailable'),
   completeUpload: () => Promise.resolve('unavailable'),

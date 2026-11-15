@@ -97,6 +97,9 @@ class FakeNativeUpload implements NativeUpload {
     return this.target;
   };
   e2eInjectFile: NativeUpload['e2eInjectFile'] = () => Promise.resolve(null);
+  importOriginal: NativeUpload['importOriginal'] = () => Promise.resolve('unavailable');
+  sweepOriginals: NativeUpload['sweepOriginals'] = () => Promise.resolve(0);
+  cancelUpload: NativeUpload['cancelUpload'] = () => Promise.resolve(true);
   addListener: NativeUpload['addListener'] = (name, listener) => {
     const list = this.listeners.get(name) ?? [];
     list.push(listener);

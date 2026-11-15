@@ -31,6 +31,9 @@ describe('without the native module (EVM-130 AC3; fail closed)', () => {
     const upload = nativeUploadOf(null);
     expect(upload).toBe(UNAVAILABLE_UPLOAD);
     expect(await upload.digestOriginal('a')).toBeNull();
+    expect(await upload.importOriginal('a', 'file:///x')).toBe('unavailable');
+    expect(await upload.sweepOriginals(['a'], 1)).toBe(0);
+    expect(await upload.cancelUpload('a', true)).toBe(false);
     expect(await upload.reconcile([], false)).toEqual({});
     expect(await upload.retryUpload('a', false)).toBe('unavailable');
     expect(await upload.completeUpload('a', 'ready', null)).toBe('unavailable');
