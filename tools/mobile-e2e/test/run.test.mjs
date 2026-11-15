@@ -809,6 +809,73 @@ describe('upload scenarios in the run (EVM-130 stage C, AC1, AC5, AC6, AC8)', ()
     assert.match(report, /notification: low-importance channel/);
   });
 
+  /** The network of a fake emulator: `svc wifi enable|disable` changes what `dumpsys connectivity` says (the default network and whether it has charges). @param {ReturnType<typeof uploadMachine>['machine']} machine */
+  function networkOf(machine) {
+    let wifi = true;
+    /** @type {string[]} */
+    const svc = [];
+    const run = machine.host.run;
+    const line = (/** @type {number} */ id, /** @type {string} */ transports, /** @type {string} */ capabilities) =>
+      `Active default network: ${String(id)}
+  NetworkAgentInfo{network{${String(id)}} nc{[ Transports: ${transports} Capabilities: ${capabilities} ]} }
+`;
+    machine.host.run = (command, args, options) => {
+      const text = args.join(' ');
+      if (text.includes('svc wifi')) {
+        wifi = text.endsWith('enable');
+        svc.push(text.endsWith('enable') ? 'enable' : 'disable');
+        return { status: 0, stdout: '', stderr: '' };
+      }
+      if (text.includes('dumpsys connectivity'))
+        return {
+          status: 0,
+          stdout: wifi ? line(101, 'WIFI', 'NOT_METERED&INTERNET&VALIDATED') : line(100, 'CELLULAR', 'INTERNET&VALIDATED'),
+          stderr: '',
+        };
+      return run(command, args, options);
+    };
+    return { svc, wifiOn: () => wifi };
+  }
+
+  it('EVM-110 AC4 AC5: a scenario that ends on the mobile network - here one that fails after taking Wi-Fi away - has Wi-Fi put back by the runner before anything else, and the emulator is left with Wi-Fi on', async () => {
+    const { machine } = uploadMachine();
+    const network = networkOf(machine);
+    const code = await runE2e({ skipBuild: true, port: 3199, only: ['video-wifi-setting-off'] }, machine.host);
+    // the scenario fails at its last step (the scenario server of this test holds no object), after the network step took Wi-Fi away
+    assert.equal(code, 1);
+    assert.deepEqual(network.svc, ['disable', 'enable']);
+    assert.equal(network.wifiOn(), true);
+    const report = machine.written[join('/repo', '.scratch', 'mobile-e2e', 'report.md')] ?? '';
+    assert.match(report, /\(restore Wi-Fi\)/);
+    assert.match(report, /the default network is Wi-Fi: validated, without charges/);
+  });
+
+  it('EVM-110 AC4 AC5: when Wi-Fi cannot be seen again the remaining scenarios are skipped, and the finally of the run still switches Wi-Fi on', async () => {
+    const { machine } = uploadMachine();
+    const network = networkOf(machine);
+    const run = machine.host.run;
+    // after the first `svc wifi enable` of the run the default network never becomes Wi-Fi: the dumpsys keeps saying mobile
+    machine.host.run = (command, args, options) =>
+      args.join(' ').includes('dumpsys connectivity')
+        ? {
+            status: 0,
+            stdout: [
+              'Active default network: 100',
+              '  NetworkAgentInfo{network{100} nc{[ Transports: CELLULAR Capabilities: INTERNET&VALIDATED ]} }',
+              '',
+            ].join(String.fromCharCode(10)),
+            stderr: '',
+          }
+        : run(command, args, options);
+    const code = await runE2e({ skipBuild: true, port: 3199, only: ['video-wifi-setting-off', 'video-wifi-midway'] }, machine.host);
+    assert.equal(code, 1);
+    // the restore failed, so the second scenario was not started; the run still ended with `svc wifi enable`
+    assert.equal(network.svc.at(-1), 'enable');
+    assert.equal(network.wifiOn(), true);
+    assert.ok(machine.logs.some((line) => line.includes('Wi-Fi could not be switched on again')));
+    assert.equal(machine.maestroFlows().filter((flow) => flow === '94-video-midway-start.yaml').length, 0);
+  });
+
   it('EVM-130 AC6: a notification that is not private fails the step, and the step after it is skipped', async () => {
     const { machine } = uploadMachine({ notification: NOTIFICATION_DUMP.replace('vis=PRIVATE', 'vis=PUBLIC') });
     const code = await runE2e({ skipBuild: true, port: 3199, only: ['upload-notification'] }, machine.host);

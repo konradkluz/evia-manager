@@ -1,0 +1,20 @@
+# EVM-110 AC5: Wi-Fi was taken away in the middle of the transfer (tools/mobile-e2e: Wi-Fi off, data on): the film is "Czeka na Wi-Fi" - NOT an error: no
+# "Wymaga uwagi", no "Nie wysłano", no "Ponów". tools/mobile-e2e then proves that not one more part reached the server over the network with charges.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- tapOn:
+    id: 'nav-queue'
+- extendedWaitUntil:
+    visible: '.*Czeka na Wi-Fi'
+    timeout: 120000
+- assertVisible:
+    id: 'waiting-wifi-banner'
+- assertNotVisible: 'Wymaga uwagi'
+- assertNotVisible: 'Nie wysłano.*'
+- assertNotVisible: 'Ponów'
+- takeScreenshot: m07-video-midway-waiting

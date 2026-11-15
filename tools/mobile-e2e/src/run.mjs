@@ -179,11 +179,14 @@ export async function runE2e({ skipBuild, port, only = null }, host) {
         }),
   };
   // EVM-093 AC4 (security K6): once the release package went onto the device, the e2e package must come back before any later scenario
-  const state = { releaseOnDevice: false, aborted: false };
+  const state = { releaseOnDevice: false, aborted: false, metered: false };
   /** @param {import('./device.mjs').DeviceAction} action */
   const act = async (action) => {
     if (action === 'install-release-debugkey') state.releaseOnDevice = true;
+    // EVM-110: from the moment a scenario takes Wi-Fi away until it is back, the runner knows it must put it back (also after a failure)
+    if (action === 'network-metered') state.metered = true;
     const result = await runDeviceAction(action, device);
+    if (action === 'network-unmetered' && result.ok) state.metered = false;
     if (action === 'reinstall-e2e' && result.ok) state.releaseOnDevice = false;
     return result;
   };
@@ -299,6 +302,23 @@ export async function runE2e({ skipBuild, port, only = null }, host) {
           ...(checks.length === 0 ? {} : { checks }),
         });
       }
+      if (state.metered) {
+        // EVM-110: the scenario may have ended (or failed) with the phone on the mobile network: Wi-Fi comes back BEFORE the next scenario
+        const back = await act('network-unmetered');
+        results.push({
+          scenario: scenario.name,
+          flow: '(restore Wi-Fi)',
+          status: back.ok ? 'passed' : 'failed',
+          seconds: 0,
+          checks: [back],
+        });
+        if (!back.ok) {
+          state.aborted = true;
+          host.log(
+            'CLEANUP: Wi-Fi could not be switched on again; the remaining scenarios are skipped (they would run on the mobile network)',
+          );
+        }
+      }
       if (state.releaseOnDevice) {
         const restored = await act('reinstall-e2e');
         results.push({
@@ -320,6 +340,8 @@ export async function runE2e({ skipBuild, port, only = null }, host) {
   } finally {
     if (state.releaseOnDevice) await act('reinstall-e2e');
     if (airplane) adb(...adbArgs(serial, ...airplaneArgs(false)));
+    // EVM-110: whatever happened above, the emulator is left with Wi-Fi on (the switch of a scenario never outlives the run)
+    if (state.metered) adb(...adbArgs(serial, 'shell', 'svc', 'wifi', 'enable'));
     await stub.close();
   }
 

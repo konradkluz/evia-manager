@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import type { ReactElement } from 'react';
@@ -26,11 +26,22 @@ const mockCapture = {
   pictures: [] as { id: string; seed: number }[],
   failAt: null as number | null,
   noUploads: false,
+  films: [] as { id: string; seed: number; bytes: number }[],
+  filmRequests: [] as { workOrderId: string; category: string }[],
+  filmProgress: [] as { duration: number; fileSize: number }[],
+  filmStart: 'ok' as 'ok' | 'busy' | 'no_space',
+  filmSave: 'ok' as 'ok' | 'save_failed',
 };
 jest.mock('../src/e2e-hooks/synthetic-picture', () => ({
   saveSyntheticPicture: (id: string, seed: number) => {
     mockCapture.pictures.push({ id, seed });
     return Promise.resolve({ uri: `file:///synthetic/cache/Camera/${id}.jpg` });
+  },
+}));
+jest.mock('../src/e2e-hooks/synthetic-video', () => ({
+  saveSyntheticVideo: (id: string, seed: number, bytes: number) => {
+    mockCapture.films.push({ id, seed, bytes });
+    return Promise.resolve({ uri: `file:///synthetic/cache/Camera/${id}.mp4` });
   },
 }));
 jest.mock('../src/session', () => ({
@@ -45,7 +56,27 @@ jest.mock('../src/session', () => ({
       : {
           add: () => Promise.resolve({ ok: true }),
           // the pipeline of the session: it asks the source for the picture exactly once per shot, like the real one
-          capturePipeline: (takePicture: () => Promise<{ uri: string } | null>) => ({
+          capturePipeline: (
+            takePicture: () => Promise<{ uri: string } | null>,
+            video?: { record: (options: unknown) => Promise<{ uri: string } | null> },
+          ) => ({
+            // EVM-110: a film - the pipeline asks the source of the film for the file exactly once per recording, like the real one
+            startVideo: (request: { workOrderId: string; category: string }) => {
+              mockCapture.filmRequests.push(request);
+              if (mockCapture.filmStart !== 'ok') return { ok: false, code: mockCapture.filmStart };
+              const recorded = video?.record({}) ?? Promise.resolve(null);
+              return {
+                ok: true,
+                recording: {
+                  progress: (event: { duration: number; fileSize: number }) => mockCapture.filmProgress.push(event),
+                  done: recorded.then(() =>
+                    mockCapture.filmSave === 'ok'
+                      ? { ok: true, assetId: 'f', sizeBytes: 1, durationMs: 20_000, end: 'stopped' }
+                      : { ok: false, code: 'save_failed' },
+                  ),
+                },
+              };
+            },
             capture: async (request: { workOrderId: string; category: string }) => {
               mockCapture.requests.push(request);
               if (mockCapture.failAt === mockCapture.requests.length) return { ok: false, code: 'no_space' };
@@ -541,5 +572,114 @@ describe('the real wiring of the media hook (EVM-130 AC8)', () => {
     await expectStatus('files=0;waiting=0;uploading=0;sent=0;failed=0;attention=0;notifications=granted');
     await tap('e2e-media-inject');
     await expectStatus('error=no_media_hook');
+  });
+});
+
+describe('the synthetic film hook (EVM-110 AC8; SEC-110-18)', () => {
+  beforeEach(() => {
+    mockCapture.films = [];
+    mockCapture.filmRequests = [];
+    mockCapture.filmProgress = [];
+    mockCapture.filmStart = 'ok';
+    mockCapture.filmSave = 'ok';
+    mockCapture.noUploads = false;
+  });
+
+  it('EVM-110 AC8: "media: capture video" saves N synthetic films of the given size one after another through the pipeline of the camera, each with its own seed, and confirms after the LAST', async () => {
+    const shots: { category: string; seed: number; mib: number }[] = [];
+    const captureVideo: NonNullable<E2eHooksDeps['captureVideo']> = () => ({
+      shoot: (request, seed, mib) => {
+        shots.push({ category: request.category, seed, mib });
+        expect(request.workOrderId).toBe(E2E_MEDIA_WORK_ORDER);
+        return Promise.resolve({ ok: true as const, assetId: 'a', sizeBytes: 1, durationMs: 1, end: 'stopped' as const });
+      },
+    });
+    await render(inProvider(<E2eHooks deps={{ ...depsOf(), captureVideo }} />));
+    await tap(E2E_HOOKS_MARKER);
+    await type('e2e-video-mib', '96');
+    await type('e2e-video-count', '3');
+    await tap('e2e-capture-video');
+    await expectStatus('video_added=3');
+    expect(shots.map((shot) => shot.category)).toEqual(['site_survey', 'before_work', 'in_progress']);
+    expect(shots.every((shot) => shot.mib === 96)).toBe(true);
+    expect(new Set(shots.map((shot) => shot.seed)).size).toBe(3);
+  });
+
+  it('EVM-110 AC8: the size is kept in 1..128 MiB and the count in 1..60; a film the pipeline refuses stops the series with the number saved so far and the code', async () => {
+    const calls: number[] = [];
+    const captureVideo: NonNullable<E2eHooksDeps['captureVideo']> = () => ({
+      shoot: (_request, _seed, mib) => {
+        calls.push(mib);
+        return Promise.resolve(
+          calls.length === 2
+            ? { ok: false as const, code: 'save_failed' as const }
+            : { ok: true as const, assetId: 'a', sizeBytes: 1, durationMs: 1, end: 'stopped' as const },
+        );
+      },
+    });
+    await render(inProvider(<E2eHooks deps={{ ...depsOf(), captureVideo }} />));
+    await tap(E2E_HOOKS_MARKER);
+    await type('e2e-video-mib', '9999');
+    await type('e2e-video-count', '5');
+    await tap('e2e-capture-video');
+    await expectStatus('video_added=1;error=save_failed');
+    expect(calls).toEqual([128, 128]);
+    calls.length = 0;
+    await type('e2e-video-mib', '0');
+    await type('e2e-video-count', '1');
+    await tap('e2e-capture-video');
+    await expectStatus('video_added=1');
+    expect(calls).toEqual([1]);
+  });
+
+  it('EVM-110 AC8: without injected deps the film goes through the real wiring - the pipeline of the session, a synthetic MP4 of the asked size under a name of the camera cache, the same request as the camera screen', async () => {
+    await render(inProvider(<E2eHooks />));
+    await tap(E2E_HOOKS_MARKER);
+    await type('e2e-video-mib', '64');
+    await type('e2e-video-count', '2');
+    await tap('e2e-capture-video');
+    await expectStatus('video_added=2');
+    expect(mockCapture.filmRequests).toEqual([
+      { workOrderId: E2E_MEDIA_WORK_ORDER, category: 'site_survey' },
+      { workOrderId: E2E_MEDIA_WORK_ORDER, category: 'before_work' },
+    ]);
+    expect(mockCapture.films.map((film) => film.bytes)).toEqual([64 * 1024 * 1024, 64 * 1024 * 1024]);
+    expect(mockCapture.films[0]?.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+    expect(mockCapture.films[0]?.seed).not.toBe(mockCapture.films[1]?.seed);
+    // the recording is told how big the film is (the length and the size of the progress of a real one)
+    expect(mockCapture.filmProgress).toEqual([
+      { duration: 20, fileSize: 64 * 1024 * 1024 },
+      { duration: 20, fileSize: 64 * 1024 * 1024 },
+    ]);
+  });
+
+  it('EVM-110 AC8: a session without the queue of files answers camera_failed and writes no film; a refusal to start and a failed save are reported', async () => {
+    mockCapture.noUploads = true;
+    await render(inProvider(<E2eHooks />));
+    await tap(E2E_HOOKS_MARKER);
+    await tap('e2e-capture-video');
+    await expectStatus('video_added=0;error=camera_failed');
+    expect(mockCapture.films).toEqual([]);
+    mockCapture.noUploads = false;
+    mockCapture.filmStart = 'no_space';
+    await tap('e2e-capture-video');
+    await expectStatus('video_added=0;error=no_space');
+    mockCapture.filmStart = 'ok';
+    mockCapture.filmSave = 'save_failed';
+    await tap('e2e-capture-video');
+    await expectStatus('video_added=0;error=save_failed');
+  });
+
+  it('EVM-110 AC8 SEC-110-18: the hook of the film lives in the e2e hooks only - nothing but the panel imports it, and the panel is the file the release package is refused for', () => {
+    const src = join(__dirname, '..', 'src');
+    const walk = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
+        entry.isDirectory() ? walk(join(dir, entry.name)) : /\.tsx?$/.test(entry.name) ? [join(dir, entry.name)] : [],
+      );
+    const importers = walk(src)
+      .filter((path) => !path.endsWith('synthetic-video.ts') && /synthetic-video/.test(readFileSync(path, 'utf8')))
+      .map((path) => path.slice(src.length + 1).replaceAll(String.fromCharCode(92), '/'));
+    expect(importers).toEqual(['e2e-hooks/panel.tsx']);
+    expect(readFileSync(join(src, 'e2e-hooks', 'panel.tsx'), 'utf8')).toContain('export const E2E_HOOKS_MARKER');
   });
 });

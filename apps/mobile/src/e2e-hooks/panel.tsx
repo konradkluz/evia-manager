@@ -14,8 +14,9 @@ import { NO_OVERRIDES, type DeviceOverrides } from '../device-guard/overrides';
 import { LocalDataLostScreen } from '../screens/LocalDataScreens';
 import { loadEviaUpload } from '../../modules/evia-upload/src';
 import { sessionMediaUploads, sessionPorts } from '../session';
-import type { CaptureRequest, CaptureResult } from '../capture/capture-pipeline';
+import type { CaptureRequest, CaptureResult, VideoResult, VideoSource } from '../capture/capture-pipeline';
 import { saveSyntheticPicture } from './synthetic-picture';
+import { saveSyntheticVideo } from './synthetic-video';
 import { tokenStore } from '../secure-store';
 import type { SyncControl } from '../sync/types';
 import type { AddMediaResult } from '../upload/media-uploads';
@@ -66,6 +67,7 @@ const LABELS = {
   mediaInject: 'media: inject file',
   mediaStatus: 'media: status',
   captureBatch: 'media: capture N',
+  captureVideo: 'media: capture video',
 } as const;
 
 /** EVM-130 (media block): the synthetic file of the scenarios — a work order that never existed, a size in MiB, random content made natively. */
@@ -74,6 +76,8 @@ export const MIB = 1024 * 1024;
 export const E2E_MEDIA_MAX_MIB = 256;
 /** EVM-108 AC7: the most shots of one press of `media: capture N` (the story asks for 30). */
 export const E2E_CAPTURE_MAX = 60;
+/** EVM-110 AC8: the largest synthetic film of `media: capture video` in MiB (the story asks for up to 128 MiB each). */
+export const E2E_VIDEO_MAX_MIB = 128;
 
 export interface E2eHooksDeps {
   readonly host: Pick<LocalDataHost, 'openForUser' | 'wipeCompanyData' | 'facts' | 'probe'>;
@@ -96,7 +100,15 @@ export interface E2eHooksDeps {
    * written to `cacheDir/Camera/<uuid>.jpg` instead of the picture of `takePictureAsync`; every step after that is the path of a photograph.
    */
   readonly capture?: () => { readonly shoot: (request: CaptureRequest, seed: number) => Promise<CaptureResult> };
+  /**
+   * EVM-110 AC8 (SEC-110-18): one FILM through the capture pipeline of the session (the SAME one the camera screen uses) with a synthetic MP4 of `mib` MiB
+   * written to `cacheDir/Camera/<uuid>.mp4` instead of the file of `recordAsync`; the import (a MOVE), the digest and the registration are the path of a film.
+   */
+  readonly captureVideo?: () => { readonly shoot: (request: CaptureRequest, seed: number, mib: number) => Promise<VideoResult> };
 }
+
+/** The failure of a film that could not even be started (no session, no camera source). */
+const NO_FILM: VideoResult = { ok: false, code: 'camera_failed' };
 
 const realDeps = (): E2eHooksDeps => ({
   host: localData(),
@@ -125,6 +137,24 @@ const realDeps = (): E2eHooksDeps => ({
       shoot: (request, next) => {
         seed = next;
         return pipeline?.capture(request) ?? Promise.resolve({ ok: false, code: 'camera_failed' });
+      },
+    };
+  },
+  captureVideo: () => {
+    const ports = sessionPorts();
+    const uploads = sessionMediaUploads();
+    let film = { seed: 0, bytes: 0 };
+    // the "camera": it writes the synthetic file where `recordAsync` would and resolves with it; there is nothing to stop
+    const source: VideoSource = { record: () => saveSyntheticVideo(ports.newId(), film.seed, film.bytes), stop: () => undefined };
+    const pipeline = uploads?.capturePipeline(() => Promise.resolve(null), source);
+    return {
+      shoot: (request, next, mib) => {
+        film = { seed: next, bytes: mib * MIB };
+        const started = pipeline?.startVideo(request);
+        if (started === undefined) return Promise.resolve(NO_FILM);
+        if (!started.ok) return Promise.resolve({ ok: false, code: started.code });
+        started.recording.progress({ duration: 20, fileSize: film.bytes });
+        return started.recording.done;
       },
     };
   },
@@ -334,6 +364,8 @@ export function E2eHooks({ deps: injected }: { deps?: E2eHooksDeps } = {}) {
   });
 
   const [captureCount, setCaptureCount] = useState('1');
+  const [videoMib, setVideoMib] = useState('64');
+  const [videoCount, setVideoCount] = useState('1');
   /**
    * EVM-108 AC7: N shots through the capture pipeline of the camera (one after another, categories in turn), each with its own synthetic
    * picture (a different SHA-256). The status line confirms only after the LAST durable save: from then on the app may be killed.
@@ -357,6 +389,32 @@ export function E2eHooks({ deps: injected }: { deps?: E2eHooksDeps } = {}) {
       added += 1;
     }
     setStatus({ capture_added: added });
+  });
+
+  /**
+   * EVM-110 AC8: N films of the given size through the capture pipeline of the camera (one after another), each a synthetic MP4 with its own SHA-256. The
+   * status line confirms only after the LAST durable save: from then on the app may be killed.
+   */
+  const captureVideo = guarded(async () => {
+    const capture = (get().captureVideo ?? realDeps().captureVideo)?.();
+    if (capture === undefined) {
+      setStatus({ error: 'no_capture' });
+      return;
+    }
+    const n = Math.min(Math.max(Number.parseInt(videoCount, 10) || 1, 1), E2E_CAPTURE_MAX);
+    const mib = Math.min(Math.max(Number.parseInt(videoMib, 10) || 1, 1), E2E_VIDEO_MAX_MIB);
+    const base = get().now();
+    let added = 0;
+    for (let i = 0; i < n; i += 1) {
+      const category = MEDIA_CATEGORIES[i % MEDIA_CATEGORIES.length] ?? 'other';
+      const result = await capture.shoot({ workOrderId: E2E_MEDIA_WORK_ORDER, category }, base + i, mib);
+      if (!result.ok) {
+        setStatus({ video_added: added, error: result.code });
+        return;
+      }
+      added += 1;
+    }
+    setStatus({ video_added: added });
   });
 
   const device = (name: string, change: (o: DeviceOverrides) => void) => () => {
@@ -425,6 +483,9 @@ export function E2eHooks({ deps: injected }: { deps?: E2eHooksDeps } = {}) {
         <Button label={LABELS.mediaStatus} onPress={mediaStatus} testID="e2e-media-status" />
         <TextInput testID="e2e-capture-count" value={captureCount} onChangeText={setCaptureCount} keyboardType="number-pad" style={input} />
         <Button label={LABELS.captureBatch} onPress={captureBatch} testID="e2e-capture-batch" />
+        <TextInput testID="e2e-video-mib" value={videoMib} onChangeText={setVideoMib} keyboardType="number-pad" style={input} />
+        <TextInput testID="e2e-video-count" value={videoCount} onChangeText={setVideoCount} keyboardType="number-pad" style={input} />
+        <Button label={LABELS.captureVideo} onPress={captureVideo} testID="e2e-capture-video" />
         <Button
           label={LABELS.lockOff}
           onPress={device('lock_off', (o) => {

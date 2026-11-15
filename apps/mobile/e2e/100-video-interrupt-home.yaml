@@ -1,0 +1,52 @@
+# EVM-110 AC3: no network (airplane mode). The recording is running (the counter) when the app loses the foreground (the Home key): the app stops the recording
+# itself and the film is saved like a normal one (no dialog); back in the app the counter of the series says "1 film", the recording is over and the
+# screen is released. (The toast "Nagrywanie przerwane - zapisano 0:0N filmu." is shown while the app is in the background and may be gone on the return: it
+# is judged by the Jest tests, here the SAVED FILM is.) The Queue has the film as a waiting file.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- extendedWaitUntil:
+    visible: 'Brak zasięgu.*'
+    timeout: 30000
+- runFlow: common/camera-from-order.yaml
+- tapOn:
+    id: 'camera-mode-video'
+- tapOn:
+    id: 'camera-category-defect'
+- tapOn:
+    id: 'camera-shutter'
+- extendedWaitUntil:
+    visible:
+      id: 'camera-timer'
+      text: '0:(0[3-9]|[1-5][0-9]) / 5:00'
+    timeout: 60000
+- pressKey: Home
+- launchApp:
+    stopApp: false
+- extendedWaitUntil:
+    visible:
+      id: 'camera-count'
+      text: '1 film'
+    timeout: 60000
+- assertNotVisible:
+    id: 'camera-timer'
+- takeScreenshot: m06-video-interrupted
+- tapOn:
+    id: 'camera-done'
+- extendedWaitUntil:
+    visible: 'Zlecenie testowe 1'
+    timeout: 30000
+- tapOn:
+    id: 'order-detail-back'
+- tapOn:
+    id: 'nav-queue'
+- extendedWaitUntil:
+    visible:
+      id: 'files-summary'
+      text: '1 do wysłania'
+    timeout: 30000
+- assertVisible: 'Usterka / problem, Film · 0:[0-9]{2} · [0-9]+ MB, .*, Czeka na połączenie'
