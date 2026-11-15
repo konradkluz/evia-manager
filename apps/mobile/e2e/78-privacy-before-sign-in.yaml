@@ -22,6 +22,12 @@ appId: pl.eviacharge.manager
 - extendedWaitUntil:
     visible: 'Prywatność i pomoc'
     timeout: 10000
+# the entry "Prywatność" opens the screen at its privacy section: the help section with the contact lies above it
+- scrollUntilVisible:
+    element:
+      id: 'privacy-no-contact'
+    direction: UP
+    centerElement: true
 - assertVisible: 'Kontakt z administratorem: zapytaj przełożonego\.'
 - assertNotVisible: 'Ostatnia synchronizacja.*'
 - takeScreenshot: m11-before-sign-in
