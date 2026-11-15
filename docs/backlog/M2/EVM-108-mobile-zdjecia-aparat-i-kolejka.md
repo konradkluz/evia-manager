@@ -155,3 +155,4 @@ EVM-108 pokazuje w Kolejce **minimum**: wiersz pliku, 4 etykiety stanu, licznik,
 - 2026-11-15 — weryfikacja QA (qa-engineer): PASS z zastrzeżeniem — AC1–AC6 i AC8 spełnione; AC7 bez zielonego przebiegu emulatora `camera-batch-30` po `b3281dec` (w toku), raport: docs/qa/EVM-108/raport-qa.md
 - 2026-11-15 — runda poprawek 1 po przeglądach: toast, sprzątanie cache aparatu bez zmiany stanu tokenów, odśmiecacz, drobne UX (mobile-developer)
 - 2026-11-15 — weryfikacja i przeglądy, runda 1: QA PASS (AC7 z dowodem emulatora: 30 obiektów, 0 duplikatów), ux-designer APPROVE (uwagi minor naniesione), code-reviewer CHANGES REQUIRED (major: toast „Zapisano w telefonie” nie znikał — naprawione w rundzie poprawek 1); decyzje AC6 doprecyzowane w „Decyzjach z realizacji” (Tech Lead)
+- 2026-11-15 — przegląd bezpieczeństwa końcowy (security-engineer): APPROVE; RR-96 i RR-98 ocenione ponownie (Low, bez zmian); dokumenty bezpieczeństwa skorygowane
