@@ -10,6 +10,7 @@ jest.mock('../src/storage', () => {
     installationProof: jest.fn(() => Promise.resolve(null)),
     unsentItemCountBeforeSignIn: jest.fn(() => Promise.resolve(3)),
     openForUser: jest.fn(),
+    registerWipeStep: jest.fn(),
     // EVM-101: the wipe and its confirmation
     prepare: jest.fn(() => Promise.resolve('ready')),
     wipeCompanyData: jest.fn(() => Promise.resolve('done')),
