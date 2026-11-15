@@ -4,7 +4,7 @@ title: RODO przed startem — umowy powierzenia, rejestr czynności, ćwiczenie 
 type: enabler
 milestone: M1
 epic: E8 Gotowość produkcyjna
-status: in-review
+status: done
 priority: P1
 path: pelna            # dane osobowe (RODO), 8 AC — decyzja Konrada 2026-11-14
 owner: security-engineer
@@ -112,3 +112,4 @@ _Uzupełnia wykonawca przed implementacją._
 - 2026-11-14 — runda 2 poprawek po ponownym przeglądzie prawnym i wpis decyzji z delegacji Konrada (security-engineer): stan na 2026-11-14 wg Konrada: brak realnych danych na środowisku; warunki sformułowane jako bramka przed pierwszymi realnymi danymi klientów (klauzule pierwsze; po korekcie Tech Leada — wcześniej przez chwilę termin 2026-11-28); pilot B dopiero po oświadczeniach i środku technicznym dla `identity_data` (zobowiązanie); wzory 2 i 3 uzupełnione; protokół AC1 — wydruk wpisów DPF; decyzje pkt 10, pkt 11 / DPIA 1.0, RR-95 i AC6 wpisane z formułą delegacji; SR-PRIV-01 doprecyzowane
 - 2026-11-14 — dodatkowy niezależny przegląd prawny (agent w roli radcy prawnego od RODO, zlecony przez Tech Leada po decyzji Konrada „bez prawnika, wybierz wariant najbezpieczniejszy”): runda 1 — 1 blocker, 7 major; runda 2 — wcześniejsze ustalenia załatwione, 3 nowe major poprawione; lista DPF sprawdzona w przeglądarce (Grafana Labs i GitHub — Active). Weryfikacja orkiestratora po poprawkach: `pnpm run gate` zielona, `npm run docs:check` 0 błędów. Status `in-review` do wypełnienia protokołów przez Konrada (Tech Lead)
 - 2026-11-14 — Koszt (uzupełnienie): przegląd prawny i dwie rundy poprawek — ok. 0,6 mln tokenów (2 agenci, 5 wywołań); łącznie historyjka ok. 1,4 mln tokenów; rozbicia w USD nie odczytano (Tech Lead)
+- 2026-11-15 — akceptacja Konrada („Akceptuję 064”); scalone przez Konrada (#140, `183fd02e`); **status `done`** (Tech Lead)

@@ -11,7 +11,7 @@ owner: qa-engineer
 contributors: [mobile-developer]
 reviewers: [security-engineer, code-reviewer]
 model: sonnet
-depends_on: [EVM-105, EVM-106, EVM-110, EVM-084, EVM-130, EVM-131]
+depends_on: [EVM-105, EVM-106, EVM-110, EVM-130, EVM-131]
 ---
 
 # EVM-112: Test terenowy w garażu i przegląd MASVS
@@ -47,7 +47,7 @@ Jako **Konrad** chcę **potwierdzić w prawdziwych warunkach, że aplikacja nie 
 - Telefony firmowe vs prywatne (BYOD) wpływają na politykę poprawek (P7) — README planu, decyzja 4; MASVS v2.1 zastępuje „L1+” z v1.
 - **Uproszczenie 2026-11-12:** test w garażu (AC1) zostaje jako kryterium wyjścia M2; MASVS to checklista L1 w security sign-offie wydania 1.1 (raz na wydanie, na podstawie dowodów z przeglądów i DAST), bez osobnego testu/pentestu. Zależność od EVM-102 usunięta (aplikacja bez telemetrii; EVM-102 to tylko ekran prywatności).
 
-- **Warunki wejścia (2026-11-14, decyzja Konrada: nie czekamy na EVM-084 w rozwoju):** EVM-084 AC2 (wersjonowanie i kopia mediów) zielone; EVM-131 wdrożone; scenariusze Scaleway z `media-pipeline.md` §5 (podpisany `Content-Length`, `NoSuchUpload` przy powtórce `complete`, sprzątanie przerwanego multipartu); **zakaz dystrybucji** paczki z aparatem lub wysyłaniem do techników i na środowisko z danymi realnymi przed dowodami EVM-084 i sign-offem tej historyjki.
+- **Warunki wejścia (2026-11-14, decyzja Konrada: nie czekamy na EVM-084 w rozwoju):** ~~EVM-084 AC2 (wersjonowanie i kopia mediów) zielone~~ (**decyzja Konrada 2026-11-15:** test terenowy nie czeka na EVM-084; media chroni do tego czasu wersjonowanie i blokada usunięcia 30 dni w buckecie, kopie bazy — RR-91, termin 2026-12-13); EVM-131 wdrożone; scenariusze Scaleway z `media-pipeline.md` §5 (podpisany `Content-Length`, `NoSuchUpload` przy powtórce `complete`, sprzątanie przerwanego multipartu); **zakaz dystrybucji** paczki z aparatem lub wysyłaniem do techników i na środowisko z danymi realnymi przed dowodami EVM-084 i sign-offem tej historyjki.
 - **Warunek sign-offu (2026-11-14, przegląd EVM-131, RR-96):** przed wydaniem aplikacji z wysyłaniem panel pokazuje Administratorowi media „Czeka na plik z telefonu” z możliwością usunięcia (także opisu), zadanie retencji czyści opis albo miękko usuwa media bez pliku starsze niż 30 dni, a limit liczby mediów bez pliku na twórcę i zlecenie obowiązuje przy `CreateMediaAsset`; wariant zastępczy: zapisana akceptacja ryzyka przez Konrada.
 - **Kryteria `manual` przeniesione z historyjek nocy 2026-11-14 (fizyczny telefon i środowisko, brak w AC EVM-109/130/131/128/102):** UIDT na Androidzie 14+ i agresywni producenci; Android 13 (SM-G781B) — zwykłe zadanie, limit 10 min, wznawianie, pomiar dużego filmu; wysyłanie przy zablokowanym ekranie, po restarcie dopiero po pierwszym odblokowaniu; powiadomienie na ekranie blokady (wygląd, zachowanie bez zgody na Androidzie 13); brak plików w galerii, Plikach i Zdjęciach Google, brak GPS w EXIF przy włączonej lokalizacji systemu; ruch sieciowy całej sesji (tylko API i magazyn, 0 Google/ML Kit/Firebase); `FLAG_SECURE` na ekranie aparatu (zrzut, „Ostatnie”); film 500 MB przy przełączaniu Wi-Fi ↔ LTE i „tylko Wi-Fi” w realnych sieciach; „Zablokuj i wyczyść” w trakcie wysyłki; bateria; układ alertu „Utwórz ponownie” na 360 dp, TalkBack i 200% czcionki (EVM-128); czytelność klauzul na 360 dp i 200%, Disclosure, „Kopiuj adres” (EVM-102); ruch sieciowy całej sesji aparatu (EVM-108 AC4, część dynamiczna).
 
@@ -57,3 +57,4 @@ Jako **Konrad** chcę **potwierdzić w prawdziwych warunkach, że aplikacja nie 
 - 2026-11-12 — AC2: MASVS L2 → checklista L1 w security sign-offie wydania 1.1; usunięto zależność od EVM-102; test w garażu bez zmian (decyzja Konrada 2026-11-12 / Tech Lead z delegacji Konrada „tanio, szybko, bezpiecznie”)
 - 2026-11-13 — dopisane przy teście terenowym: pomiar AC7 EVM-103 (wyszukiwanie na liście, 300 syntetycznych zleceń, p95 ≤ 300 ms na referencyjnym średnim Androidzie, kompilacja wydania) — decyzja Konrada 2026-11-13 (Tech Lead)
 - 2026-11-14 — `depends_on` + EVM-084, EVM-130, EVM-131; dopisano warunki wejścia i listę kryteriów `manual` (product-owner; decyzja Konrada 2026-11-14)
+- 2026-11-15 — decyzja Konrada: EVM-084 nie blokuje testu terenowego — usunięta z `depends_on` i z warunków wejścia; brzmienie zakazu dystrybucji („przed dowodami EVM-084”) do potwierdzenia (Tech Lead)
