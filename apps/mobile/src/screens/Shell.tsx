@@ -193,8 +193,11 @@ export function Shell() {
   return (
     <View style={{ flex: 1, backgroundColor: color.bg.canvas }}>
       {/* while the dialog is open the content behind it is hidden from the screen reader and cannot be touched */}
+      {/* the camera is a full-screen opaque overlay: the content under it is not displayed at all (not only hidden from TalkBack), so no tool
+          that reads the whole view tree (UiAutomator, Maestro) can reach it either - the banner of the connection of the order below stays out of it */}
       <View
-        style={{ flex: 1 }}
+        testID="shell-content"
+        style={cameraOrderId !== null ? { flex: 1, display: 'none' } : { flex: 1 }}
         accessibilityElementsHidden={covered}
         importantForAccessibility={covered ? 'no-hide-descendants' : 'auto'}
         pointerEvents={covered ? 'none' : 'auto'}

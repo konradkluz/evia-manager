@@ -577,6 +577,18 @@ describe('roles, offline, the lock and the wipe (EVM-108 AC5)', () => {
     expect(screen.getByTestId('sync-indicator')).toHaveTextContent('Offline · 2');
     expect(screen.queryByTestId('offline-banner')).toBeNull();
     expect(screen.queryByText(/Brak zasięgu/)).toBeNull();
+    // not even among the hidden elements: the content under the camera is not displayed and is out of the accessibility tree
+    expect(screen.getByTestId('shell-content', { includeHiddenElements: true })).toHaveStyle({ display: 'none' });
+    expect(screen.getByTestId('shell-content', { includeHiddenElements: true })).toHaveProp(
+      'importantForAccessibility',
+      'no-hide-descendants',
+    );
+    await fireEvent.press(screen.getByTestId('camera-done'));
+    await settle();
+    expect(screen.getByTestId('shell-content')).not.toHaveStyle({ display: 'none' });
+    expect(screen.getByTestId('offline-banner')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByTestId('order-detail-take-photo'));
+    await settle();
     await fireEvent.press(screen.getByTestId('camera-category-other'));
     await fireEvent.press(screen.getByTestId('camera-shutter'));
     await settle();

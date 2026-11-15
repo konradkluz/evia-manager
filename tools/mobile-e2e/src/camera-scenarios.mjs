@@ -15,8 +15,12 @@
  * "Refusal for good and the return from the settings" is not automated (the system dialogs differ between releases): `manual`, EVM-112.
  */
 
-/** The answer to every part is held this long (ms) in the 30-shot scenario: thirty small files take minutes, so the app is killed on its way. */
-const BATCH_DELAY = 3000;
+/**
+ * The answer to every part is held this long (ms) in the 30-shot scenario. A part is stored by the server at once and only its ANSWER waits, so what
+ * the first interruption leaves is found again by the resume without any delay; 3 s let the rest finish before the second interruption (first run).
+ * The delay is long enough for both interruptions; the last step lowers it to 0 so that the end of the transfer is quick.
+ */
+const BATCH_DELAY = 15_000;
 
 /**
  * The first step of every scenario: a fresh install signs in, the server forgets the earlier scenario, the log is empty, the answer to a part
@@ -140,6 +144,7 @@ export const CAMERA_SCENARIOS = [
         server: 'ok',
         airplane: false,
         upload: true,
+        before: ['upload-part-delay:0'],
         after: ['upload-checkpoint-many:30', ...CLEAN_LOG],
       },
     ],

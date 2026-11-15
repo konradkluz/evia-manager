@@ -41,7 +41,7 @@ appId: pl.eviacharge.manager
 - tapOn:
     id: 'nav-orders'
 - extendedWaitUntil:
-    visible: 'Dane zleceń są ukryte.*'
+    visible: 'Włącz blokadę ekranu'
     timeout: 60000
 - tapOn:
     id: 'orders-add'

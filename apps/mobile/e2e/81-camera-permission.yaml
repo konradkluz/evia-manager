@@ -6,6 +6,9 @@ appId: pl.eviacharge.manager
 ---
 - launchApp:
     stopApp: false
+    # without this list Maestro allows every permission again at the launch and the screen of the consent would never show
+    permissions:
+      camera: unset
 - tapOn:
     text: 'Rozumiem'
     optional: true

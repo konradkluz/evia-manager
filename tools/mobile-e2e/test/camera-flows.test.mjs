@@ -132,6 +132,7 @@ describe('Maestro flows 80-89 and the camera scenarios agree (EVM-108)', () => {
     const flow = flowText('81-camera-permission.yaml');
     for (const text of ['Aparat do zdjęć z prac', 'Zezwól na dostęp do aparatu', 'Nie teraz', 'permission_deny_button'])
       assert.ok(flow.includes(text), text);
+    assert.match(flow, /launchApp:\r?\n {4}stopApp: false\r?\n(?: {4}#.*\r?\n)? {4}permissions:\r?\n {6}camera: unset/);
     assert.match(flow, /Nic nie czeka na wysłanie\\\./);
   });
 
@@ -151,6 +152,7 @@ describe('Maestro flows 80-89 and the camera scenarios agree (EVM-108)', () => {
     const hidden = flowText('85-camera-hidden.yaml');
     for (const part of [
       'e2e-lock-off',
+      "visible: 'Włącz blokadę ekranu'",
       'Dane zleceń są ukryte — wpis dodasz po ponownym zalogowaniu',
       "assertNotVisible: 'ZL-E2E-1 · .*'",
       "assertVisible: 'Aparat'",
@@ -182,6 +184,9 @@ describe('Maestro flows 80-89 and the camera scenarios agree (EVM-108)', () => {
       /^upload-part-delay:[1-9]\d{3,}$/,
     );
     assert.equal(scenario.steps[3]?.background, true);
+    // the delay outlasts both interruptions (the resume skips the parts the server holds) and is dropped for the last step, which waits for the end
+    assert.ok(Number(scenario.steps[0]?.before?.find((action) => action.startsWith('upload-part-delay:'))?.slice(18)) >= 10_000);
+    assert.deepEqual(scenario.steps[5]?.before, ['upload-part-delay:0']);
   });
 
   it('EVM-108 AC7: the flows of the 30 shots use the hook through its ids, wait for the confirmation of the LAST save and count the states from the snapshot of the Queue', () => {
