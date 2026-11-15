@@ -9,6 +9,12 @@
  * (objects per assetId, SHA-256, orphaned multiparts). Everything here is synthetic: no real person, no real files; the part addresses carry
  * `X-Amz-*` parameters (signature and expiry) so that the logcat assertion of AC5 proves something; the tokens are fixed test words.
  * It keeps counters and identifiers, never addresses or bodies of the requests.
+ *
+ * EVM-130 stage C: the same instance is MOUNTED on the scenario server of the run (stub-api.mjs): the part addresses then carry the port of the
+ * scenario server, the sign-in of the run is served here while `active` is on (the tokens the upload operations check are the ones issued here),
+ * and the asset is registered by the `applied` of the command `CreateMediaAsset` (the size comes from the declaration `file` of the session, or
+ * from `defaultSize` while the app does not declare it). The host steers the run through the control port: a delay of the answer to every part
+ * (a window to interrupt the app), a verdict of `complete` (`clean`, `quarantined`, `checksum_mismatch`), faults, the expiry of the access token.
  */
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { createServer } from 'node:http';
@@ -37,18 +43,30 @@ import { authAnswer, healthAnswer } from './stub-api.mjs';
 /**
  * @typedef {object} Asset
  * @property {string} workOrderId
- * @property {number} declaredSize
+ * @property {number | null} declaredSize `null` until the session declares the file (EVM-131: the command carries no size)
+ * @property {string | null} declaredSha256 the digest of the declaration `file` (when the app declares it)
  * @property {FileState} state
  * @property {number} objects
  * @property {string | null} sha256
  */
 /** @typedef {{ status: number, type: string, body: unknown, headers?: Record<string, string> }} Answer */
+/** @typedef {'clean' | 'quarantined' | 'checksum_mismatch'} Verdict what `complete` answers instead of `uploaded` */
 
 export const DEFAULT_PART_SIZE = 8 * 1024 * 1024;
 /** Refresh tolerance window of the server (a lost answer is retried with the same token within it; the client keeps <= 20 s). */
 export const TOLERANCE_MS = 30_000;
 export const SIGNED_URL_TTL_S = 3600;
 export const MAX_PART_SESSIONS = 1000;
+/** The size of a file that the app did not declare (the flows inject exactly this much unless the scenario sets another). */
+export const DEFAULT_DECLARED_SIZE = 8 * 1024 * 1024;
+const MAX_DELAY_MS = 60_000;
+const VERDICTS = new Set(['clean', 'quarantined', 'checksum_mismatch']);
+const AUTH_PATHS = new Set([
+  '/api/v1/auth/mobile/login',
+  '/api/v1/auth/mobile/login/totp',
+  '/api/v1/auth/mobile/token',
+  '/api/v1/auth/mobile/logout',
+]);
 const MAX_JSON = 1_048_576;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const UUID7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -58,6 +76,7 @@ const FAULTS = new Set(['expired_url', 'drop_mid_part', 'session_revoked', 'devi
 const SESSIONS_PATH =
   /^\/api\/v1\/work-orders\/([^/]+)\/media-assets\/([^/]+)\/upload-sessions(?:\/([^/]+)(?:\/(parts|complete|abort)(?:\/(\d+)\/url)?)?)?$/;
 const PART_PATH = /^\/storage\/([^/]+)\/(\d+)$/;
+const SHA256 = /^[a-f0-9]{64}$/;
 
 /**
  * @param {number} status
@@ -81,13 +100,16 @@ function json(status, body, headers) {
 }
 
 /**
- * @param {{ partSize?: number, publicHost?: string, now?: () => number, accessTtlMs?: number }} [options] publicHost = the host the app puts in the part addresses
+ * @param {{ partSize?: number, publicHost?: string, now?: () => number, accessTtlMs?: number,
+ *   onAssetState?: (assetId: string, fileState: FileState, reasonCode: string | null) => void }} [options]
+ * publicHost = the host the app puts in the part addresses; onAssetState sees every change of the file state (the replica of the phone follows it)
  */
 export function createUploadStub({
   partSize = DEFAULT_PART_SIZE,
   publicHost = '10.0.2.2',
   now = Date.now,
   accessTtlMs = 15 * 60_000,
+  onAssetState,
 } = {}) {
   const secret = randomBytes(32);
   /** @type {Map<string, Asset>} */
@@ -100,8 +122,23 @@ export function createUploadStub({
   const access = new Map();
   /** @type {Map<string, number>} */
   const faults = new Map();
-  const counters = { requests: 0, partPuts: 0, partsRejected: 0, refreshes: 0, refreshReplays: 0, reuseDetected: 0, unauthorized: 0 };
+  const counters = {
+    requests: 0,
+    partPuts: 0,
+    partsRejected: 0,
+    partsReplaced: 0,
+    refreshes: 0,
+    refreshReplays: 0,
+    reuseDetected: 0,
+    unauthorized: 0,
+  };
   let issued = 0;
+  /** the size of a file the app did not declare, the delay of the answer to a part, the verdict of `complete`, the sign-in of the run */
+  let defaultSize = DEFAULT_DECLARED_SIZE;
+  let partDelayMs = 0;
+  /** @type {Verdict | null} */
+  let verdict = null;
+  let active = false;
   /** @type {{ refreshToken: string, previous: string | null, rotatedAt: number, lastPair: ReturnType<typeof pair> | null } | null} */
   let family = null;
   let port = 0;
@@ -145,7 +182,15 @@ export function createUploadStub({
   /** @param {Session} session @param {number} partNumber */
   function expectedSize(session, partNumber) {
     const asset = /** @type {Asset} */ (assets.get(session.assetId));
-    return partNumber < session.partCount ? session.partSize : asset.declaredSize - session.partSize * (session.partCount - 1);
+    return partNumber < session.partCount
+      ? session.partSize
+      : /** @type {number} */ (asset.declaredSize) - session.partSize * (session.partCount - 1);
+  }
+
+  /** @param {string} assetId */
+  function notify(assetId) {
+    const asset = /** @type {Asset} */ (assets.get(assetId));
+    onAssetState?.(assetId, asset.state, asset.state === 'failed' ? 'checksum_mismatch' : null);
   }
 
   /** @param {Session} session */
@@ -301,7 +346,8 @@ export function createUploadStub({
    */
   function createSession(asset, workOrderId, assetId, body, headers) {
     const key = headers['idempotency-key'];
-    const id = typeof body === 'object' && body !== null ? /** @type {Record<string, unknown>} */ (body)['id'] : undefined;
+    const fields = /** @type {Record<string, unknown>} */ (typeof body === 'object' && body !== null ? body : {});
+    const id = fields['id'];
     if (typeof key !== 'string' || !UUID7.test(key) || typeof id !== 'string' || !UUID7.test(id)) return problem(400, 'validation_failed');
     if (fire('id_conflict')) return problem(409, 'id_conflict');
     const replayed = idempotency.get(key);
@@ -317,6 +363,19 @@ export function createUploadStub({
       if (existing.assetId === assetId && existing.state === 'active') return json(200, sessionBody(existing));
     }
     if (asset.state !== 'pending_upload' && asset.state !== 'failed') return problem(409, 'invalid_state_transition');
+    // EVM-131: the file is declared in the session (size, digest); an app that does not declare it gets the size of the scenario
+    const declaration = fields['file'];
+    if (declaration !== undefined) {
+      if (typeof declaration !== 'object' || declaration === null) return problem(400, 'validation_failed');
+      const { declaredSize, sha256 } = /** @type {Record<string, unknown>} */ (declaration);
+      if (typeof declaredSize !== 'number' || !Number.isInteger(declaredSize) || declaredSize < 1) return problem(400, 'validation_failed');
+      if (typeof sha256 !== 'string' || !SHA256.test(sha256)) return problem(400, 'validation_failed');
+      if (asset.declaredSize !== null && (asset.declaredSize !== declaredSize || (asset.declaredSha256 ?? sha256) !== sha256))
+        return problem(400, 'validation_failed');
+      asset.declaredSize = declaredSize;
+      asset.declaredSha256 = sha256;
+    }
+    asset.declaredSize ??= defaultSize;
     const partCount = Math.max(1, Math.ceil(asset.declaredSize / partSize));
     if (partCount > MAX_PART_SESSIONS) return problem(400, 'validation_failed');
     /** @type {Session} */
@@ -358,10 +417,13 @@ export function createUploadStub({
     }
     asset.sha256 = hash.digest('hex');
     asset.objects = 1;
-    asset.state = 'uploaded';
+    // the check of the file by the server: a declared digest that differs is a transmission error; the verdict of the scenario replaces it
+    asset.state = asset.declaredSha256 !== null && asset.declaredSha256 !== asset.sha256 ? 'failed' : 'uploaded';
+    if (verdict !== null) asset.state = verdict === 'checksum_mismatch' ? 'failed' : verdict;
     session.state = 'completed';
     // the parts are folded into the object: nothing stays in the multipart
     session.parts.clear();
+    notify(session.assetId);
     return json(200, mediaAssetBody(session.assetId));
   }
 
@@ -436,9 +498,16 @@ export function createUploadStub({
       const hash = createHash('sha256');
       for (const chunk of chunks) hash.update(chunk);
       const etag = `"${hash.digest('hex').slice(0, 32)}"`;
+      if (session.parts.has(n)) counters.partsReplaced += 1;
       session.parts.set(n, { size: total, etag, chunks });
-      response.writeHead(200, { ETag: etag, Connection: 'close' });
-      response.end();
+      // the delay holds the ANSWER, not the part: an app killed meanwhile never saw the ETag, but the part is confirmed by `ListParts`
+      const answer = () => {
+        if (response.destroyed) return;
+        response.writeHead(200, { ETag: etag, Connection: 'close' });
+        response.end();
+      };
+      if (partDelayMs > 0) setTimeout(answer, partDelayMs);
+      else answer();
     });
   }
 
@@ -512,15 +581,18 @@ export function createUploadStub({
 
   /** The checkpoint: per asset the objects, the SHA-256 and the parts; plus the orphaned multiparts and the counters (no addresses, no tokens). */
   function checkpoint() {
-    /** @type {Record<string, { state: FileState, objects: number, sha256: string | null, declaredSize: number, sessions: number }>} */
+    /** @type {Record<string, { state: FileState, objects: number, sha256: string | null, declaredSize: number | null, sessions: number, activeParts: number, partCount: number | null }>} */
     const byAsset = {};
     for (const [id, asset] of assets) {
+      const open = [...sessions.values()].find((s) => s.assetId === id && s.state === 'active');
       byAsset[id] = {
         state: asset.state,
         objects: asset.objects,
         sha256: asset.sha256,
         declaredSize: asset.declaredSize,
         sessions: [...sessions.values()].filter((s) => s.assetId === id).length,
+        activeParts: open?.parts.size ?? 0,
+        partCount: open?.partCount ?? null,
       };
     }
     // a multipart is orphaned when it holds parts but can no longer be completed: it is not active, or its asset already has the object
@@ -528,7 +600,33 @@ export function createUploadStub({
       (s) => s.state !== 'completed' && s.parts.size > 0 && (s.state !== 'active' || (assets.get(s.assetId)?.objects ?? 0) > 0),
     ).length;
     const openMultiparts = [...sessions.values()].filter((s) => s.state === 'active').length;
-    return { assets: byAsset, orphanedMultiparts, openMultiparts, counters: { ...counters } };
+    return {
+      assets: byAsset,
+      orphanedMultiparts,
+      openMultiparts,
+      counters: { ...counters },
+      settings: { active, defaultSize, partDelayMs, verdict },
+    };
+  }
+
+  /**
+   * Registers the media asset of the work order (the host, or the `applied` of the command `CreateMediaAsset`); a second call changes nothing.
+   * @param {string} assetId @param {string} workOrderId @param {number | null} [declaredSize] `null` = the session declares it
+   * @returns {boolean} true when the asset is new
+   */
+  function registerAsset(assetId, workOrderId, declaredSize = null) {
+    if (assets.has(assetId)) return false;
+    assets.set(assetId, { workOrderId, declaredSize, declaredSha256: null, state: 'pending_upload', objects: 0, sha256: null });
+    return true;
+  }
+
+  /**
+   * Does this stub answer the request when it is mounted on the scenario server? The part addresses and the five operations of the session
+   * always; the sign-in operations only while the host has switched the upload part on (the other scenarios keep their own sign-in modes).
+   * @param {string | undefined} method @param {string} pathname
+   */
+  function claims(method, pathname) {
+    return PART_PATH.test(pathname) || SESSIONS_PATH.test(pathname) || (active && method === 'POST' && AUTH_PATHS.has(pathname));
   }
 
   /**
@@ -544,9 +642,33 @@ export function createUploadStub({
       const { assetId, workOrderId, declaredSize } = fields;
       if (typeof assetId !== 'string' || !UUID.test(assetId) || typeof workOrderId !== 'string' || !UUID.test(workOrderId))
         return problem(400, 'validation_failed');
-      if (typeof declaredSize !== 'number' || !Number.isInteger(declaredSize) || declaredSize < 1) return problem(400, 'validation_failed');
-      assets.set(assetId, { workOrderId, declaredSize, state: 'pending_upload', objects: 0, sha256: null });
+      if (declaredSize !== undefined && (typeof declaredSize !== 'number' || !Number.isInteger(declaredSize) || declaredSize < 1))
+        return problem(400, 'validation_failed');
+      registerAsset(assetId, workOrderId, declaredSize ?? null);
       return json(201, { assetId });
+    }
+    if (path === '/control/active') {
+      if (typeof fields['active'] !== 'boolean') return problem(400, 'validation_failed');
+      active = fields['active'];
+      return json(200, { active });
+    }
+    if (path === '/control/default-size') {
+      const { bytes } = fields;
+      if (typeof bytes !== 'number' || !Number.isInteger(bytes) || bytes < 1) return problem(400, 'validation_failed');
+      defaultSize = bytes;
+      return json(200, { defaultSize });
+    }
+    if (path === '/control/part-delay') {
+      const { ms } = fields;
+      if (typeof ms !== 'number' || !Number.isInteger(ms) || ms < 0 || ms > MAX_DELAY_MS) return problem(400, 'validation_failed');
+      partDelayMs = ms;
+      return json(200, { partDelayMs });
+    }
+    if (path === '/control/verdict') {
+      const next = fields['verdict'];
+      if (next !== null && (typeof next !== 'string' || !VERDICTS.has(next))) return problem(400, 'validation_failed');
+      verdict = /** @type {Verdict | null} */ (next);
+      return json(200, { verdict });
     }
     if (path === '/control/fault') {
       const { fault, count } = fields;
@@ -566,6 +688,7 @@ export function createUploadStub({
       if (asset === undefined || (state !== 'clean' && state !== 'failed' && state !== 'quarantined'))
         return problem(400, 'validation_failed');
       asset.state = state;
+      notify(/** @type {string} */ (assetId));
       return json(200, { assetId, state });
     }
     if (path === '/control/reset') {
@@ -576,6 +699,9 @@ export function createUploadStub({
       faults.clear();
       family = null;
       issued = 0;
+      defaultSize = DEFAULT_DECLARED_SIZE;
+      partDelayMs = 0;
+      verdict = null;
       for (const key of /** @type {(keyof typeof counters)[]} */ (Object.keys(counters))) counters[key] = 0;
       return json(200, { reset: true });
     }
@@ -586,6 +712,8 @@ export function createUploadStub({
     handleApp,
     control,
     checkpoint,
+    registerAsset,
+    claims,
     /** @param {number} value the port of the app listener (it goes into the part addresses) */
     setPort: (value) => {
       port = value;
@@ -602,7 +730,25 @@ export async function startUploadStub({ port = 0, controlPort = 0, ...options } 
   const app = createServer((request, response) => {
     stub.handleApp(request, response);
   });
-  const controlServer = createServer((request, response) => {
+  const controlServer = createControlServer(stub);
+  await listenOnLoopback(app, port);
+  await listenOnLoopback(controlServer, controlPort);
+  stub.setPort(portOf(app));
+  return {
+    port: portOf(app),
+    controlPort: portOf(controlServer),
+    checkpoint: stub.checkpoint,
+    control: stub.control,
+    close: () => closeServers([app, controlServer]),
+  };
+}
+
+/**
+ * The control listener of a stub that is mounted elsewhere (the scenario server of the run): the HTTP face of `stub.control`.
+ * @param {Pick<ReturnType<typeof createUploadStub>, 'control'>} stub
+ */
+export function createControlServer(stub) {
+  return createServer((request, response) => {
     /** @type {Buffer[]} */
     const chunks = [];
     request.on('data', (/** @type {Buffer} */ chunk) => {
@@ -621,39 +767,40 @@ export async function startUploadStub({ port = 0, controlPort = 0, ...options } 
       response.end(JSON.stringify(answer.body));
     });
   });
-  /** @param {import('node:http').Server} server @param {number} at */
-  const listen = (server, at) =>
-    new Promise((resolve, reject) => {
-      server.once('error', reject);
-      server.listen(at, '127.0.0.1', () => {
-        resolve(undefined);
-      });
+}
+
+/**
+ * Listens on the loopback only (never on all interfaces).
+ * @param {import('node:http').Server} server @param {number} at
+ * @returns {Promise<void>}
+ */
+export function listenOnLoopback(server, at) {
+  return new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(at, '127.0.0.1', () => {
+      resolve();
     });
-  await listen(app, port);
-  await listen(controlServer, controlPort);
-  /** @param {import('node:http').Server} server */
-  const portOf = (server) => {
-    const address = server.address();
-    if (address === null || typeof address === 'string') throw new Error('the upload stub has no TCP address');
-    return address.port;
-  };
-  stub.setPort(portOf(app));
-  return {
-    port: portOf(app),
-    controlPort: portOf(controlServer),
-    checkpoint: stub.checkpoint,
-    control: stub.control,
-    close: () =>
-      Promise.all(
-        [app, controlServer].map(
-          (server) =>
-            new Promise((resolve) => {
-              server.close(() => {
-                resolve(undefined);
-              });
-              server.closeAllConnections();
-            }),
-        ),
-      ).then(() => undefined),
-  };
+  });
+}
+
+/** @param {import('node:http').Server} server */
+export function portOf(server) {
+  const address = server.address();
+  if (address === null || typeof address === 'string') throw new Error('the upload stub has no TCP address');
+  return address.port;
+}
+
+/** @param {import('node:http').Server[]} servers @returns {Promise<void>} */
+export function closeServers(servers) {
+  return Promise.all(
+    servers.map(
+      (server) =>
+        new Promise((resolve) => {
+          server.close(() => {
+            resolve(undefined);
+          });
+          server.closeAllConnections();
+        }),
+    ),
+  ).then(() => undefined);
 }

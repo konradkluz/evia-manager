@@ -447,3 +447,204 @@ describe('upload scenario server: tokens and injected failures (EVM-130 AC8, AC2
     assert.equal(stub.checkpoint().openMultiparts, 0);
   });
 });
+
+/** The run of stage C: an asset registered by the `applied` of the command (no size yet), the app signs in at the stub. @param {Parameters<typeof startUploadStub>[0]} [options] */
+async function bare(options = {}) {
+  /** @type {{ id: string, state: string, reason: string | null }[]} */
+  const states = [];
+  const stub = await startUploadStub({
+    partSize: PART,
+    publicHost: '127.0.0.1',
+    onAssetState: (id, state, reason) => states.push({ id, state, reason }),
+    ...options,
+  });
+  const control = (/** @type {string} */ path, /** @type {unknown} */ body) => call(stub.controlPort, path, { method: 'POST', body });
+  assert.equal((await control('/control/asset', { assetId: ASSET, workOrderId: WORK_ORDER })).status, 201);
+  const signIn = async () =>
+    /** @type {string} */ (
+      (
+        await call(stub.port, '/api/v1/auth/mobile/login/totp', {
+          method: 'POST',
+          body: { email: 'technik@example.test', password: 'haslo-testowe', code: '123456' },
+        })
+      ).json.accessToken
+    );
+  const token = await signIn();
+  const sessions = `/api/v1/work-orders/${WORK_ORDER}/media-assets/${ASSET}/upload-sessions`;
+  const create = (/** @type {object} */ extra = {}, id = SESSION, key = KEY, bearer = token) =>
+    call(stub.port, sessions, {
+      method: 'POST',
+      body: { id, ...extra },
+      headers: { Authorization: `Bearer ${bearer}`, 'Idempotency-Key': key },
+    });
+  const api = (/** @type {string} */ path, /** @type {string} */ method = 'GET') =>
+    call(stub.port, `${sessions}/${SESSION}${path}`, { method, headers: { Authorization: `Bearer ${token}` } });
+  /** @param {number} n @param {Buffer} data */
+  const put = async (n, data) => fetch((await api(`/parts/${String(n)}/url`)).json.url, { method: 'PUT', body: data });
+  const checkpoint = async () => (await call(stub.controlPort, '/control/checkpoint')).json;
+  return { stub, control, create, api, put, checkpoint, states, signIn };
+}
+
+/** @param {number} size */
+const declaration = (size, digest = sha(Buffer.alloc(size))) => ({
+  file: { fileName: 'a.jpg', declaredSize: size, contentType: 'image/jpeg', sha256: digest },
+});
+
+describe('upload scenario server: the run of the app (EVM-130 stage C, AC1, AC4, AC8)', () => {
+  it('EVM-130 AC1: the size comes from the declaration `file` of the session (EVM-131), a differing or a bad declaration is 400', async () => {
+    const { stub, create, checkpoint, signIn, api } = await bare();
+    try {
+      assert.equal(
+        (await create({ file: { fileName: 'a.jpg', declaredSize: 'x', contentType: 'image/jpeg', sha256: sha(Buffer.alloc(1)) } })).status,
+        400,
+      );
+      assert.equal(
+        (await create({ file: { fileName: 'a.jpg', declaredSize: 1500, contentType: 'image/jpeg', sha256: 'nope' } })).status,
+        400,
+      );
+      assert.equal((await create({ file: 'text' })).status, 400);
+      const created = await create(declaration(2500));
+      assert.equal(created.status, 201);
+      assert.equal(created.json.partCount, 3);
+      const point = await checkpoint();
+      assert.equal(point.assets[ASSET].declaredSize, 2500);
+      assert.equal(point.assets[ASSET].partCount, 3);
+      assert.equal(point.assets[ASSET].activeParts, 0);
+      // another declaration for the file the server already knows (once the first session is closed)
+      assert.equal((await api('/abort', 'POST')).status, 204);
+      const other = await create(
+        declaration(99),
+        '01900000-0000-7000-8000-000000000009',
+        '01900000-0000-7000-8000-00000000000a',
+        await signIn(),
+      );
+      assert.equal(other.status, 400);
+    } finally {
+      await stub.close();
+    }
+  });
+
+  it('EVM-130 AC1: an app that does not declare the file gets the default size of the scenario (control port), and the checkpoint shows the parts of the open session', async () => {
+    const { stub, control, create, put, checkpoint } = await bare();
+    try {
+      assert.equal((await control('/control/default-size', { bytes: 2200 })).json.defaultSize, 2200);
+      assert.equal((await create()).json.partCount, 3);
+      assert.equal((await put(1, Buffer.alloc(1000))).status, 200);
+      const point = await checkpoint();
+      assert.equal(point.assets[ASSET].activeParts, 1);
+      assert.equal(point.assets[ASSET].objects, 0);
+      assert.equal(point.settings.defaultSize, 2200);
+      assert.equal((await control('/control/default-size', { bytes: 0 })).status, 400);
+      assert.equal((await control('/control/default-size', { bytes: 'x' })).status, 400);
+    } finally {
+      await stub.close();
+    }
+  });
+
+  it('EVM-130 AC1: a part sent again after an interruption is counted as replaced; the delay holds the answer, not the part', async () => {
+    const { stub, control, create, put, checkpoint, api } = await bare();
+    try {
+      await control('/control/default-size', { bytes: 1500 });
+      await create();
+      assert.equal((await control('/control/part-delay', { ms: 120 })).json.partDelayMs, 120);
+      const started = Date.now();
+      assert.equal((await put(1, Buffer.alloc(1000))).status, 200);
+      assert.ok(Date.now() - started >= 100, 'the answer waited');
+      assert.equal((await put(1, Buffer.alloc(1000))).status, 200);
+      assert.equal((await checkpoint()).counters.partsReplaced, 1);
+      assert.deepEqual((await api('/parts')).json.items, [{ partNumber: 1, size: 1000 }]);
+      assert.equal((await control('/control/part-delay', { ms: -1 })).status, 400);
+      assert.equal((await control('/control/part-delay', { ms: 600_000 })).status, 400);
+      assert.equal((await control('/control/part-delay', { ms: 0 })).json.partDelayMs, 0);
+    } finally {
+      await stub.close();
+    }
+  });
+
+  it('EVM-130 AC4: a digest declared by the app that differs from the object is `failed` / checksum_mismatch, and the replica is told', async () => {
+    const { stub, create, put, api, states } = await bare();
+    try {
+      await create(declaration(1500, sha(Buffer.from('other'))));
+      await put(1, Buffer.alloc(1000));
+      await put(2, Buffer.alloc(500));
+      const done = await api('/complete', 'POST');
+      assert.equal(done.status, 200);
+      assert.equal(done.json.fileState, 'failed');
+      assert.equal(done.json.stateReasonCode, 'checksum_mismatch');
+      assert.deepEqual(states, [{ id: ASSET, state: 'failed', reason: 'checksum_mismatch' }]);
+    } finally {
+      await stub.close();
+    }
+  });
+
+  it('EVM-130 AC4: the verdict of the scenario decides what `complete` answers (quarantined, checksum_mismatch, clean)', async () => {
+    for (const [verdict, state, reason] of [
+      ['quarantined', 'quarantined', null],
+      ['checksum_mismatch', 'failed', 'checksum_mismatch'],
+      ['clean', 'clean', null],
+    ]) {
+      const { stub, control, create, put, api, states } = await bare();
+      try {
+        await control('/control/default-size', { bytes: 1000 });
+        assert.equal((await control('/control/verdict', { verdict })).json.verdict, verdict);
+        await create();
+        await put(1, Buffer.alloc(1000));
+        const done = await api('/complete', 'POST');
+        assert.equal(done.json.fileState, state);
+        assert.equal(done.json.stateReasonCode, reason);
+        assert.deepEqual(states, [{ id: ASSET, state, reason }]);
+        assert.equal((await control('/control/verdict', { verdict: null })).json.verdict, null);
+        assert.equal((await control('/control/verdict', { verdict: 'lost' })).status, 400);
+        assert.equal((await control('/control/verdict', { verdict: 3 })).status, 400);
+      } finally {
+        await stub.close();
+      }
+    }
+  });
+
+  it('EVM-130 AC4: a state set by the host reaches the replica; reset brings back the defaults of the scenario', async () => {
+    const { stub, control, create, put, api, states, checkpoint } = await bare();
+    try {
+      await control('/control/default-size', { bytes: 1000 });
+      await control('/control/part-delay', { ms: 5 });
+      await control('/control/verdict', { verdict: 'clean' });
+      await create();
+      await put(1, Buffer.alloc(1000));
+      await api('/complete', 'POST');
+      await control('/control/file-state', { assetId: ASSET, state: 'failed' });
+      assert.deepEqual(
+        states.map((entry) => entry.state),
+        ['clean', 'failed'],
+      );
+      await control('/control/reset', {});
+      assert.deepEqual((await checkpoint()).settings, { active: false, defaultSize: 8 * 1024 * 1024, partDelayMs: 0, verdict: null });
+    } finally {
+      await stub.close();
+    }
+  });
+
+  it('EVM-130 AC5: the sign-in of the run is claimed only while the host has the upload part on; parts and sessions always', () => {
+    const stub = createUploadStub();
+    const login = '/api/v1/auth/mobile/login/totp';
+    const token = '/api/v1/auth/mobile/token';
+    assert.equal(stub.claims('POST', login), false);
+    assert.equal(stub.claims('POST', token), false);
+    assert.equal(stub.claims('PUT', `/storage/${SESSION}/1`), true);
+    assert.equal(stub.claims('GET', `/api/v1/work-orders/${WORK_ORDER}/media-assets/${ASSET}/upload-sessions`), true);
+    assert.equal(stub.claims('GET', '/api/health'), false);
+    assert.equal(stub.control('POST', '/control/active', { active: true }).status, 200);
+    assert.equal(stub.claims('POST', login), true);
+    assert.equal(stub.claims('POST', token), true);
+    assert.equal(stub.claims('GET', login), false);
+    assert.equal(stub.control('POST', '/control/active', { active: 'yes' }).status, 400);
+    assert.equal(stub.control('POST', '/control/active', { active: false }).status, 200);
+    assert.equal(stub.claims('POST', login), false);
+  });
+
+  it('EVM-130 AC1: registerAsset is idempotent (the command applied twice registers one asset)', () => {
+    const stub = createUploadStub();
+    assert.equal(stub.registerAsset(ASSET, WORK_ORDER), true);
+    assert.equal(stub.registerAsset(ASSET, WORK_ORDER), false);
+    assert.equal(Object.keys(stub.checkpoint().assets).length, 1);
+  });
+});
