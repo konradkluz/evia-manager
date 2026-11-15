@@ -1,5 +1,6 @@
 package pl.eviacharge.upload.schedule
 
+import pl.eviacharge.upload.JobState
 import pl.eviacharge.upload.StopCheck
 import pl.eviacharge.upload.files.FileDigest
 import pl.eviacharge.upload.files.JobFileCodec
@@ -85,6 +86,8 @@ class JobArming(
     private val system: SystemJobs,
     private val stop: StopCheck,
     private val apiLevel: Int,
+    /** EVM-110: where the setting "videos only over Wi-Fi" is read at every arming (never passed by the caller). */
+    private val settings: UploadSettings = UploadSettings.Fixed(false),
     private val appVisible: () -> Boolean,
 ) {
     /** One file of the queue of the app that must have a job. */
@@ -99,7 +102,6 @@ class JobArming(
 
     fun arm(
         item: Item,
-        wifiOnly: Boolean = false,
         force: Boolean = false,
     ): ArmResult {
         if (stop.isStopped()) return ArmResult.WipeActive
@@ -135,28 +137,34 @@ class JobArming(
                 return ArmResult.Failed
             }
         if (!force && system.isPending(id)) return ArmResult.AlreadyArmed
-        return submit(JobRequest(id, item.assetId, SchedulePolicy.decide(apiLevel, appVisible(), false, wifiOnly), size), wifiOnly)
+        val unmetered = SchedulePolicy.requiresUnmetered(contentType, settings.videoWifiOnly())
+        return submit(JobRequest(id, item.assetId, SchedulePolicy.decide(apiLevel, appVisible(), false, unmetered), size), unmetered)
     }
 
     /** The explicit retry ("Ponów"): the same job, owner and work order as armed before, handed to the system again even if it waits. */
-    fun retry(
-        assetId: String,
-        wifiOnly: Boolean = false,
-    ): ArmResult {
+    fun retry(assetId: String): ArmResult {
         if (!UploadFiles.isAssetId(assetId)) return ArmResult.Invalid
         val job = jobs.read(assetId) ?: return ArmResult.Invalid
-        return arm(Item(job.assetId, job.workOrderId, job.userId, job.deviceId, job.contentType), wifiOnly, force = true)
+        return arm(Item(job.assetId, job.workOrderId, job.userId, job.deviceId, job.contentType), force = true)
     }
 
     /** Arms every file of the list (start of the app, return to the foreground, after a sign-in); the result of each. */
-    fun reconcile(
-        items: List<Item>,
-        wifiOnly: Boolean = false,
-    ): Map<String, ArmResult> = items.associate { it.assetId to arm(it, wifiOnly) }
+    fun reconcile(items: List<Item>): Map<String, ArmResult> = items.associate { it.assetId to arm(it) }
+
+    /**
+     * The setting changed (EVM-110 AC4): every video that is not finished is handed to the system again with the network the setting asks for
+     * (turned off: any network; turned on: without charges). Reads the job files, never the app. Returns how many were handed over.
+     */
+    fun rearmVideos(): Int =
+        jobs.list().count { job ->
+            job.snapshot?.state != JobState.UPLOADED &&
+                job.contentType.lowercase().startsWith("video/") &&
+                arm(Item(job.assetId, job.workOrderId, job.userId, job.deviceId, job.contentType), force = true) is ArmResult.Armed
+        }
 
     private fun submit(
         request: JobRequest,
-        wifiOnly: Boolean,
+        unmetered: Boolean,
     ): ArmResult =
         when (system.schedule(request)) {
             ScheduleResult.SCHEDULED -> {
@@ -164,7 +172,7 @@ class JobArming(
             }
 
             ScheduleResult.REFUSED_USER_INITIATED -> {
-                val regular = SchedulePolicy.decide(apiLevel, appVisible(), userInitiatedRefused = true, wifiOnly = wifiOnly)
+                val regular = SchedulePolicy.decide(apiLevel, appVisible(), userInitiatedRefused = true, wifiOnly = unmetered)
                 if (system.schedule(JobRequest(request.id, request.assetId, regular, request.uploadBytes)) == ScheduleResult.SCHEDULED) {
                     ArmResult.Armed(false)
                 } else {

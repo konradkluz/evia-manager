@@ -7,6 +7,7 @@ import pl.eviacharge.upload.files.JobFileStore
 import pl.eviacharge.upload.files.WipeMarker
 import pl.eviacharge.upload.notification.Notice
 import pl.eviacharge.upload.notification.NotificationPlanner
+import pl.eviacharge.upload.schedule.VideoNetworkPolicy
 import pl.eviacharge.upload.session.SessionState
 import pl.eviacharge.upload.session.TokenOwner
 
@@ -36,6 +37,7 @@ class UploadWorker(
     private val tokens: TokenOwner,
     private val reporter: UploadReporter,
     private val logger: RedactingLogger = RedactingLogger.NONE,
+    private val network: VideoNetworkPolicy = VideoNetworkPolicy.OPEN,
 ) {
     private val failed = LinkedHashSet<String>()
     private val paused = LinkedHashSet<String>()
@@ -99,7 +101,11 @@ class UploadWorker(
     }
 
     /** The status of every file on the native side. */
-    fun statuses(): List<JobStatus> = jobs.list().map { JobStatuses.of(it, running.isRunning(it.assetId)) }
+    fun statuses(): List<JobStatus> =
+        jobs.list().map {
+            val status = JobStatuses.of(it, running.isRunning(it.assetId))
+            if (status.state == FileJobState.QUEUED && network.waitsForWifi(it.contentType)) status.copy(waitingForWifi = true) else status
+        }
 
     @Synchronized
     private fun tally(

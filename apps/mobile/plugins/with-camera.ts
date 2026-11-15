@@ -1,6 +1,6 @@
 /**
  * Config plugin of the camera library (EVM-108 AC8; SR-MOB-12, SR-SUPPLY-06, MASVS-PRIVACY-1). The plugin of `expo-camera` itself is NOT
- * used: it adds `RECORD_AUDIO` (the microphone is EVM-110) and has no switch for the document scanner.
+ * used: it adds `RECORD_AUDIO` (the app never uses the microphone: EVM-110 films are muted) and has no switch for the document scanner.
  * - `expo-camera` ships TWO Google scanners: of codes (`expo.camera.barcode-scanner-enabled`) and of documents
  *   (`expo.camera.document-scanner-enabled`). Each, left on (the default), pulls ML Kit and Google Play services (`com.google.mlkit`,
  *   `com.google.android.gms`, with their telemetry) into the package. Both are set to `false` here, as constants and not from the

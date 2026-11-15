@@ -49,7 +49,7 @@ private class Harness(
             server.put(it)
         }
 
-    fun engine(): UploadEngine =
+    fun engine(network: NetworkGate = NetworkGate.OPEN): UploadEngine =
         UploadEngine(
             UploadEngineDeps(
                 api = server,
@@ -60,6 +60,7 @@ private class Harness(
                 random = { 0.0 },
                 ids = { "id-${++counter}" },
                 logger = RedactingLogger { logs.add(it) },
+                network = network,
             ),
         )
 }
@@ -82,6 +83,28 @@ private fun snapshot(
 )
 
 class EngineBehaviorTest {
+    @Test
+    fun `EVM-110 AC5 a network with charges stops a video between parts without an error and the next run continues without a`() {
+        val harness = Harness()
+        var asked = 0
+        // the first part goes over Wi-Fi, then the phone is left with a network with charges
+        val outcome = harness.engine { ++asked <= 1 }.run(ASSET, declare(SIZE))
+        assertEquals(Outcome.WaitingForWifi, outcome)
+        assertEquals(1, harness.requests.size)
+        assertEquals(mapOf("1" to "\"etag-1\""), harness.saved.last().etags)
+        // Wi-Fi is back: the same session continues with the missing parts only (the first one is not sent again)
+        assertEquals(Outcome.Uploaded, harness.engine().run(ASSET, declare(SIZE)))
+        assertEquals(listOf(1, 2, 3), harness.requests.map { (it.offset / 16 + 1).toInt() })
+    }
+
+    @Test
+    fun `EVM-110 AC4 a video held for Wi-Fi sends no part at all and is not a failure`() {
+        val harness = Harness()
+        assertEquals(Outcome.WaitingForWifi, harness.engine { false }.run(ASSET, declare(SIZE)))
+        assertTrue(harness.requests.isEmpty())
+        assertEquals("waiting_wifi", Outcome.WaitingForWifi.type)
+    }
+
     @Test
     fun `EVM-109 AC3 a part request carries only Content-Length and never Authorization`() {
         val harness = Harness()

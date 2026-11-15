@@ -40,8 +40,6 @@ export interface MediaUploadsDeps {
   /** The queue of the synchronization (`SyncControl.enqueue`): resolves with the id of the new mutation. */
   readonly enqueue: (input: EnqueueInput) => Promise<{ readonly ok: boolean; readonly mutationId?: string }>;
   readonly now: () => number;
-  /** "Filmy tylko przez Wi-Fi" (EVM-110); `false` until that option exists. */
-  readonly wifiOnly?: () => boolean;
   /** `false` in the hidden-data mode: nothing is read from the replica then. */
   readonly dataVisible: () => boolean;
   /** After an event of the module (the contact of a refresh made in the background is merged, EVM-130 architect 9). */
@@ -336,7 +334,6 @@ export class MediaUploads implements MediaControl {
         // the module declares the type in the upload session (EVM-131); the size and the SHA-256 it computes itself
         contentType: file.mime,
       })),
-      this.#deps.wifiOnly?.() ?? false,
     );
     const at = this.#deps.now();
     for (const file of applied) {
@@ -403,7 +400,7 @@ export class MediaUploads implements MediaControl {
     const file = (await store.media.list()).find((row) => row.assetId === assetId);
     if (file === undefined || (file.state !== 'failed' && file.state !== 'needs_attention') || file.lastCode === 'quarantined')
       return false;
-    const result = await this.#deps.native.retryUpload(assetId, this.#deps.wifiOnly?.() ?? false).catch(() => 'failed' as const);
+    const result = await this.#deps.native.retryUpload(assetId).catch(() => 'failed' as const);
     if (result !== 'armed_user_initiated' && result !== 'armed' && result !== 'already_armed') return false;
     this.#retried.add(assetId);
     await store.media.setState(assetId, 'applied', null, this.#deps.now());

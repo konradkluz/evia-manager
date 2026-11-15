@@ -22,7 +22,7 @@ export interface CapturePorts {
   /** The picture to save: the camera (`takePictureAsync`) or a synthetic file of the e2e hook; `null` = no picture. The URI is a `file://` of the capture cache. */
   takePicture(): Promise<{ readonly uri: string } | null>;
   readonly native: {
-    importOriginal(assetId: string, sourceUri: string): Promise<ImportResultName>;
+    importOriginal(assetId: string, sourceUri: string, mediaType: 'photo' | 'video'): Promise<ImportResultName>;
     digestOriginal(assetId: string): Promise<OriginalDigest | null>;
     cancelUpload(assetId: string, deleteOriginal: boolean): Promise<boolean>;
   };
@@ -75,7 +75,7 @@ export class CapturePipeline {
     const capturedAt = this.#instant();
     if (capturedAt === null) return { ok: false, code: 'save_failed' };
     const assetId = this.#ports.newId();
-    const imported = await native.importOriginal(assetId, picture.uri).catch(() => 'io_error' as const);
+    const imported = await native.importOriginal(assetId, picture.uri, 'photo').catch(() => 'io_error' as const);
     if (imported === 'no_space') return { ok: false, code: 'no_space' };
     if (imported !== 'ok') return { ok: false, code: 'save_failed' };
     const digest = await native.digestOriginal(assetId).catch(() => null);

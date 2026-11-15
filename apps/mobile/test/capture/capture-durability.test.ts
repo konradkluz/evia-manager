@@ -102,6 +102,8 @@ const noopNative = (phone: PhoneFiles): NativeUpload => {
     ...base,
     reconcile: (items) => Promise.resolve(Object.fromEntries(items.map((item) => [item.assetId, 'armed' as const]))),
     retryUpload: () => Promise.resolve('armed'),
+    getVideoWifiOnly: () => true,
+    setVideoWifiOnly: () => Promise.resolve(true),
     completeUpload: () => Promise.resolve('keep'),
     uploadStatuses: () => Promise.resolve([]),
     wipeUploads: () => Promise.resolve(true),

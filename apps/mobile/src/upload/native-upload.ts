@@ -12,6 +12,8 @@ export type NativeUpload = Pick<
   | 'cancelUpload'
   | 'reconcile'
   | 'retryUpload'
+  | 'getVideoWifiOnly'
+  | 'setVideoWifiOnly'
   | 'completeUpload'
   | 'uploadStatuses'
   | 'wipeUploads'
@@ -31,6 +33,8 @@ export const UNAVAILABLE_UPLOAD: NativeUpload = {
   cancelUpload: () => Promise.resolve(false),
   reconcile: () => Promise.resolve({}),
   retryUpload: () => Promise.resolve('unavailable'),
+  getVideoWifiOnly: () => true,
+  setVideoWifiOnly: () => Promise.resolve(false),
   completeUpload: () => Promise.resolve('unavailable'),
   uploadStatuses: () => Promise.resolve([]),
   wipeUploads: () => Promise.resolve(true),

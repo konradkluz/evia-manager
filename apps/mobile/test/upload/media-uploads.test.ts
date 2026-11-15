@@ -35,7 +35,10 @@ class FakeNativeUpload implements NativeUpload {
   readonly calls: string[] = [];
   readonly armed: { assetId: string; workOrderId: string; userId: string; deviceId: string }[] = [];
   readonly deleted: string[] = [];
-  readonly wifi: boolean[] = [];
+  getVideoWifiOnly: NativeUpload['getVideoWifiOnly'] = () => true;
+  setVideoWifiOnly: NativeUpload['setVideoWifiOnly'] = () => Promise.resolve(true);
+  /** The number of arguments of every call of `reconcile` and `retryUpload`: EVM-110 - the network is decided natively, the caller passes nothing about it. */
+  readonly arity: number[] = [];
   armResult: ArmResultName | Record<string, ArmResultName> = 'armed';
   statuses: UploadStatus[] = [];
   verdict: 'delete' | 'keep' | 'keep_and_retry' | 'keep_quarantined' | 'invalid' | 'unavailable' = 'delete';
@@ -51,9 +54,10 @@ class FakeNativeUpload implements NativeUpload {
     this.calls.push('digestOriginal');
     return Promise.resolve(this.originals.get(assetId) ?? null);
   };
-  reconcile: NativeUpload['reconcile'] = (items, wifiOnly) => {
+  reconcile: NativeUpload['reconcile'] = (...args) => {
+    const [items] = args;
     this.calls.push('reconcile');
-    this.wifi.push(wifiOnly);
+    this.arity.push(args.length);
     this.armed.push(...items);
     return Promise.resolve(
       Object.fromEntries(
@@ -126,7 +130,7 @@ interface Rig {
   readonly enqueued: EnqueueInput[];
   readonly uploads: MediaUploads;
   readonly store: UnlockedStore;
-  readonly state: { signedIn: boolean; visible: boolean; contacts: number; wifiOnly: boolean };
+  readonly state: { signedIn: boolean; visible: boolean; contacts: number };
   setup(overrides?: Partial<MediaUploadsDeps>): MediaUploads;
 }
 
@@ -135,7 +139,7 @@ async function rig(native = new FakeNativeUpload()): Promise<Rig> {
   const queue = new SqlQueueStore(db);
   const replica = new SqlReplicaStore(db);
   const media = new SqlMediaFileStore(db, USER);
-  const state = { signedIn: true, visible: true, contacts: 0, wifiOnly: false };
+  const state = { signedIn: true, visible: true, contacts: 0 };
   const store = {
     userId: USER,
     queue,
@@ -171,7 +175,6 @@ async function rig(native = new FakeNativeUpload()): Promise<Rig> {
         return { ok: true, mutationId: record.mutationId };
       },
       now: () => (clock += 1),
-      wifiOnly: () => state.wifiOnly,
       dataVisible: () => state.visible,
       onNativeEvent: () => {
         state.contacts += 1;
@@ -253,16 +256,15 @@ describe('adding a file and arming it after applied (EVM-130 AC1; architect 7)',
     await r.uploads.reconcile();
     // EVM-131: the MIME type of the row goes to the module, which declares it in the upload session
     expect(r.native.armed).toEqual([{ assetId: asset(1), workOrderId: WO, userId: USER, deviceId: DEVICE, contentType: 'image/jpeg' }]);
-    expect(r.native.wifi).toEqual([false]);
+    expect(r.native.arity).toEqual([1]); // EVM-110 AC4: nothing about the network is passed (the native setting decides)
     // the process was killed and starts again: a new service over the same database arms the same file again
     const restarted = r.setup();
     await restarted.reconcile();
     expect(r.native.armed).toHaveLength(2);
     expect(await states(r)).toEqual(['01:applied']);
-    r.state.wifiOnly = true;
-    r.native.wifi.length = 0;
+    r.native.arity.length = 0;
     await restarted.reconcile();
-    expect(r.native.wifi).toEqual([true]);
+    expect(r.native.arity).toEqual([1]); // EVM-110 AC4: the same after the setting changed - the module reads its own store
   });
 
   it('EVM-130 AC1: add refuses what the server would refuse, a missing original, a missing session and a queue that does not take it — and writes no row', async () => {
