@@ -51,6 +51,35 @@ describe('mobile-apk (EVM-009 AC5, AC6)', () => {
     expect(names.indexOf(text(warning?.['name']))).toBeLessThan(names.indexOf('SHA-256 of the package to the summary'));
   });
 
+  it('EVM-112 AC2: the storage hosts of the build are a repository variable passed through env (no secret, no value in the workflow)', () => {
+    const build = job('mobile-apk');
+    expect(record(build['env'])['EVIA_STORAGE_HOSTS']).toBe('${{ vars.EVIA_STORAGE_HOSTS }}');
+    expect(JSON.stringify(build)).not.toMatch(/scw\.cloud/);
+    expect(JSON.stringify(build)).not.toMatch(/EXPO_PUBLIC_(?!API_BASE_URL)/);
+  });
+
+  it('EVM-112 AC2: the run summary always says whether the package uploads files; an empty variable warns and stays green', () => {
+    const step = steps('mobile-apk').find((item) => text(item['name']).startsWith('File upload in the package'));
+    expect(step).toBeDefined();
+    // always runs (no `if`), so the summary has the yes/no answer for every package; the value of the variable is never printed
+    expect(step?.['if']).toBeUndefined();
+    expect(step?.['shell']).toBe('bash');
+    const script = text(step?.['run']);
+    expect(script).toContain('EVIA_STORAGE_HOSTS');
+    expect(script).toContain('Wysyłanie plików w paczce: tak');
+    expect(script).toContain('Wysyłanie plików w paczce: nie');
+    expect(script).toContain('Paczka bez wysyłania plików (brak zmiennej repozytorium EVIA_STORAGE_HOSTS)');
+    expect(script).toContain('::warning title=Paczka bez wysyłania plików::');
+    expect(script).toContain('>> "$GITHUB_STEP_SUMMARY"');
+    expect(script).not.toMatch(/exit [1-9]/);
+    expect(script).not.toMatch(/echo[^\n]*\$\{?EVIA_STORAGE_HOSTS(?!\/\/)/);
+    expect(script).not.toContain('${{');
+    expect(step?.['env']).toBeUndefined();
+    expect(JSON.stringify(step)).not.toMatch(/secrets./);
+    const names = steps('mobile-apk').map((item) => text(item['name']));
+    expect(names.indexOf(text(step?.['name']))).toBeLessThan(names.indexOf('SHA-256 of the package to the summary'));
+  });
+
   it('EVM-009 AC5: a frozen lockfile, a clean prebuild, assembleRelease, the run number in the version code, no EAS and no other public variable', () => {
     const commands = runs('mobile-apk').join('\n');
     expect(commands).toContain('pnpm install --frozen-lockfile');
