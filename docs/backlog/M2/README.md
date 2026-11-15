@@ -49,7 +49,7 @@ Technik dokumentuje zlecenie zdjęciami, filmami i wpisami także bez zasięgu; 
 | [EVM-130](EVM-130-mobile-usluga-wysylania-i-tokeny.md) | Aplikacja: wysyłanie w tle na Androidzie — zadanie systemowe, natywny właściciel tokenów, kolejka plików — **nowa 2026-11-14** | E11 | story | P1 | pelna | EVM-109, EVM-100, EVM-101, EVM-107 | 4 (noc 14.11, tor A) |
 | [EVM-108](EVM-108-mobile-zdjecia-aparat-i-kolejka.md) | Aplikacja: zdjęcia — aparat, kategoria, kolejka plików | E11 | story | P1 | pelna | EVM-107, EVM-130, EVM-131 | 4 |
 | [EVM-110](EVM-110-mobile-filmy-i-wifi.md) | Aplikacja: filmy i „filmy tylko przez Wi-Fi” | E11 | story | P1 | pelna | EVM-108, EVM-046, EVM-130, EVM-131 | 4 |
-| [EVM-111](EVM-111-mobile-media-zlecenia.md) | Aplikacja: status każdego pliku w kolejce telefonu | E11 | story | P2 | lekka (zawężona 2026-11-12) | EVM-108, EVM-131 | 6 (szkic 2026-11-15) |
+| [EVM-111](EVM-111-mobile-media-zlecenia.md) | Aplikacja: status każdego pliku w kolejce telefonu | E11 | story | P2 | lekka (zawężona 2026-11-12) | EVM-108, EVM-110, EVM-131 | 6 (szkic 2026-11-15) |
 | [EVM-112](EVM-112-test-terenowy-i-masvs.md) | Test terenowy w garażu i dystrybucja (po podziale 2026-11-15; plik zachował nazwę) | E11/E14 | story | P1 | pelna | EVM-105, EVM-106, EVM-110, EVM-130, EVM-131 | 5 |
 | [EVM-132](EVM-132-sign-off-wydania-aplikacji.md) | Sign-off wydania aplikacji: checklista MASVS L1, warunek RR-96, utrata telefonu — **nowa 2026-11-15** | E14 | story | P1 | pelna (mała zmiana API, RR-96 wariant B) | EVM-112 | 5 (po teście) |
 | ~~[EVM-113](EVM-113-bramki-kotlin.md)~~ | Bramki Kotlin — **połączona z EVM-109 (AC6), 2026-11-12** | E14 | enabler | — | — | — | — |
@@ -92,7 +92,7 @@ flowchart LR
   E109 & E100 & E101 & E107 --> E130[130 wysyłanie w tle Android]
   E107 & E130 & E131 --> E108[108 zdjęcia]
   E108 --> E110[110 filmy] --> E112[112 test terenowy]
-  E108 & E131 --> E111[111 media zlecenia]
+  E108 & E110 & E131 --> E111[111 media zlecenia]
   E084[084 backupy, wersjonowanie mediów] -.->|nie blokuje, decyzja 2026-11-15| E112
   E130 & E131 --> E112
   E105 & E106 --> E112
