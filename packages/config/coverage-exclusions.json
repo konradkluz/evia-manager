@@ -32,6 +32,38 @@
     {
       "pattern": "**/apps/mobile/src/storage/expo-sqlite-driver.ts",
       "reason": "EVM-093: native shell of SQLCipher (expo-sqlite); needs the Android runtime, proven on the emulator (Maestro, ADR-0015); the logic above it is covered in Jest"
+    },
+    {
+      "pattern": "apps/mobile/modules/evia-keystore/android/src/main/java/pl/eviacharge/keystore/EviaKeystoreModule.kt",
+      "reason": "EVM-130: glue of the Android Keystore for the database key (Expo module); needs the Android runtime, proven on the emulator (Maestro, ADR-0015). Only calls the platform, no decision logic"
+    },
+    {
+      "pattern": "apps/mobile/modules/evia-clipboard/android/src/main/java/pl/eviacharge/clipboard/EviaClipboardModule.kt",
+      "reason": "EVM-130: glue of the Android clipboard (Expo module, sensitive flag); needs the Android runtime, proven on the emulator (Maestro, ADR-0015). Only calls the platform, no decision logic"
+    },
+    {
+      "pattern": "apps/mobile/modules/evia-upload/android/src/main/java/pl/eviacharge/upload/android/UploadJobService.kt",
+      "reason": "EVM-130: glue of the JobService (JobScheduler callbacks onStartJob/onStopJob, worker thread, setNotification of a user-initiated job); needs the Android runtime, proven on the emulator (Maestro, ADR-0015). No decision logic: it starts a thread and calls the pure UploadWorker, JobOutcomes and NotificationPlanner (JVM, Kover 95%)"
+    },
+    {
+      "pattern": "apps/mobile/modules/evia-upload/android/src/main/java/pl/eviacharge/upload/android/EviaUploadModule.kt",
+      "reason": "EVM-130: glue of the Expo module (bridge to JavaScript: argument conversion, events, permission request, settings intent); needs the Android runtime and the Expo modules core, proven on the emulator (Maestro, ADR-0015). No decision logic: every function calls the pure engine through UploadRuntime and returns its answer"
+    },
+    {
+      "pattern": "apps/mobile/modules/evia-upload/android/src/main/java/pl/eviacharge/upload/android/TokenKeystore.kt",
+      "reason": "EVM-130: glue of the Android Keystore (AES-256 key of the token store: generation, lookup, removal); needs the Android runtime, proven on the emulator (Maestro, ADR-0015). The format of the record and every decision on failure are pure (FileTokenVault, JceRecordCipher: JVM tests with a software key)"
+    },
+    {
+      "pattern": "apps/mobile/modules/evia-upload/android/src/main/java/pl/eviacharge/upload/android/UploadNotifications.kt",
+      "reason": "EVM-130: glue of the notification (channel, PendingIntent, Notification.Builder); needs the Android runtime, proven on the emulator (Maestro, ADR-0015). The texts and the choice of the notice are pure (NotificationText, NotificationPlanner: JVM tests)"
+    },
+    {
+      "pattern": "apps/mobile/modules/evia-upload/android/src/main/java/pl/eviacharge/upload/android/AndroidSystemJobs.kt",
+      "reason": "EVM-130: glue of JobScheduler (JobInfo.Builder from a JobRequest, SecurityException to a result); needs the Android runtime, proven on the emulator (Maestro, dumpsys jobscheduler, ADR-0015). The kind, network and persistence of the job come from the pure SchedulePolicy and JobArming (JVM tests)"
+    },
+    {
+      "pattern": "apps/mobile/modules/evia-upload/android/src/main/java/pl/eviacharge/upload/android/UploadRuntime.kt",
+      "reason": "EVM-130: wiring of the process (one TokenOwner, files in noBackupFilesDir, meta-data of the manifest, clock readings of the phone); needs the Android runtime, proven on the emulator (Maestro, ADR-0015). Only constructs and connects pure engine classes, makes no decision"
     }
   ]
 }

@@ -123,7 +123,8 @@ export const deviceSecrets: DeviceSecrets = {
   readWipeConfirmation: () => readPair('wipeConfirmation'),
   writeWipeConfirmation: (identity) => tokenStore.set('wipeConfirmation', pairText(identity)),
   deleteWipeConfirmation: () => tokenStore.delete('wipeConfirmation'),
-  deleteRefreshToken: () => tokenStore.delete('refreshToken'),
+  // the refresh token is native now (EVM-130): what is left to delete here are the two legacy slots of older versions
+  deleteRefreshToken: () => tokenStore.purgeLegacyTokens().then(() => undefined),
   deleteAllSecrets: () => tokenStore.clear(),
   // The app has no preference store and no crash-report SDK yet (EVM-093): the steps exist so the order of the wipe is fixed.
   deletePreferences: () => Promise.resolve(),

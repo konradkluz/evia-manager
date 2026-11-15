@@ -1,0 +1,14 @@
+# EVM-130 AC5: the transfer ended while the data were hidden, and the worker did not bring the data back: the screen of hidden data is still
+# there and no number of an order is on it.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+# the notice of hidden data is on the orders tab; the queue tab (where the app stays) keeps working
+- tapOn:
+    id: 'nav-orders'
+- extendedWaitUntil:
+    visible: 'Dane zleceń są ukryte.*'
+    timeout: 30000
+- assertNotVisible: 'ZL-E2E-1'
+- takeScreenshot: u130-hidden-data-still

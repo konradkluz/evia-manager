@@ -213,7 +213,11 @@ describe('quality gate of every workspace (EVM-006 AC2, AC3; W2, W3)', () => {
     );
     expect(root.scripts?.['coverage:diff']).toBe('node tools/diff-coverage/cli.mjs');
     expect(root.scripts?.['coverage:diff:local']).toBe('node tools/diff-coverage/cli.mjs --local');
-    expect(root.scripts?.['gate:native']).toBe('pnpm run format:check && turbo run lint typecheck test:coverage && pnpm run deps:check');
+    // EVM-109 AC5: the Kotlin engine gate (ktlint, JUnit on the JVM, Kover, dependencies) is part of the native gate and never skipped
+    expect(root.scripts?.['gate:native']).toBe(
+      'pnpm run format:check && turbo run lint typecheck test:coverage && pnpm run deps:check && pnpm run gate:kotlin',
+    );
+    expect(root.scripts?.['gate:kotlin']).toBe('node tools/diff-coverage/cli.mjs kotlin-gate');
     // EVM-068: the processor is tested with the real libvips of Linux, as in production (ADR-0015)
     expect(root.scripts?.['gate:backend']).toBe(
       'turbo run lint typecheck test:coverage --filter=./packages/* --filter=./apps/api --filter=./services/media-processor',
@@ -271,6 +275,7 @@ describe('quality gate of every workspace (EVM-006 AC2, AC3; W2, W3)', () => {
       'packages-not-to-apps-or-services',
       'tools-not-to-apps-or-services',
       'sync-core-portable', // EVM-091 AC1
+      'sync-core-upload-isolated', // EVM-109 (architect 10)
     ]) {
       expect(config).toContain(`name: '${rule}'`);
     }

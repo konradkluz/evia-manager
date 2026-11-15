@@ -8,104 +8,24 @@
  * (api-guidelines → "Minimalna wersja aplikacji"), no addresses and no bodies; the tokens it hands out are fixed test words (gitleaks).
  */
 import { createServer } from 'node:http';
+import { authAnswer, E2E_ACCOUNT, healthAnswer, OK_MINIMUM, problem, sessionBody, UPDATE_MINIMUM } from './stub-answers.mjs';
+import { createMediaGlue } from './media-replica.mjs';
 import { createSyncStub } from './sync-stub.mjs';
+import { closeServers, createControlServer, createUploadStub, listenOnLoopback, portOf } from './upload-stub.mjs';
 
-/** @typedef {'ok' | 'update' | 'down' | 'hang'} StubMode */
-/**
- * Sign-in mode (EVM-100): `ok`; `rate_limited` (429 with Retry-After 230 s); `channel_not_allowed` (403 after the code);
- * `version_unsupported` (426); `session_revoked` / `device_wipe_required` (401 at the refresh).
- * @typedef {'ok' | 'rate_limited' | 'channel_not_allowed' | 'version_unsupported' | 'session_revoked' | 'device_wipe_required'} AuthMode
- */
+/** @typedef {import('./stub-answers.mjs').StubMode} StubMode */
+/** @typedef {import('./stub-answers.mjs').AuthMode} AuthMode */
 /** @typedef {Awaited<ReturnType<typeof startStubApi>>} StubApi */
 /** @typedef {{ platform: string | undefined, version: string | undefined }} RecordedRequest */
 
-export const OK_MINIMUM = '0.1.0';
-export const UPDATE_MINIMUM = '99.0.0';
-
-/** The synthetic account of the flows (never a real person). */
-export const E2E_ACCOUNT = Object.freeze({ email: 'technik@example.test', password: 'haslo-testowe', code: '123456' });
-const E2E_USER = { id: '90000000-0000-4000-8000-0000000000e2', displayName: 'Technik Testowy', role: 'editor' };
-const E2E_DEVICE_ID = '7a000000-0000-4000-8000-0000000000e2';
 const MAX_BODY = 8192;
+/** The part size of the upload part of the run: small, so that a file of 40 MiB has ten parts and there is room to interrupt it (the real server uses 16 MiB). */
+export const E2E_PART_SIZE = 4 * 1024 * 1024;
 /** A batch of 50 mutations of the contract is up to 1 MB. */
 const MAX_SYNC_BODY = 1_048_576;
 
-/**
- * @param {StubMode} mode
- * @returns {{ status: number, type: string, body: unknown }}
- */
-export function healthAnswer(mode) {
-  if (mode === 'down') {
-    return {
-      status: 503,
-      type: 'application/problem+json',
-      body: { type: 'about:blank', title: 'Service Unavailable', status: 503, code: 'service_unavailable' },
-    };
-  }
-  const minimum = mode === 'update' ? UPDATE_MINIMUM : OK_MINIMUM;
-  return { status: 200, type: 'application/json', body: { status: 'ok', minSupportedAppVersion: { android: minimum, ios: minimum } } };
-}
-
-/**
- * @param {number} status
- * @param {string} code
- * @returns {{ status: number, type: string, body: unknown, headers?: Record<string, string> }}
- */
-function problem(status, code) {
-  return { status, type: 'application/problem+json', body: { type: 'about:blank', title: code, status, code, traceId: '0'.repeat(32) } };
-}
-
-/**
- * A session of the contract `MobileSession`, with padded test words for the tokens.
- * @param {number} n
- * @param {boolean} withSecret
- */
-export function sessionBody(n, withSecret) {
-  const now = Date.now();
-  return {
-    deviceId: E2E_DEVICE_ID,
-    ...(withSecret ? { installationSecret: `e2e-installation-${String(n)}`.padEnd(43, 's') } : {}),
-    accessToken: `e2e-access-${String(n)}`.padEnd(40, '-'),
-    accessTokenExpiresAt: new Date(now + 15 * 60_000).toISOString(),
-    refreshToken: `e2e-refresh-${String(n)}`.padEnd(40, '-'),
-    refreshTokenExpiresAt: new Date(now + 14 * 86_400_000).toISOString(),
-    serverTime: new Date(now).toISOString(),
-    user: E2E_USER,
-  };
-}
-
-/**
- * The answer of one sign-in operation in the given mode (order of errors of EVM-094: version → limit → password → code → role).
- * @param {string} path
- * @param {unknown} body
- * @param {AuthMode} auth
- * @param {number} n serial number of the issued session
- * @returns {{ status: number, type: string, body: unknown, headers?: Record<string, string> }}
- */
-export function authAnswer(path, body, auth, n) {
-  const fields = /** @type {Record<string, unknown>} */ (typeof body === 'object' && body !== null ? body : {});
-  if (path === '/api/v1/auth/mobile/logout') return { status: 204, type: 'application/json', body: null };
-  if (path === '/api/v1/auth/mobile/token') {
-    if (auth === 'session_revoked' || auth === 'device_wipe_required') return problem(401, auth);
-    return { status: 200, type: 'application/json', body: sessionBody(n, false) };
-  }
-  if (auth === 'version_unsupported') return problem(426, 'client_version_unsupported');
-  if (auth === 'rate_limited') return { ...problem(429, 'too_many_requests'), headers: { 'Retry-After': '230' } };
-  if (path === '/api/v1/auth/mobile/login') {
-    if (fields['email'] !== E2E_ACCOUNT.email || fields['password'] !== E2E_ACCOUNT.password) return problem(401, 'invalid_credentials');
-    return {
-      status: 200,
-      type: 'application/json',
-      body: {
-        challengeToken: `e2e-challenge-${String(n)}`.padEnd(43, 'c'),
-        challengeExpiresAt: new Date(Date.now() + 300_000).toISOString(),
-      },
-    };
-  }
-  if (fields['code'] !== E2E_ACCOUNT.code) return problem(401, 'invalid_credentials');
-  if (auth === 'channel_not_allowed') return problem(403, 'channel_not_allowed');
-  return { status: 200, type: 'application/json', body: sessionBody(n, true) };
-}
+/** Re-exported so that the existing importers keep working. */
+export { authAnswer, E2E_ACCOUNT, healthAnswer, OK_MINIMUM, sessionBody, UPDATE_MINIMUM };
 
 const AUTH_PATHS = [
   '/api/v1/auth/mobile/login',
@@ -115,19 +35,35 @@ const AUTH_PATHS = [
 ];
 
 /**
- * @param {{ port?: number, onRequest?: (request: RecordedRequest) => void, onSync?: (report: import('./sync-stub.mjs').SyncReport) => void }} [options] port 0 = a free port; onRequest sees every recorded request
- * @returns {Promise<{ port: number, setMode: (mode: StubMode, auth?: AuthMode) => void, setSyncModes: (modes: Partial<import('./sync-stub.mjs').SyncModes>) => void, requests: () => RecordedRequest[], syncReport: () => import('./sync-stub.mjs').SyncReport, syncReset: () => void, close: () => Promise<void> }>}
+ * @param {{ port?: number, uploadControlPort?: number, onRequest?: (request: RecordedRequest) => void, onSync?: (report: import('./sync-stub.mjs').SyncReport) => void }} [options] port 0 = a free port; uploadControlPort 0 = a free port of the control listener of the upload part; onRequest sees every recorded request
+ * @returns {Promise<{ port: number, uploadControlPort?: number, setMode: (mode: StubMode, auth?: AuthMode) => void, setSyncModes: (modes: Partial<import('./sync-stub.mjs').SyncModes>) => void, requests: () => RecordedRequest[], syncReport: () => import('./sync-stub.mjs').SyncReport, syncReset: () => void, close: () => Promise<void> }>}
  */
-export async function startStubApi({ port = 0, onRequest, onSync } = {}) {
+export async function startStubApi({ port = 0, uploadControlPort = 0, onRequest, onSync } = {}) {
+  // EVM-130: the upload part (the five operations of the session, the parts, the sign-in while the host has it on) is served on the same port,
+  // because the app knows one address; the host steers it through its own control port (loopback only). The glue lets `applied` of the command
+  // `CreateMediaAsset` register the asset there and every change of its file state reach the replica of the phone.
+  /** @type {ReturnType<typeof createMediaGlue> | undefined} */
+  let media;
+  const upload = createUploadStub({
+    partSize: E2E_PART_SIZE,
+    onAssetState: (assetId, state, reason) => {
+      media?.fileStateChanged(assetId, state, reason);
+    },
+  });
   /** @type {StubMode} */
   let mode = 'ok';
   /** @type {AuthMode} */
   let auth = 'ok';
   let issued = 0;
   const sync = createSyncStub();
+  media = createMediaGlue(upload, sync);
   /** @type {RecordedRequest[]} */
   const recorded = [];
   const server = createServer((request, response) => {
+    if (upload.claims(request.method, new URL(request.url ?? '/', 'http://stub.local').pathname)) {
+      upload.handleApp(request, response);
+      return;
+    }
     const isHealth = request.method === 'GET' && request.url === '/api/health';
     const isAuth = request.method === 'POST' && AUTH_PATHS.includes(request.url ?? '');
     const target = new URL(request.url ?? '/', 'http://stub.local');
@@ -158,6 +94,7 @@ export async function startStubApi({ port = 0, onRequest, onSync } = {}) {
             : bytes > MAX_SYNC_BODY
               ? problem(413, 'payload_too_large')
               : (sync.handle(request.method ?? 'GET', target.pathname, target.searchParams, parsed, bearer) ?? problem(404, 'not_found'));
+        if (target.pathname === '/api/v1/sync/mutations') media.mutationsAnswered(parsed, answer.body);
         response.writeHead(answer.status, { 'Content-Type': answer.type, 'Cache-Control': 'no-store' });
         response.end(JSON.stringify(answer.body));
         onSync?.(sync.report());
@@ -211,8 +148,12 @@ export async function startStubApi({ port = 0, onRequest, onSync } = {}) {
   });
   const address = server.address();
   if (address === null || typeof address === 'string') throw new Error('the scenario server has no TCP address');
+  upload.setPort(address.port);
+  const controlServer = createControlServer(upload);
+  await listenOnLoopback(controlServer, uploadControlPort);
   return {
     port: address.port,
+    uploadControlPort: portOf(controlServer),
     setMode: (next, nextAuth = 'ok') => {
       mode = next;
       auth = nextAuth;
@@ -227,12 +168,14 @@ export async function startStubApi({ port = 0, onRequest, onSync } = {}) {
     syncReset: () => {
       sync.reset();
     },
-    close: () =>
-      new Promise((resolve) => {
+    close: async () => {
+      await closeServers([controlServer]);
+      await new Promise((resolve) => {
         server.close(() => {
-          resolve();
+          resolve(undefined);
         });
         server.closeAllConnections();
-      }),
+      });
+    },
   };
 }

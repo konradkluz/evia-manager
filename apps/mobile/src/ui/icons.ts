@@ -3,6 +3,7 @@
  * into the JavaScript bundle (Metro does not tree-shake), and every icon is a visible, reviewed decision.
  */
 export { default as Ban } from 'lucide-react-native/icons/ban';
+export { default as BellOff } from 'lucide-react-native/icons/bell-off';
 export { default as Camera } from 'lucide-react-native/icons/camera';
 export { default as ClipboardList } from 'lucide-react-native/icons/clipboard-list';
 export { default as CircleAlert } from 'lucide-react-native/icons/circle-alert';

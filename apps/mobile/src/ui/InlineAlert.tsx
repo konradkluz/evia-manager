@@ -5,7 +5,7 @@ import { Icon } from './Icon';
 import { CircleAlert, WifiOff } from './icons';
 import { borderWidth, color, radius, space, text } from './theme';
 
-export type AlertTone = 'error' | 'info';
+export type AlertTone = 'error' | 'warning' | 'info';
 
 export interface InlineAlertProps {
   tone: AlertTone;
@@ -20,7 +20,7 @@ export interface InlineAlertProps {
 }
 
 /**
- * Alert / banner (styleguide § 3.19): tone colours, tone icon, a left bar. Only errors are `role="alert"`; other tones are polite
+ * Alert / banner (styleguide § 3.19; `warning` for a state the user can fix, e.g. notifications off): tone colours, tone icon, a left bar. Only errors are `role="alert"`; other tones are polite
  * live regions (announced once when they appear, no spam).
  */
 export function InlineAlert({ tone, title, body, code, action, icon, testID }: InlineAlertProps) {
@@ -40,7 +40,7 @@ export function InlineAlert({ tone, title, body, code, action, icon, testID }: I
         borderRadius: radius.control,
       }}
     >
-      <Icon icon={icon ?? (tone === 'error' ? CircleAlert : WifiOff)} color={tokens.icon} />
+      <Icon icon={icon ?? (tone === 'info' ? WifiOff : CircleAlert)} color={tokens.icon} />
       <View style={{ flex: 1, rowGap: space.stack.xs }}>
         {title === undefined ? null : <Text style={{ ...text.heading4, color: tokens.text }}>{title}</Text>}
         <Text style={{ ...text.body, color: color.text.primary }}>{body}</Text>

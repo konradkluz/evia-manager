@@ -11,6 +11,8 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { MessageChannel, receiveMessageOnPort, Worker } from 'node:worker_threads';
 
+const CONTROL_ATTEMPTS = 3;
+const CONTROL_RETRY_MS = 300;
 const MAX_OUTPUT = 64 * 1024 * 1024;
 const FILE_SYSTEM_KEY = String.raw`HKLM\SYSTEM\CurrentControlSet\Control\FileSystem`;
 
@@ -19,9 +21,17 @@ const FILE_SYSTEM_KEY = String.raw`HKLM\SYSTEM\CurrentControlSet\Control\FileSys
  * Requests come back on a channel read with receiveMessageOnPort, which works synchronously.
  * @param {number} port
  * @param {URL} [workerUrl] the worker module; tests pass a fixture that ends early
+ * @param {(line: string) => void} [log] where the failure of the worker thread is reported (EVM-130: a dead scenario server must not be silent)
  * @returns {Promise<import('./stub-api.mjs').StubApi>}
  */
-export async function startStubInWorker(port, workerUrl = new URL('./stub-worker.mjs', import.meta.url)) {
+export async function startStubInWorker(
+  port,
+  workerUrl = new URL('./stub-worker.mjs', import.meta.url),
+  log = (line) => {
+    process.stdout.write(`${line}
+`);
+  },
+) {
   const { port1, port2 } = new MessageChannel();
   const worker = new Worker(workerUrl, { workerData: { port, channel: port2 }, transferList: [port2] });
   /** @type {import('./stub-api.mjs').RecordedRequest[]} */
@@ -45,23 +55,31 @@ export async function startStubInWorker(port, workerUrl = new URL('./stub-worker
     }
   };
   let exited = false;
-  worker.on('exit', () => {
+  // after the port was reported the rejection below is already settled, so without this listener a dying server leaves no trace at all
+  worker.on('error', (/** @type {Error} */ error) => {
+    log(`STUB: the scenario server thread failed: ${error.stack ?? error.message}`);
+  });
+  worker.on('exit', (/** @type {number} */ code) => {
+    if (!exited && code !== 0) log(`STUB: the scenario server thread ended (exit code ${String(code)})`);
     exited = true;
     drain();
     port1.close();
   });
-  /** @type {Promise<number>} */
+  /** @type {Promise<{ port: number, uploadControlPort?: number }>} */
   const listening = new Promise((resolve, reject) => {
-    worker.once('message', (/** @type {{ port: number }} */ message) => {
-      resolve(message.port);
+    worker.once('message', (/** @type {{ port: number, uploadControlPort?: number }} */ message) => {
+      resolve(message);
     });
     worker.once('error', reject);
     worker.once('exit', () => {
       reject(new Error('stub worker exited'));
     });
   });
+  const { port: listeningPort, uploadControlPort } = await listening;
   return {
-    port: await listening,
+    port: listeningPort,
+    // EVM-130: the control port of the upload part of the server (host only, loopback); absent when the worker has none
+    ...(uploadControlPort === undefined ? {} : { uploadControlPort }),
     setMode: (mode, auth = 'ok') => {
       worker.postMessage({ mode, auth });
     },
@@ -94,6 +112,44 @@ export async function startStubInWorker(port, workerUrl = new URL('./stub-worker
         worker.postMessage({ close: true });
       }),
   };
+}
+
+/**
+ * One JSON request to the control port of the scenario server (EVM-130): the host only, the loopback only — any other address is refused.
+ * @param {string} method
+ * @param {string} url
+ * @param {unknown} [body]
+ * @returns {Promise<{ status: number, body: unknown } | null>} null when the server does not answer
+ */
+export async function httpJson(method, url, body) {
+  if (new URL(url).hostname !== '127.0.0.1') throw new Error('the control port is reached on the loopback only');
+  // EVM-130: a control call right after a long synchronous child process (Maestro) may meet a connection the server closed meanwhile
+  // ("other side closed"); the call is idempotent for the host's purposes, so a few attempts are made and each failure is named
+  for (let attempt = 1; attempt <= CONTROL_ATTEMPTS; attempt += 1) {
+    try {
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        signal: AbortSignal.timeout(10_000),
+      });
+      const text = await response.text();
+      /** @type {unknown} */
+      let parsed = null;
+      try {
+        parsed = text === '' ? null : JSON.parse(text);
+      } catch {
+        parsed = null;
+      }
+      return { status: response.status, body: parsed };
+    } catch (error) {
+      const cause = /** @type {{ cause?: { code?: string } }} */ (error).cause?.code ?? (error instanceof Error ? error.name : 'error');
+      process.stdout.write(`CONTROL: ${method} ${new URL(url).pathname} attempt ${String(attempt)} failed (${cause})
+`);
+      if (attempt < CONTROL_ATTEMPTS) await new Promise((resolve) => setTimeout(resolve, CONTROL_RETRY_MS));
+    }
+  }
+  return null;
 }
 
 /**
@@ -193,6 +249,7 @@ export function realHost(repoRoot) {
     resolveExpoCli: (directory) => createRequire(join(directory, 'package.json')).resolve('expo/bin/cli'),
     readAppVersion: (directory) => parseAppVersion(readFileSync(join(directory, 'plugins', 'expo-config.ts'), 'utf8')),
     startStub: startStubInWorker,
+    httpJson,
     log: (line) => {
       process.stdout.write(`${line}\n`);
     },

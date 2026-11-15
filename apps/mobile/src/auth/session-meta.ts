@@ -16,6 +16,11 @@ export interface SessionMeta {
   readonly started: ContactRecord;
   /** Checkpoint at the last successful sign-in or refresh. */
   readonly lastContact: ContactRecord;
+  /**
+   * Written BEFORE the module signs out: the user confirmed the sign-out. A start that finds it (the process died after the module
+   * signed out, before the replica was removed) finishes the sign-out instead of treating the record as an update leftover.
+   */
+  readonly ending?: true;
 }
 
 const ROLES: readonly UserRole[] = ['administrator', 'editor', 'read_only'];
@@ -32,6 +37,11 @@ export function checkpoint(serverTime: number, clock: SessionClock): ContactReco
     carried: 0,
     maxObservedWall: wall,
   };
+}
+
+/** A checkpoint of a contact that happened at a known time of the phone (the contact of the native side, EVM-130). */
+export function contactAt(serverTime: number, wall: number, mono: number, bootId: string): ContactRecord {
+  return { v: 1, serverTime, offset: serverTime - wall, bootId, mono, wall, carried: 0, maxObservedWall: wall };
 }
 
 export function parseSessionMeta(text: string | null): SessionMeta | null {
@@ -51,7 +61,7 @@ export function parseSessionMeta(text: string | null): SessionMeta | null {
   if (typeof displayName !== 'string' || displayName.length > 200) return null;
   const knownRole = ROLES.find((candidate) => candidate === role);
   if (knownRole === undefined || started === null || lastContact === null) return null;
-  return { v: 1, userId, displayName, role: knownRole, started, lastContact };
+  return { v: 1, userId, displayName, role: knownRole, started, lastContact, ...(r['ending'] === true ? { ending: true as const } : {}) };
 }
 
 const DAY_MS = 86_400_000;

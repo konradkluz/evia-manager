@@ -357,3 +357,44 @@ describe('templates and quick work orders of the scenario server (EVM-106)', () 
     }
   });
 });
+
+/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return -- the pages and answers are parsed JSON read by the assertions */
+describe('sync part of the scenario server: media (EVM-130 stage C, AC1)', () => {
+  it('EVM-130 AC1: the command CreateMediaAsset is accepted once (applied, then duplicate) like the other types', () => {
+    const stub = createSyncStub();
+    const body = {
+      pendingItems: 1,
+      mutations: [
+        {
+          mutationId: A,
+          type: 'CreateMediaAsset',
+          commandVersion: 1,
+          payload: { id: B, workOrderId: '30000000-0000-4000-8000-000000000001', mediaType: 'photo', category: 'other' },
+        },
+      ],
+    };
+    const results = (/** @type {unknown} */ answer) => /** @type {any} */ (answer).body.results;
+    assert.deepEqual(results(post(stub, body)), [{ mutationId: A, outcome: 'applied' }]);
+    assert.deepEqual(results(post(stub, body)), [{ mutationId: A, outcome: 'duplicate' }]);
+    assert.deepEqual(stub.report().unique, 1);
+    assert.equal(stub.report().duplicates, 1);
+  });
+
+  it('EVM-130 AC4: changes pushed by the server go out with the next page after the snapshot, once; reset forgets them', () => {
+    const stub = createSyncStub();
+    const change = { op: 'upsert', entity: { type: 'media_asset', id: A, version: 2 } };
+    stub.pushChanges([change]);
+    const page = (/** @type {string | null} */ cursor) =>
+      /** @type {any} */ (
+        stub.handle('GET', '/api/v1/sync/changes', cursor === null ? none : new URLSearchParams({ cursor }), null, true)?.body
+      );
+    // the snapshot does not carry them; the first page of changes does, and they are not repeated
+    assert.equal(page(null).phase, 'snapshot');
+    const first = page('e2e-cursor-after-snapshot-0001');
+    assert.deepEqual(first.changes, [change]);
+    assert.deepEqual(page(first.cursor).changes, []);
+    stub.pushChanges([change]);
+    stub.reset();
+    assert.deepEqual(page('e2e-cursor-after-snapshot-0001').changes, []);
+  });
+});

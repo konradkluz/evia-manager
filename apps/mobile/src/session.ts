@@ -4,9 +4,11 @@
  */
 import { createUuidV7 } from '@evia/sync-core';
 import { Linking } from 'react-native';
+import { loadEviaUpload, type EviaUploadModule } from '../modules/evia-upload/src';
 import { createHttpAuthClient } from './api/auth-client';
 import { clientHeaders } from './api/health';
 import { systemClock } from './auth/clock';
+import { nativeSessionOf } from './auth/native-session';
 import type { AuthClient } from './auth/ports';
 import { MobileSessionOwner } from './auth/session-owner';
 import { readBuildNumber, readRuntimeConfig, type RuntimeConfig } from './config';
@@ -33,6 +35,9 @@ import { localData, randomSource } from './storage';
 import { createHttpSyncTransport } from './sync/http-transport';
 import { SyncHost } from './sync/sync-host';
 import { SyncService } from './sync/sync-service';
+import { MediaUploads } from './upload/media-uploads';
+import { nativeUploadOf } from './upload/native-upload';
+import { reconcileOnSyncChange } from './upload/reconcile-trigger';
 
 /** Fixed path of the password reset of the panel (apps/web `LOGIN_RESET_PATH`); no part of it comes from input (security W9). */
 export const PASSWORD_RESET_PATH = '/login/reset';
@@ -61,9 +66,20 @@ const NO_SYNC_TRANSPORT = {
 };
 
 let makeId: (() => string) | undefined;
+/** The queue of files of the session, for the e2e hook that adds a synthetic file (`src/e2e-hooks/panel.tsx`); screens use `ports.media`. */
+let mediaUploads: MediaUploads | null = null;
 
-export function createSessionPorts(config: RuntimeConfig | null = readRuntimeConfig()): SessionPorts {
+export function createSessionPorts(
+  config: RuntimeConfig | null = readRuntimeConfig(),
+  /** The native module of the tokens and the upload (EVM-130); `null` where it does not exist (Jest): no sign-in, no upload. */
+  module: EviaUploadModule | null = loadEviaUpload(),
+): SessionPorts {
   const host = localData();
+  const nativeSession = nativeSessionOf(module);
+  const nativeUpload = nativeUploadOf(module);
+  // the refresh token and the pending revocation of older versions are deleted at every start WITHOUT being read (EVM-130 AC3):
+  // the user signs in once more, the queue and the local data stay
+  void tokenStore.purgeLegacyTokens().catch(() => undefined);
   const client =
     config === null
       ? NO_API
@@ -81,7 +97,7 @@ export function createSessionPorts(config: RuntimeConfig | null = readRuntimeCon
   const companyWipe = new CompanyDataWipe({ host, client, now: Date.now, diagnostics: logDiagnostic });
   // the 7-day rule reads the boot clock (counts the phone's sleep), shifted like the session clock in the e2e variant (EVM-101 AC2)
   const contactClock = overrideSessionClock(createContactClock(), deviceOverrides);
-  const owner = new MobileSessionOwner({ client, tokens: tokenStore, host, wipe: companyWipe, clock, contactClock });
+  const owner = new MobileSessionOwner({ client, tokens: tokenStore, native: nativeSession, host, wipe: companyWipe, clock, contactClock });
   const guard = new DeviceGuard({
     deviceLock,
     boot: overrideBootClock(createBootClock(), deviceOverrides),
@@ -95,6 +111,15 @@ export function createSessionPorts(config: RuntimeConfig | null = readRuntimeCon
     now: Date.now,
     diagnostics: logDiagnostic,
   });
+  // EVM-130 AC5: the FIRST step of the wipe is one native call (marker → cancel the jobs → files → the token store); `false` = something
+  // is left and the step is repeated (also at the next start) before anything else is deleted
+  host.registerWipeStep(
+    'native_uploads',
+    async () => {
+      if (!(await nativeUpload.wipeUploads())) throw new Error('native wipe unfinished');
+    },
+    { first: true },
+  );
   const clipboard = createSensitiveClipboard();
   // EVM-107: one synchronization service per session; the owner stops it (and the clipboard copy goes) BEFORE it removes the replica
   const sync = new SyncHost(
@@ -123,6 +148,21 @@ export function createSessionPorts(config: RuntimeConfig | null = readRuntimeCon
       }),
     () => owner.syncStore(),
   );
+  // EVM-130: the files of the queue — armed after `applied`, confirmed by the replica, shown in the Queue
+  const media = new MediaUploads({
+    native: nativeUpload,
+    store: () => owner.syncStore(),
+    enqueue: (input) => sync.enqueue(input),
+    now: Date.now,
+    dataVisible: () => guard.getSnapshot().hidden === null,
+    onNativeEvent: () => {
+      void owner.mergeNativeContact();
+    },
+  });
+  media.start();
+  mediaUploads = media;
+  // a session starts, a cycle ends, something settles or the replica changes: the rows are reconciled again (single-flight)
+  reconcileOnSyncChange(sync, media);
   owner.onBeforeSessionEnd(() => {
     sync.stop();
     clipboard.clear();
@@ -140,6 +180,10 @@ export function createSessionPorts(config: RuntimeConfig | null = readRuntimeCon
   guard.onForeground(() => {
     void companyWipe.resume();
     sync.foreground();
+    // the module may have stopped the session in the background and made contacts; the files are armed and confirmed again
+    void owner.reconcileNative();
+    void owner.mergeNativeContact();
+    void media.refresh();
   });
   void companyWipe.resume();
   return {
@@ -152,6 +196,7 @@ export function createSessionPorts(config: RuntimeConfig | null = readRuntimeCon
     // the ids of entries written on the phone: UUIDv7 from the CSPRNG of the storage module, never a non-cryptographic generator (SR-SYNC-03)
     newId: () => (makeId ??= createUuidV7({ now: Date.now }, randomSource()))(),
     sync,
+    media,
     copyToClipboard: (text) => clipboard.copy(text),
     unsentBeforeSignIn: () => host.unsentItemCountBeforeSignIn(),
     openForgotPassword: () => {
@@ -161,6 +206,12 @@ export function createSessionPorts(config: RuntimeConfig | null = readRuntimeCon
     privacyHelp: { build: readBuildNumber(), contact: readContact(), openUrl: (url) => Linking.openURL(url) },
     appVersion: config?.appVersion ?? 'unknown',
   };
+}
+
+/** The queue of files of the process (for the e2e hook only; `null` before the session ports exist). */
+export function sessionMediaUploads(): Pick<MediaUploads, 'add'> | null {
+  sessionPorts();
+  return mediaUploads;
 }
 
 let ports: SessionPorts | undefined;

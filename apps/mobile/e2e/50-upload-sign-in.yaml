@@ -1,0 +1,13 @@
+# EVM-130 AC1 (preparation of every upload scenario): a fresh install signs in against the scenario server (its upload part serves the sign-in
+# of these scenarios); the first download ends on the list. The security banner of the emulator ("Rozumiem") may come over the screen.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    clearState: true
+- runFlow: common/sign-in.yaml
+- extendedWaitUntil:
+    visible: 'ZL-E2E-1'
+    timeout: 60000
+- tapOn:
+    text: 'Rozumiem'
+    optional: true

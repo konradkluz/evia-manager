@@ -9,6 +9,7 @@ import type { DeviceCheck, SessionControl, SessionStep } from '../auth/session-o
 import type { DeviceGuard } from '../device-guard/device-guard';
 import { useStartup } from '../startup';
 import type { QueueItem, SyncRuntime } from '../sync/types';
+import type { MediaControl } from '../upload/types';
 import { DeviceStateScreen, QueuePreviewScreen, type DeviceStateVariant } from './DeviceStateScreen';
 import { LocalDataLostScreen } from './LocalDataScreens';
 import { LoginScreen, useOfflineRecheck } from './LoginScreen';
@@ -48,6 +49,8 @@ export interface SessionPorts {
   readonly newId: () => string;
   /** The synchronization of the session (EVM-107): the service is started here after the sign-in and stopped when it ends. */
   readonly sync: SyncRuntime;
+  /** The files of the queue (EVM-130): the module's upload, the consent for notifications, the target of a notification. */
+  readonly media: MediaControl;
   /** The sensitive clipboard (marked, removed after 60 s); `false` = not copied. */
   readonly copyToClipboard: (text: string) => boolean;
   /** "Utwórz ponownie": opens the form of the quick work order (M-10) once it exists; without it the entry is created again at once. */
@@ -139,6 +142,19 @@ export function SessionRoot({ ports, children }: { ports: SessionPorts; children
         else if (reason === 'forbidden') setView({ kind: 'state', variant: 'channel_not_allowed', unsent, fromSignIn: false });
       }),
     [sync],
+  );
+
+  // The module of the tokens may have stopped the session while the app was dead or in the background (EVM-130 AC5): the state is
+  // compared once the session is shown (start); a `426` it met (paused_update) is the same screen as the one the synchronization shows.
+  useEffect(() => {
+    if (view.kind === 'signedIn') void owner.reconcileNative();
+  }, [view.kind, owner]);
+  useEffect(
+    () =>
+      owner.onUpdateRequired(() => {
+        setView({ kind: 'state', variant: 'client_version_unsupported', unsent: sync.getSnapshot().counts.unsent, fromSignIn: false });
+      }),
+    [owner, sync],
   );
 
   const afterStep = useCallback(
@@ -274,6 +290,7 @@ export function SessionRoot({ ports, children }: { ports: SessionPorts; children
       guard,
       queueEntries: (withLabels) => owner.queueEntries(withLabels),
       sync,
+      media: ports.media,
       copyToClipboard: ports.copyToClipboard,
       openRecreate:
         ports.openRecreate ??

@@ -2,6 +2,10 @@
 
 Pakiet z EVM-091 (ADR-0007, `docs/architecture/offline-sync.md`: zasady 1, 2, 5 i „Wysyłanie”). Czysty TypeScript za portami: bez zależności uruchomieniowych, bez React Native, bez `node:*`, bez `Buffer`, `process`, `setImmediate`, timerów i `Math.random` (egzekwuje to ESLint `portableCore()` w `@evia/config` oraz reguła `sync-core-portable` w `deps:check`). Nie importuje `@evia/contracts`; zgodność z kontraktem sprawdza test w `test/` (devDependency tylko dla testów).
 
+## Upload plików — model referencyjny (EVM-109)
+
+Osobne wejście `@evia/sync-core/upload` (`src/upload/`): wykonywalna specyfikacja pętli wysyłania plików (planowanie części, wznawianie z `ListParts`, `complete` idempotentny, mapowanie odpowiedzi serwera na stany, backoff, polityka adresu części). Na telefonie tę samą logikę wykonuje silnik w Kotlinie (`apps/mobile/modules/evia-upload/engine`); oba czytają wspólne wektory `conformance/upload/` (`README.md` tam), a rozjazd daje czerwony test po jednej ze stron. Nie zależy od kolejki mutacji (`util` i `uuidv7` ewentualnie).
+
 ## Zasada
 
 Wszystko, co technik zapisze, trafia do kolejki **przed** potwierdzeniem; mutacja znika dopiero po jawnym wyniku `applied` lub `duplicate` z pasującym `mutationId` (semantyka at-least-once, idempotencja po stronie serwera). Brak wyniku, nieznany wynik albo błąd nigdy niczego nie usuwa.

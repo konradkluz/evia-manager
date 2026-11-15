@@ -632,12 +632,16 @@ export class SyncService implements SyncControl {
     return Math.max(0, seen.size - 1);
   }
 
-  async #op(task: () => Promise<{ dependents?: number } | undefined>): Promise<AttentionResult> {
+  async #op(task: () => Promise<{ dependents?: number; mutationId?: string } | undefined>): Promise<AttentionResult> {
     try {
       const result = await task();
       await this.#refreshCounts();
       this.trigger('queue');
-      return { ok: true, ...(result?.dependents === undefined ? {} : { dependents: result.dependents }) };
+      return {
+        ok: true,
+        ...(result?.dependents === undefined ? {} : { dependents: result.dependents }),
+        ...(result?.mutationId === undefined ? {} : { mutationId: result.mutationId }),
+      };
     } catch (error) {
       // a typed error of the core carries a fixed code and never data
       return { ok: false, code: error instanceof QueueError ? error.code : 'storage_failure' };
@@ -646,8 +650,8 @@ export class SyncService implements SyncControl {
 
   enqueue(input: EnqueueInput): Promise<AttentionResult> {
     return this.#op(async () => {
-      await this.#core.queue.enqueue(input);
-      return undefined;
+      const record = await this.#core.queue.enqueue(input);
+      return { mutationId: record.mutationId };
     });
   }
 

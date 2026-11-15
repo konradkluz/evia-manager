@@ -1,0 +1,18 @@
+# EVM-130 AC4: "Ponów" hands the same file to the system again (the scenario server no longer forces the checksum error): the file goes
+# through and the row ends as "Wysłano".
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- tapOn:
+    id: 'nav-queue'
+- tapOn:
+    id: 'file-retry-.*'
+- extendedWaitUntil:
+    visible: 'Plik, Wysłano'
+    timeout: 120000
+- assertNotVisible: 'Plik, Nie wysłano — plik uszkodzony w transmisji'
+- takeScreenshot: u130-retried

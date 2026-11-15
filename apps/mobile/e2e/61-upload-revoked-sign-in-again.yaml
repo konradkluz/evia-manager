@@ -1,0 +1,21 @@
+# EVM-130 AC5: after the full sign-in of the same user the paused transfer resumes (the scenario server no longer revokes the session) and the
+# file ends as "Wysłano" - nothing was lost while the phone was signed out.
+appId: pl.eviacharge.manager
+---
+- runFlow: common/sign-in.yaml
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'nav-queue'
+    timeout: 60000
+- tapOn:
+    id: 'nav-queue'
+- extendedWaitUntil:
+    visible: 'Plik, Wysłano'
+    timeout: 240000
+- assertVisible:
+    id: 'files-summary'
+    text: 'Wysłano 1 z 1 · 0 w kolejce'
+- takeScreenshot: u130-resumed-after-sign-in

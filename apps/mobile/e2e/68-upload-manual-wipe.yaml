@@ -1,0 +1,35 @@
+# EVM-130 AC5: the technician chooses "Wyczyść dane firmowe" in "Więcej" while a file is being sent and confirms: the app leaves the signed-in
+# state. tools/mobile-e2e then proves with the system that no job is registered, that no job file, original or token file is left, and that
+# the log holds no token and no signed address (the native step E11 ran before the confirmation to the server).
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- tapOn:
+    id: 'nav-more'
+- scrollUntilVisible:
+    element:
+      id: 'more-wipe'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'more-wipe'
+- extendedWaitUntil:
+    visible:
+      id: 'wipe-dialog'
+    timeout: 10000
+- tapOn:
+    id: 'wipe-confirm'
+# the app leaves the signed-in state on the terminal screen "Wylogowano" (stage signedOut) whose button leads to the sign-in form
+- extendedWaitUntil:
+    visible: 'Wylogowano'
+    timeout: 90000
+- tapOn: 'Zaloguj się'
+- extendedWaitUntil:
+    visible:
+      id: 'login-email'
+    timeout: 30000
+- takeScreenshot: u130-wiped-by-technician

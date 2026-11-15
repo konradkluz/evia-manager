@@ -42,4 +42,10 @@ describe('Vitest preset (EVM-006 AC3)', () => {
     expect(file).toMatchObject({ web: COVERAGE_THRESHOLDS.web, mobile: COVERAGE_THRESHOLDS.mobile });
     expect(COVERAGE_THRESHOLDS.mobile).toBeGreaterThanOrEqual(80);
   });
+
+  it('EVM-109 AC7: the file has the layer "engine" (95, the pure Kotlin upload engine measured by Kover); only Gradle reads it, the Vitest preset keeps its five layers', () => {
+    const file = JSON.parse(readFileSync(new URL('../coverage-thresholds.json', import.meta.url), 'utf8')) as Record<string, unknown>;
+    expect(file['engine']).toBe(95);
+    expect(Object.keys(COVERAGE_THRESHOLDS)).toEqual(['shared', 'backend', 'web', 'mobile', 'sync']);
+  });
 });

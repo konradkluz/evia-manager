@@ -1,0 +1,163 @@
+{
+  "$comment": "EVM-109 AC4 (AC2): mapping of what the server or the network returned onto the outcome of the engine. Three kinds of input: http (status, code), fileState (state and reasonCode after complete) and network. Codes: contract packages/contracts/openapi (session_revoked, device_wipe_required, client_version_unsupported, id_conflict, invalid_state_transition, checksum_mismatch, validation_failed on createSession = the declaration of the file was refused: declaration_rejected). Unknown code gives needs_attention(unknown).",
+  "cases": [
+    {
+      "id": "M01-session-revoked",
+      "input": { "kind": "http", "status": 401, "code": "session_revoked" },
+      "expected": { "type": "paused_revoked" }
+    },
+    {
+      "id": "M02-device-wipe",
+      "input": { "kind": "http", "status": 401, "code": "device_wipe_required" },
+      "expected": { "type": "device_wipe" }
+    },
+    {
+      "id": "M03-401-other-code",
+      "input": { "kind": "http", "status": 401, "code": "unauthenticated" },
+      "expected": { "type": "needs_attention", "reason": "unknown" }
+    },
+    { "id": "M04-401-no-code", "input": { "kind": "http", "status": 401 }, "expected": { "type": "needs_attention", "reason": "unknown" } },
+    {
+      "id": "M05-version-unsupported",
+      "input": { "kind": "http", "status": 426, "code": "client_version_unsupported" },
+      "expected": { "type": "paused_update" }
+    },
+    { "id": "M06-426-no-code", "input": { "kind": "http", "status": 426 }, "expected": { "type": "paused_update" } },
+    {
+      "id": "M07-id-conflict",
+      "input": { "kind": "http", "status": 409, "code": "id_conflict" },
+      "expected": { "type": "needs_attention", "reason": "id_conflict" }
+    },
+    {
+      "id": "M08-invalid-state",
+      "input": { "kind": "http", "status": 409, "code": "invalid_state_transition" },
+      "expected": { "type": "needs_attention", "reason": "invalid_state" }
+    },
+    {
+      "id": "M09-409-other",
+      "input": { "kind": "http", "status": 409, "code": "something_new" },
+      "expected": { "type": "needs_attention", "reason": "unknown" }
+    },
+    { "id": "M10-500", "input": { "kind": "http", "status": 500 }, "expected": { "type": "retry_later" } },
+    {
+      "id": "M11-503",
+      "input": { "kind": "http", "status": 503, "code": "media_storage_unavailable" },
+      "expected": { "type": "retry_later" }
+    },
+    { "id": "M12-429", "input": { "kind": "http", "status": 429, "code": "rate_limited" }, "expected": { "type": "retry_later" } },
+    {
+      "id": "M12b-429-retry-after",
+      "$comment": "EVM-130: the Retry-After of a 429 (delta-seconds) becomes the wait of the engine; the mapping carries it as delayMs.",
+      "input": { "kind": "http", "status": 429, "code": "rate_limited", "retryAfterSeconds": 7 },
+      "expected": { "type": "retry_later", "delayMs": 7000 }
+    },
+    {
+      "id": "M12c-429-retry-after-zero",
+      "input": { "kind": "http", "status": 429, "retryAfterSeconds": 0 },
+      "expected": { "type": "retry_later", "delayMs": 0 }
+    },
+    {
+      "id": "M12d-429-retry-after-capped-at-a-day",
+      "input": { "kind": "http", "status": 429, "retryAfterSeconds": 9999999 },
+      "expected": { "type": "retry_later", "delayMs": 86400000 }
+    },
+    {
+      "id": "M12e-429-retry-after-negative-is-ignored",
+      "input": { "kind": "http", "status": 429, "retryAfterSeconds": -5 },
+      "expected": { "type": "retry_later" }
+    },
+    {
+      "id": "M12f-503-retry-after-is-ignored",
+      "input": { "kind": "http", "status": 503, "retryAfterSeconds": 30 },
+      "expected": { "type": "retry_later" }
+    },
+    { "id": "M13-network", "input": { "kind": "network" }, "expected": { "type": "retry_later" } },
+    {
+      "id": "M14-400-declaration-rejected",
+      "input": { "kind": "http", "status": 400, "code": "validation_failed" },
+      "expected": { "type": "needs_attention", "reason": "declaration_rejected" }
+    },
+    {
+      "id": "M14b-400-no-code",
+      "input": { "kind": "http", "status": 400 },
+      "expected": { "type": "needs_attention", "reason": "unknown" }
+    },
+    {
+      "id": "M14c-400-other-code",
+      "input": { "kind": "http", "status": 400, "code": "unknown_field" },
+      "expected": { "type": "needs_attention", "reason": "unknown" }
+    },
+    {
+      "id": "M15-403",
+      "input": { "kind": "http", "status": 403, "code": "forbidden" },
+      "expected": { "type": "needs_attention", "reason": "unknown" }
+    },
+    { "id": "M16-418", "input": { "kind": "http", "status": 418 }, "expected": { "type": "needs_attention", "reason": "unknown" } },
+    {
+      "id": "M17-422",
+      "input": { "kind": "http", "status": 422, "code": "parts_missing" },
+      "expected": { "type": "needs_attention", "reason": "upload_incomplete" }
+    },
+    {
+      "id": "M17b-422-upload-incomplete",
+      "input": { "kind": "http", "status": 422, "code": "upload_incomplete" },
+      "expected": { "type": "needs_attention", "reason": "upload_incomplete" }
+    },
+    {
+      "id": "M17c-422-size-mismatch",
+      "input": { "kind": "http", "status": 422, "code": "size_mismatch" },
+      "expected": { "type": "needs_attention", "reason": "upload_incomplete" }
+    },
+    {
+      "id": "M17f-422-idempotency-mismatch",
+      "$comment": "EVM-130 (review of EVM-109): the contract (components/media-responses.yaml) lists idempotency_mismatch and limit_exceeded next to upload_incomplete under 422; they are not an incomplete upload.",
+      "input": { "kind": "http", "status": 422, "code": "idempotency_mismatch" },
+      "expected": { "type": "needs_attention", "reason": "unknown" }
+    },
+    {
+      "id": "M17g-422-limit-exceeded",
+      "input": { "kind": "http", "status": 422, "code": "limit_exceeded" },
+      "expected": { "type": "needs_attention", "reason": "unknown" }
+    },
+    {
+      "id": "M17d-422-other-code",
+      "input": { "kind": "http", "status": 422, "code": "validation_failed" },
+      "expected": { "type": "needs_attention", "reason": "unknown" }
+    },
+    {
+      "id": "M17e-422-no-code",
+      "input": { "kind": "http", "status": 422 },
+      "expected": { "type": "needs_attention", "reason": "unknown" }
+    },
+    { "id": "M18-state-uploaded", "input": { "kind": "fileState", "state": "uploaded" }, "expected": { "type": "uploaded" } },
+    { "id": "M19-state-scanning", "input": { "kind": "fileState", "state": "scanning" }, "expected": { "type": "uploaded" } },
+    { "id": "M20-state-clean", "input": { "kind": "fileState", "state": "clean" }, "expected": { "type": "uploaded" } },
+    { "id": "M21-state-ready", "input": { "kind": "fileState", "state": "ready" }, "expected": { "type": "uploaded" } },
+    { "id": "M22-state-processing", "input": { "kind": "fileState", "state": "processing" }, "expected": { "type": "uploaded" } },
+    {
+      "id": "M23-quarantined",
+      "input": { "kind": "fileState", "state": "quarantined" },
+      "expected": { "type": "needs_attention", "reason": "quarantined" }
+    },
+    {
+      "id": "M24-checksum-mismatch",
+      "input": { "kind": "fileState", "state": "failed", "reasonCode": "checksum_mismatch" },
+      "expected": { "type": "retry_checksum" }
+    },
+    {
+      "id": "M25-failed-other",
+      "input": { "kind": "fileState", "state": "failed" },
+      "expected": { "type": "needs_attention", "reason": "unknown" }
+    },
+    {
+      "id": "M26-still-pending",
+      "input": { "kind": "fileState", "state": "pending_upload" },
+      "expected": { "type": "needs_attention", "reason": "unknown" }
+    },
+    {
+      "id": "M27-unknown-state",
+      "input": { "kind": "fileState", "state": "teleported" },
+      "expected": { "type": "needs_attention", "reason": "unknown" }
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+# EVM-130 AC5: the scenario server answered `426` to the transfer: the job paused and the app shows the blocking update screen (the same as for
+# the synchronization). The file stays on the phone (tools/mobile-e2e checks it afterwards).
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- extendedWaitUntil:
+    visible: 'Zaktualizuj aplikację'
+    timeout: 90000
+- assertVisible: 'Ta wersja nie jest już obsługiwana. Poproś administratora o nową wersję aplikacji.'
+- assertNotVisible: 'Moje zlecenia'
+- takeScreenshot: u130-update-required

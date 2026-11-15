@@ -1,0 +1,22 @@
+# EVM-130 AC6: the app is opened WITHOUT the permission to notify (Android 13+; Maestro grants every permission unless told otherwise) while a
+# file waits in the queue: the Queue shows the banner "Powiadomienia wyłączone — nie zobaczysz, że wysyłanie się zatrzymało." with the action
+# "Włącz powiadomienia".
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+    permissions:
+      notifications: deny
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- tapOn:
+    id: 'nav-queue'
+- extendedWaitUntil:
+    visible:
+      id: 'notifications-banner'
+    timeout: 30000
+- assertVisible: 'Powiadomienia wyłączone — nie zobaczysz, że wysyłanie się zatrzymało\.'
+- assertVisible:
+    id: 'notifications-enable'
+- takeScreenshot: u130-notifications-banner

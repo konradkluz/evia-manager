@@ -12,7 +12,7 @@
  */
 
 const UUIDV7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
-const MUTATION_TYPES = ['CreateNote', 'CreateComment', 'CreateQuickWorkOrder'];
+const MUTATION_TYPES = ['CreateNote', 'CreateComment', 'CreateQuickWorkOrder', 'CreateMediaAsset'];
 const SERVER_TIME = () => new Date().toISOString();
 /** The marker of the encryption checks (EVM-093; src/device.mjs): the customer 2 carries it so that the list search can be proven (EVM-103 AC6). */
 const SENTINEL = ['EVM093', 'SENTINEL'].join('-');
@@ -353,6 +353,14 @@ export function createSyncStub() {
     /** @param {Partial<SyncModes>} next */
     setModes: (next) => {
       modes = { ...modes, ...next };
+    },
+    /**
+     * EVM-130: changes the server made on its own (the replica of a media asset follows its file state); they go out with the next changes page
+     * after the snapshot, like the numbered quick orders.
+     * @param {unknown[]} changes
+     */
+    pushChanges: (changes) => {
+      created.push(...changes);
     },
     reset: () => {
       saved = new Map();

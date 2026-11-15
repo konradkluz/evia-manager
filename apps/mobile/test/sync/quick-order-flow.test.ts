@@ -146,7 +146,7 @@ describe('quick order offline (EVM-106 AC2)', () => {
     service.setOnline(false);
     const built = quickCommand();
     // `enqueue` answered ok = the command is on disk (the form closes only now)
-    expect(await service.enqueue(built.input)).toEqual({ ok: true });
+    expect(await service.enqueue(built.input)).toMatchObject({ ok: true });
     expect(await phone.queue.readAll()).toHaveLength(1);
     expect(server.pushes).toHaveLength(0);
     const rows = await service.orderList(true);
@@ -169,7 +169,7 @@ describe('quick order offline (EVM-106 AC2)', () => {
     service.setOnline(false);
     const built = quickCommand();
     await service.enqueue(built.input);
-    expect(await service.enqueue(await noteFor(service, built.workOrderId))).toEqual({ ok: true });
+    expect(await service.enqueue(await noteFor(service, built.workOrderId))).toMatchObject({ ok: true });
     const detail = must(await service.orderDetail(built.workOrderId));
     expect(detail.journal).toHaveLength(1);
     expect(detail.journal[0]).toMatchObject({

@@ -1,5 +1,6 @@
 import type { QueueRecord, QueueStore, RecordPatch, SettledInfo } from '@evia/sync-core';
 import type { DbAccess } from './database';
+import { markMediaApplied } from './media-file-store';
 
 /** Settled results waiting for their consumer (EVM-107) are bounded: the oldest beyond this limit are dropped in the settle itself. */
 export const SETTLED_RETENTION = 500;
@@ -61,6 +62,8 @@ export class SqlQueueStore implements QueueStore {
       await tx.run('DELETE FROM queue_entries WHERE mutation_id = ?', [mutationId]);
       await tx.run('INSERT INTO settled_results (mutation_id, info) VALUES (?, ?)', [mutationId, JSON.stringify(info)]);
       await tx.run('DELETE FROM settled_results WHERE seq <= (SELECT max(seq) FROM settled_results) - ?', [SETTLED_RETENTION]);
+      // the file of a settled `CreateMediaAsset` becomes `applied` in the SAME transaction: no kill can separate the two (EVM-130 AC1)
+      await markMediaApplied(tx, mutationId, Date.now());
     });
   }
 

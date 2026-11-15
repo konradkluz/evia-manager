@@ -18,7 +18,13 @@ export default {
   testRegex: String.raw`[/\\]test[/\\].+\.test\.tsx?$`,
   setupFilesAfterEnv: ['<rootDir>/test/setup.ts'],
   // The native SQLCipher shell is excluded together with its entry in packages/config/coverage-exclusions.json (EVM-093).
-  collectCoverageFrom: ['src/**/*.{ts,tsx}', 'plugins/**/*.ts', '!**/*.d.ts', '!src/storage/expo-sqlite-driver.ts'],
+  collectCoverageFrom: [
+    'src/**/*.{ts,tsx}',
+    'plugins/**/*.ts',
+    'modules/*/src/**/*.ts',
+    '!**/*.d.ts',
+    '!src/storage/expo-sqlite-driver.ts',
+  ],
   coverageReporters: ['text', 'lcov'],
   coverageDirectory: 'coverage',
   // The first render of a worker loads react-native lazily and transforms its modules; on a cold Babel cache (a CI runner) that exceeded

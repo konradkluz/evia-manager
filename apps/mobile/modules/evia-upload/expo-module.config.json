@@ -1,0 +1,6 @@
+{
+  "platforms": ["android"],
+  "android": {
+    "modules": ["pl.eviacharge.upload.android.EviaUploadModule"]
+  }
+}

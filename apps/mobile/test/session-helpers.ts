@@ -8,6 +8,7 @@ import type { SessionControl, SessionStep } from '../src/auth/session-owner';
 import type { SessionPorts } from '../src/screens/SessionRoot';
 import { rig as guardRig, type Rig } from './device-guard/fakes';
 import { FakeSync } from './sync/fake-sync';
+import { FakeMedia } from './upload/fake-media';
 
 export interface StubOwner extends SessionControl {
   readonly calls: string[];
@@ -20,10 +21,13 @@ export interface StubOwner extends SessionControl {
   name: string | null;
   /** Sends an end of the session to the screens (as the owner does after a 401). */
   end(ended: SessionEnded): void;
+  /** The module paused the session on 426 (the update screen). */
+  requireUpdate(): void;
 }
 
 export function stubOwner(signIn: SignInClient = okSignIn()): StubOwner {
   const listeners = new Set<(ended: SessionEnded) => void>();
+  const updateListeners = new Set<() => void>();
   const owner: StubOwner = {
     calls: [],
     restoreResult: { kind: 'signed_in' },
@@ -34,6 +38,9 @@ export function stubOwner(signIn: SignInClient = okSignIn()): StubOwner {
     name: 'Piotr Testowy',
     end(ended) {
       for (const listener of listeners) listener(ended);
+    },
+    requireUpdate() {
+      for (const listener of updateListeners) listener();
     },
     restore: () => {
       owner.calls.push('restore');
@@ -59,6 +66,20 @@ export function stubOwner(signIn: SignInClient = okSignIn()): StubOwner {
     },
     flushPendingRevocation: () => {
       owner.calls.push('flush');
+      return Promise.resolve();
+    },
+    onUpdateRequired: (listener) => {
+      updateListeners.add(listener);
+      return () => {
+        updateListeners.delete(listener);
+      };
+    },
+    reconcileNative: () => {
+      owner.calls.push('reconcileNative');
+      return Promise.resolve();
+    },
+    mergeNativeContact: () => {
+      owner.calls.push('mergeNativeContact');
       return Promise.resolve();
     },
     onSessionEnded: (listener) => {
@@ -113,6 +134,7 @@ export function okSignIn(overrides: Partial<SignInClient> = {}): SignInClient {
 export interface PortsRig {
   readonly ports: SessionPorts;
   readonly sync: FakeSync;
+  readonly media: FakeMedia;
   readonly copied: string[];
   readonly owner: StubOwner;
   readonly opened: string[];
@@ -130,6 +152,7 @@ export function stubPorts(owner: StubOwner = stubOwner(), unsentBeforeSignIn: nu
   const manualWipes: { count: number; result: 'done' | 'incomplete' } = { count: 0, result: 'done' };
   const device = guardRig();
   const sync = new FakeSync();
+  const media = new FakeMedia();
   // the rows of the owner's stub, as the facade of the synchronization would return them (the label only on request)
   sync.source = (withLabels) => {
     owner.labelRequests.push(withLabels);
@@ -150,6 +173,7 @@ export function stubPorts(owner: StubOwner = stubOwner(), unsentBeforeSignIn: nu
   const copied: string[] = [];
   const ports: SessionPorts = {
     sync,
+    media,
     copyToClipboard: (text) => {
       copied.push(text);
       return true;
@@ -175,7 +199,7 @@ export function stubPorts(owner: StubOwner = stubOwner(), unsentBeforeSignIn: nu
     newId: createUuidV7({ now: Date.now }, { getRandomValues: (bytes) => (randomFillSync(bytes), bytes) }),
     appVersion: '0.4.0',
   };
-  return { ports, sync, copied, owner, opened, wipes, device, manualWipes, session: () => ports };
+  return { ports, sync, media, copied, owner, opened, wipes, device, manualWipes, session: () => ports };
 }
 
 /** A signed-in phone for the tests of the shell (EVM-009). */

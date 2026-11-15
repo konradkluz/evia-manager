@@ -1,0 +1,1903 @@
+{
+  "$comment": "EVM-109 AC4 (AC1, AC2, AC3): scenarios of the upload loop against a deterministic fake server (the same fake is written in TypeScript and in Kotlin). A scenario: `initialStore` (a persisted snapshot or nothing), `server`, `faults` (consumed in order of calls, across runs), `runs` (each run is `engine.run(assetId, size)`; `crashAt` kills the process at the n-th checkpoint of that run, the next run uses a new engine instance on the same store) and `final` (state of the fake server and the store). `calls` lists API and transport calls without addresses: createSession, listParts, partUrl:N, put:N, complete. Faults: effect `network` (no answer), `lost_response` (the server executes, the answer is lost), `http:<status>[:<code>[:<Retry-After in seconds>]]`. A run may have `resume: true` (the explicit resume of a paused job after a full sign-in of the same owner; without it a job paused by `session_revoked` is refused with `paused_revoked` and nothing is sent) and `stopAfterCalls: N` (the stop signal of the wipe marker rises after N calls of the run; 0 = from the start). Server: sessions (id, key, state active|expired|aborted|completed, parts), fileState (state of the file for a NEW session), partSize, partCount, partUrlHost, partUrlContentLength, listOverride (raw ListParts answer), createId (id returned by createSession), putEtag, omitEtag (storage answers without an ETag header), completeResult. Synthetic data only.",
+  "defaults": {
+    "assetId": "asset-1",
+    "size": 40,
+    "file": {
+      "fileName": "asset-1.jpg",
+      "contentType": "image/jpeg",
+      "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    },
+    "allowedHosts": ["store.example.test"],
+    "ids": ["sess-1", "key-1", "sess-2", "key-2"],
+    "rng": [0.5],
+    "server": {
+      "partSize": 16,
+      "fileState": "pending_upload",
+      "partUrlHost": "store.example.test",
+      "sessions": []
+    },
+    "uploadCalls": ["createSession", "listParts", "partUrl:1", "put:1", "partUrl:2", "put:2", "partUrl:3", "put:3", "complete"]
+  },
+  "scenarios": [
+    {
+      "id": "R01-fresh-upload",
+      "ac": "AC1",
+      "runs": [
+        {
+          "expect": {
+            "outcome": {
+              "type": "uploaded"
+            },
+            "calls": ["createSession", "listParts", "partUrl:1", "put:1", "partUrl:2", "put:2", "partUrl:3", "put:3", "complete"],
+            "sleeps": [],
+            "store": "uploaded"
+          }
+        }
+      ],
+      "final": {
+        "objects": 1,
+        "sessionsCreated": 1,
+        "open": 0,
+        "puts": {
+          "1": 1,
+          "2": 1,
+          "3": 1
+        },
+        "store": "uploaded"
+      }
+    },
+    {
+      "id": "R02-resume-from-listparts",
+      "ac": "AC1",
+      "initialStore": {
+        "schemaVersion": 1,
+        "assetId": "asset-1",
+        "size": 40,
+        "uploadSessionId": "sess-1",
+        "idempotencyKey": "key-1",
+        "partSize": 16,
+        "partCount": 3,
+        "completeSent": false,
+        "state": "active",
+        "etags": {
+          "1": "\"e1\""
+        }
+      },
+      "server": {
+        "sessions": [
+          {
+            "id": "sess-1",
+            "key": "key-1",
+            "state": "active",
+            "parts": [
+              {
+                "partNumber": 1,
+                "size": 16
+              },
+              {
+                "partNumber": 2,
+                "size": 16
+              }
+            ]
+          }
+        ]
+      },
+      "runs": [
+        {
+          "expect": {
+            "outcome": {
+              "type": "uploaded"
+            },
+            "calls": ["listParts", "partUrl:3", "put:3", "complete"],
+            "sleeps": [],
+            "store": "uploaded"
+          }
+        }
+      ],
+      "final": {
+        "objects": 1,
+        "sessionsCreated": 0,
+        "open": 0,
+        "puts": {
+          "3": 1
+        },
+        "store": "uploaded"
+      }
+    },
+    {
+      "id": "R03-part-with-wrong-size-is-resent",
+      "ac": "AC1",
+      "initialStore": {
+        "schemaVersion": 1,
+        "assetId": "asset-1",
+        "size": 40,
+        "uploadSessionId": "sess-1",
+        "idempotencyKey": "key-1",
+        "partSize": 16,
+        "partCount": 3,
+        "completeSent": false,
+        "state": "active",
+        "etags": {
+          "1": "\"e1\"",
+          "2": "\"e2\""
+        }
+      },
+      "server": {
+        "sessions": [
+          {
+            "id": "sess-1",
+            "key": "key-1",
+            "state": "active",
+            "parts": [
+              {
+                "partNumber": 1,
+                "size": 16
+              },
+              {
+                "partNumber": 2,
+                "size": 7
+              }
+            ]
+          }
+        ]
+      },
+      "runs": [
+        {
+          "expect": {
+            "outcome": {
+              "type": "uploaded"
+            },
+            "calls": ["listParts", "partUrl:2", "put:2", "partUrl:3", "put:3", "complete"],
+            "sleeps": [],
+            "store": "uploaded"
+          }
+        }
+      ],
+      "final": {
+        "objects": 1,
+        "sessionsCreated": 0,
+        "open": 0,
+        "puts": {
+          "2": 1,
+          "3": 1
+        },
+        "store": "uploaded"
+      }
+    },
+    {
+      "id": "R04-403-renews-only-that-part",
+      "ac": "AC1",
+      "faults": [
+        {
+          "op": "put",
+          "part": 2,
+          "effect": "http:403",
+          "times": 2
+        }
+      ],
+      "runs": [
+        {
+          "expect": {
+            "outcome": {
+              "type": "uploaded"
+            },
+            "calls": [
+              "createSession",
+              "listParts",
+              "partUrl:1",
+              "put:1",
+              "partUrl:2",
+              "put:2",
+              "partUrl:2",
+              "put:2",
+              "partUrl:2",
+              "put:2",
+              "partUrl:3",
+              "put:3",
+              "complete"
+            ],
+            "sleeps": [],
+            "store": "uploaded"
+          }
+        }
+      ],
+      "final": {
+        "objects": 1,
+        "sessionsCreated": 1,
+        "open": 0,
+        "puts": {
+          "1": 1,
+          "2": 1,
+          "3": 1
+        },
+        "store": "uploaded"
+      }
+    },
+    {
+      "id": "R05-403-renewals-exhausted",
+      "ac": "AC1",
+      "faults": [
+        {
+          "op": "put",
+          "part": 1,
+          "effect": "http:403",
+          "times": 10
+        }
+      ],
+      "runs": [
+        {
+          "expect": {
+            "outcome": {
+              "type": "needs_attention",
+              "reason": "url_renewal_exhausted"
+            },
+            "calls": ["createSession", "listParts", "partUrl:1", "put:1", "partUrl:1", "put:1", "partUrl:1", "put:1", "partUrl:1", "put:1"],
+            "sleeps": [],
+            "store": "active"
+          }
+        }
+      ],
+      "final": {
+        "objects": 0,
+        "sessionsCreated": 1,
+        "open": 1,
+        "puts": {},
+        "store": "active"
+      }
+    },
+    {
+      "id": "R06-network-error-on-part-backoff",
+      "ac": "AC2",
+      "rng": [0.5, 0.75],
+      "faults": [
+        {
+          "op": "put",
+          "part": 1,
+          "effect": "network",
+          "times": 2
+        }
+      ],
+      "runs": [
+        {
+          "expect": {
+            "outcome": {
+              "type": "uploaded"
+            },
+            "calls": [
+              "createSession",
+              "listParts",
+              "partUrl:1",
+              "put:1",
+              "put:1",
+              "put:1",
+              "partUrl:2",
+              "put:2",
+              "partUrl:3",
+              "put:3",
+              "complete"
+            ],
+            "sleeps": [500, 1500],
+            "store": "uploaded"
+          }
+        }
+      ],
+      "final": {
+        "objects": 1,
+        "sessionsCreated": 1,
+        "open": 0,
+        "puts": {
+          "1": 1,
+          "2": 1,
+          "3": 1
+        },
+        "store": "uploaded"
+      }
+    },
+    {
+      "id": "R07-retries-exhausted-then-resume",
+      "ac": "AC2",
+      "rng": [0, 0.5, 0.25, 0.75],
+      "faults": [
+        {
+          "op": "put",
+          "part": 1,
+          "effect": "network",
+          "times": 4
+        }
+      ],
+      "runs": [
+        {
+          "expect": {
+            "outcome": {
+              "type": "retry_later",
+              "delayMs": 6000
+            },
+            "calls": ["createSession", "listParts", "partUrl:1", "put:1", "put:1", "put:1", "put:1"],
+            "sleeps": [0, 1000, 1000],
+            "store": "active"
+          }
+        },
+        {
+          "expect": {
+            "outcome": {
+              "type": "uploaded"
+            },
+            "calls": ["listParts", "partUrl:1", "put:1", "partUrl:2", "put:2", "partUrl:3", "put:3", "complete"],
+            "sleeps": [],
+            "store": "uploaded"
+          }
+        }
+      ],
+      "final": {
+        "objects": 1,
+        "sessionsCreated": 1,
+        "open": 0,
+        "puts": {
+          "1": 1,
+          "2": 1,
+          "3": 1
+        },
+        "store": "uploaded"
+      }
+    },
+    {
+      "id": "R08-complete-response-lost-is-repeated",
+      "ac": "AC1",
+      "faults": [
+        {
+          "op": "complete",
+          "effect": "lost_response",
+          "times": 1
+        }
+      ],
+      "runs": [
+        {
+          "expect": {
+            "outcome": {
+              "type": "uploaded"
+            },
+            "calls": [
+              "createSession",
+              "listParts",
+              "partUrl:1",
+              "put:1",
+              "partUrl:2",
+              "put:2",
+              "partUrl:3",
+              "put:3",
+              "complete",
+              "complete"
+            ],
+            "sleeps": [500],
+            "store": "uploaded"
+          }
+        }
+      ],
+      "final": {
+        "objects": 1,
+        "sessionsCreated": 1,
+        "open": 0,
+        "puts": {
+          "1": 1,
+          "2": 1,
+          "3": 1
+        },
+        "store": "uploaded"
+      }
+    },
+    {
+      "id": "R09-killed-after-complete-before-save",
+      "ac": "AC1",
+      "runs": [
+        {
+          "crashAt": {
+            "checkpoint": "afterCompleteBeforeSave",
+            "nth": 1
+          },
+          "expect": {
+            "outcome": "crashed",
+            "calls": ["createSession", "listParts", "partUrl:1", "put:1", "partUrl:2", "put:2", "partUrl:3", "put:3", "complete"],
+            "sleeps": []
+          }
+        },
+        {
+          "expect": {
+            "outcome": {
+              "type": "uploaded"
+            },
+            "calls": ["complete"],
+            "sleeps": [],
+            "store": "uploaded"
+          }
+        }
+      ],
+      "final": {
+        "objects": 1,
+        "sessionsCreated": 1,
+        "open": 0,
+        "puts": {
+          "1": 1,
+          "2": 1,
+          "3": 1
+        },
+        "store": "uploaded"
+      }
+    },
+    {
+      "id": "R10-killed-after-put-before-save",
+      "ac": "AC1",
+      "runs": [
+        {
+          "crashAt": {
+            "checkpoint": "afterPartPut",
+            "nth": 2
+          },
+          "expect": {
+            "outcome": "crashed",
+            "calls": ["createSession", "listParts", "partUrl:1", "put:1", "partUrl:2", "put:2"],
+            "sleeps": []
+          }
+        },
+        {
+          "expect": {
+            "outcome": {
+              "type": "uploaded"
+            },
+            "calls": ["listParts", "partUrl:3", "put:3", "complete"],
+            "sleeps": [],
+            "store": "uploaded"
+          }
+        }
+      ],
+      "final": {
+        "objects": 1,
+        "sessionsCreated": 1,
+        "open": 0,
+        "puts": {
+          "1": 1,
+          "2": 1,
+          "3": 1
+        },
+        "store": "uploaded"
+      }
+    },
+    {
+      "id": "R11-killed-after-part-saved",
+      "ac": "AC1",
+      "runs": [
+        {
+          "crashAt": {
+            "checkpoint": "afterPartSaved",
+            "nth": 1
+          },
+          "expect": {
+            "outcome": "crashed",
+            "calls": ["createSession", "listParts", "partUrl:1", "put:1"],
+            "sleeps": []
+          }
+        },
+        {
+          "expect": {
+            "outcome": {
+              "type": "uploaded"
+            },
+            "calls": ["listParts", "partUrl:2", "put:2", "partUrl:3", "put:3", "complete"],
+            "sleeps": [],
+            "store": "uploaded"
+          }
+        }
+      ],
+      "final": {
+        "objects": 1,
+        "sessionsCreated": 1,
+        "open": 0,
+        "puts": {
+          "1": 1,
+          "2": 1,
+          "3": 1
+        },
+        "store": "uploaded"
+      }
+    },
+    {
+      "id": "R12-killed-after-session",
+      "ac": "AC1",
+      "runs": [
+        {
+          "crashAt": {
+            "checkpoint": "afterSession",
+            "nth": 1
+          },
+          "expect": {
+            "outcome": "crashed",
+            "calls": ["createSession"],
+            "sleeps": []
+          }
+        },
+        {
+          "expect": {
+            "outcome": {
+              "type": "uploaded"
+            },
+            "calls": ["listParts", "partUrl:1", "put:1", "partUrl:2", "put:2", "partUrl:3", "put:3", "complete"],
+            "sleeps": [],
+            "store": "uploaded"
+          }
+        }
+      ],
+      "final": {
+        "objects": 1,
+        "sessionsCreated": 1,
+        "open": 0,
+        "puts": {
+          "1": 1,
+          "2": 1,
+          "3": 1
+        },
+        "store": "uploaded"
+      }
+    },
+    {
+      "id": "R13-killed-before-complete",
+      "ac": "AC1",
+      "runs": [
+        {
+          "crashAt": {
+            "checkpoint": "beforeComplete",
+            "nth": 1
+          },
+          "expect": {
+            "outcome": "crashed",
+            "calls": ["createSession", "listParts", "partUrl:1", "put:1", "partUrl:2", "put:2", "partUrl:3", "put:3"],
+            "sleeps": []
+          }
+        },
+        {
+          "expect": {
+            "outcome": {
+              "type": "uploaded"
+            },
+            "calls": ["complete"],
+            "sleeps": [],
+            "store": "uploaded"
+          }
+        }
+      ],
+      "final": {
+        "objects": 1,
+        "sessionsCreated": 1,
+        "open": 0,
+        "puts": {
+          "1": 1,
+          "2": 1,
+          "3": 1
+        },
+        "store": "uploaded"
+      }
+    },
+    {
+      "id": "R14-create-session-response-lost",
+      "ac": "AC1",
+      "faults": [
+        {
+          "op": "createSession",
+          "effect": "lost_response",
+          "times": 1
+        }
+      ],
+      "runs": [
+        {
+          "expect": {
+            "outcome": {
+              "type": "uploaded"
+            },
+            "calls": [
+              "createSession",
+              "createSession",
+              "listParts",
+              "partUrl:1",
+              "put:1",
+              "partUrl:2",
+              "put:2",
+              "partUrl:3",
+              "put:3",
+              "complete"
+            ],
+            "sleeps": [500],
+            "store": "uploaded"
+          }
+        }
+      ],
+      "final": {
+        "objects": 1,
+        "sessionsCreated": 1,
+        "open": 0,
+        "puts": {
+          "1": 1,
+          "2": 1,
+          "3": 1
+        },
+        "store": "uploaded"
+      }
+    },
+    {
+      "id": "R15-expired-session-opens-one-new-session",
+      "ac": "AC1",
+      "ids": ["sess-2", "key-2"],
+      "initialStore": {
+        "schemaVersion": 1,
+        "assetId": "asset-1",
+        "size": 40,
+        "uploadSessionId": "sess-1",
+        "idempotencyKey": "key-1",
+        "partSize": 16,
+        "partCount": 3,
+        "completeSent": false,
+        "state": "active",
+        "etags": {}
+      },
+      "server": {
+        "sessions": [
+          {
+            "id": "sess-1",
+            "key": "key-1",
+            "state": "expired",
+            "parts": [
+              {
+                "partNumber": 1,
+                "size": 16
+              }
+            ]
+          }
+        ]
+      },
+      "runs": [
+        {
+          "expect": {
+            "outcome": {
+              "type": "uploaded"
+            },
+            "calls": [
+              "listParts",
+              "createSession",
+              "listParts",
+              "partUrl:1",
+              "put:1",
+              "partUrl:2",
+              "put:2",
+              "partUrl:3",
+              "put:3",
+              "complete"
+            ],
+            "sleeps": [],
+            "store": "uploaded"
+          }
+        }
+      ],
+      "final": {
+        "objects": 1,
+        "sessionsCreated": 1,
+        "open": 0,
+        "puts": {
+          "1": 1,
+          "2": 1,
+          "3": 1
+        },
+        "store": "uploaded"
+      }
+    },
+    {
+      "id": "R16-replayed-create-after-abort-opens-new-session",
+      "ac": "AC1",
+      "ids": ["sess-2", "key-2"],
+      "initialStore": {
+        "schemaVersion": 1,
+        "assetId": "asset-1",
+        "size": 40,
+        "uploadSessionId": "sess-1",
+        "idempotencyKey": "key-1",
+        "partSize": null,
+        "partCount": null,
+        "completeSent": false,
+        "state": "active",
+        "etags": {}
+      },
+      "server": {
+        "sessions": [
+          {
+            "id": "sess-1",
+            "key": "key-1",
+            "state": "aborted",
+            "parts": []
+          }
+        ]
+      },
+      "runs": [
+        {
+          "expect": {
+            "outcome": {
+              "type": "uploaded"
+            },
+            "calls": [
+              "createSession",
+              "createSession",
+              "listParts",
+              "partUrl:1",
+              "put:1",
+              "partUrl:2",
+              "put:2",
+              "partUrl:3",
+              "put:3",
+              "complete"
+            ],
+            "sleeps": [],
+            "store": "uploaded"
+          }
+        }
+      ],
+      "final": {
+        "objects": 1,
+        "sessionsCreated": 1,
+        "open": 0,
+        "puts": {
+          "1": 1,
+          "2": 1,
+          "3": 1
+        },
+        "store": "uploaded"
+      }
+    },
+    {
+      "id": "R17-second-new-session-in-one-run-needs-attention",
+      "ac": "AC1",
+      "ids": ["sess-2", "key-2"],
+      "initialStore": {
+        "schemaVersion": 1,
+        "assetId": "asset-1",
+        "size": 40,
+        "uploadSessionId": "sess-1",
+        "idempotencyKey": "key-1",
+        "partSize": 16,
+        "partCount": 3,
+        "completeSent": false,
+        "state": "active",
+        "etags": {}
+      },
+      "server": {
+        "fileState": "clean",
+        "sessions": [
+          {
+            "id": "sess-1",
+            "key": "key-1",
+            "state": "expired",
+            "parts": []
+          }
+        ]
+      },
+      "runs": [
+        {
+          "expect": {
+            "outcome": {
+              "type": "needs_attention",
+              "reason": "invalid_state"
+            },
+            "calls": ["listParts", "createSession"],
+            "sleeps": [],
+            "store": "active"
+          }
+        }
+      ],
+      "final": {
+        "objects": 0,
+        "sessionsCreated": 0,
+        "open": 0,
+        "puts": {},
+        "store": "active"
+      }
+    },
+    {
+      "id": "R18-session-gone-mid-run-adopts-active-session",
+      "ac": "AC1",
+      "ids": ["sess-2", "key-2"],
+      "initialStore": {
+        "schemaVersion": 1,
+        "assetId": "asset-1",
+        "size": 40,
+        "uploadSessionId": "sess-1",
+        "idempotencyKey": "key-1",
+        "partSize": 16,
+        "partCount": 3,
+        "completeSent": false,
+        "state": "active",
+        "etags": {}
+      },
+      "server": {
+        "sessions": [
+          {
+            "id": "sess-1",
+            "key": "key-1",
+            "state": "active",
+            "parts": []
+          }
+        ]
+      },
+      "faults": [
+        {
+          "op": "partUrl",
+          "part": 1,
+          "effect": "http:409:invalid_state_transition",
+          "times": 1
+        }
+      ],
+      "runs": [
+        {
+          "expect": {
+            "outcome": {
+              "type": "uploaded"
+            },
+            "calls": [
+              "listParts",
+              "partUrl:1",
+              "createSession",
+              "listParts",
+              "partUrl:1",
+              "put:1",
+              "partUrl:2",
+              "put:2",
+              "partUrl:3",
+              "put:3",
+              "complete"
+            ],
+            "sleeps": [],
+            "store": "uploaded"
+          }
+        }
+      ],
+      "final": {
+        "objects": 1,
+        "sessionsCreated": 0,
+        "open": 0,
+        "puts": {
+          "1": 1,
+          "2": 1,
+          "3": 1
+        },
+        "store": "uploaded"
+      }
+    },
+    {
+      "id": "R18b-session-gone-in-a-run-that-opened-a-session-needs-attention",
+      "ac": "AC1",
+      "faults": [
+        {
+          "op": "partUrl",
+          "part": 2,
+          "effect": "http:409:invalid_state_transition",
+          "times": 1
+        }
+      ],
+      "runs": [
+        {
+          "expect": {
+            "outcome": {
+              "type": "needs_attention",
+              "reason": "invalid_state"
+            },
+            "calls": ["createSession", "listParts", "partUrl:1", "put:1", "partUrl:2"],
+            "sleeps": [],
+            "store": "active"
+          }
+        }
+      ],
+      "final": {
+        "objects": 0,
+        "sessionsCreated": 1,
+        "open": 1,
+        "puts": {
+          "1": 1
+        },
+        "store": "active"
+      }
+    },
+    {
+      "id": "R19-complete-retried-after-retry-later",
+      "ac": "AC1",
+      "rng": [0, 0.5, 0.25, 0.75],
+      "faults": [
+        {
+          "op": "complete",
+          "effect": "lost_response",
+          "times": 4
+        }
+      ],
+      "runs": [
+        {
+          "expect": {
+            "outcome": {
+              "type": "retry_later",
+              "delayMs": 6000
+            },
+            "calls": [
+              "createSession",
+              "listParts",
+              "partUrl:1",
+              "put:1",
+              "partUrl:2",
+              "put:2",
+              "partUrl:3",
+              "put:3",
+              "complete",
+              "complete",
+              "complete",
+              "complete"
+            ],
+            "sleeps": [0, 1000, 1000],
+            "store": "active"
+          }
+        },
+        {
+          "expect": {
+            "outcome": {
+              "type": "uploaded"
+            },
+            "calls": ["complete"],
+            "sleeps": [],
+            "store": "uploaded"
+          }
+        }
+      ],
+      "final": {
+        "objects": 1,
+        "sessionsCreated": 1,
+        "open": 0,
+        "puts": {
+          "1": 1,
+          "2": 1,
+          "3": 1
+        },
+        "store": "uploaded"
+      }
+    },
+    {
+      "id": "R20-complete-5xx-then-ok",
+      "ac": "AC2",
+      "rng": [0, 0.5, 0.25, 0.75],
+      "faults": [
+        {
+          "op": "complete",
+          "effect": "http:503",
+          "times": 4
+        }
+      ],
+      "runs": [
+        {
+          "expect": {
+            "outcome": {
+              "type": "retry_later",
+              "delayMs": 6000
+            },
+            "calls": [
+              "createSession",
+              "listParts",
+              "partUrl:1",
+              "put:1",
+              "partUrl:2",
+              "put:2",
+              "partUrl:3",
+              "put:3",
+              "complete",
+              "complete",
+              "complete",
+              "complete"
+            ],
+            "sleeps": [0, 1000, 1000],
+            "store": "active"
+          }
+        },
+        {
+          "expect": {
+            "outcome": {
+              "type": "uploaded"
+            },
+            "calls": ["complete"],
+            "sleeps": [],
+            "store": "uploaded"
+          }
+        }
+      ],
+      "final": {
+        "objects": 1,
+        "sessionsCreated": 1,
+        "open": 0,
+        "puts": {
+          "1": 1,
+          "2": 1,
+          "3": 1
+        },
+        "store": "uploaded"
+      }
+    },
+    {
+      "id": "R21-session-revoked-pauses-and-resumes",
+      "ac": "AC2",
+      "faults": [
+        {
+          "op": "partUrl",
+          "part": 2,
+          "effect": "http:401:session_revoked",
+          "times": 1
+        }
+      ],
+      "runs": [
+        {
+          "expect": {
+            "outcome": {
+              "type": "paused_revoked"
+            },
+            "calls": ["createSession", "listParts", "partUrl:1", "put:1", "partUrl:2"],
+            "sleeps": [],
+            "store": "paused_revoked"
+          }
+        },
+        {
+          "resume": true,
+          "expect": {
+            "outcome": {
+              "type": "uploaded"
+            },
+            "calls": ["listParts", "partUrl:2", "put:2", "partUrl:3", "put:3", "complete"],
+            "sleeps": [],
+            "store": "uploaded"
+          }
+        }
+      ],
+      "final": {
+        "objects": 1,
+        "sessionsCreated": 1,
+        "open": 0,
+        "puts": {
+          "1": 1,
+          "2": 1,
+          "3": 1
+        },
+        "store": "uploaded"
+      }
+    },
+    {
+      "id": "R22-device-wipe-stops-the-engine",
+      "ac": "AC2",
+      "faults": [
+        {
+          "op": "listParts",
+          "effect": "http:401:device_wipe_required",
+          "times": 1
+        }
+      ],
+      "runs": [
+        {
+          "expect": {
+            "outcome": {
+              "type": "device_wipe"
+            },
+            "calls": ["createSession", "listParts"],
+            "sleeps": [],
+            "store": "active"
+          }
+        },
+        {
+          "expect": {
+            "outcome": {
+              "type": "device_wipe"
+            },
+            "calls": [],
+            "sleeps": [],
+            "store": "active"
+          }
+        }
+      ],
+      "final": {
+        "objects": 0,
+        "sessionsCreated": 1,
+        "open": 1,
+        "puts": {},
+        "store": "active"
+      }
+    },
+    {
+      "id": "R23-version-unsupported-pauses",
+      "ac": "AC2",
+      "faults": [
+        {
+          "op": "createSession",
+          "effect": "http:426:client_version_unsupported",
+          "times": 1
+        }
+      ],
+      "runs": [
+        {
+          "expect": {
+            "outcome": {
+              "type": "paused_update"
+            },
+            "calls": ["createSession"],
+            "sleeps": [],
+            "store": "active"
+          }
+        }
+      ],
+      "final": {
+        "objects": 0,
+        "sessionsCreated": 0,
+        "open": 0,
+        "puts": {},
+        "store": "active"
+      }
+    },
+    {
+      "id": "R24-id-conflict-needs-attention",
+      "ac": "AC2",
+      "faults": [
+        {
+          "op": "createSession",
+          "effect": "http:409:id_conflict",
+          "times": 1
+        }
+      ],
+      "runs": [
+        {
+          "expect": {
+            "outcome": {
+              "type": "needs_attention",
+              "reason": "id_conflict"
+            },
+            "calls": ["createSession"],
+            "sleeps": [],
+            "store": "active"
+          }
+        }
+      ],
+      "final": {
+        "objects": 0,
+        "sessionsCreated": 0,
+        "open": 0,
+        "puts": {},
+        "store": "active"
+      }
+    },
+    {
+      "id": "R25-quarantined-needs-attention",
+      "ac": "AC2",
+      "server": {
+        "completeResult": {
+          "state": "quarantined"
+        }
+      },
+      "runs": [
+        {
+          "expect": {
+            "outcome": {
+              "type": "needs_attention",
+              "reason": "quarantined"
+            },
+            "calls": ["createSession", "listParts", "partUrl:1", "put:1", "partUrl:2", "put:2", "partUrl:3", "put:3", "complete"],
+            "sleeps": [],
+            "store": "active"
+          }
+        }
+      ],
+      "final": {
+        "objects": 1,
+        "sessionsCreated": 1,
+        "open": 0,
+        "puts": {
+          "1": 1,
+          "2": 1,
+          "3": 1
+        },
+        "store": "active"
+      }
+    },
+    {
+      "id": "R26-checksum-mismatch-offers-retry",
+      "ac": "AC2",
+      "server": {
+        "completeResult": {
+          "state": "failed",
+          "reasonCode": "checksum_mismatch"
+        }
+      },
+      "runs": [
+        {
+          "expect": {
+            "outcome": {
+              "type": "retry_checksum"
+            },
+            "calls": ["createSession", "listParts", "partUrl:1", "put:1", "partUrl:2", "put:2", "partUrl:3", "put:3", "complete"],
+            "sleeps": [],
+            "store": null
+          }
+        }
+      ],
+      "final": {
+        "objects": 1,
+        "sessionsCreated": 1,
+        "open": 0,
+        "puts": {
+          "1": 1,
+          "2": 1,
+          "3": 1
+        },
+        "store": null
+      }
+    },
+    {
+      "id": "R27-unknown-code-needs-attention",
+      "ac": "AC2",
+      "faults": [
+        {
+          "op": "listParts",
+          "effect": "http:418",
+          "times": 1
+        }
+      ],
+      "runs": [
+        {
+          "expect": {
+            "outcome": {
+              "type": "needs_attention",
+              "reason": "unknown"
+            },
+            "calls": ["createSession", "listParts"],
+            "sleeps": [],
+            "store": "active"
+          }
+        }
+      ],
+      "final": {
+        "objects": 0,
+        "sessionsCreated": 1,
+        "open": 1,
+        "puts": {},
+        "store": "active"
+      }
+    },
+    {
+      "id": "R28-untrusted-part-host-sends-nothing",
+      "ac": "AC3",
+      "server": {
+        "partUrlHost": "evil.example.test"
+      },
+      "runs": [
+        {
+          "expect": {
+            "outcome": {
+              "type": "needs_attention",
+              "reason": "untrusted_part_url"
+            },
+            "calls": ["createSession", "listParts", "partUrl:1"],
+            "sleeps": [],
+            "store": "active"
+          }
+        }
+      ],
+      "final": {
+        "objects": 0,
+        "sessionsCreated": 1,
+        "open": 1,
+        "puts": {},
+        "store": "active"
+      }
+    },
+    {
+      "id": "R29-part-number-out-of-plan",
+      "ac": "AC3",
+      "server": {
+        "listOverride": [
+          {
+            "partNumber": 9,
+            "size": 16
+          }
+        ]
+      },
+      "runs": [
+        {
+          "expect": {
+            "outcome": {
+              "type": "needs_attention",
+              "reason": "invalid_server_response"
+            },
+            "calls": ["createSession", "listParts"],
+            "sleeps": [],
+            "store": "active"
+          }
+        }
+      ],
+      "final": {
+        "objects": 0,
+        "sessionsCreated": 1,
+        "open": 1,
+        "puts": {},
+        "store": "active"
+      }
+    },
+    {
+      "id": "R30-duplicate-part-in-listparts",
+      "ac": "AC3",
+      "server": {
+        "listOverride": [
+          {
+            "partNumber": 1,
+            "size": 16
+          },
+          {
+            "partNumber": 1,
+            "size": 16
+          }
+        ]
+      },
+      "runs": [
+        {
+          "expect": {
+            "outcome": {
+              "type": "needs_attention",
+              "reason": "invalid_server_response"
+            },
+            "calls": ["createSession", "listParts"],
+            "sleeps": [],
+            "store": "active"
+          }
+        }
+      ],
+      "final": {
+        "objects": 0,
+        "sessionsCreated": 1,
+        "open": 1,
+        "puts": {},
+        "store": "active"
+      }
+    },
+    {
+      "id": "R31-part-url-length-differs-from-plan",
+      "ac": "AC3",
+      "server": {
+        "partUrlContentLength": 15
+      },
+      "runs": [
+        {
+          "expect": {
+            "outcome": {
+              "type": "needs_attention",
+              "reason": "plan_mismatch"
+            },
+            "calls": ["createSession", "listParts", "partUrl:1"],
+            "sleeps": [],
+            "store": "active"
+          }
+        }
+      ],
+      "final": {
+        "objects": 0,
+        "sessionsCreated": 1,
+        "open": 1,
+        "puts": {},
+        "store": "active"
+      }
+    },
+    {
+      "id": "R32-session-plan-inconsistent",
+      "ac": "AC1",
+      "server": {
+        "partCount": 2
+      },
+      "runs": [
+        {
+          "expect": {
+            "outcome": {
+              "type": "needs_attention",
+              "reason": "plan_mismatch"
+            },
+            "calls": ["createSession"],
+            "sleeps": [],
+            "store": "active"
+          }
+        }
+      ],
+      "final": {
+        "objects": 0,
+        "sessionsCreated": 1,
+        "open": 1,
+        "puts": {},
+        "store": "active"
+      }
+    },
+    {
+      "id": "R33-unknown-snapshot-schema-restarts-through-listparts",
+      "ac": "AC1",
+      "initialStore": {
+        "schemaVersion": 99,
+        "assetId": "asset-1",
+        "size": 40,
+        "uploadSessionId": "sess-9",
+        "idempotencyKey": "key-9",
+        "partSize": 16,
+        "partCount": 3,
+        "completeSent": true,
+        "state": "active",
+        "etags": {}
+      },
+      "server": {
+        "sessions": [
+          {
+            "id": "sess-9",
+            "key": "key-9",
+            "state": "active",
+            "parts": [
+              {
+                "partNumber": 1,
+                "size": 16
+              }
+            ]
+          }
+        ]
+      },
+      "runs": [
+        {
+          "expect": {
+            "outcome": {
+              "type": "uploaded"
+            },
+            "calls": ["createSession", "listParts", "partUrl:2", "put:2", "partUrl:3", "put:3", "complete"],
+            "sleeps": [],
+            "store": "uploaded"
+          }
+        }
+      ],
+      "final": {
+        "objects": 1,
+        "sessionsCreated": 0,
+        "open": 0,
+        "puts": {
+          "2": 1,
+          "3": 1
+        },
+        "store": "uploaded"
+      }
+    },
+    {
+      "id": "R34-already-uploaded-sends-nothing",
+      "ac": "AC1",
+      "initialStore": {
+        "schemaVersion": 1,
+        "assetId": "asset-1",
+        "size": 40,
+        "uploadSessionId": "sess-1",
+        "idempotencyKey": "key-1",
+        "partSize": 16,
+        "partCount": 3,
+        "completeSent": true,
+        "state": "uploaded",
+        "etags": {}
+      },
+      "runs": [
+        {
+          "expect": {
+            "outcome": {
+              "type": "uploaded"
+            },
+            "calls": [],
+            "sleeps": [],
+            "store": "uploaded"
+          }
+        }
+      ],
+      "final": {
+        "objects": 0,
+        "sessionsCreated": 0,
+        "open": 0,
+        "puts": {},
+        "store": "uploaded"
+      }
+    },
+    {
+      "id": "R35-file-size-changed-starts-over",
+      "ac": "AC1",
+      "initialStore": {
+        "schemaVersion": 1,
+        "assetId": "asset-1",
+        "size": 99,
+        "uploadSessionId": "sess-9",
+        "idempotencyKey": "key-9",
+        "partSize": 16,
+        "partCount": 7,
+        "completeSent": false,
+        "state": "active",
+        "etags": {}
+      },
+      "runs": [
+        {
+          "expect": {
+            "outcome": {
+              "type": "uploaded"
+            },
+            "calls": ["createSession", "listParts", "partUrl:1", "put:1", "partUrl:2", "put:2", "partUrl:3", "put:3", "complete"],
+            "sleeps": [],
+            "store": "uploaded"
+          }
+        }
+      ],
+      "final": {
+        "objects": 1,
+        "sessionsCreated": 1,
+        "open": 0,
+        "puts": {
+          "1": 1,
+          "2": 1,
+          "3": 1
+        },
+        "store": "uploaded"
+      }
+    },
+    {
+      "id": "R36-invalid-etag-from-storage",
+      "ac": "AC3",
+      "server": {
+        "putEtag": "bad etag!"
+      },
+      "runs": [
+        {
+          "expect": {
+            "outcome": {
+              "type": "needs_attention",
+              "reason": "invalid_server_response"
+            },
+            "calls": ["createSession", "listParts", "partUrl:1", "put:1"],
+            "sleeps": [],
+            "store": "active"
+          }
+        }
+      ],
+      "final": {
+        "objects": 0,
+        "sessionsCreated": 1,
+        "open": 1,
+        "puts": {
+          "1": 1
+        },
+        "store": "active"
+      }
+    },
+    {
+      "id": "R37-invalid-session-id-from-server",
+      "ac": "AC3",
+      "server": {
+        "createId": "bad/id"
+      },
+      "runs": [
+        {
+          "expect": {
+            "outcome": {
+              "type": "needs_attention",
+              "reason": "invalid_server_response"
+            },
+            "calls": ["createSession"],
+            "sleeps": [],
+            "store": "active"
+          }
+        }
+      ],
+      "final": {
+        "objects": 0,
+        "sessionsCreated": 1,
+        "open": 1,
+        "puts": {},
+        "store": "active"
+      }
+    },
+    {
+      "id": "R38-negative-part-size-in-listparts",
+      "ac": "AC3",
+      "server": {
+        "listOverride": [
+          {
+            "partNumber": 1,
+            "size": -1
+          }
+        ]
+      },
+      "runs": [
+        {
+          "expect": {
+            "outcome": {
+              "type": "needs_attention",
+              "reason": "invalid_server_response"
+            },
+            "calls": ["createSession", "listParts"],
+            "sleeps": [],
+            "store": "active"
+          }
+        }
+      ],
+      "final": {
+        "objects": 0,
+        "sessionsCreated": 1,
+        "open": 1,
+        "puts": {},
+        "store": "active"
+      }
+    },
+    {
+      "id": "R39-storage-without-etag-header-still-uploads",
+      "ac": "AC1",
+      "server": {
+        "omitEtag": true
+      },
+      "runs": [
+        {
+          "expect": {
+            "outcome": {
+              "type": "uploaded"
+            },
+            "calls": ["createSession", "listParts", "partUrl:1", "put:1", "partUrl:2", "put:2", "partUrl:3", "put:3", "complete"],
+            "sleeps": [],
+            "store": "uploaded"
+          }
+        }
+      ],
+      "final": {
+        "objects": 1,
+        "sessionsCreated": 1,
+        "open": 0,
+        "puts": {
+          "1": 1,
+          "2": 1,
+          "3": 1
+        },
+        "store": "uploaded"
+      }
+    },
+    {
+      "id": "R40-403-from-the-api-is-not-a-renewal",
+      "ac": "AC2",
+      "faults": [
+        {
+          "op": "partUrl",
+          "part": 1,
+          "effect": "http:403:forbidden",
+          "times": 1
+        }
+      ],
+      "runs": [
+        {
+          "expect": {
+            "outcome": {
+              "type": "needs_attention",
+              "reason": "unknown"
+            },
+            "calls": ["createSession", "listParts", "partUrl:1"],
+            "sleeps": [],
+            "store": "active"
+          }
+        }
+      ],
+      "final": {
+        "objects": 0,
+        "sessionsCreated": 1,
+        "open": 1,
+        "puts": {},
+        "store": "active"
+      }
+    },
+    {
+      "id": "R34-part-vanishes-after-listparts-complete-422-reconciles",
+      "ac": "AC1",
+      "initialStore": {
+        "schemaVersion": 1,
+        "assetId": "asset-1",
+        "size": 40,
+        "uploadSessionId": "sess-1",
+        "idempotencyKey": "key-1",
+        "partSize": 16,
+        "partCount": 3,
+        "completeSent": false,
+        "state": "active",
+        "etags": { "1": "\"e1\"", "2": "\"e2\"" }
+      },
+      "server": {
+        "sessions": [
+          {
+            "id": "sess-1",
+            "key": "key-1",
+            "state": "active",
+            "parts": [
+              { "partNumber": 1, "size": 16 },
+              { "partNumber": 2, "size": 16 }
+            ]
+          }
+        ]
+      },
+      "faults": [{ "op": "listParts", "effect": "drop_after_list:2", "times": 1 }],
+      "runs": [
+        {
+          "expect": {
+            "outcome": { "type": "uploaded" },
+            "calls": ["listParts", "partUrl:3", "put:3", "complete", "listParts", "partUrl:2", "put:2", "complete"],
+            "sleeps": [],
+            "store": "uploaded"
+          }
+        }
+      ],
+      "final": { "objects": 1, "sessionsCreated": 0, "open": 0, "puts": { "2": 1, "3": 1 }, "store": "uploaded" }
+    },
+    {
+      "id": "R35-second-422-in-one-run-needs-attention-then-next-run-reconciles",
+      "ac": "AC1",
+      "faults": [{ "op": "complete", "effect": "http:422:upload_incomplete", "times": 2 }],
+      "runs": [
+        {
+          "expect": {
+            "outcome": { "type": "needs_attention", "reason": "upload_incomplete" },
+            "calls": [
+              "createSession",
+              "listParts",
+              "partUrl:1",
+              "put:1",
+              "partUrl:2",
+              "put:2",
+              "partUrl:3",
+              "put:3",
+              "complete",
+              "listParts",
+              "complete"
+            ],
+            "sleeps": [],
+            "store": "active"
+          }
+        },
+        {
+          "expect": {
+            "outcome": { "type": "uploaded" },
+            "calls": ["listParts", "complete"],
+            "sleeps": [],
+            "store": "uploaded"
+          }
+        }
+      ],
+      "final": { "objects": 1, "sessionsCreated": 1, "open": 0, "puts": { "1": 1, "2": 1, "3": 1 }, "store": "uploaded" }
+    },
+    {
+      "id": "R41-paused-job-is-refused-without-an-explicit-resume",
+      "ac": "AC2",
+      "$comment": "EVM-130 (SR-MOB-13): a job paused by session_revoked works again only after an explicit resume, given after a full sign-in of the same owner.",
+      "faults": [{ "op": "partUrl", "part": 2, "effect": "http:401:session_revoked", "times": 1 }],
+      "runs": [
+        {
+          "expect": {
+            "outcome": { "type": "paused_revoked" },
+            "calls": ["createSession", "listParts", "partUrl:1", "put:1", "partUrl:2"],
+            "sleeps": [],
+            "store": "paused_revoked"
+          }
+        },
+        { "expect": { "outcome": { "type": "paused_revoked" }, "calls": [], "sleeps": [], "store": "paused_revoked" } },
+        {
+          "resume": true,
+          "expect": {
+            "outcome": { "type": "uploaded" },
+            "calls": ["listParts", "partUrl:2", "put:2", "partUrl:3", "put:3", "complete"],
+            "sleeps": [],
+            "store": "uploaded"
+          }
+        }
+      ],
+      "final": { "objects": 1, "sessionsCreated": 1, "open": 0, "puts": { "1": 1, "2": 1, "3": 1 }, "store": "uploaded" }
+    },
+    {
+      "id": "R42-429-retry-after-is-a-floor-of-the-wait",
+      "ac": "AC2",
+      "faults": [{ "op": "createSession", "effect": "http:429:rate_limited:7", "times": 1 }],
+      "runs": [
+        {
+          "expect": {
+            "outcome": { "type": "uploaded" },
+            "calls": [
+              "createSession",
+              "createSession",
+              "listParts",
+              "partUrl:1",
+              "put:1",
+              "partUrl:2",
+              "put:2",
+              "partUrl:3",
+              "put:3",
+              "complete"
+            ],
+            "sleeps": [7000],
+            "store": "uploaded"
+          }
+        }
+      ],
+      "final": { "objects": 1, "sessionsCreated": 1, "open": 0, "puts": { "1": 1, "2": 1, "3": 1 }, "store": "uploaded" }
+    },
+    {
+      "id": "R43-429-long-retry-after-goes-to-the-system-schedule",
+      "ac": "AC2",
+      "faults": [{ "op": "createSession", "effect": "http:429:rate_limited:120", "times": 1 }],
+      "runs": [
+        {
+          "expect": { "outcome": { "type": "retry_later", "delayMs": 120000 }, "calls": ["createSession"], "sleeps": [], "store": "active" }
+        },
+        {
+          "expect": {
+            "outcome": { "type": "uploaded" },
+            "calls": ["createSession", "listParts", "partUrl:1", "put:1", "partUrl:2", "put:2", "partUrl:3", "put:3", "complete"],
+            "sleeps": [],
+            "store": "uploaded"
+          }
+        }
+      ],
+      "final": { "objects": 1, "sessionsCreated": 1, "open": 0, "puts": { "1": 1, "2": 1, "3": 1 }, "store": "uploaded" }
+    },
+    {
+      "id": "R44-stop-signal-from-the-start-sends-nothing",
+      "ac": "AC5",
+      "runs": [{ "stopAfterCalls": 0, "expect": { "outcome": { "type": "device_wipe" }, "calls": [], "sleeps": [], "store": null } }],
+      "final": { "objects": 0, "sessionsCreated": 0, "open": 0, "puts": {}, "store": null }
+    },
+    {
+      "id": "R45-stop-signal-between-calls-stops-the-instance",
+      "ac": "AC5",
+      "runs": [
+        {
+          "stopAfterCalls": 2,
+          "expect": { "outcome": { "type": "device_wipe" }, "calls": ["createSession", "listParts"], "sleeps": [], "store": "active" }
+        },
+        { "stopAfterCalls": 2, "expect": { "outcome": { "type": "device_wipe" }, "calls": [], "sleeps": [], "store": "active" } }
+      ],
+      "final": { "objects": 0, "sessionsCreated": 1, "open": 1, "puts": {}, "store": "active" }
+    },
+    {
+      "id": "R46-declaration-refused-needs-attention",
+      "ac": "AC2",
+      "faults": [{ "op": "createSession", "effect": "http:400:validation_failed", "times": 1 }],
+      "runs": [
+        {
+          "expect": {
+            "outcome": { "type": "needs_attention", "reason": "declaration_rejected" },
+            "calls": ["createSession"],
+            "sleeps": [],
+            "store": "active"
+          }
+        }
+      ],
+      "final": { "objects": 0, "sessionsCreated": 0, "open": 0, "puts": {}, "store": "active" }
+    },
+    {
+      "id": "R47-lost-session-answer-repeats-the-identical-declaration",
+      "ac": "AC1",
+      "faults": [{ "op": "createSession", "effect": "lost_response", "times": 1 }],
+      "runs": [
+        {
+          "expect": {
+            "outcome": { "type": "uploaded" },
+            "calls": [
+              "createSession",
+              "createSession",
+              "listParts",
+              "partUrl:1",
+              "put:1",
+              "partUrl:2",
+              "put:2",
+              "partUrl:3",
+              "put:3",
+              "complete"
+            ],
+            "sleeps": [500],
+            "store": "uploaded"
+          }
+        }
+      ],
+      "final": { "objects": 1, "sessionsCreated": 1, "open": 0, "puts": { "1": 1, "2": 1, "3": 1 }, "store": "uploaded" }
+    }
+  ]
+}

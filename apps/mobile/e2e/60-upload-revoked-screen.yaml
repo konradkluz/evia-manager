@@ -1,0 +1,17 @@
+# EVM-130 AC5: the scenario server answered `401 session_revoked` to the transfer in the background; the job paused and kept the files. The
+# app that comes back to the foreground shows M-02 "Wylogowano ten telefon" and offers "Zaloguj się" back to M-01 (the queue stays).
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- extendedWaitUntil:
+    visible: 'Wylogowano ten telefon'
+    timeout: 90000
+- assertVisible: 'Dane zleceń usunęliśmy z telefonu.'
+- takeScreenshot: u130-revoked
+- tapOn:
+    id: 'device-state-primary'
+- extendedWaitUntil:
+    visible:
+      id: 'login-email'
+    timeout: 30000

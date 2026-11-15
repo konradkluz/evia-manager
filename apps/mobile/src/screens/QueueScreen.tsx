@@ -7,9 +7,10 @@ import type { AttentionReason, QueueItem, TargetOption } from '../sync/types';
 import { AlertDialog, AppBar, AttentionCard, Button, EmptyState, InlineAlert, ListChecks, type AttentionAction } from '../ui';
 import { borderWidth, color, size, space, text } from '../ui/theme';
 import { ConnectionNotices } from './ConnectionNotices';
+import { QueueFiles } from './QueueFiles';
 import { SyncCapsule } from './SyncCapsule';
 import { SyncNotices } from './SyncNotices';
-import { useQueueView, useSession } from './session-context';
+import { useMediaSnapshot, useQueueView, useSession } from './session-context';
 
 const NOTICE_MS = 4_000;
 
@@ -32,6 +33,7 @@ export function QueueScreen({
   const { t } = useTranslation();
   const session = useSession();
   const { hidden, view, reload } = useQueueView();
+  const files = useMediaSnapshot().files;
   const [notice, setNotice] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<{ item: QueueItem; dependents: number } | null>(null);
   const [targets, setTargets] = useState<{ item: QueueItem; options: readonly TargetOption[] } | null>(null);
@@ -237,10 +239,16 @@ export function QueueScreen({
         </View>
       )}
       <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
-        {view === null || (total === 0 && sent.length === 0) ? (
+        {view === null || (total === 0 && sent.length === 0 && files.length === 0) ? (
           <EmptyState icon={ListChecks} title={t('shell.queue.emptyTitle')} testID="queue-empty" />
         ) : (
           <View style={{ padding: space.inset.md, rowGap: space.stack.md }} testID={hidden ? 'queue-list-hidden' : 'queue-list'}>
+            {/* EVM-130: the files of the queue (Banner of the notifications, states, "Ponów") */}
+            <QueueFiles
+              onRetryFailed={() => {
+                say(t('upload.retryFailed'));
+              }}
+            />
             <Text style={{ ...text.heading4, color: color.text.primary }} testID={hidden ? 'queue-hidden-count' : 'queue-count'}>
               {hidden
                 ? t(pluralKey(total, { one: 'hidden.queueCount_one', few: 'hidden.queueCount_few', many: 'hidden.queueCount_many' }), {

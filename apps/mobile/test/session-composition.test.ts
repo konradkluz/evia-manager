@@ -1,7 +1,9 @@
 import { AppState, Linking } from 'react-native';
-import { Challenge } from '../src/auth/opaque';
+import type { EviaUploadModule } from '../modules/evia-upload/src';
+import { Challenge, IssuedSession } from '../src/auth/opaque';
 import { useSession } from '../src/screens/session-context';
-import { createSessionPorts, NO_API, originOf, PASSWORD_RESET_PATH, sessionPorts } from '../src/session';
+import { tokenStore } from '../src/secure-store';
+import { createSessionPorts, NO_API, originOf, PASSWORD_RESET_PATH, sessionMediaUploads, sessionPorts } from '../src/session';
 
 jest.mock('react', () => ({ ...jest.requireActual<typeof import('react')>('react'), useContext: () => null }));
 
@@ -10,6 +12,7 @@ jest.mock('../src/storage', () => {
     installationProof: jest.fn(() => Promise.resolve(null)),
     unsentItemCountBeforeSignIn: jest.fn(() => Promise.resolve(3)),
     openForUser: jest.fn(),
+    registerWipeStep: jest.fn(),
     // EVM-101: the wipe and its confirmation
     prepare: jest.fn(() => Promise.resolve('ready')),
     wipeCompanyData: jest.fn(() => Promise.resolve('done')),
@@ -172,5 +175,95 @@ describe('composition of the synchronization (EVM-107; architect 5, 6)', () => {
       ports.sync.stop();
     }).not.toThrow();
     expect(ports.copyToClipboard('')).toBe(false);
+  });
+});
+
+describe('composition of the native owner and the upload (EVM-130)', () => {
+  const module = (overrides: Record<string, unknown> = {}) => {
+    const added: string[] = [];
+    const fake = {
+      addListener: jest.fn((name: string) => {
+        added.push(name);
+        return { remove: jest.fn() };
+      }),
+      wipeUploads: jest.fn(() => Promise.resolve(true)),
+      sessionState: jest.fn(() => Promise.resolve({ state: 'signed_out', ownerId: null })),
+      stageLogin: jest.fn(() => Promise.resolve('ok')),
+      ...overrides,
+    };
+    return { fake, added, asModule: fake as unknown as EviaUploadModule };
+  };
+
+  it('EVM-130 AC3: at every start the two legacy token slots are deleted without being read', () => {
+    const purge = jest.spyOn(tokenStore, 'purgeLegacyTokens').mockResolvedValue(true);
+    createSessionPorts(config, module().asModule);
+    expect(purge).toHaveBeenCalledTimes(1);
+    purge.mockRejectedValueOnce(new Error('synthetic'));
+    expect(() => createSessionPorts(config, module().asModule)).not.toThrow();
+    purge.mockRestore();
+  });
+
+  it('EVM-130 AC5: the native wipe is registered as the FIRST step of the wipe; an unfinished native wipe fails the step (repeated before anything else)', async () => {
+    const { localData } = jest.requireMock<typeof import('../src/storage')>('../src/storage');
+    const host = localData() as unknown as Record<string, jest.Mock>;
+    host['registerWipeStep']?.mockClear();
+    const { fake, asModule } = module();
+    createSessionPorts(config, asModule);
+    const [name, run, options] = host['registerWipeStep']?.mock.calls[0] as [string, () => Promise<void>, { first?: boolean }];
+    expect(name).toBe('native_uploads');
+    expect(options).toEqual({ first: true });
+    await expect(run()).resolves.toBeUndefined();
+    expect(fake.wipeUploads).toHaveBeenCalledTimes(1);
+    fake.wipeUploads.mockResolvedValueOnce(false);
+    await expect(run()).rejects.toThrow('native wipe unfinished');
+  });
+
+  it('EVM-130 AC2, AC3: the owner and the queue of files listen to the module (the session state; progress, file state, session state)', () => {
+    const { added, asModule } = module();
+    createSessionPorts(config, asModule);
+    expect([...added].sort()).toEqual(['onFileState', 'onSessionState', 'onSessionState', 'onUploadProgress']);
+  });
+
+  it('EVM-130 AC3: without the module no sign-in is possible — the session of step 2 is refused and nothing is stored', async () => {
+    const ports = createSessionPorts(config, null);
+    const session = IssuedSession.of({
+      deviceId: 'd',
+      installationSecret: undefined,
+      accessToken: 'a',
+      accessTokenTtlMs: 1000,
+      refreshToken: 'r',
+      serverTime: 1,
+      user: { id: 'u', displayName: 'Synthetic', role: 'editor' },
+    });
+    expect(await ports.owner.completeSignIn(session)).toEqual({ kind: 'failed' });
+    expect(await ports.owner.restore()).toEqual({ kind: 'signed_out' });
+  });
+
+  it('EVM-130 AC1: the queue of files of the process is the one of the ports; a return to the foreground reconciles it without a session safely', async () => {
+    let handler: (state: string) => void = () => undefined;
+    const spy = jest.spyOn(AppState, 'addEventListener').mockImplementation(((_event: string, listener: (state: string) => void) => {
+      handler = listener;
+      return { remove: jest.fn() };
+    }) as never);
+    const { fake, asModule } = module();
+    const ports = createSessionPorts(config, asModule);
+    ports.guard.start();
+    expect(await sessionMediaUploads()?.add({ assetId: 'x', workOrderId: 'y', mediaType: 'photo', category: 'other' })).toEqual({
+      ok: false,
+      code: 'invalid',
+    });
+    const reconcile = jest.spyOn(ports.owner, 'reconcileNative');
+    const merge = jest.spyOn(ports.owner, 'mergeNativeContact');
+    const refresh = jest.spyOn(ports.media, 'refresh');
+    handler('background');
+    handler('active');
+    await tick();
+    // a return to the foreground compares the state of the module, merges its contact and reconciles the files
+    expect(reconcile).toHaveBeenCalledTimes(1);
+    expect(merge).toHaveBeenCalledTimes(1);
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(ports.media.getSnapshot()).toEqual({ files: [], notifications: 'granted' });
+    expect(fake.sessionState).not.toHaveBeenCalled();
+    spy.mockRestore();
   });
 });

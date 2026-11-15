@@ -1,4 +1,5 @@
 import type { Database, Tx } from './database';
+import { createMediaFilesV2 } from './media-file-store';
 
 /**
  * Versioned local schema (EVM-093 AC2; offline-sync.md, rule 2). Two independent version numbers:
@@ -166,11 +167,15 @@ export async function createQueueTablesV1(tx: Tx): Promise<void> {
   `);
 }
 
-export const QUEUE_TABLES = ['meta', 'queue_entries', 'settled_results'] as const;
+export const QUEUE_TABLES = ['meta', 'queue_entries', 'settled_results', 'media_files'] as const;
 
 /** The schema of this app version. */
 export const SCHEMA: SchemaPlan = {
-  queue: [{ version: 1, up: createQueueTablesV1 }],
+  // v2 (EVM-130): the table of the files of the queue — a preserving migration, nothing of v1 is touched
+  queue: [
+    { version: 1, up: createQueueTablesV1 },
+    { version: 2, up: createMediaFilesV2 },
+  ],
   replica: [
     {
       version: 1,

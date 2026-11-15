@@ -4,7 +4,7 @@ title: "Aplikacja: silnik wysyłania plików (Kotlin), model referencyjny i bram
 type: story
 milestone: M2
 epic: E11 Zdjęcia i filmy
-status: ready
+status: in-review
 priority: P1
 path: pelna             # pliki, uwierzytelnianie workera (czysta logika), nowe bramki jakości i zależności Kotlin
 owner: mobile-developer
@@ -78,6 +78,13 @@ Zadanie systemowe Androida, natywny właściciel tokenów, trwała kolejka plik�
 - Wersje i licencje sprawdza wykonawca w dniu pracy (SR-SUPPLY-06, `minimumReleaseAge`): Kover (Apache-2.0; raport XML bez lcov), ktlint (MIT), JUnit Jupiter (wersja zgodna z Kotlinem z Expo), wrapper Gradle z walidacją sumy.
 - Dysk: architekt zaleca ≥ 20 GB wolnego (cache Gradle); po kompaktowaniu VHDX Dockera 2026-11-14 jest 14,8 GB — komenda nocna ma próg: poniżej 10 GB tor B staje, tor A jedzie dalej.
 
+**Uwagi nieblokujące z przeglądów (2026-11-14) — do EVM-130 albo backlogu:**
+- redakcja logów: wzorzec tokenu przepuszcza ciągi 32+ znaków bez cyfr (`RedactingLogger.kt`) — poprawić razem z adapterem HTTP w EVM-130;
+- EVM-130: zawęzić wykluczenie pokrycia `apps/mobile/modules/*/android/**` do czystego kleju, logikę tokenów i polityki HTTP trzymać w module JVM z progiem 95%; transport części bez przekierowań, lista hostów tylko z konfiguracji builda, wariant http wyłącznie w paczce e2e;
+- EVM-130: kontrakt zatrzymania zadania (przerwanie wątku, jedna instancja silnika na zadanie), odmowa wznowienia migawki `PAUSED_REVOKED` bez pełnego logowania, potwierdzenie pola z kodem 422 w adapterze;
+- dokumentacja: odniesienia SR-SESS-09 / TM-130 do EVM-109 zamienić na EVM-130 (ADR-0020a); mapa modułów i `media-pipeline.md` §3 — w EVM-130;
+- backlog: `gradle.lockfile` i reguła Renovate dla silnika, reguła logowania także dla `.java`, wyłączenie statystyk FUS wtyczki Kotlin, osobny job CI `mobile-kotlin`; ryzyko rezydualne CVE-2026-53914 (wtyczka Kotlin 2.2.21, build cache wyłączony) — do akceptacji Konrada w PR.
+
 ## Definition of Done
 - [ ] Wszystkie AC pokryte testami oznaczonymi `EVM-109 AC#`; `pnpm run gate` i `npm run docs:check` zielone; testy Kotlin w CI (job `mobile-apk`) zielone.
 - [ ] Recenzje: code-reviewer, security-engineer, solution-architect — approve.
@@ -89,3 +96,10 @@ Zadanie systemowe Androida, natywny właściciel tokenów, trwała kolejka plik�
 - 2026-11-12 — dołączono bramki Kotlin z EVM-113 jako AC6; `depends_on`: usunięto EVM-113, dodano EVM-009 (decyzja Tech Leada z delegacji Konrada „tanio, szybko, bezpiecznie”)
 - 2026-11-14 — refinement do DoR (product-owner): podział na EVM-109 (silnik, model referencyjny, bramki; 7 AC) i EVM-130 (Android, tokeny, kolejka); `depends_on` bez EVM-084 (przeszła do EVM-112); decyzje Konrada: JUnit tylko testowo, ważność adresu części bez zmian, zakaz dystrybucji, decyzja 17 potwierdzona
 - 2026-11-14 — draft → ready: kryteria zatwierdzone przez Tech Leada z delegacji Konrada (pytanie przed nocą 2026-11-14); Konrad przegląda je rano w PR
+- 2026-11-14 — start realizacji w kolejce nocnej `/noc-2026-11-14` (Tech Lead): status `in-progress`, gałąź `feature/queue-2026-11-14-mobile-media`
+- 2026-11-14 — plan gotowy (mobile-developer)
+- 2026-11-14 — implementacja (mobile-developer): model referencyjny i wektory w sync-core, silnik Kotlin z testami JVM, bramka gate:kotlin (ktlint, Kover 95%, Gradle z weryfikacją sum), konwerter Kover→lcov, polityka w repo-policy, CI (mobile-apk, coverage), dokumentacja bramek
+- 2026-11-14 — devops-engineer: gate:kotlin, lint (ignorowanie build/ silnika w eslint mobile), testy sync-core/repo-policy/tools, docs:check, deps:check zielone
+- 2026-11-14 — mobile-developer: poprawka AC6 po przeglądzie łańcucha dostaw (OSV, 77 komponentów): wymuszone poprawione wersje narzędzi budowania (Bouncy Castle 1.87, FreeMarker 2.3.35, OpenTelemetry 1.68.0), sumy zregenerowane i porównane z Maven Central; CVE-2026-53914 (wtyczka Kotlin 2.2.21) złagodzone wyłączonym build cache + test polityki w repo-policy; README silnika: tabela zależności z opiekunem, datą i CVE oraz sekcja „Aktualizacja zależności”
+- 2026-11-14 — workflow `deliver-story` passed (2 rundy; QA pass 7/7 AC; code-reviewer approve po poprawkach 3 major, security-engineer approve, solution-architect approve); bramka orkiestratora `pnpm run gate` zielona (pokrycie zmienionego kodu 100% linii, 95,6% gałęzi), po poprawce zależności ponownie `gate:kotlin`, repo-policy i `docs:check`; status `in-review` (Tech Lead)
+- 2026-11-14 — Koszt: 14 agentów, ok. 1,48 mln tokenów subagentów (workflow 1,41 mln + poprawka zależności 0,07 mln), 86 min pracy agentów

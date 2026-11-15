@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { describe, it } from 'node:test';
 import { APPLICATION_ID } from '../src/commands.mjs';
 import { SCENARIOS } from '../src/scenarios.mjs';
+import { UPLOAD_SCENARIOS } from '../src/upload-scenarios.mjs';
 
 const APP = join(import.meta.dirname, '..', '..', '..', 'apps', 'mobile');
 const FLOWS = join(APP, 'e2e');
@@ -23,7 +24,10 @@ describe('Maestro flows and scenarios agree (EVM-009 AC4)', () => {
     const files = readdirSync(FLOWS)
       .filter((name) => name.endsWith('.yaml'))
       .sort();
-    assert.deepEqual([...referenced].sort(), files);
+    // EVM-130: the flows 50-69 belong to the upload scenarios (src/upload-scenarios.mjs; test/upload-flows.test.mjs judges them); one of them
+    // serves several steps of a scenario, so they are counted once
+    const uploadFlows = [...new Set(UPLOAD_SCENARIOS.flatMap((scenario) => scenario.steps.map((step) => step.flow)))];
+    assert.deepEqual([...referenced, ...uploadFlows].sort(), files);
     assert.equal(new Set(referenced).size, referenced.length);
   });
 

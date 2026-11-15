@@ -1,0 +1,18 @@
+{
+  "$comment": "EVM-109 AC4 (AC2): in-process limits and full-jitter backoff. delay = floor(rng * (ceiling + 1)), ceiling = min(capMs, baseMs * 2^min(attempt, 20)), attempt from 0, rng in [0, 1) given in the vector. Both implementations assert that their constants equal `constants`.",
+  "constants": { "maxAttempts": 4, "maxRenewals": 3, "baseMs": 1000, "capMs": 30000, "maxParts": 1000 },
+  "cases": [
+    { "attempt": 0, "rng": 0, "expected": 0 },
+    { "attempt": 0, "rng": 0.5, "expected": 500 },
+    { "attempt": 0, "rng": 0.999, "expected": 999 },
+    { "attempt": 1, "rng": 0.5, "expected": 1000 },
+    { "attempt": 2, "rng": 0.25, "expected": 1000 },
+    { "attempt": 3, "rng": 0.75, "expected": 6000 },
+    { "attempt": 4, "rng": 0.5, "expected": 8000 },
+    { "attempt": 5, "rng": 0.5, "expected": 15000 },
+    { "attempt": 5, "rng": 0.999, "expected": 29970 },
+    { "attempt": 20, "rng": 0.5, "expected": 15000 },
+    { "attempt": 100, "rng": 0.5, "expected": 15000 },
+    { "attempt": -1, "rng": 0.5, "expected": 500 }
+  ]
+}

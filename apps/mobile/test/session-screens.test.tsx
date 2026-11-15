@@ -491,7 +491,8 @@ describe('offline (EVM-100 AC6)', () => {
     const rig = stubPorts();
     await open(rig, offline);
     expect(screen.getByRole('header', { name: pl.shell.orders.title })).toBeOnTheScreen();
-    expect(rig.owner.calls).toEqual(['restore']);
+    // the state of the module is compared once the session is shown (EVM-130 AC5); no refresh, no request
+    expect(rig.owner.calls).toEqual(['restore', 'reconcileNative']);
     expect(screen.queryByText(pl.login.title)).toBeNull();
   });
 });

@@ -2,6 +2,7 @@
 
 - **Status:** Zaakceptowana (Konrad, 2026-10-02)
 - **Częściowo zastąpiona przez:** [ADR-0015](0015-srodowisko-testow-per-warstwa.md) (2026-10-03) — zakres: testy backendu lokalnie wyłącznie w kontenerze Linux (natywny wynik na Windows nie jest dowodem); lokalne testy integracyjne preferencyjnie przeciw usługom Compose bez gniazda Dockera, Testcontainers w CI; E2E web — dowodem lokalnym są przeglądarki na Windows (Chrome, Edge, Firefox), CI Linux dodatkowo, zrzuty ekranu tylko na Linuksie; E2E Android — dowodem jest emulator na Windows, w CI odłożone do warunku powrotu z ADR-0015; E2E iOS odłożone razem z całym iOS. Wybór narzędzi bez zmian. Pozostała treść obowiązuje.
+- **Częściowo zmieniona przez:** [ADR-0020](0020-android-upload-w-tle-wlasny-modul-expo.md) (2026-10-21; wdrożenie EVM-109, 2026-11-14) — zakres: kod natywny Kotlin silnika wysyłania plików ma własne bramki jakości — ktlint, testy JUnit na JVM, Kover z progiem 95% linii i gałęzi czystej logiki i konwerter raportu do lcov w `tools/diff-coverage` — poza wyborem narzędzi tej decyzji (Vitest, Playwright, Maestro); E2E Android nadal Maestro. Pozostała treść obowiązuje.
 - **Data:** 2026-10-02
 - **Decydent:** Konrad (akceptacja) · **Autor:** solution-architect (konsultacja: qa-engineer w przeglądzie; narzędzia wpisuje EVM-006 do `testing-strategy.md` → „Narzędzia”)
 - **Powiązane:** EVM-001, EVM-005, EVM-006, EVM-011; ADR-0002, ADR-0003, ADR-0004, ADR-0006, ADR-0007, ADR-0008, ADR-0012; `docs/process/testing-strategy.md`

@@ -9,6 +9,22 @@ import { childrenNamed, parseXml } from './xml.mjs';
 /** The meta-data of the e2e variant that turns FLAG_SECURE off (apps/mobile/plugins/with-hardening.ts `SCREENSHOTS_META`). */
 export const SCREENSHOTS_META = 'pl.eviacharge.SCREENSHOTS_ALLOWED';
 
+/**
+ * Build-time configuration of the upload (EVM-130 AC7; ADR-0020a, SR-MOB-11): the API address and the hosts of the part storage are written by the
+ * config plugin as meta-data, JavaScript never passes them at run time. `UPLOAD_E2E_CLEARTEXT_META` is the switch of the e2e variant that
+ * allows http and the host of the scenario server (10.0.2.2) — a release carrying it is refused, like `SCREENSHOTS_META`.
+ */
+export const API_BASE_URL_META = 'pl.eviacharge.API_BASE_URL';
+export const STORAGE_HOSTS_META = 'pl.eviacharge.STORAGE_HOSTS';
+export const UPLOAD_E2E_CLEARTEXT_META = 'pl.eviacharge.UPLOAD_E2E_CLEARTEXT';
+/** The job service of the background upload (apps/mobile/modules/evia-upload). */
+const UPLOAD_SERVICE_SUFFIX = '.UploadJobService';
+const BIND_JOB_SERVICE = 'android.permission.BIND_JOB_SERVICE';
+const BOOT_ACTIONS =
+  /^(android\.intent\.action\.(BOOT_COMPLETED|LOCKED_BOOT_COMPLETED|QUICKBOOT_POWERON)|com\.htc\.intent\.action\.QUICKBOOT_POWERON)$/;
+/** A hostname of the part storage: letters, digits, dots and hyphens; no scheme, port, wildcard, loopback or emulator alias. */
+const STORAGE_HOSTNAME = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
+
 /** Components that may have an intent filter or be exported: the launcher activity only. */
 const LAUNCHER_ACTIVITY_SUFFIX = '.MainActivity';
 const COMPONENT_TAGS = ['activity', 'activity-alias', 'service', 'receiver', 'provider'];
@@ -20,6 +36,9 @@ const FORBIDDEN_COMPONENT = /expo\.modules\.(updates|devlauncher|devmenu)|com\.f
  */
 const FORBIDDEN_PERMISSION =
   /^android\.permission\.(READ_MEDIA_[A-Z_]+|READ_EXTERNAL_STORAGE|WRITE_EXTERNAL_STORAGE|MANAGE_EXTERNAL_STORAGE|READ_CONTACTS|WRITE_CONTACTS|GET_ACCOUNTS|ACCESS_[A-Z_]*LOCATION)$/;
+
+/** EVM-130 AC7: no foreground service — Android 13 and older upload in a plain job, Android 14+ in a user-initiated one (ADR-0020a). */
+const FOREGROUND_SERVICE_PERMISSION = /^android\.permission\.FOREGROUND_SERVICE[A-Z_]*$/;
 
 /**
  * @param {string} manifestText the output of `apkanalyzer manifest print`
@@ -36,9 +55,20 @@ export function checkManifest(manifestText, { applicationId, minimumTargetSdk = 
   const permissions = [...childrenNamed(manifest, 'uses-permission'), ...childrenNamed(manifest, 'uses-permission-sdk-23')].map(
     (element) => element.attributes['android:name'] ?? '',
   );
-  const allowed = ['android.permission.INTERNET', `${applicationId}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`];
+  const allowed = [
+    'android.permission.INTERNET',
+    `${applicationId}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`,
+    // EVM-130 AC7: the background upload — the job of the system (user-initiated on Android 14+), the network state for its constraints,
+    // the re-arming of persisted jobs after a restart (without an own boot receiver) and the notification of Android 13+
+    'android.permission.RUN_USER_INITIATED_JOBS',
+    'android.permission.ACCESS_NETWORK_STATE',
+    'android.permission.RECEIVE_BOOT_COMPLETED',
+    'android.permission.POST_NOTIFICATIONS',
+  ];
   for (const permission of permissions) {
-    if (FORBIDDEN_PERMISSION.test(permission)) problems.push(`forbidden permission ${permission} (gallery, storage, contacts or location)`);
+    if (FOREGROUND_SERVICE_PERMISSION.test(permission)) problems.push(`forbidden permission ${permission} (foreground service, ADR-0020a)`);
+    else if (FORBIDDEN_PERMISSION.test(permission))
+      problems.push(`forbidden permission ${permission} (gallery, storage, contacts or location)`);
     else if (!allowed.includes(permission)) problems.push(`unexpected permission ${permission}`);
   }
   if (!permissions.includes('android.permission.INTERNET')) problems.push('INTERNET permission is missing');
@@ -56,6 +86,13 @@ export function checkManifest(manifestText, { applicationId, minimumTargetSdk = 
     if (attribute(name) === undefined) problems.push(`${name} is missing`);
   }
 
+  const metas = new Map(
+    childrenNamed(application, 'meta-data').map((meta) => [meta.attributes['android:name'] ?? '', meta.attributes['android:value']]),
+  );
+  const hasUploadService = childrenNamed(application, 'service').some((service) =>
+    (service.attributes['android:name'] ?? '').endsWith(UPLOAD_SERVICE_SUFFIX),
+  );
+  problems.push(...uploadConfigProblems(metas, hasUploadService));
   for (const meta of childrenNamed(application, 'meta-data')) {
     // EVM-100 (SR-MOB-08, decision 5): the switch of the e2e variant; MainActivity keeps FLAG_SECURE without it (fail closed)
     if (meta.attributes['android:name'] === SCREENSHOTS_META) {
@@ -73,6 +110,7 @@ export function checkManifest(manifestText, { applicationId, minimumTargetSdk = 
         component.attributes['android:exported'] === 'true' ||
         (component.attributes['android:exported'] === undefined && filters.length > 0);
       if (FORBIDDEN_COMPONENT.test(name)) problems.push(`forbidden component ${name}`);
+      problems.push(...uploadComponentProblems(tag, name, component, filters));
       if (exported && !(tag === 'activity' && name.endsWith(LAUNCHER_ACTIVITY_SUFFIX))) problems.push(`exported component ${name}`);
       if (tag === 'activity' && name.endsWith(LAUNCHER_ACTIVITY_SUFFIX)) problems.push(...launcherProblems(component, filters));
     }
@@ -98,5 +136,63 @@ function launcherProblems(activity, filters) {
     problems.push('the intent filter of MainActivity is not exactly MAIN/LAUNCHER');
   }
   if (childrenNamed(filter, 'data').length > 0) problems.push('MainActivity has a deep link (data element)');
+  return problems;
+}
+
+/**
+ * Build-time configuration of the upload (EVM-130 AC7, SR-MOB-11): the e2e switch (http and the host of the scenario server) refuses a
+ * release; a package with the upload service must carry an https API address and plain storage hostnames.
+ * @param {Map<string, string | undefined>} metas
+ * @param {boolean} hasUploadService
+ * @returns {string[]}
+ */
+function uploadConfigProblems(metas, hasUploadService) {
+  /** @type {string[]} */
+  const problems = [];
+  if (metas.has(UPLOAD_E2E_CLEARTEXT_META)) {
+    problems.push(
+      `${UPLOAD_E2E_CLEARTEXT_META} is in the manifest (http and the scenario server host allowed for the upload — an e2e build)`,
+    );
+  }
+  const api = metas.get(API_BASE_URL_META);
+  const hosts = metas.get(STORAGE_HOSTS_META);
+  if (hasUploadService && api === undefined)
+    problems.push(`${API_BASE_URL_META} is missing (the upload service needs the API address of the build)`);
+  if (hasUploadService && hosts === undefined)
+    problems.push(`${STORAGE_HOSTS_META} is missing (the upload service needs the storage host of the build)`);
+  if (api !== undefined && !/^https:\/\/[^/\s]+/.test(api)) problems.push(`${API_BASE_URL_META} is not an https address`);
+  if (hosts !== undefined && hosts.split(',').some((host) => !STORAGE_HOSTNAME.test(host.trim()))) {
+    problems.push(`${STORAGE_HOSTS_META} holds something other than plain hostnames (https only)`);
+  }
+  return problems;
+}
+
+/**
+ * The components of the upload (EVM-130 AC7): a service is never direct-boot aware, never in its own process, never a foreground service;
+ * the job service is not exported and is bound by the system only (`BIND_JOB_SERVICE`); nothing listens for the boot broadcast (the system
+ * re-arms persisted jobs itself, RECEIVE_BOOT_COMPLETED is not for an own receiver).
+ * @param {string} tag
+ * @param {string} name
+ * @param {import('./xml.mjs').XmlElement} component
+ * @param {import('./xml.mjs').XmlElement[]} filters
+ * @returns {string[]}
+ */
+function uploadComponentProblems(tag, name, component, filters) {
+  /** @type {string[]} */
+  const problems = [];
+  for (const filter of filters) {
+    if (childrenNamed(filter, 'action').some((action) => BOOT_ACTIONS.test(action.attributes['android:name'] ?? ''))) {
+      problems.push(`${name} listens for the boot broadcast (no own boot receiver)`);
+    }
+  }
+  if (tag !== 'service') return problems;
+  if (component.attributes['android:directBootAware'] === 'true') problems.push(`service ${name} is directBootAware`);
+  if (component.attributes['android:process'] !== undefined) problems.push(`service ${name} has android:process`);
+  if (component.attributes['android:foregroundServiceType'] !== undefined) problems.push(`service ${name} is a foreground service`);
+  if (name.endsWith(UPLOAD_SERVICE_SUFFIX)) {
+    if (component.attributes['android:exported'] !== 'false') problems.push(`service ${name} must have android:exported="false"`);
+    if (component.attributes['android:permission'] !== BIND_JOB_SERVICE)
+      problems.push(`service ${name} lacks the permission ${BIND_JOB_SERVICE}`);
+  }
   return problems;
 }

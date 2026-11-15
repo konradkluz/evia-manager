@@ -1,0 +1,20 @@
+# EVM-130 AC4: a synthetic file of 1 MiB (one part) goes into the queue online; the Queue shows its row. What the server says about the file
+# afterwards (uploaded, checksum_mismatch, quarantined, clean) is set by the scenario (tools/mobile-e2e).
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- runFlow:
+    file: common/upload-inject.yaml
+    env:
+      MIB: '1'
+      BYTES: '1048576'
+- tapOn:
+    id: 'nav-queue'
+- extendedWaitUntil:
+    visible:
+      id: 'file-row-.*'
+    timeout: 60000

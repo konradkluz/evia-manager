@@ -6,7 +6,7 @@
 import { matchesGlob } from 'node:path';
 
 const SOURCE_DIRS = /^(apps|packages|services|tools)\//;
-const SOURCE_EXTENSIONS = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/;
+const SOURCE_EXTENSIONS = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|kt)$/;
 
 /**
  * @param {string} path repository path

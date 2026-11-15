@@ -12,9 +12,13 @@ import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NO_OVERRIDES, type DeviceOverrides } from '../device-guard/overrides';
 import { LocalDataLostScreen } from '../screens/LocalDataScreens';
-import { sessionPorts } from '../session';
+import { loadEviaUpload } from '../../modules/evia-upload/src';
+import { sessionMediaUploads, sessionPorts } from '../session';
 import { tokenStore } from '../secure-store';
 import type { SyncControl } from '../sync/types';
+import type { AddMediaResult } from '../upload/media-uploads';
+import type { NewMediaAsset } from '../upload/create-media-asset';
+import type { MediaControl, MediaFileStatus } from '../upload/types';
 import { localData, storageE2eSupport, type LocalDataHost, type OpenResult, type UnlockedStore } from '../storage';
 import { Button } from '../ui';
 import { borderWidth, color, size, space, text } from '../ui/theme';
@@ -57,7 +61,14 @@ const LABELS = {
   background6: 'background 6 min',
   syncAdd: 'sync: add notes',
   syncStatus: 'sync: status',
+  mediaInject: 'media: inject file',
+  mediaStatus: 'media: status',
 } as const;
+
+/** EVM-130 (media block): the synthetic file of the scenarios — a work order that never existed, a size in MiB, random content made natively. */
+export const E2E_MEDIA_WORK_ORDER = '30000000-0000-4000-8000-000000000001';
+export const MIB = 1024 * 1024;
+export const E2E_MEDIA_MAX_MIB = 256;
 
 export interface E2eHooksDeps {
   readonly host: Pick<LocalDataHost, 'openForUser' | 'wipeCompanyData' | 'facts' | 'probe'>;
@@ -67,6 +78,14 @@ export interface E2eHooksDeps {
   readonly now: () => number;
   /** The synchronization of the signed-in session (EVM-107 AC6): the real one by default, read when a button is pressed. */
   readonly sync?: () => Pick<SyncControl, 'enqueue' | 'getSnapshot' | 'trigger'>;
+  /** EVM-130: the files of the session — adds a file (command + row) and shows the states. */
+  readonly media?: () => {
+    readonly add: (asset: NewMediaAsset) => Promise<AddMediaResult>;
+    readonly view: Pick<MediaControl, 'getSnapshot'>;
+    /** The native hook of the e2e package: writes `sizeBytes` of random content as the original of `assetId` (`null` in every other package). */
+    readonly inject: (assetId: string, sizeBytes: number, seed: number) => Promise<{ sizeBytes: number; sha256: string } | null>;
+    readonly newId: () => string;
+  };
 }
 
 const realDeps = (): E2eHooksDeps => ({
@@ -76,6 +95,17 @@ const realDeps = (): E2eHooksDeps => ({
   copyEngine: storageE2eSupport.copyEngine,
   now: Date.now,
   sync: () => sessionPorts().sync,
+  media: () => {
+    const ports = sessionPorts();
+    const uploads = sessionMediaUploads();
+    const native = loadEviaUpload();
+    return {
+      add: (asset) => uploads?.add(asset) ?? Promise.resolve({ ok: false, code: 'no_session' }),
+      view: ports.media,
+      inject: (assetId, sizeBytes, seed) => native?.e2eInjectFile(assetId, sizeBytes, seed) ?? Promise.resolve(null),
+      newId: ports.newId,
+    };
+  },
 });
 
 /** One status line: `key=value` pairs in a fixed order; values are codes and numbers only. */
@@ -238,6 +268,49 @@ export function E2eHooks({ deps: injected }: { deps?: E2eHooksDeps } = {}) {
     await Promise.resolve();
   });
 
+  const [mediaMib, setMediaMib] = useState('1');
+  /**
+   * EVM-130 AC1: a synthetic file in the durable queue without the camera. The native hook writes random content of the given size under
+   * the id of a new asset; then the command `CreateMediaAsset` and the row are made like for a photo — the job is armed after `applied`.
+   */
+  const mediaInject = guarded(async () => {
+    const media = (get().media ?? realDeps().media)?.();
+    if (media === undefined) {
+      setStatus({ error: 'no_media' });
+      return;
+    }
+    const mib = Math.min(Math.max(Number.parseInt(mediaMib, 10) || 1, 1), E2E_MEDIA_MAX_MIB);
+    const assetId = media.newId();
+    const digest = await media.inject(assetId, mib * MIB, get().now() % 2_000_000_000);
+    if (digest === null) {
+      setStatus({ error: 'no_media_hook' });
+      return;
+    }
+    const added = await media.add({ assetId, workOrderId: E2E_MEDIA_WORK_ORDER, mediaType: 'photo', category: 'other' });
+    // shown only after the command is in the durable queue (a scenario kills the app right after)
+    setStatus(added.ok ? { media_added: 1, asset: assetId, bytes: digest.sizeBytes } : { error: added.code });
+  });
+
+  const mediaStatus = guarded(async () => {
+    const media = (get().media ?? realDeps().media)?.();
+    if (media === undefined) {
+      setStatus({ error: 'no_media' });
+      return;
+    }
+    const snapshot = media.view.getSnapshot();
+    const count = (status: MediaFileStatus): number => snapshot.files.filter((file) => file.status === status).length;
+    setStatus({
+      files: snapshot.files.length,
+      waiting: count('waiting'),
+      uploading: count('uploading'),
+      sent: count('sent'),
+      failed: count('error'),
+      attention: count('attention'),
+      notifications: snapshot.notifications,
+    });
+    await Promise.resolve();
+  });
+
   const device = (name: string, change: (o: DeviceOverrides) => void) => () => {
     change(deviceOverrides);
     setStatus({ device: name });
@@ -298,6 +371,10 @@ export function E2eHooks({ deps: injected }: { deps?: E2eHooksDeps } = {}) {
         <Button label={LABELS.probe} onPress={probe} testID="e2e-probe" />
         <Button label={LABELS.syncAdd} onPress={syncAdd} testID="e2e-sync-add" />
         <Button label={LABELS.syncStatus} onPress={syncStatus} testID="e2e-sync-status" />
+        {/* EVM-130 (media block) */}
+        <TextInput testID="e2e-media-mib" value={mediaMib} onChangeText={setMediaMib} keyboardType="number-pad" style={input} />
+        <Button label={LABELS.mediaInject} onPress={mediaInject} testID="e2e-media-inject" />
+        <Button label={LABELS.mediaStatus} onPress={mediaStatus} testID="e2e-media-status" />
         <Button
           label={LABELS.lockOff}
           onPress={device('lock_off', (o) => {

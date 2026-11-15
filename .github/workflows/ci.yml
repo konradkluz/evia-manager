@@ -307,10 +307,20 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          key: gradle-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'apps/mobile/modules/evia-upload/engine/gradle/verification-metadata.xml', 'apps/mobile/modules/evia-upload/engine/build.gradle.kts') }}
           restore-keys: gradle-${{ runner.os }}-
       - name: Install (frozen lockfile)
         run: pnpm install --frozen-lockfile
+      # EVM-109 AC5: the upload engine is pure Kotlin tested on the JVM (JDK 17 from setup-java; no emulator, no prebuild). Fails fast, before the
+      # slow Android build; the Kover report is converted to lcov and handed to the coverage job.
+      - name: Kotlin engine gate (ktlint, JUnit on the JVM, Kover 95%, production dependencies)
+        run: pnpm run gate:kotlin
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: lcov-mobile-kotlin
+          path: coverage/mobile-kotlin/lcov.info
+          if-no-files-found: error
+          retention-days: 7
       - name: Build the dependencies of the app (design tokens, contract client)
         run: pnpm exec turbo run build --filter=@evia/mobile^...
       - name: Accept the Android SDK licenses (Gradle installs the missing platform and NDK)
@@ -402,9 +412,9 @@ jobs:
 
   coverage:
     name: coverage
-    needs: [changes, quality, backend, backend-integration]
-    # backend-integration may be skipped ("not relevant", EVM-086 AC3) and must not skip coverage with it: no implicit
-    # success(); a failed or cancelled dependency still skips coverage and ci-gate goes red.
+    needs: [changes, quality, backend, backend-integration, mobile-apk]
+    # backend-integration and mobile-apk may be skipped ("not relevant", EVM-086 AC3, EVM-009) and must not skip coverage with them: no
+    # implicit success(); a failed or cancelled dependency still skips coverage and ci-gate goes red.
     if: needs.changes.outputs.heavy == 'true' && !failure() && !cancelled()
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -433,6 +443,13 @@ jobs:
         with:
           name: lcov-integration
           path: coverage/backend-tests/integration
+      # EVM-109 AC5: the Kover report of the Kotlin engine (converted to lcov; SF relative to the repository root, workspace ".").
+      # Present exactly when mobile-apk ran; otherwise a missing artifact fails the job.
+      - if: needs.changes.outputs.mobile == 'true'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: lcov-mobile-kotlin
+          path: coverage/mobile-kotlin
       - name: Changed-code coverage ≥ 90% (diff-coverage)
         run: node tools/diff-coverage/cli.mjs
 

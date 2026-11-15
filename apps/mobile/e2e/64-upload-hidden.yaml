@@ -1,0 +1,44 @@
+# EVM-130 AC5: the mode of hidden data (the hook moves the time without contact with the server by 8 days; the app re-checks when it comes back
+# to the foreground): the screen says "Dane zleceń są ukryte". The transfer goes on in the background meanwhile; tools/mobile-e2e waits for the
+# object at the scenario server afterwards.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    id: 'evia-e2e-hooks-panel'
+# the hook lies below the fold of the panel (a scroll view), its status line at the top
+- scrollUntilVisible:
+    element:
+      id: 'e2e-contact-8'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'e2e-contact-8'
+- scrollUntilVisible:
+    element:
+      id: 'e2e-status'
+    direction: UP
+    centerElement: true
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-status'
+      text: 'device=contact_8d'
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      id: 'e2e-close'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'e2e-close'
+- pressKey: home
+- launchApp:
+    stopApp: false
+# the notice of hidden data is on the orders tab; the queue tab (where the app stays) keeps working
+- tapOn:
+    id: 'nav-orders'
+- extendedWaitUntil:
+    visible: 'Dane zleceń są ukryte.*'
+    timeout: 60000
+- takeScreenshot: u130-hidden-data

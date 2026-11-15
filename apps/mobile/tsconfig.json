@@ -16,6 +16,7 @@
     "test/**/*.ts",
     "test/**/*.tsx",
     "plugins/**/*.ts",
+    "modules/*/src/**/*.ts",
     "*.config.ts",
     "*.config.mjs",
     "*.config.js"

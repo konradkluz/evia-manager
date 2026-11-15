@@ -65,13 +65,31 @@ describe('mobile-apk (EVM-009 AC5, AC6)', () => {
     const commands = runs('mobile-apk');
     expect(commands.some((command) => command.includes('tools/mobile-apk/cli.mjs verify --apk "$APK"'))).toBe(true);
     expect(commands.some((command) => command.includes('tools/mobile-apk/cli.mjs digest --apk "$APK"'))).toBe(true);
-    const upload = steps('mobile-apk').find((step) => text(step['uses']).startsWith('actions/upload-artifact@'));
+    const upload = steps('mobile-apk').find((step) => record(step['with'])['name'] === 'mobile-apk-unsigned');
     expect(record(upload?.['with'])).toMatchObject({
       name: 'mobile-apk-unsigned',
       path: 'dist/*-release-unsigned.apk',
       'retention-days': 14,
     });
     expect(JSON.stringify(job('mobile-apk'))).not.toMatch(/debug/i);
+  });
+
+  it('EVM-109 AC5: the Kotlin engine gate runs before the Android build, without secrets, and its lcov report goes to the coverage job (7 days, an error when missing)', () => {
+    const names = steps('mobile-apk').map((step) => text(step['name']));
+    const gate = names.findIndex((name) => name.startsWith('Kotlin engine gate'));
+    expect(gate).toBeGreaterThan(-1);
+    expect(runs('mobile-apk')).toContain('pnpm run gate:kotlin');
+    expect(gate).toBeLessThan(names.indexOf('Native project (expo prebuild, clean; the version code is the run number plus an offset)'));
+    const upload = steps('mobile-apk').find((step) => record(step['with'])['name'] === 'lcov-mobile-kotlin');
+    expect(record(upload?.['with'])).toMatchObject({
+      path: 'coverage/mobile-kotlin/lcov.info',
+      'if-no-files-found': 'error',
+      'retention-days': 7,
+    });
+    expect(text(upload?.['uses'])).toMatch(/^actions\/upload-artifact@[0-9a-f]{40}$/);
+    // JDK 17 comes from setup-java (the gate refuses any other JDK); the Gradle cache is keyed by the dependency checksums
+    expect(JSON.stringify(job('mobile-apk'))).toContain('verification-metadata.xml');
+    expect(JSON.stringify(job('mobile-apk'))).not.toContain('secrets.');
   });
 });
 

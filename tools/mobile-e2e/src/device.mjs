@@ -9,14 +9,18 @@
  * the debug key of the template so that `install -r` keeps the data of the e2e variant), installed over the e2e app and replaced by
  * the e2e package again right after (`install-release-debugkey`, `adb-backup-check`, `reinstall-e2e`).
  *
+ * EVM-130 stage C: the interruptions of the upload scenarios are the steps `force-stop`, `kill-9` and `reboot` (restart of the emulator) of
+ * this module; the steps that read the device and the scenario server of the upload part are in device-upload.mjs (`UploadAction`).
  * @typedef {'force-stop' | 'kill-9' | 'reboot' | 'copy-db' | 'corrupt-db' | 'check-encrypted' | 'check-backup-transport'
- *   | 'adb-backup-start' | 'adb-backup-check' | 'adb-backup-control-check' | 'install-release-debugkey' | 'reinstall-e2e'} DeviceAction
+ *   | 'adb-backup-start' | 'adb-backup-check' | 'adb-backup-control-check' | 'install-release-debugkey' | 'reinstall-e2e'} LocalAction
+ * @typedef {LocalAction | import('./device-upload.mjs').UploadAction} DeviceAction
  * @typedef {{ status: number | null, stdout: string, stderr: string }} Outcome
  * @typedef {{ action: DeviceAction | 'check-sync-report', ok: boolean, detail: string }} Check
  */
 import { createHash } from 'node:crypto';
 import { inflateSync } from 'node:zlib';
 import { APPLICATION_ID } from './commands.mjs';
+import { isUploadAction, MAESTRO_LINE, runUploadAction } from './device-upload.mjs';
 
 /** The marker that the hooks write into the queue (composed at run time in the app); it must not appear in any file or log. */
 export const SENTINEL = ['EVM093', 'SENTINEL'].join('-');
@@ -107,9 +111,6 @@ export function judgeGrep(outcome, where) {
   }
   return { ok: false, detail: `grep over ${where} failed (exit ${String(outcome.status)})` };
 }
-
-/** A logcat line of the Maestro test driver (`brief`: `I/Maestro ( 6458):`; `threadtime`: `… 6458  6470 I Maestro : …`). */
-const MAESTRO_LINE = /(?:^|\s)[VDIWEF][/ ]\s*Maestro\s*(?:\(\s*\d+\))?\s*:/;
 
 /**
  * @param {Outcome} logcat
@@ -320,6 +321,7 @@ export function backupLogLine(outcome) {
  *   backupFile: string,
  *   releaseApk: string,
  *   e2eApk: string,
+ *   uploadControl?: (method: string, path: string, body?: unknown) => Promise<{ status: number, body: unknown } | null>,
  * }} DeviceContext adb with the serial already applied; the archive lives in .scratch and is removed after the check;
  * `releaseApk` is the not debuggable release package signed with the debug key (.scratch/mobile-e2e/*-debugkey.apk), `e2eApk` the e2e one
  */
@@ -334,18 +336,30 @@ const succeeded = (outcome) => outcome.status === 0;
  * @returns {Promise<Check>}
  */
 export async function runDeviceAction(action, context) {
+  if (isUploadAction(action)) return /** @type {Promise<Check>} */ (runUploadAction(action, context));
   const { adb } = context;
   /** @param {boolean} ok @param {string} detail @returns {Check} */
   const check = (ok, detail) => ({ action, ok, detail });
-  switch (action) {
+  switch (/** @type {LocalAction} */ (action)) {
     case 'force-stop':
       return check(succeeded(adb(...deviceCommands.forceStop())), 'am force-stop');
     case 'kill-9': {
       // without a running app pidof prints nothing and `kill -9` without a pid exits non-zero: a failure, never a pass
+      // EVM-130: an armed upload job makes the system start the app process again at once, so "no process" is the wrong proof; the proof is that
+      // the process that was killed is gone (a new pid may be there)
+      const before = adb(...deviceCommands.pidof())
+        .stdout.trim()
+        .split(/s+/)
+        .filter((pid) => pid !== '');
       const killed = succeeded(adb(...deviceCommands.kill9()));
       await context.sleep(1000);
-      const after = adb(...deviceCommands.pidof()).stdout.trim();
-      return check(killed && after === '', killed ? 'process killed with SIGKILL' : 'kill -9 through run-as failed');
+      const after = adb(...deviceCommands.pidof())
+        .stdout.trim()
+        .split(/s+/);
+      return check(
+        killed && !before.some((pid) => after.includes(pid)),
+        killed ? 'process killed with SIGKILL' : 'kill -9 through run-as failed',
+      );
     }
     case 'reboot': {
       if (!succeeded(adb(...deviceCommands.reboot()))) return check(false, 'adb reboot failed');

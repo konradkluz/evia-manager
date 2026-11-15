@@ -4,7 +4,7 @@ import { Challenge, IssuedSession, revealChallenge, revealSession } from '../../
 import { checkpoint, parseSessionMeta, sessionEndVariant } from '../../src/auth/session-meta';
 import { InstallationProof } from '../../src/storage/installation-proof';
 import { FakeAuthServer } from './fake-auth-server';
-import { FakeClock, FakeWipe, issued, newPhone, problem, signedIn, start } from './fakes';
+import { FakeClock, FakeWipe, issued, newPhone, signedIn, start } from './fakes';
 import { DEVICE_1, T0, USER_A, challengeToken, secret, token } from './fixtures';
 
 /** Every secret of the sign-in (security W5): none of them may appear in a log, a state, an error or a serialisation. */
@@ -78,7 +78,7 @@ describe('redaction of the sign-in (EVM-100 AC2; security W5, SR-LOG-02, SR-LOG-
     try {
       const phone = newPhone();
       const rig = await signedIn(phone);
-      rig.client.refreshScript.push(problem(401, 'session_revoked'));
+      phone.native.accessScript.push({ status: 'blocked', state: 'paused_revoked' });
       const events: unknown[] = [];
       rig.owner.onSessionEnded((event) => events.push(event));
       await rig.owner.refresh();
@@ -173,7 +173,7 @@ describe('session record (EVM-100 AC4, AC5)', () => {
     const rig = await signedIn(phone);
     phone.queue = 4;
     expect(await rig.owner.unsentItemCount()).toBe(4);
-    phone.faults.set('get:refreshToken', 'fail');
+    phone.faults.set('get:sessionMeta', 'fail');
     expect(await rig.owner.accessToken()).toBe(token('access-1'));
   });
 });

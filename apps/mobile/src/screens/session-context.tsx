@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useState, useSyncExt
 import type { QueueEntryRow } from '../auth/ports';
 import type { DeviceGuard, GuardSnapshot } from '../device-guard/device-guard';
 import type { QueueItem, QueueView, SyncControl, SyncSnapshot } from '../sync/types';
+import type { MediaControl, MediaUploadsSnapshot } from '../upload/types';
 import type { AddTarget } from './AddSheet';
 
 /** What the signed-in screens may do with the session (EVM-100 AC7, M-09; EVM-101); the owner itself stays outside the screens. */
@@ -24,6 +25,8 @@ export interface SessionActions {
   readonly queueEntries: (withLabels: boolean) => Promise<QueueEntryRow[]>;
   /** The synchronization of the session (EVM-107): state, triggers, the queue and the operations on "Wymaga uwagi". */
   readonly sync: SyncControl;
+  /** The files of the queue (EVM-130): states, "Ponów", the notification consent and the target of a notification. */
+  readonly media: MediaControl;
   /** "Kopiuj treść": the sensitive clipboard (marked, removed after 60 s); false when it could not be done. */
   readonly copyToClipboard: (text: string) => boolean;
   /** "Utwórz ponownie" of a rejected entry: opens the form where there is one (M-10), otherwise creates it again at once. */
@@ -75,6 +78,12 @@ export function useQueueEntries(): { readonly hidden: boolean; readonly rows: re
     };
   }, [session, hidden]);
   return { hidden, rows };
+}
+
+/** The files of the queue (immutable, memoized snapshot: no render loop). */
+export function useMediaSnapshot(): MediaUploadsSnapshot {
+  const { media } = useSession();
+  return useSyncExternalStore(media.subscribe, media.getSnapshot);
 }
 
 /** The synchronization state (immutable, memoized snapshot: no render loop). */

@@ -1,0 +1,20 @@
+# EVM-130 AC1 AC2 AC4: the file ends as "Wysłano" (one file, none left in the queue) and the app is still signed in. tools/mobile-e2e asserts
+# afterwards, with the scenario server and adb: exactly one object per asset with the SHA-256 of the original, no orphaned multipart, the
+# original still on the phone until the server says `clean`, and no token or signed address in the log or the files of the app.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- tapOn:
+    id: 'nav-queue'
+- extendedWaitUntil:
+    visible: 'Plik, Wysłano'
+    timeout: 240000
+- assertVisible:
+    id: 'files-summary'
+    text: 'Wysłano 1 z 1 · 0 w kolejce'
+- assertNotVisible: 'Wylogowano ten telefon'
+- takeScreenshot: u130-sent

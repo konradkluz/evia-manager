@@ -621,6 +621,33 @@ export class SqlReplicaStore implements ReplicaStore {
     });
   }
 
+  /**
+   * The state of the files of the phone in the active generation (EVM-130 AC4): `fileState` and its reason code of the `media_asset`
+   * entities with these ids, as the synchronization wrote them. Only the two allow-listed keys leave; an asset that is not in the
+   * replica yet is absent from the answer.
+   */
+  async readMediaServerStates(
+    ids: readonly string[],
+  ): Promise<ReadonlyMap<string, { readonly fileState: string; readonly reasonCode: string | null }>> {
+    const out = new Map<string, { fileState: string; reasonCode: string | null }>();
+    for (const part of chunk(ids, MAX_PARAMS - 1)) {
+      const rows = await this.#db.read((tx) =>
+        tx.all(
+          `SELECT e.id AS id, json_extract(e.fields, '$.fileState') AS state, json_extract(e.fields, '$.fileStateReasonCode') AS reason
+           FROM replica_entities e JOIN replica_generations g ON g.generation = e.generation AND g.role = 'active'
+           WHERE e.type = 'media_asset' AND e.id IN (${part.map(() => '?').join(', ')})`,
+          part,
+        ),
+      );
+      for (const row of rows) {
+        if (typeof row['state'] === 'string') {
+          out.set(String(row['id']), { fileState: row['state'], reasonCode: typeof row['reason'] === 'string' ? row['reason'] : null });
+        }
+      }
+    }
+    return out;
+  }
+
   async wipeReplica(): Promise<void> {
     await this.#db.transaction(async (tx) => {
       for (const table of ['replica_entities', 'replica_tombstones', 'replica_hydration', 'replica_generations'])
