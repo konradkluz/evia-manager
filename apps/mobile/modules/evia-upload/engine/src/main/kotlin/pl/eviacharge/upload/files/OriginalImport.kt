@@ -9,11 +9,11 @@ import java.io.OutputStream
 import java.net.URI
 import java.net.URISyntaxException
 import java.nio.channels.Channels
+import java.nio.file.FileAlreadyExistsException
 import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.nio.file.NoSuchFileException
 import java.nio.file.Path
-import java.nio.file.StandardCopyOption
 import java.nio.file.StandardOpenOption
 
 /** What the import of a captured photo answered; [wire] is the only thing that crosses to JavaScript (never a path, never a message). */
@@ -96,6 +96,7 @@ class OriginalImporter(
     private val freeBytes: (File) -> Long = { it.usableSpace },
     private val now: () -> Long = System::currentTimeMillis,
     private val copy: (InputStream, OutputStream) -> Unit = { input, output -> input.copyTo(output) },
+    private val link: (Path, Path) -> Unit = { target, existing -> Files.createLink(target, existing) },
 ) {
     @Synchronized
     fun import(
@@ -148,11 +149,37 @@ class OriginalImporter(
             }
             // a wipe may have started while the copy ran: the marker is read again before the file becomes the original
             if (marker.isStopped()) return rejected(source, ImportResult.WIPE_ACTIVE, temp)
-            Files.move(temp.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE)
-            Files.deleteIfExists(source.toPath())
+            placeWithoutReplacing(temp.toPath(), target.toPath())
+            // the original is in place: nothing below may undo it (a source or a temporary name that cannot be removed is swept later)
+            runCatching { Files.deleteIfExists(temp.toPath()) }
+            runCatching { Files.deleteIfExists(source.toPath()) }
             ImportResult.OK
+        } catch (error: FileAlreadyExistsException) {
+            // the target appeared after the first look (a race): it is somebody's original and stays as it is
+            rejected(source, ImportResult.EXISTS, temp)
         } catch (error: IOException) {
-            rejected(source, ImportResult.IO_ERROR, temp, target)
+            rejected(source, ImportResult.IO_ERROR, temp)
+        }
+    }
+
+    /**
+     * The temporary file becomes the original under its name WITHOUT ever replacing a file that is already there (security 11: `CREATE_NEW`
+     * semantics). A hard link is created by the system in one step and fails with [FileAlreadyExistsException] when the name exists, even if it
+     * was created a moment ago; a rename would replace it silently. When the file system has no hard links, the move without replacing is used
+     * (it fails on an existing target too; its own check is the only window left).
+     */
+    private fun placeWithoutReplacing(
+        temp: Path,
+        target: Path,
+    ) {
+        try {
+            link(target, temp)
+        } catch (error: FileAlreadyExistsException) {
+            throw error
+        } catch (error: UnsupportedOperationException) {
+            Files.move(temp, target)
+        } catch (error: IOException) {
+            Files.move(temp, target)
         }
     }
 
@@ -237,6 +264,12 @@ class OriginalImporter(
                 }
         return doomed.count { runCatching { Files.deleteIfExists(it.toPath()) }.getOrDefault(false) }
     }
+
+    /**
+     * The retry of the cleaning of a phone that is signed out (at the start of the app and when the network returns): the capture cache of a
+     * session that has ended goes, a running session keeps its pictures. `true` when nothing stayed.
+     */
+    fun clearLeftoversIfSignedOut(signedOut: () -> Boolean): Boolean = if (signedOut()) clearLeftovers() else true
 
     /** Sign-out and the wipe: the capture cache and the temporary files of the import go at once. `false` when something stayed. */
     @Synchronized

@@ -19,6 +19,7 @@ import pl.eviacharge.upload.schedule.SyntheticFile
 import pl.eviacharge.upload.schedule.wire
 import pl.eviacharge.upload.session.AppAccess
 import pl.eviacharge.upload.session.LoginInput
+import pl.eviacharge.upload.session.SessionState
 import java.io.IOException
 
 /**
@@ -209,7 +210,11 @@ class EviaUploadModule : Module() {
       }
     }
 
-    /** "Log out": the session ends at once; online, the server is asked to end it (pending revocations are kept). Resolves `true` | `false`. */
+    /**
+     * "Log out": the session ends at once; online, the server is asked to end it (pending revocations are kept). Resolves `true` when the cleaning
+     * of the capture cache and of the temporary files of the import is complete, `false` when something stayed (the JavaScript side retries; the
+     * next start and the next return of the network retry as well, through `flushPendingRevocations`).
+     */
     AsyncFunction("signOut") { online: Boolean ->
       withRuntime(false) { rt ->
         rt.tokens.signOut(online)
@@ -222,6 +227,8 @@ class EviaUploadModule : Module() {
     AsyncFunction("flushPendingRevocations") {
       withRuntime(false) { rt ->
         rt.tokens.flushPendingRevocations()
+        // the retry of a cleaning that sign-out could not finish (EVM-108, fail closed): a signed-out phone keeps no picture of the camera
+        rt.importer.clearLeftoversIfSignedOut { rt.tokens.state() == SessionState.SIGNED_OUT }
         true
       }
     }

@@ -224,6 +224,53 @@ class OriginalImportTest {
     }
 
     @Test
+    fun `EVM-108 AC1 an original that appears while the copy runs is never overwritten - the race between the look and the placing`() {
+        val source = picture()
+        val other = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 7, 7, 7)
+        val result =
+            importer { input, output ->
+                input.copyTo(output)
+                // somebody creates the original after the import looked and before it places its own
+                files.originalFile(ASSET).apply { parentFile.mkdirs() }.writeBytes(other)
+            }.import(ASSET, uri(source))
+        assertEquals(ImportResult.EXISTS, result)
+        assertEquals(other.toList(), files.originalFile(ASSET).readBytes().toList())
+        assertEquals(listOf(ASSET), leftovers())
+        assertFalse(source.exists())
+    }
+
+    @Test
+    fun `EVM-108 AC1 a file system without hard links falls back to the move that does not replace either`() {
+        val noLinks = { _: java.nio.file.Path, _: java.nio.file.Path -> throw UnsupportedOperationException("no links") }
+        val ioFailure = { _: java.nio.file.Path, _: java.nio.file.Path -> throw IOException("link refused") }
+        for (link in listOf(noLinks, ioFailure)) {
+            val own = OriginalImporter(files, { wipe }, { freeSpace }, { clock }, { input, output -> input.copyTo(output) }, link)
+            assertEquals(ImportResult.OK, own.import(ASSET, uri(picture())))
+            assertEquals(JPEG.toList(), files.originalFile(ASSET).readBytes().toList())
+            assertEquals(listOf(ASSET), leftovers())
+            files.originalFile(ASSET).delete()
+        }
+        val other = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 8)
+        val racing =
+            OriginalImporter(files, { wipe }, { freeSpace }, { clock }, { input, output ->
+                input.copyTo(output)
+                files.originalFile(ASSET).writeBytes(other)
+            }, noLinks)
+        assertEquals(ImportResult.EXISTS, racing.import(ASSET, uri(picture())))
+        assertEquals(other.toList(), files.originalFile(ASSET).readBytes().toList())
+        assertEquals(listOf(ASSET), leftovers())
+    }
+
+    @Test
+    fun `EVM-108 AC1 clearing after a sign-out runs only for a phone that is signed out`() {
+        aged(File(camera, CAMERA_NAME))
+        assertTrue(importer().clearLeftoversIfSignedOut { false })
+        assertTrue(File(camera, CAMERA_NAME).exists(), "a running session keeps its pictures")
+        assertTrue(importer().clearLeftoversIfSignedOut { true })
+        assertFalse(camera.exists())
+    }
+
+    @Test
     fun `EVM-108 AC1 a set wipe marker refuses the import and removes the source`() {
         val source = picture()
         wipe = true

@@ -753,6 +753,44 @@ describe('sign-out through the module (EVM-100 AC7; EVM-130 AC2, AC5)', () => {
     expect(await restarted.owner.accessToken()).toBeNull();
   });
 
+  it('EVM-108 pkt 13: the module says the capture cache stayed - the cleaning is repeated offline (no server), and a later success ends it quietly', async () => {
+    const rig = await signedIn(phone);
+    let answers = [false, false, true];
+    rig.native.signOut = (online) => {
+      phone.native.calls.push(`signOut:${online ? 'online' : 'offline'}`);
+      return Promise.resolve(answers.shift() ?? true);
+    };
+    const result = await rig.owner.signOut({ online: true });
+    expect(result).toEqual({ reason: 'signed_out', unsentItems: 0 });
+    expect(natives().filter((call) => call.startsWith('signOut'))).toEqual(['signOut:online', 'signOut:offline', 'signOut:offline']);
+    answers = [];
+  });
+
+  it('EVM-108 pkt 13: a cleaning that stays unfinished after the retries is told in the result - never dropped - and the screens still heard about the end once', async () => {
+    const rig = await signedIn(phone);
+    rig.native.signOut = (online) => {
+      phone.native.calls.push(`signOut:${online ? 'online' : 'offline'}`);
+      return Promise.resolve(false);
+    };
+    const events = ended(rig);
+    const result = await rig.owner.signOut({ online: false });
+    expect(result).toEqual({ reason: 'signed_out', unsentItems: 0, cleaningUnfinished: true });
+    expect(events).toEqual([{ reason: 'signed_out', unsentItems: 0 }]);
+    expect(natives().filter((call) => call.startsWith('signOut'))).toHaveLength(3);
+  });
+
+  it('EVM-108 pkt 13: a module call that throws counts as unfinished too', async () => {
+    const rig = await signedIn(phone);
+    rig.native.signOut = () => Promise.reject(new Error('module gone'));
+    expect(await rig.owner.signOut({ online: false })).toMatchObject({ reason: 'signed_out', cleaningUnfinished: true });
+  });
+
+  it('EVM-108 pkt 13: with no session the module is still asked, so the cache of the camera goes', async () => {
+    const rig = start(phone);
+    await rig.owner.signOut({ online: true });
+    expect(natives()).toContain('signOut:online');
+  });
+
   it('EVM-100 AC7: the screens hear about the end BEFORE the answer of the server (the call of the module is still running)', async () => {
     const rig = await signedIn(phone);
     let release: () => void = () => undefined;
@@ -800,10 +838,10 @@ describe('sign-out through the module (EVM-100 AC7; EVM-130 AC2, AC5)', () => {
     expect((await rig.owner.signInClient().loginTotp(challenge.value, '123456')).kind).toBe('ok');
   });
 
-  it('EVM-100 AC7: signing out without a session asks nothing; a module call that throws does not stop the end of the session', async () => {
+  it('EVM-100 AC7: signing out without a session asks no server (the module only cleans); a module call that throws does not stop the end of the session', async () => {
     const rig = start(phone);
     expect(await rig.owner.signOut({ online: true })).toEqual({ reason: 'signed_out', unsentItems: 0 });
-    expect(natives()).toEqual([]);
+    expect(natives()).toEqual(['signOut:online']);
     const signed = await signedIn(newPhone());
     signed.native.signOut = () => Promise.reject(new Error('synthetic'));
     expect((await signed.owner.signOut({ online: true })).reason).toBe('signed_out');
