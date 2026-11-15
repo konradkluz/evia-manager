@@ -312,7 +312,10 @@ export function judgeNotification(dump) {
   else {
     if (!/mImportance=2\b/.test(channel)) problems.push('the importance of the channel is not LOW');
     if (/mSound=content|mVibrationEnabled=true/.test(channel)) problems.push('the channel has a sound or a vibration');
-    if (!/mLockscreenVisibility=0\b/.test(channel)) problems.push('the channel is not private on the lock screen');
+    if (!/mLockscreenVisibility=0\b/.test(channel))
+      problems.push(
+        `the channel is not private on the lock screen (${/mLockscreenVisibility=S*/.exec(channel)?.[0] ?? 'no mLockscreenVisibility field'})`,
+      );
   }
   return problems.length === 0
     ? {

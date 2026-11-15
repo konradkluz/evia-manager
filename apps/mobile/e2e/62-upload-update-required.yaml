@@ -7,6 +7,6 @@ appId: pl.eviacharge.manager
 - extendedWaitUntil:
     visible: 'Zaktualizuj aplikację'
     timeout: 90000
-- assertVisible: 'Poproś administratora o nową wersję aplikacji.'
+- assertVisible: 'Ta wersja nie jest już obsługiwana. Poproś administratora o nową wersję aplikacji.'
 - assertNotVisible: 'Moje zlecenia'
 - takeScreenshot: u130-update-required
