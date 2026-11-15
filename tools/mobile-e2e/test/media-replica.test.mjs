@@ -70,7 +70,48 @@ describe('media replica of the scenario server (EVM-130 AC1, AC4)', () => {
         heightPx: null,
       },
     });
-    // the reason is only for `failed`
+    // the reason is only for `failed`, and only one of the allow-list
+    for (const reason of ['checksum_mismatch', 'processing_error', 'abandoned']) {
+      assert.equal(
+        mediaChange({
+          assetId: ASSET,
+          workOrderId: WORK_ORDER,
+          mediaType: 'photo',
+          category: null,
+          procedureStageId: null,
+          version: 1,
+          state: 'failed',
+          reasonCode: reason,
+        }).entity.fileStateReasonCode,
+        reason,
+      );
+    }
+    assert.equal(
+      mediaChange({
+        assetId: ASSET,
+        workOrderId: WORK_ORDER,
+        mediaType: 'photo',
+        category: null,
+        procedureStageId: null,
+        version: 1,
+        state: 'failed',
+        reasonCode: 'malware_detected',
+      }).entity.fileStateReasonCode,
+      null,
+    );
+    assert.equal(
+      mediaChange({
+        assetId: ASSET,
+        workOrderId: WORK_ORDER,
+        mediaType: 'photo',
+        category: null,
+        procedureStageId: null,
+        version: 1,
+        state: 'quarantined',
+        reasonCode: 'checksum_mismatch',
+      }).entity.fileStateReasonCode,
+      null,
+    );
     assert.equal(
       mediaChange({
         assetId: ASSET,
@@ -115,7 +156,7 @@ describe('media replica of the scenario server (EVM-130 AC1, AC4)', () => {
     assert.equal(registered.length + pushed.length, 0);
   });
 
-  it('EVM-130 AC4: a change of the file state is a new version of the replica; unknown assets and states are ignored; clean is announced as ready', () => {
+  it('EVM-130 AC4: a change of the file state is a new version of the replica; unknown assets and states are ignored; clean and quarantined are announced as the contract names them', () => {
     const { glue, pushed } = setup();
     glue.fileStateChanged(ASSET, 'uploaded', null);
     assert.equal(pushed.length, 0);
@@ -130,7 +171,7 @@ describe('media replica of the scenario server (EVM-130 AC1, AC4)', () => {
       [
         [1, 'pending', null],
         [2, 'uploading', null],
-        [3, 'ready', null],
+        [3, 'clean', null],
         [4, 'quarantined', null],
         [5, 'failed', 'checksum_mismatch'],
       ],

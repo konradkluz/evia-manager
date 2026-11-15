@@ -14,13 +14,15 @@
 const REPLICA_STATE = Object.freeze({
   pending_upload: 'pending',
   uploaded: 'uploading',
-  // The contract says `clean`; the pull of @evia/sync-core reads only pending / uploading / processing / ready / failed today and skips an entity
-  // with another value (the phone deletes the original after `clean` or `ready`, media-pipeline.md §1). `ready` keeps the scenario testable until
-  // the pull learns `clean` and `quarantined` (open question in docs/qa/EVM-130).
-  clean: 'ready',
+  // The contract of EVM-131 names `clean` (the check is over: the phone may delete the original — and ONLY then, AC4) and `quarantined` (held,
+  // always without a reason). The pull of @evia/sync-core reads both since the correction of AC4.
+  clean: 'clean',
   quarantined: 'quarantined',
   failed: 'failed',
 });
+
+/** The reasons the contract lets through for `failed` (SR-MOB-10); any other reason, a quarantine included, is `null`. */
+const REASONS = new Set(['checksum_mismatch', 'processing_error', 'abandoned']);
 
 /**
  * @param {{ assetId: string, workOrderId: string, mediaType: string, category: string | null, procedureStageId: string | null,
@@ -40,7 +42,7 @@ export function mediaChange({ assetId, workOrderId, mediaType, category, procedu
       procedureStageId,
       capturedAt: null,
       fileState: REPLICA_STATE[state],
-      fileStateReasonCode: state === 'failed' ? reasonCode : null,
+      fileStateReasonCode: state === 'failed' && REASONS.has(String(reasonCode)) ? reasonCode : null,
       sizeBytes: null,
       durationSeconds: null,
       widthPx: null,

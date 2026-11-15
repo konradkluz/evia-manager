@@ -103,7 +103,7 @@ describe('upload part mounted on the scenario server (EVM-130 stage C, AC1, AC4,
     }
   });
 
-  it('EVM-130 AC4: a state set at the control port is a new version of the replica (clean is announced as ready)', async () => {
+  it('EVM-130 AC4: a state set at the control port is a new version of the replica (clean is announced as clean)', async () => {
     const stub = await startStubApi();
     const control = /** @type {number} */ (stub.uploadControlPort);
     try {
@@ -130,7 +130,7 @@ describe('upload part mounted on the scenario server (EVM-130 stage C, AC1, AC4,
         changes.map((/** @type {any} */ change) => [change.entity.version, change.entity.fileState]),
         [
           [1, 'pending'],
-          [2, 'ready'],
+          [2, 'clean'],
         ],
       );
     } finally {
