@@ -18,7 +18,7 @@
  */
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { createServer } from 'node:http';
-import { authAnswer, healthAnswer } from './stub-api.mjs';
+import { authAnswer, healthAnswer } from './stub-answers.mjs';
 
 /** @typedef {'expired_url' | 'drop_mid_part' | 'session_revoked' | 'device_wipe_required' | 'version_unsupported' | 'id_conflict'} FaultName */
 /** @typedef {'pending_upload' | 'uploaded' | 'clean' | 'quarantined' | 'failed'} FileState */
