@@ -60,10 +60,7 @@ const GOOD_TLS = {
 const GOOD_DNS = {
   a: ['203.0.113.10'],
   aaaa: ['2001:db8::10'],
-  caa: [
-    { critical: 0, issue: 'letsencrypt.org; accounturi=https://acme-v02.api.letsencrypt.org/acme/acct/1' },
-    { critical: 0, issuewild: ';' },
-  ],
+  caa: [{ critical: 0, issue: 'letsencrypt.org; accounturi=https://acme-v02.api.letsencrypt.org/acme/acct/1' }],
   spf: ['v=spf1 include:_spf.tem.scaleway.com -all'],
   dmarc: ['v=DMARC1; p=none; rua=mailto:dmarc@panel.eviacharge.pl'],
 };
@@ -226,71 +223,39 @@ describe('EVM-007 AC5, AC6: DNS of the staging node', () => {
     assert.equal(evaluateDns(GOOD_DNS).passed, true);
   });
 
+  const LE = { critical: 0, issue: 'letsencrypt.org' };
+  it('EVM-121 AC1: one issue for letsencrypt.org with an accounturi and no issuewild is green without warnings', () => {
+    const check = evaluateDns({ ...GOOD_DNS, caa: [{ critical: 0, issue: 'letsencrypt.org; accounturi=https://x.example/acct/1' }] });
+    assert.equal(check.passed, true);
+    assert.equal(check.warnings, undefined);
+  });
+  it('EVM-121 AC1: a single issuewild ";" is still green without warnings', () => {
+    const check = evaluateDns({ ...GOOD_DNS, caa: [LE, { critical: 0, issuewild: ';' }] });
+    assert.equal(check.passed, true);
+    assert.equal(check.warnings, undefined);
+  });
+
   const cases = /** @type {Array<[string, Partial<import('../lib/checks.mjs').DnsFacts>]>} */ ([
     ['no A record', { a: [] }],
     ['no AAAA record', { aaaa: [] }],
-    [
-      'a CAA allowing another issuer',
-      {
-        caa: [
-          { critical: 0, issue: 'letsencrypt.org' },
-          { critical: 0, issue: 'other-ca.example' },
-          { critical: 0, issuewild: ';' },
-        ],
-      },
-    ],
-    ['no CAA', { caa: [] }],
-    ['wildcard certificates allowed', { caa: [{ critical: 0, issue: 'letsencrypt.org' }] }],
+    ['EVM-121 AC1: no issue record', { caa: [] }],
+    ['EVM-121 AC1: only an issuewild and no issue', { caa: [{ critical: 0, issuewild: ';' }] }],
+    ['EVM-121 AC1: a second issue record', { caa: [LE, { critical: 0, issue: 'other-ca.example' }] }],
+    ['EVM-121 AC1: a second issue for the same CA', { caa: [LE, LE] }],
+    ['EVM-121 AC1: an issue of another CA', { caa: [{ critical: 0, issue: 'other-ca.example' }] }],
+    ['EVM-121 AC1: an issuewild allowing a CA', { caa: [LE, { critical: 0, issuewild: 'letsencrypt.org' }] }],
+    ['EVM-121 AC1: more than one issuewild', { caa: [LE, { critical: 0, issuewild: ';' }, { critical: 0, issuewild: ';' }] }],
     ['no SPF', { spf: [] }],
     ['an SPF without all', { spf: ['v=spf1 include:x'] }],
     ['no DMARC', { dmarc: [] }],
-    ['a DMARC without reports', { dmarc: ['v=DMARC1; p=none'] }],
+    ['EVM-121 AC2: a DMARC without reports', { dmarc: ['v=DMARC1; p=none'] }],
   ]);
   for (const [name, change] of cases)
     it(`EVM-007 AC6: ${name} is red`, () => {
-      assert.equal(evaluateDns({ ...GOOD_DNS, ...change }).passed, false);
+      const check = evaluateDns({ ...GOOD_DNS, ...change });
+      assert.equal(check.passed, false);
+      assert.equal(check.warnings, undefined);
     });
-
-  describe('EVM-007 AC6: the staging profile (RR-40)', () => {
-    const noCaa = { ...GOOD_DNS, caa: [] };
-    it('EVM-007 AC6: without a profile a missing CAA stays an error (strict default)', () => {
-      assert.equal(evaluateDns(noCaa).passed, false);
-      assert.equal(evaluateDns(noCaa, 'strict').passed, false);
-    });
-    it('EVM-007 AC6: in the staging profile a missing CAA is a warning, the check stays green', () => {
-      const check = evaluateDns(noCaa, 'staging');
-      assert.equal(check.passed, true);
-      assert.equal(check.warnings?.length, 2);
-      assert.match(check.details.join(';'), /CAA issue: brak.*RR-40/);
-      assert.match(check.details.join(';'), /issuewild/);
-    });
-    it('EVM-007 AC6: the staging profile does not soften other findings, nor a wrong CAA issuer set only partially', () => {
-      assert.equal(evaluateDns({ ...noCaa, dmarc: ['junk'] }, 'staging').passed, false);
-      assert.equal(evaluateDns({ ...noCaa, spf: [] }, 'staging').passed, false);
-      assert.equal(evaluateDns({ ...noCaa, a: [] }, 'staging').passed, false);
-      const mixed = evaluateDns({ ...noCaa, dmarc: [] }, 'staging');
-      assert.equal(mixed.details.length, 3);
-    });
-    it('EVM-007 AC6: a DMARC without rua is a separate warning in staging (RR-41) and an error in strict', () => {
-      const noRua = { ...GOOD_DNS, dmarc: ['v=DMARC1; p=none'] };
-      const staging = evaluateDns(noRua, 'staging');
-      assert.equal(staging.passed, true);
-      assert.deepEqual(staging.warnings?.length, 1);
-      assert.match(staging.details.join(), /rua.*RR-41/);
-      assert.equal(evaluateDns(noRua).passed, false);
-      assert.equal(evaluateDns(noRua, 'strict').passed, false);
-      const both = evaluateDns({ ...noRua, caa: [] }, 'staging');
-      assert.equal(both.passed, true);
-      assert.equal(both.warnings?.length, 3);
-    });
-    it('EVM-007 AC6: a complete CAA gives no warnings in either profile', () => {
-      assert.equal(evaluateDns(GOOD_DNS, 'staging').warnings, undefined);
-    });
-    it('EVM-007 AC6: an unknown profile fails closed', () => {
-      for (const profile of ['production', '', 'Staging']) assert.equal(evaluateDns(noCaa, profile).passed, false, profile);
-      assert.match(evaluateDns(GOOD_DNS, 'x').details.join(), /nieznany profil/);
-    });
-  });
 
   it('EVM-007 AC6: the resolver answers are read, failing queries count as missing records', async () => {
     const resolver = /** @type {import('node:dns').promises.Resolver} */ (
@@ -504,10 +469,10 @@ describe('EVM-007 AC6: the summary and the steps of the job', () => {
     assert.match(readFileSync(summary, 'utf8'), /zielony/);
   });
 
-  it('EVM-007 AC6: the staging profile gives a green summary with the warning visible; strict and unknown profiles are red', async () => {
-    /** @param {string | undefined} profile */
-    const run = async (profile) => {
-      const steps = io({ dns: async () => ({ ...GOOD_DNS, caa: [] }) });
+  it('EVM-121 AC2, AC3: strict is the only profile; any set VERIFY_PROFILE and an offline resolver with another CA or a DMARC without rua are red', async () => {
+    /** @param {Partial<import('../lib/checks.mjs').DnsFacts>} change @param {string | undefined} profile */
+    const run = async (change, profile) => {
+      const steps = io({ dns: async () => ({ ...GOOD_DNS, ...change }) });
       const summary = join(steps.outDir, 'summary.md');
       const rules = join(steps.outDir, 'rules.tsv');
       const zap = join(steps.outDir, 'zap.json');
@@ -525,13 +490,16 @@ describe('EVM-007 AC6: the summary and the steps of the job', () => {
       const code = await main('report', steps);
       return { code, text: readFileSync(summary, 'utf8') };
     };
-    const staging = await run('staging');
-    assert.equal(staging.code, 0);
-    assert.match(staging.text, /zielony \(z ostrzeżeniami\)/);
-    assert.match(staging.text, /\| dns \| OSTRZEŻENIE \| .*RR-40/);
-    assert.equal((await run(undefined)).code, 1);
-    assert.equal((await run('prod')).code, 1);
-    assert.match((await run(undefined)).text, /\| dns \| BŁĄD \|/);
+    const green = await run({}, undefined);
+    assert.equal(green.code, 0);
+    assert.doesNotMatch(green.text, /OSTRZEŻENIE|z ostrzeżeniami/);
+    for (const profile of ['staging', 'strict', 'prod', '']) {
+      const red = await run({}, profile);
+      assert.equal(red.code, 1, `profile "${profile}"`);
+      assert.match(red.text, /\| dns \| BŁĄD \| .*niedozwolon/);
+    }
+    assert.equal((await run({ caa: [{ critical: 0, issue: 'other-ca.example' }] }, undefined)).code, 1);
+    assert.equal((await run({ dmarc: ['v=DMARC1; p=none'] }, undefined)).code, 1);
   });
 
   it('EVM-007 AC6: no version step, a missing ZAP report, failed connections or a wrong version give red', async () => {

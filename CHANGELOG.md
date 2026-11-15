@@ -4,6 +4,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/), wersjonowanie:
 
 ## [Unreleased]
 
+### Zmieniono
+- `staging-verify` w jednym rygorze [EVM-121 AC1–AC4]: kontrola `dns` przyjmuje brak `issuewild` albo jedno `";"` (RFC 8659), wymaga dokładnie jednego `issue "letsencrypt.org"` i `_dmarc` z `rua`; profil `staging` usunięty (ostrzeżenia RR-40/RR-41 znikają z kodu), każda ustawiona `VERIFY_PROFILE` = czerwona kontrola `dns`; job `staging-verify` bez `VERIFY_PROFILE`. RR-40 i RR-41 w `threat-model.md` zamknięte (do potwierdzenia przez `security-engineer`), runbook `wdrozenie-staging.md` i README narzędzia zaktualizowane.
+
 ### Naprawiono
 - Stabilne testy dziennika i Firefoksa [EVM-129 AC1, AC2, AC4]: specyfikacje dziennika (EVM-037 AC3, EVM-038 AC3 AC4) działają na zamrożonym zegarze karty i zasiewanego serwera w oknie północy `Europe/Warsaw` (zima i lato, 23:59:59 i 00:00:00); `landmark-unique` było błędem danych testowych (wpisy zasiane poza kolejnością serwera dawały dwie sekcje „Dziś”), panel bez zmian; test limitu 50 pozycji (EVM-035 AC5) nie przekracza już limitu 30 s w Firefoksie pod obciążeniem.
 - Test `session-activity` [EVM-129 AC3]: przypadek „odrzucone żądanie nic nie zapisuje” (EVM-067 AC5) uruchamiał trzy aplikacje w jednym teście i dzielił jeden limit 20 s; rozbity na trzy przypadki z własnym budżetem, asercje i limit bez zmian; logika sesji bez zmian.
