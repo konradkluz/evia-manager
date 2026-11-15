@@ -515,12 +515,26 @@ describe('the state of a file in the view (EVM-130 AC4)', () => {
     expect(await states(r)).toEqual(['01:uploaded']);
   });
 
-  it('EVM-130 AC4: sent and not clean in the replica — the original is untouched: nothing is asked of the module while the replica does not know the file, or says uploading / processing / ready, also after a restart and after reconcile', async () => {
+  it('EVM-130 AC4: processing or ready in the replica without a clean ever seen removes the original exactly once (the row stays clean)', async () => {
+    for (const fileState of ['processing', 'ready']) {
+      const r = await armed();
+      await r.store.media.setState(asset(1), 'uploaded', null, 5);
+      await serverState(r, 1, fileState);
+      await r.uploads.reconcile();
+      await r.uploads.reconcile();
+      await r.setup().reconcile();
+      expect(r.native.completed).toEqual([{ assetId: asset(1), state: fileState, reason: null }]);
+      expect(r.native.deleted).toEqual([asset(1)]);
+      expect(await states(r)).toEqual(['01:clean']);
+    }
+  });
+
+  it('EVM-130 AC4: sent and not confirmed in the replica — the original is untouched: nothing is asked of the module while the replica does not know the file, or says pending / uploading, also after a restart and after reconcile', async () => {
     const r = await armed();
     await r.store.media.setState(asset(1), 'uploaded', null, 5);
     await r.uploads.reconcile();
     expect(r.native.completed).toEqual([]);
-    for (const fileState of ['pending', 'uploading', 'processing', 'ready']) {
+    for (const fileState of ['pending', 'uploading']) {
       await serverState(r, 1, fileState);
       await r.uploads.reconcile();
       // the application of the app restarts: a new service over the same database
@@ -602,6 +616,27 @@ describe('the state of a file in the view (EVM-130 AC4)', () => {
     expect(r.uploads.getSnapshot().files).toMatchObject([{ status: 'attention', code: 'quarantined', actions: [] }]);
     expect(r.native.completed).toEqual([]);
     expect(r.native.deleted).toEqual([]);
+  });
+
+  it('EVM-130 AC4: after "Ponów" the module says uploaded and the replica still shows the old failure — the row stays uploaded, until the replica moves on', async () => {
+    const r = await armed();
+    await r.store.media.setState(asset(1), 'uploaded', null, 5);
+    await serverState(r, 1, 'failed', 'checksum_mismatch');
+    await r.uploads.reconcile();
+    expect(await states(r)).toEqual(['01:failed']);
+    expect(await r.uploads.retry(asset(1))).toBe(true);
+    r.uploads.start();
+    r.native.emit('onFileState', { assetId: asset(1), state: 'uploaded', reason: null });
+    for (let waited = 0; waited < 3000 && (await states(r))[0] !== '01:uploaded'; waited += 20)
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(await states(r)).toEqual(['01:uploaded']);
+    await r.uploads.reconcile();
+    await r.uploads.reconcile();
+    expect(await states(r)).toEqual(['01:uploaded']);
+    expect(r.native.deleted).toEqual([]);
+    await serverState(r, 1, 'clean');
+    await r.uploads.reconcile();
+    expect(await states(r)).toEqual(['01:clean']);
   });
 
   it('EVM-130 AC4: a failure other than checksum_mismatch (processing_error, abandoned) changes nothing — the file stays sent', async () => {

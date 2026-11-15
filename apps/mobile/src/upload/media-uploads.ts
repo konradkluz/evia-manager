@@ -5,7 +5,8 @@
  * - the job of the system is armed only AFTER the server applied `CreateMediaAsset` (the same transaction that settles the mutation
  *   marks the row `applied`); at start, on return to the foreground and after every synchronization each `applied` row is armed again,
  *   idempotently (a file in `needs_attention` waits for "Ponów");
- * - the original stays until the replica says `clean` (not before: `uploaded` of the module, `processing`, `ready` change nothing);
+ * - the original stays until the replica says `clean`, `processing` or `ready` (the last two follow `clean` only, and the replica keeps
+ *   just the latest state, so `clean` may never be seen; the native OriginalPolicy decides; `uploaded` of the module changes nothing);
  *   `failed` + `checksum_mismatch` is "Ponów", `quarantined` is "Wymaga uwagi", the row stays after `clean`;
  * - the percentage comes from the native status and its events and is never written to the database;
  * - a command that is in the queue without a row (the process died between the two writes) is repaired from its payload and the
@@ -50,6 +51,8 @@ export class MediaUploads implements MediaControl {
   readonly #deps: MediaUploadsDeps;
   readonly #listeners = new Set<() => void>();
   readonly #progress = new Map<string, UploadStatus>();
+  /** Files retried by the user whose replica may still show the old failure. */
+  readonly #retried = new Set<string>();
   #snapshot: MediaUploadsSnapshot = EMPTY;
   #running: Promise<void> | undefined;
   #again = false;
@@ -271,9 +274,9 @@ export class MediaUploads implements MediaControl {
 
   /**
    * The decision about the original comes from the REPLICA `media_asset` and from nothing else (AC4, offline-sync.md pkt 7): `clean` →
-   * the original is removed (one native call) and the row stays; `failed` with `checksum_mismatch` → "Ponów" (the file stays, a new
+   * (or `processing` / `ready`) the original is removed (one native call) and the row stays; `failed` with `checksum_mismatch` → "Ponów" (the file stays, a new
    * session follows); `quarantined` → "Wymaga uwagi" (the file stays, no retry). What the module says (`uploaded`) and the replica
-   * states `processing` / `ready` / `uploading` only mean "sent, waiting for the confirmation" — the original STAYS. `clean` is honoured
+   * states `pending` / `uploading` only mean "sent, waiting for the confirmation" — the original STAYS. `clean` is honoured
    * for a row still `applied` too (the replica came before the event of the module); a failure or a quarantine only for a row the
    * module reported as `uploaded` (after "Ponów" the replica still shows the old failure until the new upload is judged). Nothing is read
    * from the replica in the hidden-data mode.
@@ -287,10 +290,19 @@ export class MediaUploads implements MediaControl {
     for (const file of waiting) {
       const server = states.get(file.assetId);
       if (server === undefined) continue;
-      if (server.fileState === 'clean') {
-        const verdict = await this.#deps.native.completeUpload(file.assetId, 'clean', null);
+      // after "Ponów" the replica still carries the old failure until the new upload is judged: it is not honoured (the new failure
+      // comes from the module event); any other state of the replica ends the protection
+      if (server.fileState !== 'failed') this.#retried.delete(file.assetId);
+      if (server.fileState === 'clean' || server.fileState === 'processing' || server.fileState === 'ready') {
+        // `processing` and `ready` follow `clean` only (SR-FILE-05); the replica keeps the last state, so `clean` may never be seen
+        const verdict = await this.#deps.native.completeUpload(file.assetId, server.fileState, null);
         if (verdict === 'delete') await store.media.setState(file.assetId, 'clean', null, at);
-      } else if (file.state === 'uploaded' && server.fileState === 'failed' && server.reasonCode === 'checksum_mismatch') {
+      } else if (
+        file.state === 'uploaded' &&
+        server.fileState === 'failed' &&
+        server.reasonCode === 'checksum_mismatch' &&
+        !this.#retried.has(file.assetId)
+      ) {
         await store.media.setState(file.assetId, 'failed', 'checksum_mismatch', at);
       } else if (file.state === 'uploaded' && server.fileState === 'quarantined') {
         await store.media.setState(file.assetId, 'needs_attention', 'quarantined', at);
@@ -309,6 +321,7 @@ export class MediaUploads implements MediaControl {
       return false;
     const result = await this.#deps.native.retryUpload(assetId, this.#deps.wifiOnly?.() ?? false).catch(() => 'failed' as const);
     if (result !== 'armed_user_initiated' && result !== 'armed' && result !== 'already_armed') return false;
+    this.#retried.add(assetId);
     await store.media.setState(assetId, 'applied', null, this.#deps.now());
     this.#progress.delete(assetId);
     await this.#rebuild();
