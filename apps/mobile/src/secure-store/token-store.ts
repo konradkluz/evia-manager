@@ -1,25 +1,30 @@
 /**
  * Secure store for secrets (EVM-009 AC6, EVM-093; SR-MOB-01, SR-MOB-03, SR-MOB-04; MASVS-STORAGE-1): the only module that touches
- * expo-secure-store (Android Keystore / iOS Keychain). Slots: the refresh token (the only slot of a live session), the key of the
- * local database, the installation identity of the device, the wipe confirmation to send (EVM-101), the pending revocation of a session ended offline (EVM-100 AC7: a refresh
- * token that only ever ends its session on the server) and the session record (EVM-100: user id, display name, role for the UI,
- * start — no e-mail, no token). Nothing here logs a value. No biometric prompt (`requireAuthentication` off) — the decision on biometrics is
+ * expo-secure-store (Android Keystore / iOS Keychain). Slots: the key of the local database, the installation identity of the
+ * device, the wipe confirmation to send (EVM-101) and the session record (EVM-100: user id, display name, role for the UI, start —
+ * no e-mail, no token). The refresh token and the pending revocation are NOT here any more (EVM-130 AC3, ADR-0020a, SR-SESS-09):
+ * they live only in the native store of the upload module and JavaScript has no way to read them; the two slots of the older
+ * versions are removed at start without being read (`purgeLegacyTokens`). Nothing here logs a value. No biometric prompt (`requireAuthentication` off) — the decision on biometrics is
  * an ADR; the iOS accessibility class is set although it has no effect on Android.
  * The database key has its OWN keychain service, so its Keystore alias can be deleted on its own (crypto-shred, EVM-093 AC6) without
- * touching the alias that wraps the refresh token.
+ * touching the alias that wraps the other slots.
  */
 import * as SecureStore from 'expo-secure-store';
 
-export type SecretSlot = 'refreshToken' | 'databaseKey' | 'installationIdentity' | 'revocationToken' | 'sessionMeta' | 'wipeConfirmation';
+export type SecretSlot = 'databaseKey' | 'installationIdentity' | 'sessionMeta' | 'wipeConfirmation';
 
 const KEYS: Readonly<Record<SecretSlot, string>> = {
-  refreshToken: 'evia.refresh-token',
   databaseKey: 'evia.database-key',
   installationIdentity: 'evia.installation-identity',
-  revocationToken: 'evia.revocation-token',
   sessionMeta: 'evia.session-meta',
   wipeConfirmation: 'evia.wipe-confirmation',
 };
+
+/**
+ * Keys of the slots of versions before EVM-130 (the refresh token and the pending revocation). Never read: only deleted (the update
+ * asks the user to sign in once more; the queue and the local data stay).
+ */
+const LEGACY_TOKEN_KEYS: readonly string[] = ['evia.refresh-token', 'evia.revocation-token'];
 
 /** Keychain service (Android: suffix of the Keystore alias) of the database key. */
 export const DATABASE_KEY_SERVICE = 'evia.database-key';
@@ -54,5 +59,22 @@ export const tokenStore = {
    */
   async clear(): Promise<void> {
     for (const slot of Object.keys(KEYS) as SecretSlot[]) if (slot !== 'wipeConfirmation') await this.delete(slot);
+    for (const key of LEGACY_TOKEN_KEYS) await SecureStore.deleteItemAsync(key, BASE);
+  },
+
+  /**
+   * Start of the app (EVM-130 AC3): removes the two slots of the older versions WITHOUT reading them (a read would hand a refresh
+   * token to JavaScript). Each key is tried even when the other fails; `false` = something stayed, the next start tries again.
+   */
+  async purgeLegacyTokens(): Promise<boolean> {
+    let all = true;
+    for (const key of LEGACY_TOKEN_KEYS) {
+      try {
+        await SecureStore.deleteItemAsync(key, BASE);
+      } catch {
+        all = false;
+      }
+    }
+    return all;
   },
 };

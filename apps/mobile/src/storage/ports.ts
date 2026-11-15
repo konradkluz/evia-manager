@@ -52,7 +52,7 @@ export interface DeviceSecrets {
   readWipeConfirmation(): Promise<InstallationIdentity | null>;
   writeWipeConfirmation(identity: InstallationIdentity): Promise<void>;
   deleteWipeConfirmation(): Promise<void>;
-  /** Sign-out and `session_revoked`: ONLY the refresh token (the queue and its key stay, AC7). */
+  /** Sign-out and `session_revoked`: the legacy token slots only (the refresh token is native since EVM-130); the queue and its key stay, AC7. */
   deleteRefreshToken(): Promise<void>;
   /** Every remaining secure-store entry (wipe only, AC6). */
   deleteAllSecrets(): Promise<void>;
