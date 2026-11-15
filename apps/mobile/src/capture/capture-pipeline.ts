@@ -10,8 +10,7 @@
  * without a file (a kill in the window leaves a file the sweep of the module removes). One shot at a time (the next waits for "Gotowe" or is `busy`).
  * The answer is typed and carries no text, no path and no identifier of the user.
  */
-import type { CapturedPhoto, MediaCategory } from '../upload/create-media-asset';
-import type { AddMediaResult } from '../upload/media-uploads';
+import type { AddMediaResult, CapturedPhoto, MediaCategory } from '../upload/create-media-asset';
 import type { OriginalDigest, ImportResultName } from '../../modules/evia-upload/src';
 import { diskLevel, type DiskSpace } from './disk-space';
 

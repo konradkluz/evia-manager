@@ -17,7 +17,13 @@ import type { EnqueueInput } from '@evia/sync-core';
 import type { FileStateEvent, OriginalDigest, UploadProgressEvent, UploadStatus } from '../../modules/evia-upload/src';
 import type { MediaFileRecord, MediaFileState } from '../storage/media-file-store';
 import type { UnlockedStore } from '../storage';
-import { createCapturedPhotoInput, createMediaAssetInput, type CapturedPhoto, type NewMediaAsset } from './create-media-asset';
+import {
+  createCapturedPhotoInput,
+  createMediaAssetInput,
+  type AddMediaResult,
+  type CapturedPhoto,
+  type NewMediaAsset,
+} from './create-media-asset';
 import { CapturePipeline, type CapturePorts } from '../capture/capture-pipeline';
 import type { DiskSpace } from '../capture/disk-space';
 import type { NativeUpload } from './native-upload';
@@ -25,8 +31,7 @@ import type { MediaControl, MediaFileView, MediaUploadsSnapshot } from './types'
 
 export type { MediaControl, MediaFileAction, MediaFileStatus, MediaFileView, MediaUploadsSnapshot } from './types';
 
-export type AddMediaResult =
-  { readonly ok: true } | { readonly ok: false; readonly code: 'invalid' | 'no_session' | 'missing_original' | 'enqueue_failed' };
+export type { AddMediaResult };
 
 export interface MediaUploadsDeps {
   readonly native: NativeUpload;
