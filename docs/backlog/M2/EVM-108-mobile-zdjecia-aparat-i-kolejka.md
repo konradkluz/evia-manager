@@ -130,6 +130,13 @@ EVM-108 pokazuje w Kolejce **minimum**: wiersz pliku, 4 etykiety stanu, licznik,
 | Wykluczone | ML Kit, Google Play services, Firebase, datatransport, ODML i `androidx.camera:camera-mlkit-vision` (drzewo Gradle, mapping R8, DEX, manifest i `META-INF` — `tools/mobile-apk`) |
 | Alternatywa odrzucona | `react-native-vision-camera` (więcej kodu natywnego i worklets; YAGNI), `expo-image-picker` / intencja aparatu systemowego (obca aplikacja dopisuje GPS i kopiuje do galerii) |
 
+## Notatki
+- Przeglądy (2026-11-15): QA PASS ([raport](../../qa/EVM-108/raport-qa.md)), `ux-designer` APPROVE, `code-reviewer` APPROVE po rundzie 1, `security-engineer` APPROVE — warunki przed scaleniem: zielony job `mobile-apk` w CI, cztery testy JVM z dowiązaniami symbolicznymi wykonane na Linuksie (nie pominięte), powtórzony skan.
+- Do decyzji Konrada w demo: AC6 — dla `missing_original` recenzenci zalecają samo „Usuń z telefonu” (dziś „Ponów” + „Usuń z telefonu”); `buildFromSource` jako „wykluczenie” oraz dwie dodatkowe grupy zakazane (`com.google.android.odml`, `androidx.camera.mlkit`); RR-100 (guava 33.3.1-android, Low) — akceptacja albo wymuszenie nowszej wersji.
+- Propozycje do backlogu (`/refine`): fixture'y `tools/mobile-apk` z paczki release z aparatem i wymóg `CAMERA` w `verify`; import wyłącznie przez `Files.move` (dowiązania blokuje SELinux); zapytanie OSV na drzewie Gradle w CI; `MediaUploads.add()` z `description` w haku e2e; blokady importu przed EVM-110.
+- Drobne (UX i testy): wybrana kategoria niewidoczna po przewinięciu chipów; dwa liczniki w Kolejce; położenie `consentMemory`; brak przepływu Maestro dla „Usuń z telefonu”; brak miejsca (AC4) tylko w testach jednostkowych.
+- Serwer nadal przyjmuje `description` z kanału `mobile` — rozstrzygnięte decyzją Konrada z 2026-11-15 (RR-96 wariant B: odrzucanie po stronie serwera w EVM-132).
+
 ## Definition of Done
 - [ ] AC1–AC8 pokryte testami oznaczonymi `EVM-108 AC#` (Jest, Maestro na emulatorze z aparatem emulatora, `node:test` dla `verify` i serwera scenariuszy); `pnpm run gate` i `npm run docs:check` zielone.
 - [ ] Recenzje: code-reviewer, security-engineer (uprawnienia, biblioteka aparatu, telemetria), ux-designer (statycznie: teksty, tokeny, nazwy dostępne, stany) — approve.
@@ -156,3 +163,4 @@ EVM-108 pokazuje w Kolejce **minimum**: wiersz pliku, 4 etykiety stanu, licznik,
 - 2026-11-15 — runda poprawek 1 po przeglądach: toast, sprzątanie cache aparatu bez zmiany stanu tokenów, odśmiecacz, drobne UX (mobile-developer)
 - 2026-11-15 — weryfikacja i przeglądy, runda 1: QA PASS (AC7 z dowodem emulatora: 30 obiektów, 0 duplikatów), ux-designer APPROVE (uwagi minor naniesione), code-reviewer CHANGES REQUIRED (major: toast „Zapisano w telefonie” nie znikał — naprawione w rundzie poprawek 1); decyzje AC6 doprecyzowane w „Decyzjach z realizacji” (Tech Lead)
 - 2026-11-15 — przegląd bezpieczeństwa końcowy (security-engineer): APPROVE; RR-96 i RR-98 ocenione ponownie (Low, bez zmian); dokumenty bezpieczeństwa skorygowane
+- 2026-11-15 — przebieg końcowy na emulatorze (Tech Lead): część domyślna 70/71 na paczce z `d249c99e` — jedyny czerwony `41-order-details-offline` (druga karta dziennika zasłonięta wyższym dolnym paskiem; przepływ przewija teraz do elementu, `f8c78cfb`); powtórka `order-details-offline`, `upload-*` i `camera-*` na `f8c78cfb`: 61/61, w tym 30 zdjęć bez duplikatów, EXIF bez GPS, galeria bez zmian, uprawnienia minimalne; raport QA uzupełniony (F1 zamknięte)
