@@ -1,6 +1,15 @@
 import type { QueueRecord, QueueStore, RecordPatch, SettledInfo } from '@evia/sync-core';
 import type { DbAccess } from './database';
-import { markMediaApplied } from './media-file-store';
+import { insertMediaFile, isValidNewMediaFile, markMediaApplied, type NewMediaFile } from './media-file-store';
+
+/** A row of `media_files` that waits for its command: the mutation id is the command's own, known only when the queue writes it. */
+export type PendingMediaFile = Omit<NewMediaFile, 'mutationId'>;
+
+/** What the capture needs of the queue store: the row of the file is written with its command (see `SqlQueueStore.registerPendingMedia`). */
+export interface PendingMediaRegistry {
+  registerPendingMedia(file: PendingMediaFile): void;
+  clearPendingMedia(assetId: string): void;
+}
 
 /** Settled results waiting for their consumer (EVM-107) are bounded: the oldest beyond this limit are dropped in the settle itself. */
 export const SETTLED_RETENTION = 500;
@@ -20,21 +29,43 @@ const parse = (text: unknown): unknown => {
  * renumbered); every method is one statement or one transaction and resolves after COMMIT. Reachable only through the owner guard
  * (`LocalStore.unlock`), not exported from the barrel.
  */
-export class SqlQueueStore implements QueueStore {
+export class SqlQueueStore implements QueueStore, PendingMediaRegistry {
   readonly #db: DbAccess;
+
+  /** Rows waiting for the command of their asset (EVM-108 AC1), keyed by `assetId`; in memory only, used up by the first `append`. */
+  readonly #pendingMedia = new Map<string, PendingMediaFile>();
 
   constructor(db: DbAccess) {
     this.#db = db;
   }
 
+  /**
+   * The next `append` of the command `CreateMediaAsset` for [file].assetId also writes the row of the file, in the SAME transaction
+   * (no kill separates the command from its row). Without a registration the command is written alone. A registration is used up by the
+   * `append` that meets it (success or failure) and never attaches itself to a command of another asset.
+   */
+  registerPendingMedia(file: PendingMediaFile): void {
+    this.#pendingMedia.set(file.assetId, file);
+  }
+
+  /** Forgets a registration whose command was not written (the caller gave up before `append`). */
+  clearPendingMedia(assetId: string): void {
+    this.#pendingMedia.delete(assetId);
+  }
+
   async append(record: QueueRecord): Promise<void> {
-    await this.#db.transaction((tx) =>
-      tx.run('INSERT INTO queue_entries (mutation_id, owner_user_id, record) VALUES (?, ?, ?)', [
+    const pending = record.type === 'CreateMediaAsset' ? this.#pendingMedia.get(record.objectId) : undefined;
+    if (record.type === 'CreateMediaAsset') this.#pendingMedia.delete(record.objectId);
+    const row: NewMediaFile | undefined = pending === undefined ? undefined : { ...pending, mutationId: record.mutationId };
+    if (row !== undefined && !isValidNewMediaFile(row, record.ownerUserId)) throw new Error('invalid_media_file');
+    await this.#db.transaction(async (tx) => {
+      await tx.run('INSERT INTO queue_entries (mutation_id, owner_user_id, record) VALUES (?, ?, ?)', [
         record.mutationId,
         record.ownerUserId,
         JSON.stringify(record),
-      ]),
-    );
+      ]);
+      if (row !== undefined) await insertMediaFile(tx, row);
+    });
   }
 
   async readAll(): Promise<readonly unknown[]> {

@@ -446,7 +446,7 @@ describe('opening guards (EVM-093 AC1, AC5, AC7)', () => {
       queue: [
         ...SCHEMA.queue,
         {
-          version: 3,
+          version: 4,
           up: () => Promise.reject(new Error('malformed JSON')),
         },
       ],
