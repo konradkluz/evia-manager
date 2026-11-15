@@ -306,15 +306,17 @@ export function judgeNotification(dump) {
   if (!/publicVersion=/.test(block)) problems.push('there is no public version');
   if (/ZL-E2E|Testowa|Klient|Fikcyjna/.test(block)) problems.push('the notification carries a number of an order, a name or an address');
   if (/actions=\{/.test(block)) problems.push('the notification has action buttons');
-  // the channel: low importance (2), no sound, no vibration, private on the lock screen (0)
+  // the channel: low importance (2), no sound, no vibration, and not PUBLIC on the lock screen. The system overwrites the lock screen value that an app
+  // sets on a new channel with the user's own setting (-1000 = no override: the notification's own PRIVATE + public version decides, checked
+  // above), so 0 and -1000 are both right and only a value that shows everything (1) is refused
   const channel = /NotificationChannel\{[^}]*mName=Wysyłanie plików[^}]*\}/.exec(dump.stdout)?.[0] ?? '';
   if (channel === '') problems.push('the channel "Wysyłanie plików" is not in the dump');
   else {
     if (!/mImportance=2\b/.test(channel)) problems.push('the importance of the channel is not LOW');
     if (/mSound=content|mVibrationEnabled=true/.test(channel)) problems.push('the channel has a sound or a vibration');
-    if (!/mLockscreenVisibility=0\b/.test(channel))
+    if (/mLockscreenVisibility=1\b/.test(channel))
       problems.push(
-        `the channel is not private on the lock screen (${/mLockscreenVisibility=-?\d+/.exec(channel)?.[0] ?? 'no mLockscreenVisibility field'})`,
+        `the channel shows everything on the lock screen (${/mLockscreenVisibility=-?\d+/.exec(channel)?.[0] ?? 'no mLockscreenVisibility field'})`,
       );
   }
   return problems.length === 0
