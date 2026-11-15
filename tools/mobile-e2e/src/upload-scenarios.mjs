@@ -3,7 +3,7 @@
  * Scenarios of the background upload (EVM-130 stage C, AC1–AC6; flows 50–69 of apps/mobile/e2e). They are separate from scenarios.mjs
  * (the first run of the smoke test does not include them): they need the media command `CreateMediaAsset` in the queue of the app, which comes
  * with the contract branch of EVM-131, so the orchestrator runs them on the local merge of both branches
- * (`node tools/mobile-e2e/cli.mjs --only upload-`; docs/qa/EVM-130/README.md). Every step has `upload: true`: the sign-in of the run is served by
+ * (`node tools/mobile-e2e/cli.mjs --only upload-`; docs/qa/EVM-130/plan-i-polecenia.md). Every step has `upload: true`: the sign-in of the run is served by
  * the upload part of the scenario server (src/upload-stub.mjs), whose tokens the upload operations check.
  *
  * The file of a flow is injected by the hook of the e2e variant (random content made natively, nothing binary in the repository); the server
@@ -13,7 +13,7 @@
  * late, so an app killed meanwhile never saw the ETag and the resume finds the part with `ListParts` instead of sending it again.
  *
  * The device and server steps are in device-upload.mjs; the interruptions are the steps `kill-9`, `force-stop`, `reboot` and the airplane mode
- * of the step. What each scenario proves and how to read a failure: docs/qa/EVM-130/README.md.
+ * of the step. What each scenario proves and how to read a failure: docs/qa/EVM-130/plan-i-polecenia.md.
  */
 import { SCENARIOS } from './scenarios.mjs';
 
