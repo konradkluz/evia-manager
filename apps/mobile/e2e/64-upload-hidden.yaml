@@ -19,6 +19,7 @@ appId: pl.eviacharge.manager
     element:
       id: 'e2e-status'
     direction: UP
+    centerElement: true
 - extendedWaitUntil:
     visible:
       id: 'e2e-status'
