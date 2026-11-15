@@ -289,6 +289,7 @@ jobs:
     env:
       EXPO_NO_TELEMETRY: '1'
       EXPO_PUBLIC_API_BASE_URL: ${{ vars.EVIA_API_BASE_URL || 'https://api.example.invalid' }}
+      EVIA_STORAGE_HOSTS: ${{ vars.EVIA_STORAGE_HOSTS }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -374,6 +375,25 @@ jobs:
             echo 'APK zbudowany z adresem zastępczym API — nie do dystrybucji. Ustaw zmienną repozytorium EVIA_API_BASE_URL i zbuduj ponownie.'
           } >> "$GITHUB_STEP_SUMMARY"
           echo '::warning title=Adres zastępczy API::APK zbudowany z adresem zastępczym API — nie do dystrybucji (brak zmiennej repozytorium EVIA_API_BASE_URL).'
+      # EVM-112 AC2: the package uploads files only when the repository variable EVIA_STORAGE_HOSTS is set (the plugin trims it; an empty one means
+      # no upload service, fail closed, EVM-130). Always says yes/no in the summary; the value is never printed. An empty variable stays green.
+      - name: File upload in the package (summary and annotation)
+        shell: bash
+        run: |
+          if [ -z "${EVIA_STORAGE_HOSTS//[[:space:]]/}" ]; then
+            {
+              echo '### Uwaga: Wysyłanie plików w paczce: nie'
+              echo
+              echo 'Paczka bez wysyłania plików (brak zmiennej repozytorium EVIA_STORAGE_HOSTS). Ustaw ją i zbuduj ponownie, jeśli paczka ma trafić do testu terenowego.'
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo '::warning title=Paczka bez wysyłania plików::Paczka bez wysyłania plików (brak zmiennej repozytorium EVIA_STORAGE_HOSTS).'
+          else
+            {
+              echo '### Wysyłanie plików w paczce: tak'
+              echo
+              echo 'Paczka zawiera usługę wysyłania plików — tylko dla uczestników testu terenowego EVM-112.'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
       - name: SHA-256 of the package to the summary
         env:
           APK: ${{ steps.name.outputs.file }}
