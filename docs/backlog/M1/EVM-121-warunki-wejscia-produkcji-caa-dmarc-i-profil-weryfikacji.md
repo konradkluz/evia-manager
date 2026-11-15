@@ -4,7 +4,7 @@ title: Rekordy CAA i rua oraz profil strict w staging-verify dla jedynego środo
 type: enabler
 milestone: M1
 epic: E8 Gotowość produkcyjna
-status: ready
+status: in-progress
 priority: P1
 path: lekka            # narzędzie, CI i DNS; bez uwierzytelniania, danych osobowych i mediów; jeden recenzent (zmiana .github/** → security-engineer)
 owner: devops-engineer
@@ -68,3 +68,5 @@ Stan na 2026-11-15 (publiczny DNS): `panel.eviacharge.pl` ma CAA `0 issue "letse
 - 2026-11-13 — triage wg decyzji „jedno środowisko” (product-owner): „produkcja” = jedyne środowisko (obecny staging), więc **warunek startu realnych danych** (EVM-061 AC2; `depends_on` w EVM-061 dodane mimo decyzji z 2026-10-28, bo osobnej produkcji nie ma); „łagodzenie stagingu” (RR-40/41) przestaje obowiązywać — profil `strict` i CAA/`rua` dotyczą tego środowiska; AC1 (DNS w OVH) robić w tej samej sesji co EVM-089 AC3 (jedna wizyta w OVH); AC2–AC3 czytaj bez rozróżnienia staging/prod; AC bez zmian, do akceptacji Konrada
 - 2026-11-15 — przepisano dla jedynego środowiska (product-owner): sprawdzono publiczny DNS i kod `evaluateDns` — brakuje tylko `issuewild ";"`; `rua` i `issue` są; usunięto `prod-verify` i „produkcję” z AC; 4 AC; profil `staging` do usunięcia z narzędzia zamiast reguły `repo-policy`; dodano kolejność realizacji; `depends_on` rozszerzone o EVM-089 (done); status `draft` do akceptacji Konrada
 - 2026-11-15 — akceptacja Konrada (DoR): panel OVH nie przyjął `issuewild ";"`, więc z delegacji Konrada AC1 zmienione z rekordu DNS na kontrolę przyjmującą brak `issuewild` (RFC 8659); bez kroków ręcznych; profil `staging` usuwany z narzędzia, bez `accounturi`, RR-40 i RR-41 zamyka `security-engineer`; ścieżka `lekka`; **status `ready`** (Tech Lead)
+- 2026-11-15 — start realizacji (`/deliver`, ścieżka `lekka`, gałąź `feature/EVM-121-caa-i-profil-strict`); **status `in-progress`** (Tech Lead)
+- 2026-11-15 — implementacja (devops-engineer): kontrola `dns` bez profili (brak `issuewild` albo jedno `";"`, osobne testy negatywne AC1, `VERIFY_PROFILE` ustawiona = czerwono), `ci.yml` bez `VERIFY_PROFILE`, README, runbook (krok 4 i 6), RR-40/RR-41 oznaczone jako zamknięte do oceny `security-engineer`, CHANGELOG; publiczny DNS potwierdzony (CAA jeden `issue letsencrypt.org`, DMARC z `rua`); dowód AC2 (zielony `staging-verify` na `main`, bez adresów e-mail) do zapisania w `docs/qa/EVM-121/` po scaleniu PR

@@ -174,43 +174,24 @@ export function evaluateLegacyRedirect(status, location, hsts, expectedLocation)
  */
 
 /**
- * Verification profiles of the DNS check. `strict` (the default, and the only one for production) makes every finding an
- * error; `staging` turns only the two CAA findings into warnings (Konrad, 2026-10-27: CAA is added when production is set up;
- * threat-model RR-40). Anything else fails closed.
+ * DNS of the node, one rigor only (EVM-121: the single environment has no softened profile). CAA: exactly one
+ * `issue "letsencrypt.org"` (accounturi optional); `issuewild` absent or exactly one `;` (RFC 8659: without `issuewild`
+ * wildcard certificates fall under `issue`, so only Let's Encrypt may issue them). SPF and DMARC with `rua` present.
+ * @param {DnsFacts} facts @returns {Check}
  */
-export const DNS_PROFILES = Object.freeze(['strict', 'staging']);
-
-/**
- * CAA of the node: exactly `0 issue "letsencrypt.org"` (optionally with accounturi) and `0 issuewild ";"`; SPF and DMARC present.
- * @param {DnsFacts} facts @param {string} [profile] @returns {Check}
- */
-export function evaluateDns(facts, profile = 'strict') {
-  if (!DNS_PROFILES.includes(profile))
-    return { id: 'dns', passed: false, details: [`nieznany profil weryfikacji "${profile}" (dozwolone: ${DNS_PROFILES.join(', ')})`] };
+export function evaluateDns(facts) {
   const details = [];
-  const caaFindings = [];
   if (facts.a.length === 0) details.push('brak rekordu A');
   if (facts.aaaa.length === 0) details.push('brak rekordu AAAA');
   const issue = facts.caa.filter((record) => record.issue !== undefined).map((record) => String(record.issue).split(';')[0]?.trim());
   const wild = facts.caa.filter((record) => record.issuewild !== undefined).map((record) => String(record.issuewild).trim());
   if (JSON.stringify(issue) !== JSON.stringify(['letsencrypt.org']))
-    caaFindings.push(`CAA issue: ${issue.join(', ') || 'brak'} (oczekiwane letsencrypt.org)`);
-  if (JSON.stringify(wild) !== JSON.stringify([';'])) caaFindings.push('CAA issuewild ";" (zakaz certyfikatów wildcard)');
+    details.push(`CAA issue: ${issue.join(', ') || 'brak'} (oczekiwane dokładnie jedno letsencrypt.org)`);
+  if (wild.length > 1 || (wild.length === 1 && wild[0] !== ';')) details.push('CAA issuewild: dozwolony brak albo jedno ";"');
   if (!facts.spf.some((record) => record.startsWith('v=spf1 ') && / -all$| ~all$/.test(record))) details.push('brak SPF dla staging');
   const dmarcRecords = facts.dmarc.filter((record) => /^v=DMARC1;\s*p=(none|quarantine|reject)\b/.test(record));
-  const ruaFindings = [];
-  if (dmarcRecords.length === 0) details.push('brak _dmarc z raportami (rua)');
-  else if (!dmarcRecords.some((record) => record.includes('rua='))) ruaFindings.push('brak _dmarc z raportami (rua)');
-  const warnings =
-    profile === 'staging'
-      ? [
-          ...caaFindings.map((finding) => `${finding} — staging bez CAA do czasu produkcji (RR-40)`),
-          ...ruaFindings.map((finding) => `${finding} — znany problem stagingu, do poprawy przed produkcją (RR-41)`),
-        ]
-      : [];
-  if (profile !== 'staging') details.push(...caaFindings, ...ruaFindings);
-  if (details.length === 0 && warnings.length === 0) return { id: 'dns', passed: true, details: ['A, AAAA, CAA, SPF, DMARC'] };
-  return { id: 'dns', passed: details.length === 0, details: [...details, ...warnings], ...(warnings.length > 0 ? { warnings } : {}) };
+  if (!dmarcRecords.some((record) => record.includes('rua='))) details.push('brak _dmarc z raportami (rua)');
+  return details.length === 0 ? { id: 'dns', passed: true, details: ['A, AAAA, CAA, SPF, DMARC'] } : { id: 'dns', passed: false, details };
 }
 
 /** @param {import('node:dns').promises.Resolver} resolver @param {string} host @returns {Promise<DnsFacts>} */
