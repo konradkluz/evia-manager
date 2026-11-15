@@ -51,9 +51,21 @@ describe('Expo configuration of the build (EVM-009 AC3, AC5, AC6)', () => {
     );
   });
 
+  it('EVM-108 AC8: CAMERA is let through for the camera (not blocked), the microphone stays blocked until EVM-110', () => {
+    expect(BLOCKED_ANDROID_PERMISSIONS).not.toContain('android.permission.CAMERA');
+    expect(BLOCKED_ANDROID_PERMISSIONS).toContain('android.permission.RECORD_AUDIO');
+    expect(buildExpoConfig(releaseEnv).android?.permissions).toEqual([]);
+  });
+
   it('EVM-009 AC6: no OTA updates, no dev client, no analytics SDK among the plugins (SR-MOB-09)', () => {
     const names = (buildExpoConfig(releaseEnv).plugins ?? []).map((plugin) => (Array.isArray(plugin) ? plugin[0] : plugin));
-    expect(names).toEqual(['expo-secure-store', 'expo-sqlite', './plugins/with-hardening.ts', './plugins/with-upload.ts']);
+    expect(names).toEqual([
+      'expo-secure-store',
+      'expo-sqlite',
+      './plugins/with-hardening.ts',
+      './plugins/with-upload.ts',
+      './plugins/with-camera.ts',
+    ]);
   });
 
   it('EVM-093 AC1: expo-sqlite is always built with SQLCipher, in the release and the e2e variant', () => {
