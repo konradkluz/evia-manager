@@ -19,12 +19,14 @@ import type { MediaFileRecord, MediaFileState } from '../storage/media-file-stor
 import type { UnlockedStore } from '../storage';
 import {
   createCapturedPhotoInput,
+  createCapturedVideoInput,
   createMediaAssetInput,
   type AddMediaResult,
   type CapturedPhoto,
+  type CapturedVideo,
   type NewMediaAsset,
 } from './create-media-asset';
-import { CapturePipeline, type CapturePorts } from '../capture/capture-pipeline';
+import { CapturePipeline, type CapturePorts, type VideoRecording, type VideoSource } from '../capture/capture-pipeline';
 import type { DiskSpace } from '../capture/disk-space';
 import type { NativeUpload } from './native-upload';
 import type { MediaControl, MediaFileView, MediaUploadsSnapshot } from './types';
@@ -46,10 +48,22 @@ export interface MediaUploadsDeps {
   readonly onNativeEvent?: () => void;
   /** The camera (EVM-108): the free space and the id generator of the session; without them a picture cannot be taken (`camera_failed`). */
   readonly capture?: { readonly disk: DiskSpace; readonly newId: () => string };
+  /**
+   * EVM-110 AC3: a marker that outlives the process while a film is recorded (a tiny file, no data in it): present at the next start = the recording was
+   * killed with the process ("Poprzednie nagranie zostało przerwane i nie zostało zapisane."), shown once. Without it the notice is never shown.
+   */
+  readonly recordingMarker?: {
+    readonly set: () => Promise<void>;
+    readonly clear: () => Promise<void>;
+    readonly present: () => Promise<boolean>;
+  };
 }
 
 /** Files confirmed by the server stay in the view as "Wysłano" this many (newest first). */
 export const CLEAN_KEPT = 20;
+
+/** How long a sign-out or a wipe waits for a recording to stop and be saved (SEC-110-12). */
+const STOP_RECORDING_MS = 3000;
 /**
  * The sweep of the module removes only files older than this (EVM-108): a picture that is being saved right now has no row yet and is never touched.
  */
@@ -198,18 +212,29 @@ export class MediaUploads implements MediaControl {
   async addCaptured(photo: CapturedPhoto, digest: OriginalDigest): Promise<AddMediaResult> {
     const input = createCapturedPhotoInput(photo);
     if (input === null) return { ok: false, code: 'invalid' };
+    return this.#registerCaptured(input, photo, 'photo', digest, undefined);
+  }
+
+  async #registerCaptured(
+    input: EnqueueInput,
+    media: CapturedPhoto,
+    mediaType: 'photo' | 'video',
+    digest: OriginalDigest,
+    durationMs: number | undefined,
+  ): Promise<AddMediaResult> {
     const store = this.#deps.store();
     if (store === null) return { ok: false, code: 'no_session' };
     store.queue.registerPendingMedia({
-      assetId: photo.assetId,
-      workOrderId: photo.workOrderId,
+      assetId: media.assetId,
+      workOrderId: media.workOrderId,
       ownerUserId: store.userId,
-      fileName: photo.assetId,
+      fileName: media.assetId,
       sizeBytes: digest.sizeBytes,
       sha256: digest.sha256,
-      mime: mimeOf('photo'),
-      createdAt: Date.parse(photo.capturedAt),
-      category: photo.category,
+      mime: mimeOf(mediaType),
+      createdAt: Date.parse(media.capturedAt),
+      category: media.category,
+      ...(durationMs === undefined ? {} : { durationMs }),
     });
     let queued: { readonly ok: boolean; readonly mutationId?: string };
     try {
@@ -218,16 +243,84 @@ export class MediaUploads implements MediaControl {
       queued = { ok: false };
     } finally {
       // a registration that was not used up (the command was refused before the store) must not wait for another command
-      store.queue.clearPendingMedia(photo.assetId);
+      store.queue.clearPendingMedia(media.assetId);
     }
     if (!queued.ok || queued.mutationId === undefined) return { ok: false, code: 'enqueue_failed' };
     void this.reconcile({ sweep: false });
     return { ok: true };
   }
 
-  capturePipeline(takePicture: CapturePorts['takePicture']): CapturePipeline {
+  /** The recording in progress, if any (EVM-110): the one the session owner stops before it ends the session. */
+  #recording: VideoRecording | null = null;
+
+  async stopRecording(timeoutMs = STOP_RECORDING_MS): Promise<void> {
+    const recording = this.#recording;
+    if (recording === null) return;
+    recording.stop('interrupted');
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([
+      recording.done.then(() => undefined),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, timeoutMs);
+      }),
+    ]).finally(() => {
+      clearTimeout(timer);
+    });
+  }
+
+  #markerChain: Promise<unknown> = Promise.resolve();
+
+  /** The marker is written when a recording starts and removed when it ends (saved or not); one write after another, a failure is only a missing notice. */
+  #mark(recording: boolean): void {
+    const marker = this.#deps.recordingMarker;
+    if (marker === undefined) return;
+    this.#markerChain = this.#markerChain.then(() => (recording ? marker.set() : marker.clear())).catch(() => undefined);
+  }
+
+  /** EVM-110 AC3: `true` once after a start that found the marker of a recording that was killed with the process; the marker goes at the same time. */
+  async consumeInterruptedRecording(): Promise<boolean> {
+    const marker = this.#deps.recordingMarker;
+    if (marker === undefined || this.#recording !== null) return false;
+    try {
+      await this.#markerChain;
+      const found = await marker.present();
+      if (found) await marker.clear();
+      return found;
+    } catch {
+      return false;
+    }
+  }
+
+  /** EVM-110 AC3: the screen stays on while a film is recorded; never throws (a phone without the module just sleeps as usual). */
+  keepScreenOn(on: boolean): void {
+    try {
+      this.#deps.native.setKeepScreenOn(on);
+    } catch {
+      // the screen may sleep: the recording is not affected
+    }
+  }
+
+  /** The registration of a recorded film: one transaction with the command of 5 keys; the length goes to the row only. */
+  async addCapturedVideo(video: CapturedVideo, digest: OriginalDigest): Promise<AddMediaResult> {
+    const input = createCapturedVideoInput(video);
+    if (input === null) return { ok: false, code: 'invalid' };
+    return this.#registerCaptured(input, video, 'video', digest, video.durationMs);
+  }
+
+  capturePipeline(takePicture: CapturePorts['takePicture'], video?: VideoSource): CapturePipeline {
     const capture = this.#deps.capture;
     return new CapturePipeline({
+      ...(video === undefined || capture === undefined
+        ? {}
+        : {
+            video,
+            registerVideo: (recorded: CapturedVideo, digest: OriginalDigest) => this.addCapturedVideo(recorded, digest),
+            sessionActive: () => this.#deps.store() !== null,
+            onRecording: (recording: VideoRecording | null) => {
+              this.#recording = recording;
+              this.#mark(recording !== null);
+            },
+          }),
       takePicture: capture === undefined ? () => Promise.resolve(null) : takePicture,
       native: this.#deps.native,
       disk: capture?.disk ?? { freeBytes: () => null },
@@ -510,6 +603,7 @@ function viewOf(row: MediaFileRecord, status: UploadStatus | undefined): MediaFi
     category: row.category ?? null,
     mediaType: row.mime === 'video/mp4' ? ('video' as const) : ('photo' as const),
     capturedAt: row.createdAt,
+    durationMs: row.durationMs ?? null,
   };
   switch (row.state) {
     case 'pending':

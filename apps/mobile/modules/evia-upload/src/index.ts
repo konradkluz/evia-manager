@@ -204,6 +204,8 @@ export interface EviaUploadModule {
    * EVM-110 AC4: "Filmy tylko przez Wi-Fi" - a local setting of the phone (native, default `true`, stays after the sign-out; unreadable = `true`).
    * Only `video/*` files wait for a network without charges; pictures and entries go through any network.
    */
+  /** EVM-110 AC3: keeps the screen on (`true`) or lets it sleep again (`false`) while a film is recorded; `true` when an activity took the request. */
+  setKeepScreenOn(on: boolean): boolean;
   getVideoWifiOnly(): boolean;
   /** Stores the setting and hands the unfinished videos to the system again with the network it asks for; `true` when the value is durable. */
   setVideoWifiOnly(value: boolean): Promise<boolean>;
@@ -248,6 +250,7 @@ export const EVIA_UPLOAD_FUNCTIONS = [
   'armUpload',
   'reconcile',
   'retryUpload',
+  'setKeepScreenOn',
   'getVideoWifiOnly',
   'setVideoWifiOnly',
   'cancelUpload',

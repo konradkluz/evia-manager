@@ -32,6 +32,23 @@ export const cameraMock = {
   props: null as Record<string, unknown> | null,
   takePictureAsync: jest.fn<Promise<{ uri: string }>, [unknown?]>(() => Promise.resolve({ uri: 'file:///cache/Camera/synthetic.jpg' })),
   forbidden,
+  /** EVM-110: the recording. `recordAsync` hands the test the way to end it (at a limit, at `stopRecording`, with the file or with a failure). */
+  recordOptions: [] as unknown[],
+  stopCalls: 0,
+  /** When `false` the library does not end the recording by itself on `stopRecording` (the test ends it). */
+  endsOnStop: true,
+  recordings: [] as { resolve: (value: { uri: string }) => void; reject: (error: Error) => void }[],
+  /** Ends the running recording with a file (as the library does at `stopRecording` or at a limit). */
+  finishRecording(uri = 'file:///cache/Camera/3f2b9c1e-5d4a-4e8f-9a7b-1c2d3e4f5a6b.mp4'): void {
+    cameraMock.recordings.at(-1)?.resolve({ uri });
+  },
+  /** The view's `onRecordingProgress`. */
+  progress(duration: number, fileSize = 1000): void {
+    (cameraMock.props?.['onRecordingProgress'] as ((event: { duration: number; fileSize: number }) => void) | undefined)?.({
+      duration,
+      fileSize,
+    });
+  },
   set(answer: Answer | null): void {
     cameraMock.permission = answer;
     for (const listener of [...listeners]) listener();
@@ -45,6 +62,10 @@ export const cameraMock = {
     cameraMock.mountError = false;
     cameraMock.mounts = 0;
     cameraMock.props = null;
+    cameraMock.recordOptions = [];
+    cameraMock.stopCalls = 0;
+    cameraMock.endsOnStop = true;
+    cameraMock.recordings = [];
     cameraMock.takePictureAsync.mockReset();
     cameraMock.takePictureAsync.mockResolvedValue({ uri: 'file:///cache/Camera/synthetic.jpg' });
     forbidden.mockReset();
@@ -56,20 +77,41 @@ interface ViewProps {
   readonly onMountError?: (event: { message: string }) => void;
 }
 
-export const CameraView = forwardRef<{ takePictureAsync: (options?: unknown) => Promise<{ uri: string }> }, ViewProps>(
-  function CameraView(props, ref) {
-    cameraMock.props = { ...props };
-    useImperativeHandle(ref, () => ({ takePictureAsync: (options) => cameraMock.takePictureAsync(options) }), []);
-    const { onCameraReady, onMountError } = props;
-    useEffect(() => {
-      cameraMock.mounts += 1;
-      if (cameraMock.mountError) onMountError?.({ message: 'synthetic' });
-      else if (cameraMock.readyOnMount) onCameraReady?.();
-      // the mount only: the real view reports once per start
-    }, []);
-    return <View testID="camera-view" />;
+export const CameraView = forwardRef<
+  {
+    takePictureAsync: (options?: unknown) => Promise<{ uri: string }>;
+    recordAsync: (options?: unknown) => Promise<{ uri: string }>;
+    stopRecording: () => void;
   },
-);
+  ViewProps
+>(function CameraView(props, ref) {
+  cameraMock.props = { ...props };
+  useImperativeHandle(
+    ref,
+    () => ({
+      takePictureAsync: (options) => cameraMock.takePictureAsync(options),
+      recordAsync: (options) => {
+        cameraMock.recordOptions.push(options);
+        return new Promise((resolve, reject) => {
+          cameraMock.recordings.push({ resolve, reject });
+        });
+      },
+      stopRecording: () => {
+        cameraMock.stopCalls += 1;
+        if (cameraMock.endsOnStop) cameraMock.finishRecording();
+      },
+    }),
+    [],
+  );
+  const { onCameraReady, onMountError } = props;
+  useEffect(() => {
+    cameraMock.mounts += 1;
+    if (cameraMock.mountError) onMountError?.({ message: 'synthetic' });
+    else if (cameraMock.readyOnMount) onCameraReady?.();
+    // the mount only: the real view reports once per start
+  }, []);
+  return <View testID="camera-view" />;
+});
 
 export function useCameraPermissions(): [Answer | null, () => Promise<Answer>, () => Promise<Answer>] {
   const [answer, setAnswer] = useState<Answer | null>(cameraMock.permission);

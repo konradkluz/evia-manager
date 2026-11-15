@@ -10,9 +10,13 @@
  * without a file (a kill in the window leaves a file the sweep of the module removes). One shot at a time (the next waits for "Gotowe" or is `busy`).
  * The answer is typed and carries no text, no path and no identifier of the user.
  */
-import type { AddMediaResult, CapturedPhoto, MediaCategory } from '../upload/create-media-asset';
+import type { AddMediaResult, CapturedPhoto, CapturedVideo, MediaCategory } from '../upload/create-media-asset';
 import type { OriginalDigest, ImportResultName } from '../../modules/evia-upload/src';
-import { diskLevel, type DiskSpace } from './disk-space';
+import { diskLevel, videoDiskLevel, videoSizeLimit, type DiskSpace } from './disk-space';
+import { VideoRecording, type VideoEnd, type VideoResult, type VideoSource } from './video-recording';
+
+export type { VideoEnd, VideoResult, VideoSource } from './video-recording';
+export { VideoRecording } from './video-recording';
 
 export type CaptureResult =
   | { readonly ok: true; readonly assetId: string; readonly sizeBytes: number }
@@ -30,6 +34,14 @@ export interface CapturePorts {
   /** `MediaUploads.addCaptured`: the command and the row of the file in one transaction. */
   registerAndEnqueue(photo: CapturedPhoto, digest: OriginalDigest): Promise<AddMediaResult>;
   now(): number;
+  /** EVM-110: the camera in the video mode (`recordAsync` / `stopRecording` of the view); without it a film cannot be recorded (`camera_failed`). */
+  readonly video?: VideoSource;
+  /** EVM-110: the registration of a film (`MediaUploads.addCapturedVideo`): the command with 5 keys and the row of the file in one transaction. */
+  registerVideo?(video: CapturedVideo, digest: OriginalDigest): Promise<AddMediaResult>;
+  /** EVM-110 (SEC-110-12): `false` once the session ended - a recording that finishes then is NOT imported. */
+  sessionActive?(): boolean;
+  /** EVM-110: the recording in progress (or `null` when it is over); the session owner stops it before a sign-out or a wipe. */
+  onRecording?(recording: VideoRecording | null): void;
   /** A new UUIDv7 (the CSPRNG of the session). */
   newId(): string;
 }
@@ -41,7 +53,7 @@ export interface CaptureRequest {
 
 export class CapturePipeline {
   readonly #ports: CapturePorts;
-  #saving: Promise<CaptureResult> | null = null;
+  #saving: Promise<unknown> | null = null;
 
   constructor(ports: CapturePorts) {
     this.#ports = ports;
@@ -55,6 +67,66 @@ export class CapturePipeline {
   /** Resolves when no save is in progress ("Gotowe" waits for it). */
   async whenIdle(): Promise<void> {
     while (this.#saving !== null) await this.#saving.catch(() => undefined);
+  }
+
+  /**
+   * EVM-110 AC1-AC3: starts a recording of a film. The free space is read first (below 200 MB nothing is started and nothing is written); the limits are
+   * the constant time and the size counted now. The returned handle takes the progress of the view and the stop; `done` resolves with the saved film
+   * or the reason it was not saved - in the same order of steps as a picture (import, digest, ONE transaction; any failure removes the original again).
+   * One recording or picture at a time: a second request answers `busy`.
+   */
+  startVideo(
+    request: CaptureRequest,
+  ):
+    | { readonly ok: true; readonly recording: VideoRecording }
+    | { readonly ok: false; readonly code: 'no_space' | 'camera_failed' | 'busy' | 'no_session' } {
+    const { disk, video } = this.#ports;
+    if (this.#saving !== null) return { ok: false, code: 'busy' };
+    if (video === undefined || this.#ports.registerVideo === undefined) return { ok: false, code: 'camera_failed' };
+    if (this.#ports.sessionActive?.() === false) return { ok: false, code: 'no_session' };
+    const free = disk.freeBytes();
+    if (videoDiskLevel(free) === 'blocked') return { ok: false, code: 'no_space' };
+    const recording = new VideoRecording({
+      source: video,
+      disk,
+      now: () => this.#ports.now(),
+      maxFileSize: videoSizeLimit(free),
+      save: (uri, end, durationMs, startedAt) => this.#saveVideo(request, startedAt, uri, end, durationMs),
+    });
+    const finished = recording.done.finally(() => {
+      this.#saving = null;
+      this.#ports.onRecording?.(null);
+    });
+    this.#saving = finished;
+    this.#ports.onRecording?.(recording);
+    return { ok: true, recording };
+  }
+
+  async #saveVideo(request: CaptureRequest, startedAt: number, uri: string, end: VideoEnd, durationMs: number): Promise<VideoResult> {
+    const { native } = this.#ports;
+    // SEC-110-12: the session ended while the film was recorded (sign-out, wipe): the file is not imported, the cleaning of the cache takes it
+    if (this.#ports.sessionActive?.() === false) return { ok: false, code: 'no_session' };
+    if (!Number.isFinite(startedAt)) return { ok: false, code: 'save_failed' };
+    const capturedAt = new Date(startedAt).toISOString();
+    const assetId = this.#ports.newId();
+    const imported = await native.importOriginal(assetId, uri, 'video').catch(() => 'io_error' as const);
+    if (imported === 'no_space') return { ok: false, code: 'no_space' };
+    if (imported !== 'ok') return { ok: false, code: 'save_failed' };
+    const digest = await native.digestOriginal(assetId).catch(() => null);
+    if (digest === null || digest.sizeBytes <= 0) return this.#undoVideo(assetId);
+    const ports = this.#ports;
+    const added = await (
+      ports.registerVideo === undefined
+        ? Promise.resolve({ ok: false } as const)
+        : ports.registerVideo({ assetId, workOrderId: request.workOrderId, category: request.category, capturedAt, durationMs }, digest)
+    ).catch(() => ({ ok: false }) as const);
+    if (!added.ok) return this.#undoVideo(assetId);
+    return { ok: true, assetId, sizeBytes: digest.sizeBytes, durationMs, end };
+  }
+
+  async #undoVideo(assetId: string): Promise<VideoResult> {
+    await this.#ports.native.cancelUpload(assetId, true).catch(() => false);
+    return { ok: false, code: 'save_failed' };
   }
 
   /** Takes one picture and saves it durably; never throws. A second call while a save is in progress answers `busy` and takes no picture. */

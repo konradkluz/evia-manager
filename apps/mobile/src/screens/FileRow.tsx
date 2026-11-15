@@ -1,8 +1,8 @@
 import { useTranslation } from 'react-i18next';
 import { Text, View } from 'react-native';
-import { formatDateTime } from '../i18n/format';
+import { formatDateTime, formatDuration, formatFileSize } from '../i18n/format';
 import type { MediaFileView } from '../upload/types';
-import { Button, Clock, CloudAlert, CloudCheck, CloudUpload, ProgressBar, StatusBadge, TriangleAlert } from '../ui';
+import { Button, Clock, CloudAlert, CloudCheck, CloudUpload, Icon, ProgressBar, StatusBadge, TriangleAlert, Video } from '../ui';
 import { borderWidth, color, size, space, text } from '../ui/theme';
 
 export interface FileRowProps {
@@ -30,7 +30,15 @@ export interface FileRowProps {
 export function FileRow({ file, reason, busy = false, onRetry, onDiscard, testID, retryTestID, discardTestID }: FileRowProps) {
   const { t } = useTranslation();
   const category = file.category === null || file.category === 'unknown' ? t('upload.noCategory') : t(`camera.categories.${file.category}`);
-  const type = file.mediaType === 'video' ? t('upload.types.video') : t('upload.types.photo');
+  const video = file.mediaType === 'video';
+  // a film shows its length and size next to the type (EVM-110); never the name of a customer or an address
+  const type = video
+    ? [
+        t('upload.types.video'),
+        ...(file.durationMs === undefined || file.durationMs === null ? [] : [formatDuration(file.durationMs)]),
+        formatFileSize(file.sizeBytes),
+      ].join(' · ')
+    : t('upload.types.photo');
   const time = formatDateTime(file.capturedAt);
   const state = stateOf(file, t);
   const attention = file.status === 'attention';
@@ -52,8 +60,11 @@ export function FileRow({ file, reason, busy = false, onRetry, onDiscard, testID
         style={{ rowGap: space.stack.xs }}
         testID={`${testID}-info`}
       >
-        <Text style={{ ...text.labelLg, color: color.text.primary }}>{category}</Text>
-        <Text style={{ ...text.bodySm, color: color.text.secondary }}>{`${time} · ${type}`}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', columnGap: space.inline.sm }}>
+          {video ? <Icon icon={Video} color={color.icon.secondary} iconSize="md" /> : null}
+          <Text style={{ ...text.labelLg, color: color.text.primary }}>{category}</Text>
+        </View>
+        <Text style={{ ...text.bodySm, color: color.text.secondary }} testID={`${testID}-type`}>{`${time} · ${type}`}</Text>
         <StatusBadge icon={state.icon} label={state.label} tone={state.tone} />
         {file.status === 'uploading' ? (
           <ProgressBar

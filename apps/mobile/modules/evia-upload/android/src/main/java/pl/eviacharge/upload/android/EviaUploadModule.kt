@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import android.view.WindowManager
 import expo.modules.interfaces.permissions.PermissionsStatus
 import expo.modules.kotlin.Promise
 import expo.modules.kotlin.modules.Module
@@ -327,6 +328,27 @@ class EviaUploadModule : Module() {
       // the network of the job comes from the native setting "videos only over Wi-Fi" (EVM-110), never from the caller
       heavy(promise, UploadUnavailable.WIRE, uploadOnly = true) { rt ->
         rt.arming.arm(JobArming.Item(assetId, workOrderId, userId, deviceId, contentType.orEmpty())).wire()
+      }
+    }
+
+    /**
+     * EVM-110 AC3: the screen stays on while a film is recorded (`FLAG_KEEP_SCREEN_ON` of the window of the visible activity, set on the UI thread;
+     * no wake lock, no permission). The app takes the flag off at the end of the recording, on an error and when the camera screen goes away.
+     * Resolves `true` when the request reached an activity.
+     */
+    Function("setKeepScreenOn") { on: Boolean ->
+      val activity = appContext.currentActivity
+      if (activity == null) {
+        false
+      } else {
+        activity.runOnUiThread {
+          if (on) {
+            activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+          } else {
+            activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+          }
+        }
+        true
       }
     }
 

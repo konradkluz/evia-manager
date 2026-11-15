@@ -35,6 +35,7 @@ class FakeNativeUpload implements NativeUpload {
   readonly calls: string[] = [];
   readonly armed: { assetId: string; workOrderId: string; userId: string; deviceId: string }[] = [];
   readonly deleted: string[] = [];
+  setKeepScreenOn: NativeUpload['setKeepScreenOn'] = () => true;
   getVideoWifiOnly: NativeUpload['getVideoWifiOnly'] = () => true;
   setVideoWifiOnly: NativeUpload['setVideoWifiOnly'] = () => Promise.resolve(true);
   /** The number of arguments of every call of `reconcile` and `retryUpload`: EVM-110 - the network is decided natively, the caller passes nothing about it. */

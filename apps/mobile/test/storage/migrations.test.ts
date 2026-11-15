@@ -47,7 +47,7 @@ const V2: SchemaPlan = {
   queue: [
     ...SCHEMA.queue,
     {
-      version: 4,
+      version: 5,
       up: async (tx) => {
         await tx.exec('ALTER TABLE queue_entries ADD COLUMN note_v2 TEXT');
         await tx.exec('CREATE INDEX queue_entries_owner ON queue_entries (owner_user_id)');
@@ -99,7 +99,7 @@ describe('local schema and migrations (EVM-093 AC2)', () => {
     const { db } = await migratedDatabase(disk);
     expect(await tables(db)).toEqual([...QUEUE_TABLES, ...REPLICA_TABLES].sort());
     expect(await db.read(readVersions)).toEqual(latest(SCHEMA));
-    expect(latest(SCHEMA)).toEqual({ queue: 3, replica: 1 });
+    expect(latest(SCHEMA)).toEqual({ queue: 4, replica: 1 });
   });
 
   it('EVM-093 AC2: N-1 with 120 entries migrates to N with an identical queue (order, mutation_id, owner); the replica is dropped for a new download', async () => {
@@ -110,7 +110,7 @@ describe('local schema and migrations (EVM-093 AC2)', () => {
     const before = await queueImage(db);
     const generationBefore = (await new SqlReplicaStore(db).loadState()).active.generation;
     expect(await migrate(db, V2)).toEqual({ kind: 'ok', replicaReset: true });
-    expect(await db.read(readVersions)).toEqual({ queue: 4, replica: 2 });
+    expect(await db.read(readVersions)).toEqual({ queue: 5, replica: 2 });
     expect(await queueImage(db)).toBe(before);
     const after = (await new SqlQueueStore(db).readAll()) as QueueRecord[];
     expect(after.map((r) => r.mutationId)).toEqual(ids);
@@ -138,7 +138,7 @@ describe('local schema and migrations (EVM-093 AC2)', () => {
     const before = await queueImage(db);
     engine.failNext((sql) => sql.startsWith('CREATE INDEX queue_entries_owner'));
     await expect(migrate(db, V2)).rejects.toMatchObject({ code: 'sql_failed' });
-    expect(await db.read(readVersions)).toEqual({ queue: 3, replica: 1 });
+    expect(await db.read(readVersions)).toEqual({ queue: 4, replica: 1 });
     await db.close();
     const again = new Database(await new NodeSqliteEngine(disk).open());
     expect(await migrate(again, SCHEMA)).toEqual({ kind: 'ok', replicaReset: false });
@@ -153,7 +153,7 @@ describe('local schema and migrations (EVM-093 AC2)', () => {
     const before = await queueImage(db);
     engine.failNext((sql) => sql === 'DROP TABLE IF EXISTS replica_meta');
     await expect(migrate(db, V2)).rejects.toMatchObject({ code: 'sql_failed' });
-    expect(await db.read(readVersions)).toEqual({ queue: 4, replica: 1 });
+    expect(await db.read(readVersions)).toEqual({ queue: 5, replica: 1 });
     expect(await queueImage(db)).toBe(before);
     expect((await new SqlReplicaStore(db).loadState()).hasData).toBe(true);
   });

@@ -133,6 +133,10 @@ const MOBILE_CAMERA_PATTERN = { group: CAMERA_FORBIDDEN_LIBRARIES.map((name) => 
 const CAMERA_LIBRARY_SOURCE = `/^(${CAMERA_FORBIDDEN_LIBRARIES.join('|')})/`;
 const CAMERA_INTENT_NAME = String.raw`/ACTION_(IMAGE|VIDEO)_CAPTURE|android\.media\.action\.(IMAGE|VIDEO)_CAPTURE|MediaStore/`;
 const CAMERA_SCANNER_NAME = '/^(onBarcodeScanned|barcodeScannerSettings|launchScanner|scanFromURLAsync|dismissScanner)$/';
+const MOBILE_MICROPHONE_MESSAGE =
+  'EVM-110 AC7 (camera rules of EVM-108 AC8): films have no sound and the app never asks for the microphone: no microphone API of expo-camera, no recordAudioAndroid, no mute set to false (SEC-110-03).';
+const CAMERA_MICROPHONE_NAME =
+  '/^(requestMicrophonePermissionsAsync|getMicrophonePermissionsAsync|useMicrophonePermissions|recordAudioAndroid)$/';
 const TAKE_PICTURE = "CallExpression[callee.property.name='takePictureAsync']";
 const MOBILE_CAMERA_SELECTORS = [
   { selector: `ImportExpression[source.value=${CAMERA_LIBRARY_SOURCE}]`, message: MOBILE_CAMERA_MESSAGE },
@@ -145,6 +149,10 @@ const MOBILE_CAMERA_SELECTORS = [
   { selector: `Property[key.name=${CAMERA_SCANNER_NAME}]`, message: MOBILE_CAMERA_MESSAGE },
   { selector: `${TAKE_PICTURE} Property[key.name=/^(additionalExif|base64)$/]`, message: MOBILE_CAMERA_MESSAGE },
   { selector: `${TAKE_PICTURE} Property[key.name='exif'][value.value=true]`, message: MOBILE_CAMERA_MESSAGE },
+  // EVM-110 (SEC-110-03): a film has no sound and the app never asks for the microphone; the view is muted by a constant, never by `mute={false}`
+  { selector: `Identifier[name=${CAMERA_MICROPHONE_NAME}]`, message: MOBILE_MICROPHONE_MESSAGE },
+  { selector: "JSXAttribute[name.name='mute'][value.expression.value=false]", message: MOBILE_MICROPHONE_MESSAGE },
+  { selector: "Property[key.name='mute'][value.value=false]", message: MOBILE_MICROPHONE_MESSAGE },
 ];
 
 /**

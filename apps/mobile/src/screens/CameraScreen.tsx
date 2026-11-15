@@ -2,13 +2,27 @@ import { CameraView } from 'expo-camera';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AccessibilityInfo, AppState, BackHandler, Text, View } from 'react-native';
-import { PICTURE_OPTIONS, consentMemory } from '../capture/camera-options';
+import { PICTURE_OPTIONS, VIDEO_MAX_SECONDS, VIDEO_VIEW_PROPS, VIDEO_WARN_AT_SECONDS, consentMemory } from '../capture/camera-options';
 import { useCameraPermission } from '../capture/camera-permission';
-import type { CapturePipeline } from '../capture/capture-pipeline';
-import { diskLevel } from '../capture/disk-space';
-import { formatFreeSpace } from '../i18n/format';
+import type { CapturePipeline, VideoEnd, VideoRecording, VideoResult, VideoSource } from '../capture/capture-pipeline';
+import { diskLevel, videoDiskLevel } from '../capture/disk-space';
+import { formatDuration, formatFreeSpace } from '../i18n/format';
 import { pluralKey } from '../i18n/plural';
-import { AppBar, Button, CameraPanel, CameraShutter, Camera, EmptyState, FilterChip, InlineAlert, Toast } from '../ui';
+import {
+  AppBar,
+  Button,
+  CameraPanel,
+  CameraShutter,
+  Camera,
+  EmptyState,
+  FilterChip,
+  HardDrive,
+  Icon,
+  InlineAlert,
+  Toast,
+  TriangleAlert,
+  VolumeOff,
+} from '../ui';
 import { color, space, text } from '../ui/theme';
 import { MEDIA_CATEGORIES, type MediaCategory } from '../upload/create-media-asset';
 import { CameraPermissionScreen } from './CameraPermissionScreen';
@@ -16,13 +30,26 @@ import { NotificationConsentSheet } from './NotificationConsentSheet';
 import { SyncCapsule } from './SyncCapsule';
 import { useGuard, useMediaSnapshot, useSession } from './session-context';
 
-type Problem = 'noSpace' | 'saveFailed';
+type Problem = 'noSpace' | 'saveFailed' | 'videoSaveFailed';
+type Mode = 'photo' | 'video';
 type CameraState = 'starting' | 'ready' | 'failed';
 
-const PROBLEM_KEY: Readonly<Record<Problem, 'camera.noSpace' | 'camera.saveFailed'>> = {
+const PROBLEM_KEY: Readonly<Record<Problem, 'camera.noSpace' | 'camera.saveFailed' | 'camera.videoSaveFailed'>> = {
   noSpace: 'camera.noSpace',
   saveFailed: 'camera.saveFailed',
+  videoSaveFailed: 'camera.videoSaveFailed',
 };
+
+/** The toast of the end of a film: the way it ended decides the words (EVM-110 AC2, AC3). */
+const VIDEO_END_KEY: Readonly<Record<VideoEnd, string>> = {
+  stopped: 'camera.savedVideo',
+  time_limit: 'camera.limitTime',
+  size_limit: 'camera.limitSize',
+  no_space: 'camera.limitSpace',
+  interrupted: 'camera.interrupted',
+};
+
+const MAX_CLOCK = formatDuration(VIDEO_MAX_SECONDS * 1000);
 
 const CATEGORY_KEY: Readonly<Record<MediaCategory, string>> = {
   site_survey: 'camera.categories.site_survey',
@@ -103,7 +130,7 @@ function Bar({ orderId, onClose }: { orderId: string; onClose: () => void }) {
 }
 
 /**
- * M-06 "Aparat" (EVM-108 AC1-AC4): the camera of the app (the photo only: no microphone, no film, no torch, no description in version 1).
+ * M-06 "Aparat" (EVM-108 AC1-AC4, EVM-110 AC1-AC3, AC6): the camera of the app: a photo or a film WITHOUT sound (the view is muted by a constant; no microphone, no torch, no description).
  * - the picture goes through the durable save of the session (`capturePipeline`): the counter and the toast come only AFTER the file, the
  *   command and the row are saved; a failure says so in words and leaves the queue and the counter as they were;
  * - `active` (the preview and the camera of the phone) only while the screen is the one in front, the app is in the foreground and the app
@@ -119,36 +146,63 @@ function CameraCapture({ orderId, onClose, focused }: { orderId: string; onClose
   const locked = useGuard().locked;
   const foreground = useForeground();
   const cameraRef = useRef<CameraView | null>(null);
-  const [pipeline] = useState<CapturePipeline>(() =>
-    media.capturePipeline(async () => {
+  // the last view that existed: the screen going away detaches `cameraRef` BEFORE its cleanup runs, and that cleanup must still be able to stop a recording
+  const lastCameraRef = useRef<CameraView | null>(null);
+  const [pipeline] = useState<CapturePipeline>(() => {
+    // the film (EVM-110): `recordAsync` and `stopRecording` of the view; the options come from the constants of `camera-options` (SEC-110-02)
+    const video: VideoSource = {
+      record: async (options) => {
+        const recorded = await cameraRef.current?.recordAsync(options);
+        return recorded === undefined ? null : { uri: recorded.uri };
+      },
+      stop: () => {
+        (cameraRef.current ?? lastCameraRef.current)?.stopRecording();
+      },
+    };
+    return media.capturePipeline(async () => {
       const picture = await cameraRef.current?.takePictureAsync(PICTURE_OPTIONS);
       return picture === undefined ? null : { uri: picture.uri };
-    }),
-  );
+    }, video);
+  });
   const [cameraState, setCameraState] = useState<CameraState>('starting');
   const [attempt, setAttempt] = useState(0);
+  const [mode, setMode] = useState<Mode>('photo');
   const [category, setCategory] = useState<MediaCategory | null>(null);
   const [count, setCount] = useState(0);
+  const [videoCount, setVideoCount] = useState(0);
   const [saving, setSaving] = useState(false);
   const [problem, setProblem] = useState<Problem | null>(null);
   const [free, setFree] = useState<number | null>(() => media.freeDiskBytes());
   const [finishing, setFinishing] = useState(false);
   const [consent, setConsent] = useState(false);
-  const [savedKey, setSavedKey] = useState(0);
+  const [toast, setToast] = useState<{ readonly key: number; readonly message: string } | null>(null);
+  // the film: the recording in progress, its seconds (from the progress of the view), and the save after the end ("Zapisywanie filmu…")
+  const recordingRef = useRef<VideoRecording | null>(null);
+  // the announcement of the last minute is made once per recording
+  const warned = useRef(false);
+  const [recording, setRecording] = useState(false);
+  const [seconds, setSeconds] = useState(0);
+  const [savingVideo, setSavingVideo] = useState(false);
   // the latest values for the handlers that outlive a render (the system "back")
-  const latest = useRef({ count, notifications: snapshot.notifications, queued: snapshot.files.some((file) => file.status !== 'sent') });
-  latest.current = { count, notifications: snapshot.notifications, queued: snapshot.files.some((file) => file.status !== 'sent') };
+  const taken = count + videoCount;
+  const queued = snapshot.files.some((file) => file.status !== 'sent');
+  const latest = useRef({ count, taken, notifications: snapshot.notifications, queued });
+  latest.current = { count, taken, notifications: snapshot.notifications, queued };
 
   // the toast of the earlier shot goes with its timer (styleguide 3.14) and never stays over the result of the next one
   const dismissSaved = useCallback(() => {
-    setSavedKey(0);
+    setToast(null);
+  }, []);
+  const say = useCallback((message: string): void => {
+    AccessibilityInfo.announceForAccessibility(message);
+    setToast((current) => ({ key: (current?.key ?? 0) + 1, message }));
   }, []);
 
   const shoot = useCallback(() => {
     if (category === null || saving) return;
     setSaving(true);
     setProblem(null);
-    setSavedKey(0);
+    setToast(null);
     void pipeline.capture({ workOrderId: orderId, category }).then((result) => {
       setSaving(false);
       setFree(media.freeDiskBytes());
@@ -156,17 +210,80 @@ function CameraCapture({ orderId, onClose, focused }: { orderId: string; onClose
         // the saves are one after another (the shutter waits for the previous one), so the rendered count is the current one
         AccessibilityInfo.announceForAccessibility(t('camera.savedA11y', { count: latest.current.count + 1 }));
         setCount((current) => current + 1);
-        setSavedKey((key) => key + 1);
+        setToast((current) => ({ key: (current?.key ?? 0) + 1, message: t('camera.saved') }));
       } else if (result.code === 'no_space') setProblem('noSpace');
       else if (result.code !== 'busy') setProblem('saveFailed');
     });
   }, [category, saving, pipeline, orderId, media, t]);
 
+  /** The end of a recording and of its save: the toast says how it ended; a failure leaves the queue and the counters as they were. */
+  const videoDone = useCallback(
+    (result: VideoResult): void => {
+      recordingRef.current = null;
+      setRecording(false);
+      setSavingVideo(false);
+      setSeconds(0);
+      media.keepScreenOn(false);
+      setFree(media.freeDiskBytes());
+      if (result.ok) {
+        setVideoCount((current) => current + 1);
+        say(t(VIDEO_END_KEY[result.end], { duration: formatDuration(result.durationMs) }));
+      } else if (result.code === 'no_space' || result.code === 'camera_failed' || result.code === 'save_failed')
+        setProblem('videoSaveFailed');
+    },
+    [media, say, t],
+  );
+
+  const startRecording = useCallback(() => {
+    if (category === null || saving || recordingRef.current !== null) return;
+    setProblem(null);
+    setToast(null);
+    const started = pipeline.startVideo({ workOrderId: orderId, category });
+    if (!started.ok) {
+      setFree(media.freeDiskBytes());
+      if (started.code !== 'busy' && started.code !== 'no_session') setProblem('videoSaveFailed');
+      return;
+    }
+    const current = started.recording;
+    recordingRef.current = current;
+    setRecording(true);
+    setSeconds(0);
+    media.keepScreenOn(true);
+    AccessibilityInfo.announceForAccessibility(t('camera.recordingStartedA11y'));
+    void current.recorded.then(() => {
+      if (recordingRef.current === current) {
+        setSavingVideo(true);
+        AccessibilityInfo.announceForAccessibility(t('camera.savingVideo'));
+      }
+    });
+    void current.done.then(videoDone);
+  }, [category, saving, pipeline, orderId, media, t, videoDone]);
+
+  /** The technician (the shutter) or the app (the foreground was lost, back, the lock) ends the recording; the file is saved like any other film. */
+  const stopRecording = useCallback((reason: 'user' | 'interrupted') => {
+    recordingRef.current?.stop(reason);
+  }, []);
+  const stopRef = useRef(stopRecording);
+  stopRef.current = stopRecording;
+
+  // AC3: the foreground, the lock and the screen going away stop a recording (a toast for the screen that stays, the file is saved either way)
+  useEffect(() => {
+    if (!foreground || locked || !focused) stopRef.current('interrupted');
+  }, [foreground, locked, focused]);
+  useEffect(
+    () => () => {
+      stopRef.current('interrupted');
+      media.keepScreenOn(false);
+    },
+    [media],
+  );
+
   const finish = useCallback(() => {
     setFinishing(true);
+    stopRef.current('interrupted');
     void pipeline.whenIdle().then(() => {
-      const { count: taken, notifications, queued } = latest.current;
-      if ((taken > 0 || queued) && notifications === 'denied' && !consentMemory.shown) {
+      const { taken: made, notifications, queued: waiting } = latest.current;
+      if ((made > 0 || waiting) && notifications === 'denied' && !consentMemory.shown) {
         consentMemory.shown = true;
         setConsent(true);
         return;
@@ -206,33 +323,58 @@ function CameraCapture({ orderId, onClose, focused }: { orderId: string; onClose
   }
 
   const level = diskLevel(free);
+  const noRoomForVideo = videoDiskLevel(free) === 'blocked';
+  const video = mode === 'video';
   const needsCategory = category === null;
+  const warn = recording && seconds >= VIDEO_WARN_AT_SECONDS;
   const notice =
-    problem !== null || level !== 'ok' || needsCategory ? (
+    problem !== null || level !== 'ok' || needsCategory || warn ? (
       <View style={{ rowGap: space.stack.sm }}>
         {problem !== null ? (
           <InlineAlert tone="error" body={t(PROBLEM_KEY[problem])} live="assertive" testID="camera-problem" />
         ) : level !== 'ok' && free !== null ? (
           <InlineAlert tone="warning" body={t('camera.lowSpace', { free: formatFreeSpace(free) })} testID="camera-low-space" />
         ) : null}
+        {warn ? (
+          <InlineAlert tone="warning" icon={TriangleAlert} body={t('camera.warnMinute')} live="assertive" testID="camera-warn-minute" />
+        ) : null}
         {needsCategory ? (
           <Text style={{ ...text.body, color: color.text.onBrand }} testID="camera-choose-category">
-            {t('camera.chooseCategory')}
+            {t(video ? 'camera.chooseCategoryVideo' : 'camera.chooseCategory')}
           </Text>
         ) : null}
       </View>
     ) : undefined;
-  const countKey = pluralKey(count, { one: 'camera.count_one', few: 'camera.count_few', many: 'camera.count_many' });
+  const countKey = video
+    ? pluralKey(videoCount, { one: 'camera.videoCount_one', few: 'camera.videoCount_few', many: 'camera.videoCount_many' })
+    : pluralKey(count, { one: 'camera.count_one', few: 'camera.count_few', many: 'camera.count_many' });
+  const shownCount = video ? videoCount : count;
+  const busy = saving || savingVideo;
+  const chipName = (label: string): string => (recording ? t('camera.unavailableWhileRecordingA11y', { name: label }) : label);
   return (
     <View style={{ flex: 1, backgroundColor: color.bg.inverse }} testID="camera">
       <Bar orderId={orderId} onClose={finish} />
       <View style={{ flex: 1 }}>
         <CameraView
           key={attempt}
-          ref={cameraRef}
+          ref={(node) => {
+            cameraRef.current = node;
+            if (node !== null) lastCameraRef.current = node;
+          }}
           style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}
           facing="back"
-          mode="picture"
+          mode={mode === 'video' ? 'video' : 'picture'}
+          // EVM-110 (SEC-110-02): the view props of the film are one frozen constant, in EVERY mode - never a state, never a prop from outside
+          {...VIDEO_VIEW_PROPS}
+          onRecordingProgress={(event) => {
+            recordingRef.current?.progress(event);
+            const whole = Math.floor(event.duration);
+            setSeconds(whole);
+            if (whole >= VIDEO_WARN_AT_SECONDS && !warned.current) {
+              warned.current = true;
+              AccessibilityInfo.announceForAccessibility(t('camera.warnMinute'));
+            }
+          }}
           active={focused && foreground && !locked}
           onCameraReady={() => {
             setCameraState('ready');
@@ -249,9 +391,46 @@ function CameraCapture({ orderId, onClose, focused }: { orderId: string; onClose
             <Text style={{ ...text.body, color: color.text.inverse }}>{t('camera.loading')}</Text>
           </View>
         ) : null}
-        {savedKey > 0 ? (
+        {video ? (
+          <View
+            style={{
+              position: 'absolute',
+              top: space.inset.md,
+              left: space.inset.md,
+              right: space.inset.md,
+              rowGap: space.stack.sm,
+              alignItems: 'flex-start',
+            }}
+            pointerEvents="none"
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', columnGap: space.inline.sm }} testID="camera-muted">
+              <Icon icon={VolumeOff} color={color.icon.inverse} iconSize="md" />
+              <Text style={{ ...text.body, color: color.text.onBrand }}>{t('camera.muted')}</Text>
+            </View>
+            {recording ? (
+              <Text
+                accessibilityRole="timer"
+                accessibilityLabel={t('camera.timerA11y', { elapsed: formatDuration(seconds * 1000), max: MAX_CLOCK })}
+                accessibilityLiveRegion="none"
+                style={{ ...text.numeric, color: color.text.onBrand }}
+                testID="camera-timer"
+              >
+                {t('camera.timer', { elapsed: formatDuration(seconds * 1000), max: MAX_CLOCK })}
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
+        {savingVideo ? (
+          <View
+            style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center' }}
+            testID="camera-saving-video"
+          >
+            <Text style={{ ...text.body, color: color.text.inverse }}>{t('camera.savingVideo')}</Text>
+          </View>
+        ) : null}
+        {toast !== null ? (
           <View style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }} pointerEvents="none">
-            <Toast key={savedKey} message={t('camera.saved')} onDismiss={dismissSaved} testID="camera-toast" />
+            <Toast key={toast.key} message={toast.message} onDismiss={dismissSaved} testID="camera-toast" />
           </View>
         ) : null}
       </View>
@@ -262,27 +441,81 @@ function CameraCapture({ orderId, onClose, focused }: { orderId: string; onClose
           <FilterChip
             key={item}
             label={t(CATEGORY_KEY[item])}
-            accessibilityLabel={t(CATEGORY_KEY[item])}
+            accessibilityLabel={chipName(t(CATEGORY_KEY[item]))}
             selected={category === item}
             radio
             onDark
+            disabled={recording}
             onPress={() => {
               setCategory(item);
             }}
             testID={`camera-category-${item}`}
           />
         ))}
+        modesLabel={t('camera.modeGroup')}
+        modes={
+          <>
+            <FilterChip
+              label={t('camera.modePhoto')}
+              accessibilityLabel={chipName(t('camera.modePhoto'))}
+              selected={!video}
+              radio
+              onDark
+              disabled={recording}
+              onPress={() => {
+                setMode('photo');
+              }}
+              testID="camera-mode-photo"
+            />
+            <FilterChip
+              label={t('camera.modeVideo')}
+              accessibilityLabel={noRoomForVideo ? t('camera.modeVideoNoRoomA11y') : chipName(t('camera.modeVideo'))}
+              selected={video}
+              radio
+              onDark
+              disabled={recording || noRoomForVideo}
+              onPress={() => {
+                setMode('video');
+              }}
+              testID="camera-mode-video"
+            />
+          </>
+        }
+        modesNote={
+          noRoomForVideo ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', columnGap: space.inline.sm }} testID="camera-video-no-room">
+              <Icon icon={HardDrive} color={color.icon.inverse} iconSize="md" />
+              <Text style={{ ...text.body, color: color.text.onBrand, flex: 1 }}>{t('camera.videoNoRoom')}</Text>
+            </View>
+          ) : undefined
+        }
         counter={
           <Text style={{ ...text.body, color: color.text.onBrand }} testID="camera-count">
-            {t(countKey, { count })}
+            {t(countKey, { count: shownCount })}
           </Text>
         }
         shutter={
           <CameraShutter
-            accessibilityLabel={t('camera.shutter')}
-            accessibilityHint={needsCategory ? t('camera.chooseCategory') : t('camera.shutterHint')}
-            disabled={needsCategory || saving || cameraState !== 'ready'}
-            onPress={shoot}
+            accessibilityLabel={video ? (recording ? t('camera.recordStop') : t('camera.recordStart')) : t('camera.shutter')}
+            accessibilityHint={
+              needsCategory && !recording
+                ? t(video ? 'camera.chooseCategoryVideo' : 'camera.chooseCategory')
+                : video
+                  ? t('camera.recordHint')
+                  : t('camera.shutterHint')
+            }
+            disabled={recording ? false : needsCategory || busy || cameraState !== 'ready'}
+            recording={recording}
+            onPress={
+              video
+                ? () => {
+                    if (recordingRef.current === null) {
+                      warned.current = false;
+                      startRecording();
+                    } else stopRecording('user');
+                  }
+                : shoot
+            }
             testID="camera-shutter"
           />
         }
@@ -291,7 +524,7 @@ function CameraCapture({ orderId, onClose, focused }: { orderId: string; onClose
             label={t('camera.done')}
             accessibilityLabel={t('camera.doneA11y')}
             onPress={finish}
-            busy={finishing}
+            busy={finishing || savingVideo}
             inverse
             buttonSize="lg"
             testID="camera-done"

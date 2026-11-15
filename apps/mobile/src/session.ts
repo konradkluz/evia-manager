@@ -31,7 +31,7 @@ import { logDiagnostic } from './logging/log';
 import { CompanyDataWipe, type WipeConfirmClient } from './wipe/company-wipe';
 import type { SessionPorts } from './screens/SessionRoot';
 import { tokenStore } from './secure-store';
-import { localData, randomSource } from './storage';
+import { localData, randomSource, recordingMarker } from './storage';
 import { createHttpSyncTransport } from './sync/http-transport';
 import { SyncHost } from './sync/sync-host';
 import { SyncService } from './sync/sync-service';
@@ -164,6 +164,8 @@ export function createSessionPorts(
     },
     // the camera (EVM-108): the free space of the phone and the ids of the session (UUIDv7, CSPRNG)
     capture: { disk: expoDiskSpace, newId },
+    // EVM-110 AC3: the marker of a recording in progress (a tiny file in the files of the app; nothing sensitive in it)
+    recordingMarker,
   });
   media.start();
   mediaUploads = media;
@@ -173,6 +175,9 @@ export function createSessionPorts(
     sync.stop();
     clipboard.clear();
   });
+  // EVM-110 AC3 (SEC-110-12): a recording in progress is stopped and saved BEFORE the session ends and anything is cleaned (a sign-out, a revoked
+  // session, a wipe); a film that finishes after the end is not imported
+  owner.onBeforeSessionEndAsync(() => media.stopRecording());
   // a wipe in progress hides the data; a finished one is confirmed to the server at every start and return to the foreground
   companyWipe.onPhase((phase) => {
     guard.setWiping(phase !== 'idle');

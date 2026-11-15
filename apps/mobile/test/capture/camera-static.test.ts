@@ -54,16 +54,36 @@ describe('the source of the camera (EVM-108 AC1, AC3; security 16)', () => {
     expect(all.filter((path) => forbidden.test(read(path)))).toEqual([]);
   });
 
-  it('EVM-108 AC2: the view is always a photo camera of the back lens, without scanners, sound or recording; "active" depends on focus, foreground AND the app lock', () => {
+  it('EVM-108 AC2: the view is the back lens in the picture or (EVM-110) the video mode, without scanners or a microphone; "active" depends on focus, foreground AND the app lock', () => {
     // the code, not the comments that explain what is left out
     const screen = read(join(SRC, 'screens', 'CameraScreen.tsx'))
       .replace(/\/\*[\s\S]*?\*\//g, '')
       .replace(/\/\/.*$/gm, '');
-    expect(screen).toMatch(/mode="picture"/);
+    expect(screen).toMatch(/mode=\{mode === 'video' \? 'video' : 'picture'\}/);
     expect(screen).toMatch(/facing="back"/);
     expect(screen).toMatch(/active=\{focused && foreground && !locked\}/);
-    expect(screen).not.toMatch(/mode="video"|recordAsync|barcodeScannerSettings|onBarcodeScanned|\bmute\b|\bmicrophone\b/i);
+    expect(screen).not.toMatch(/barcodeScannerSettings|onBarcodeScanned|\bmicrophone\b/i);
     expect(screen).not.toMatch(/ActivityIndicator|Spinner|Skeleton/);
+  });
+
+  it('EVM-110 AC7 AC1: the film has no sound - the view props come from the frozen constant in every mode, recordAsync gets only the computed options, no microphone API is touched', () => {
+    const screen = read(join(SRC, 'screens', 'CameraScreen.tsx'))
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\/\/.*$/gm, '');
+    // `mute` is never written on the screen: it comes only from the spread of the constant (SEC-110-02)
+    expect(screen).toMatch(/\{\.\.\.VIDEO_VIEW_PROPS\}/);
+    expect(screen).not.toMatch(/\bmute\s*=|\bmute:|recordAudioAndroid|videoQuality\s*=|videoBitrate\s*=/);
+    expect(screen).not.toMatch(/Microphone|RECORD_AUDIO|AudioRecord|MediaRecorder|withAudioEnabled/);
+    // the options of `recordAsync` are passed through from the pipeline (built by `videoRecordOptions` only)
+    expect(screen.match(/recordAsync\(/g)).toHaveLength(1);
+    expect(screen).toMatch(/recordAsync\(options\)/);
+    // nothing in the app code asks the library for the microphone, and nothing leaves the private storage
+    expect(
+      all.filter((path) =>
+        /requestMicrophonePermissions|getMicrophonePermissions|useMicrophonePermissions|recordAudioAndroid/.test(read(path)),
+      ),
+    ).toEqual([]);
+    expect(all.filter((path) => /expo-media-library|MediaStore|saveToLibrary|ACTION_VIDEO_CAPTURE/.test(read(path)))).toEqual([]);
   });
 
   it('EVM-108 AC4: the screens of the camera use no literal colour (tokens and the library only)', () => {

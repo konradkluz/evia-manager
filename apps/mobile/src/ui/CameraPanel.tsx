@@ -10,6 +10,11 @@ export interface CameraPanelProps {
   chips: ReactNode;
   /** A text or a banner above the chips (the hint, the warning); optional. */
   notice?: ReactNode;
+  /** EVM-110: the chips "Zdjęcie" / "Film" under the categories (a radio group of its own) and the label of that group ("Tryb"). */
+  modes?: ReactNode;
+  modesLabel?: string;
+  /** A text under the modes (why "Film" is off); visible, never only a hint. */
+  modesNote?: ReactNode;
   /** The left, the middle and the right cell of the control row: the counter, the shutter and "Gotowe". */
   counter: ReactNode;
   shutter: ReactNode;
@@ -20,7 +25,7 @@ export interface CameraPanelProps {
  * The bottom panel of the camera (styleguide § 3.24): `color.bg.brand-strong`, the notice, the chips (scrolled sideways, `space.inline.sm` apart),
  * and the row of the counter, the shutter and "Gotowe" (the thumb zone, § 5.2). It holds no text of its own: the screen passes the texts.
  */
-export function CameraPanel({ chipsLabel, chips, notice, counter, shutter, done }: CameraPanelProps) {
+export function CameraPanel({ chipsLabel, chips, notice, modes, modesLabel, modesNote, counter, shutter, done }: CameraPanelProps) {
   const insets = useSafeAreaInsets();
   return (
     <View
@@ -41,6 +46,18 @@ export function CameraPanel({ chipsLabel, chips, notice, counter, shutter, done 
       >
         {chips}
       </ScrollView>
+      {modes === undefined ? null : (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          accessibilityRole="radiogroup"
+          accessibilityLabel={modesLabel}
+          contentContainerStyle={{ paddingHorizontal: space.inset.md, columnGap: space.inline.sm }}
+        >
+          {modes}
+        </ScrollView>
+      )}
+      {modesNote === undefined ? null : <View style={{ paddingHorizontal: space.inset.md }}>{modesNote}</View>}
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.inset.md }}>
         <View style={{ flex: 1, alignItems: 'flex-start' }}>{counter}</View>
         {shutter}

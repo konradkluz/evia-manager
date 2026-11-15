@@ -56,6 +56,9 @@ export interface SessionOwnerDeps {
 /** An access token is renewed this long before its end (clock skew, a request on the way). */
 export const ACCESS_SKEW_MS = 30_000;
 
+/** The longest a sign-out or a wipe waits for the tasks of `onBeforeSessionEndAsync` (a recording is stopped and saved; SEC-110-12). */
+const BEFORE_END_ASYNC_MS = 3000;
+
 /** What a sign-in leaves in JavaScript: no token of any kind. */
 interface LoginFacts {
   readonly deviceId: string;
@@ -79,6 +82,7 @@ export class MobileSessionOwner implements SessionOwner {
   #pending: LoginFacts | null = null;
   readonly #listeners = new Set<(ended: SessionEnded) => void>();
   readonly #beforeEnd = new Set<() => void>();
+  readonly #beforeEndAsync = new Set<() => Promise<void>>();
   readonly #updateListeners = new Set<() => void>();
 
   constructor(deps: SessionOwnerDeps) {
@@ -131,7 +135,18 @@ export class MobileSessionOwner implements SessionOwner {
     };
   }
 
-  #stopListeners(): void {
+  /**
+   * EVM-110 AC3 (SEC-110-12): a task that must FINISH before the session ends and anything is cleaned (the recording of a film is stopped and
+   * saved); awaited together with a cap of [BEFORE_END_ASYNC_MS], so a stuck task cannot keep the user signed in. A rejection is ignored.
+   */
+  onBeforeSessionEndAsync(listener: () => Promise<void>): () => void {
+    this.#beforeEndAsync.add(listener);
+    return () => {
+      this.#beforeEndAsync.delete(listener);
+    };
+  }
+
+  async #stopListeners(): Promise<void> {
     for (const listener of [...this.#beforeEnd]) {
       try {
         listener();
@@ -139,6 +154,16 @@ export class MobileSessionOwner implements SessionOwner {
         // stopping a service must not break the end of a session
       }
     }
+    if (this.#beforeEndAsync.size === 0) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([
+      Promise.all([...this.#beforeEndAsync].map((listener) => listener().catch(() => undefined))),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, BEFORE_END_ASYNC_MS);
+      }),
+    ]).finally(() => {
+      clearTimeout(timer);
+    });
   }
 
   /** The capability of the store for the synchronization service; null without a session. Composition only (security S3). */
@@ -443,7 +468,7 @@ export class MobileSessionOwner implements SessionOwner {
    */
   endSessionForWipe({ online }: { readonly online: boolean }): Promise<void> {
     return this.#exclusive(async () => {
-      this.#stopListeners();
+      await this.#stopListeners();
       const store = this.#store;
       store?.lock();
       await this.#clearSession();
@@ -528,7 +553,7 @@ export class MobileSessionOwner implements SessionOwner {
 
   /** `session_revoked` / expiry (AC4): N is read first, then the replica and the record go; the queue stays encrypted. */
   async #end(reason: Extract<SessionEndReason, 'session_revoked' | 'session_expired'>): Promise<void> {
-    this.#stopListeners();
+    await this.#stopListeners();
     const store = this.#store;
     const unsentItems = store === null ? 0 : await store.unsentItemCount().catch(() => 0);
     if (store !== null) await store.endSession().catch(() => undefined);
@@ -538,7 +563,7 @@ export class MobileSessionOwner implements SessionOwner {
 
   /** `device_wipe_required` (AC4): the record goes, the data become unreachable, the wipe is signalled to EVM-101. */
   async #endWipe(): Promise<void> {
-    this.#stopListeners();
+    await this.#stopListeners();
     this.#store?.lock();
     await this.#clearSession();
     this.#deps.wipe.wipeRequired();
@@ -561,7 +586,7 @@ export class MobileSessionOwner implements SessionOwner {
    */
   signOut({ online }: { readonly online: boolean }): Promise<SessionEnded> {
     return this.#exclusive(async () => {
-      this.#stopListeners();
+      await this.#stopListeners();
       // the confirmation is stored first: a death after the module signed out must still end with the replica removed
       if (this.#meta !== null) {
         await this.#deps.tokens.set('sessionMeta', JSON.stringify({ ...this.#meta, ending: true })).catch(() => undefined);
@@ -649,6 +674,7 @@ export type SessionControl = Pick<
   | 'queueEntries'
   | 'endSessionForWipe'
   | 'onBeforeSessionEnd'
+  | 'onBeforeSessionEndAsync'
   | 'syncStore'
   | 'reconcileNative'
   | 'mergeNativeContact'

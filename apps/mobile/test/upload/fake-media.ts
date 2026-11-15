@@ -1,5 +1,5 @@
 // A fake of the files of the queue seen by the screens (EVM-130): a settable snapshot, recorded calls.
-import { CapturePipeline, type CapturePorts } from '../../src/capture/capture-pipeline';
+import { CapturePipeline, type CapturePorts, type VideoRecording, type VideoSource } from '../../src/capture/capture-pipeline';
 import type { MediaControl, MediaUploadsSnapshot } from '../../src/upload/types';
 
 export class FakeMedia implements MediaControl {
@@ -62,10 +62,47 @@ export class FakeMedia implements MediaControl {
     return target;
   }
 
-  capturePipeline(takePicture: CapturePorts['takePicture']): CapturePipeline {
+  /** The recording in progress, as the pipeline reports it (EVM-110); `stopRecording` stops it like the real queue does. */
+  recording: VideoRecording | null = null;
+  readonly stopCalls: number[] = [];
+
+  /** What `consumeInterruptedRecording` answers (once). */
+  interrupted = false;
+  /** The calls of `keepScreenOn`, in order. */
+  readonly keepAwake: boolean[] = [];
+
+  consumeInterruptedRecording(): Promise<boolean> {
+    const was = this.interrupted;
+    this.interrupted = false;
+    return Promise.resolve(was);
+  }
+
+  keepScreenOn(on: boolean): void {
+    this.keepAwake.push(on);
+  }
+
+  async stopRecording(timeoutMs = 3000): Promise<void> {
+    this.stopCalls.push(timeoutMs);
+    this.recording?.stop('interrupted');
+    await this.recording?.done;
+  }
+
+  capturePipeline(takePicture: CapturePorts['takePicture'], video?: VideoSource): CapturePipeline {
     const base = this.capturePorts;
     if (base === null) throw new Error('the test sets capturePorts first');
-    const pipeline = new CapturePipeline({ ...base, takePicture });
+    const pipeline = new CapturePipeline({
+      ...base,
+      takePicture,
+      ...(video === undefined
+        ? {}
+        : {
+            video,
+            onRecording: (recording: VideoRecording | null) => {
+              this.recording = recording;
+              base.onRecording?.(recording);
+            },
+          }),
+    });
     this.pipelines.push(pipeline);
     return pipeline;
   }
