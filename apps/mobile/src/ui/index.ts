@@ -53,6 +53,7 @@ export {
   CirclePause,
   CircleQuestionMark,
   CloudAlert,
+  TriangleAlert,
   CloudCheck,
   CloudUpload,
   ClipboardList,

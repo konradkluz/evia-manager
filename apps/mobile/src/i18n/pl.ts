@@ -432,7 +432,7 @@ export const pl = {
     entry: 'Wpis',
     newOrder: 'Nowe zlecenie',
     media: 'Zdjęcie lub film',
-    hiddenReason: 'Dane zleceń są ukryte',
+    hiddenReason: 'Dane zleceń są ukryte — wpis dodasz po ponownym zalogowaniu.',
     close: 'Zamknij',
   },
   queue: {

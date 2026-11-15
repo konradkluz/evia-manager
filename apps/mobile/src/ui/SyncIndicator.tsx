@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Icon } from './Icon';
-import { CloudAlert, CloudCheck, RefreshCw, WifiOff } from './icons';
+import { CloudAlert, CloudCheck, RefreshCw, TriangleAlert, WifiOff } from './icons';
 import { borderWidth, color, radius, size, space, text } from './theme';
 
 /** "online" = synced or nothing to say, "syncing" = a cycle runs, "error" = a failed attempt with a retry, "attention" = items need the user. */
@@ -12,7 +12,7 @@ const LOOK = {
   offline: { tokens: color.sync.offline, glyph: WifiOff },
   syncing: { tokens: color.sync.inProgress, glyph: RefreshCw },
   error: { tokens: color.sync.error, glyph: CloudAlert },
-  attention: { tokens: color.sync.error, glyph: CloudAlert },
+  attention: { tokens: color.sync.error, glyph: TriangleAlert },
 } as const;
 
 export interface SyncIndicatorProps {

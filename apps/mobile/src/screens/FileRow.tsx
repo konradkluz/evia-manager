@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { Text, View } from 'react-native';
 import { formatDateTime } from '../i18n/format';
 import type { MediaFileView } from '../upload/types';
-import { Button, Clock, CloudAlert, CloudCheck, CloudUpload, ProgressBar, StatusBadge } from '../ui';
+import { Button, Clock, CloudAlert, CloudCheck, CloudUpload, ProgressBar, StatusBadge, TriangleAlert } from '../ui';
 import { borderWidth, color, size, space, text } from '../ui/theme';
 
 export interface FileRowProps {
@@ -99,7 +99,7 @@ function stateOf(file: MediaFileView, t: Translate) {
     case 'error':
       return { label: t('upload.states.error'), icon: CloudAlert, tone: color.sync.error };
     case 'attention':
-      return { label: t('upload.states.attention'), icon: CloudAlert, tone: color.sync.error };
+      return { label: t('upload.states.attention'), icon: TriangleAlert, tone: color.sync.error };
     case 'waiting':
       return { label: t('upload.states.waiting'), icon: Clock, tone: color.sync.queued };
   }
