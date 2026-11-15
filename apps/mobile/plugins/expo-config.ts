@@ -59,10 +59,11 @@ export function buildExpoConfig(env: Readonly<Record<string, string | undefined>
   }
   const authority = url.url.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '').replace(/\/.*$/, '');
   const storageHosts = parseStorageHosts(env['EVIA_STORAGE_HOSTS'], variant, authority);
-  // the upload client builds `<origin>/api/v1/...` itself: an address with a path would make every request wrong, so the build says so
-  if (storageHosts !== null && url.url.replace(/^[a-z][a-z0-9+.-]*:\/\/[^/]+/i, '') !== '')
+  // the native side builds `<origin>/api/v1/...` itself (sign-in, refresh and upload): an address with a path would make every request
+  // wrong, so the build says so (the API address is written to the manifest in every package, also without the upload)
+  if (url.url.replace(/^[a-z][a-z0-9+.-]*:\/\/[^/]+/i, '') !== '')
     throw new Error(
-      `EXPO_PUBLIC_API_BASE_URL with a path is not supported by the background upload in the ${variant} build: use the origin only.`,
+      `EXPO_PUBLIC_API_BASE_URL with a path is not supported by the native session in the ${variant} build: use the origin only.`,
     );
   return {
     name: 'EVia Manager',

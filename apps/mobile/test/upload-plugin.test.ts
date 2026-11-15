@@ -77,11 +77,14 @@ describe('upload config plugin (EVM-130 AC7; SR-MOB-07, SR-MOB-11)', () => {
     expect(applied('release', HOSTS).metas.has(UPLOAD_E2E_CLEARTEXT_META)).toBe(false);
   });
 
-  it('EVM-130 AC7: a release without storage hosts carries NO upload - no service, no permission, no configuration, never an empty value (fail closed)', () => {
+  it('EVM-130 AC7: a release without storage hosts carries NO upload (no service, no permission, no hosts) but keeps the API address, so the session works', () => {
     const { application, metas, permissions } = applied('release', null);
     expect(permissions).toEqual(['android.permission.INTERNET']);
     expect(application?.service).toEqual([]);
-    expect([...metas.keys()]).toEqual([]);
+    expect([...metas.keys()]).toEqual([API_BASE_URL_META]);
+    expect(metas.get(API_BASE_URL_META)).toBe(API);
+    expect(metas.has(STORAGE_HOSTS_META)).toBe(false);
+    expect(metas.has(UPLOAD_E2E_CLEARTEXT_META)).toBe(false);
     expect(JSON.stringify(application)).not.toContain('UploadJobService');
   });
 
@@ -93,7 +96,8 @@ describe('upload config plugin (EVM-130 AC7; SR-MOB-07, SR-MOB-11)', () => {
     expect(twice.manifest.application[0]?.['meta-data']).toHaveLength(3);
     const released = applied('release', null, API, twice);
     expect(released.permissions).toEqual(['android.permission.INTERNET']);
-    expect([...released.metas.keys()]).toEqual([]);
+    expect([...released.metas.keys()]).toEqual([API_BASE_URL_META]);
+    expect(released.application?.service).toEqual([]);
   });
 
   it('EVM-130 AC7: other meta-data, services and permissions of the manifest are kept', () => {
@@ -195,11 +199,11 @@ describe('storage hosts of the build (EVM-130 AC7)', () => {
     ]);
   });
 
-  it('EVM-130 AC7: an API address with a path cannot carry the upload (the client builds /api/v1 itself); without hosts it is not a problem', () => {
+  it('EVM-130 AC7: an API address with a path is a build error in every package (the native side builds /api/v1 itself), with or without hosts', () => {
     expect(() => buildExpoConfig({ EXPO_PUBLIC_API_BASE_URL: 'https://api.example.test/api', EVIA_STORAGE_HOSTS: HOSTS })).toThrow(
       /with a path is not supported/,
     );
-    expect(() => buildExpoConfig({ EXPO_PUBLIC_API_BASE_URL: 'https://api.example.test/api' })).not.toThrow();
+    expect(() => buildExpoConfig({ EXPO_PUBLIC_API_BASE_URL: 'https://api.example.test/api' })).toThrow(/with a path is not supported/);
   });
 
   it('EVM-130 AC7: the hosts are not a public variable - the bundle never sees them, and the app still asks for no permission itself', () => {
