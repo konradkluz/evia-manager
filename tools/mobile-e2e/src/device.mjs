@@ -345,10 +345,21 @@ export async function runDeviceAction(action, context) {
       return check(succeeded(adb(...deviceCommands.forceStop())), 'am force-stop');
     case 'kill-9': {
       // without a running app pidof prints nothing and `kill -9` without a pid exits non-zero: a failure, never a pass
+      // EVM-130: an armed upload job makes the system start the app process again at once, so "no process" is the wrong proof; the proof is that
+      // the process that was killed is gone (a new pid may be there)
+      const before = adb(...deviceCommands.pidof())
+        .stdout.trim()
+        .split(/s+/)
+        .filter((pid) => pid !== '');
       const killed = succeeded(adb(...deviceCommands.kill9()));
       await context.sleep(1000);
-      const after = adb(...deviceCommands.pidof()).stdout.trim();
-      return check(killed && after === '', killed ? 'process killed with SIGKILL' : 'kill -9 through run-as failed');
+      const after = adb(...deviceCommands.pidof())
+        .stdout.trim()
+        .split(/s+/);
+      return check(
+        killed && !before.some((pid) => after.includes(pid)),
+        killed ? 'process killed with SIGKILL' : 'kill -9 through run-as failed',
+      );
     }
     case 'reboot': {
       if (!succeeded(adb(...deviceCommands.reboot()))) return check(false, 'adb reboot failed');
