@@ -16,6 +16,7 @@ import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.nio.file.NoSuchFileException
 import java.nio.file.Path
+import java.nio.file.StandardCopyOption
 import java.nio.file.StandardOpenOption
 
 /** What the import of a captured photo answered; [wire] is the only thing that crosses to JavaScript (never a path, never a message). */
@@ -124,8 +125,13 @@ class OriginalImporter(
     private val link: (Path, Path) -> Unit = { target, existing -> Files.createLink(target, existing) },
     /** A video is moved with a plain `Files.move`: without `REPLACE_EXISTING` (it refuses an existing target), without `ATOMIC_MOVE` (on Linux that replaces). */
     private val move: (Path, Path) -> Unit = { source, target -> Files.move(source, target) },
-    /** `Files.move` across volumes silently COPIES: a video is refused unless both sides are on the same file store. */
-    private val sameStore: (Path, Path) -> Boolean = { first, second -> Files.getFileStore(first) == Files.getFileStore(second) },
+    /**
+     * `Files.move` across volumes silently COPIES: a video is refused unless both sides are on the same volume. `false` = another volume, `null` = the
+     * platform cannot tell (see [sameVolume]); then the move is the atomic one, which never copies.
+     */
+    private val sameStore: (Path, Path) -> Boolean? = { first, second -> sameVolume(first, second) },
+    /** `rename` only: it fails across volumes (`AtomicMoveNotSupportedException`) and never copies; used when the volume of the two sides is unknown. */
+    private val atomicMove: (Path, Path) -> Unit = { source, target -> Files.move(source, target, StandardCopyOption.ATOMIC_MOVE) },
     private val videoMaxBytes: Long = VIDEO_MAX_BYTES,
 ) {
     @Synchronized
@@ -176,15 +182,28 @@ class OriginalImporter(
                 FileChannel.open(sourcePath, StandardOpenOption.READ, StandardOpenOption.WRITE, LinkOption.NOFOLLOW_LINKS).use { channel ->
                     val size = channel.size()
                     if (size !in 1..videoMaxBytes || !hasFtyp(channel)) return@use ImportResult.INVALID
-                    channel.force(true)
+                    // a file system that refuses `fsync` of this file must not lose the film: the move below keeps the bytes, the journal orders them
+                    try {
+                        channel.force(true)
+                    } catch (error: IOException) {
+                        // best effort
+                    }
                     ImportResult.OK
                 }
             if (verdict != ImportResult.OK) return rejected(source, verdict)
             val directory = target.parentFile ?: return rejected(source, ImportResult.IO_ERROR)
             Files.createDirectories(directory.toPath())
-            if (!sameStore(sourcePath, directory.toPath())) return rejected(source, ImportResult.IO_ERROR)
+            val sameVolumeOrUnknown = sameStore(sourcePath, directory.toPath())
+            if (sameVolumeOrUnknown == false) return rejected(source, ImportResult.IO_ERROR)
             if (marker.isStopped()) return rejected(source, ImportResult.WIPE_ACTIVE)
-            move(sourcePath, target.toPath())
+            if (sameVolumeOrUnknown == true) {
+                move(sourcePath, target.toPath())
+            } else {
+                // the volume could not be read (some Android file systems have no mount entry for the app directories): the atomic rename never copies, and the
+                // target was seen missing under the lock a moment ago, so nothing can be replaced
+                if (Files.exists(target.toPath(), LinkOption.NOFOLLOW_LINKS)) return rejected(source, ImportResult.EXISTS)
+                atomicMove(sourcePath, target.toPath())
+            }
             ImportResult.OK
         } catch (error: FileAlreadyExistsException) {
             rejected(source, ImportResult.EXISTS)
@@ -379,6 +398,21 @@ class OriginalImporter(
     }
 
     companion object {
+        /**
+         * Are the two paths on one volume? The device number of the file (`unix:dev`: a `stat`, no table of mounts) where the platform has the view; else the
+         * file store. `getFileStore` looks the mount up in `/proc/mounts`, which on Android can fail for the bind-mounted directories of an app, so it is only the
+         * second choice. `null` = neither answered (a missing file, a platform without both): the caller must not assume anything.
+         */
+        fun sameVolume(
+            first: Path,
+            second: Path,
+        ): Boolean? {
+            val byDevice =
+                runCatching { Files.getAttribute(first, "unix:dev") to Files.getAttribute(second, "unix:dev") }.getOrNull()
+            if (byDevice != null && byDevice.first != null && byDevice.second != null) return byDevice.first == byDevice.second
+            return runCatching { Files.getFileStore(first) == Files.getFileStore(second) }.getOrNull()
+        }
+
         /** SR-FILE-01: the limit of a photo. */
         const val MAX_BYTES = 50L * 1024 * 1024
 

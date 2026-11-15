@@ -13,6 +13,7 @@ import java.io.IOException
 import java.nio.file.FileAlreadyExistsException
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.StandardCopyOption
 
 private const val ASSET = "0193a000-0000-7000-8000-000000000001"
 private const val CAMERA_VIDEO = "3f2b9c1e-5d4a-4e8f-9a7b-1c2d3e4f5a6b.mp4"
@@ -49,13 +50,15 @@ class VideoImportTest {
     private var wipe = false
     private var clock = OLD + 3_600_000
     private val moves = mutableListOf<Pair<Path, Path>>()
+    private val atomics = mutableListOf<Pair<Path, Path>>()
 
     private val files get() = UploadFiles(File(root, "upload"), File(root, "cache/Camera"))
     private val camera get() = files.cameraDirectory
 
     private fun importer(
         move: (Path, Path) -> Unit = { source, target -> Files.move(source, target) },
-        sameStore: (Path, Path) -> Boolean = { first, second -> Files.getFileStore(first) == Files.getFileStore(second) },
+        sameStore: (Path, Path) -> Boolean? = { first, second -> OriginalImporter.sameVolume(first, second) },
+        atomic: (Path, Path) -> Unit = { source, target -> Files.move(source, target, StandardCopyOption.ATOMIC_MOVE) },
         limit: Long = OriginalImporter.VIDEO_MAX_BYTES,
     ) = OriginalImporter(
         files,
@@ -69,6 +72,10 @@ class VideoImportTest {
             move(source, target)
         },
         sameStore = sameStore,
+        atomicMove = { source, target ->
+            atomics.add(source to target)
+            atomic(source, target)
+        },
         videoMaxBytes = limit,
     )
 
@@ -237,6 +244,61 @@ class VideoImportTest {
                 ?.toList()
                 .orEmpty(),
         )
+    }
+
+    @Test
+    fun `EVM-110 AC1 SEC-110-07 the volume of two paths is read from the file device or store, else it is unknown`() {
+        val first = File(root, "a.bin").also { it.writeBytes(byteArrayOf(1)) }
+        val second = File(root, "b").also { it.mkdirs() }
+        assertEquals(true, OriginalImporter.sameVolume(first.toPath(), second.toPath()))
+        // a path that is not there answers nothing at all (neither the device nor the file store): `null`, not `false`
+        assertEquals(null, OriginalImporter.sameVolume(File(root, "missing-1").toPath(), File(root, "missing-2").toPath()))
+        assertEquals(null, OriginalImporter.sameVolume(first.toPath(), File(root, "missing-2").toPath()))
+    }
+
+    @Test
+    fun `EVM-110 AC1 SEC-110-07 an unreadable volume means the atomic rename (never a copy), not the plain move`() {
+        val bytes = mp4(500)
+        val source = video(bytes = bytes)
+        assertEquals(ImportResult.OK, import(source, importer = importer(sameStore = { _, _ -> null })))
+        assertTrue(moves.isEmpty())
+        assertEquals(1, atomics.size)
+        assertFalse(source.exists())
+        assertArrayEquals(bytes, target().readBytes())
+    }
+
+    @Test
+    fun `EVM-110 AC1 SEC-110-07 an atomic rename that fails or finds the target taken leaves nothing half done and replaces nothing`() {
+        // a rename across volumes: `AtomicMoveNotSupportedException` - the film is not copied, the source goes, nothing is left
+        val crossing = video()
+        val refused =
+            importer(sameStore = {
+                _,
+                _,
+                ->
+                null
+            }, atomic = {
+                source,
+                _,
+                ->
+                throw java.nio.file.AtomicMoveNotSupportedException(source.toString(), null, "x")
+            })
+        assertEquals(ImportResult.IO_ERROR, import(crossing, importer = refused))
+        assertFalse(target().exists())
+        assertFalse(crossing.exists())
+        // the target appeared (the rename would replace it): the film is refused before the rename is tried
+        files.originalsDirectory.mkdirs()
+        val existing = byteArrayOf(9, 9, 9)
+        val late =
+            importer(sameStore = { _, _ ->
+                target().writeBytes(existing)
+                null
+            })
+        val second = video()
+        atomics.clear()
+        assertEquals(ImportResult.EXISTS, import(second, importer = late))
+        assertTrue(atomics.isEmpty())
+        assertArrayEquals(existing, target().readBytes())
     }
 
     @Test
