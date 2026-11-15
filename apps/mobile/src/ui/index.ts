@@ -17,6 +17,7 @@ export { Disclosure } from './Disclosure';
 export type { DisclosureProps } from './Disclosure';
 export { EmptyState } from './EmptyState';
 export { Icon } from './Icon';
+export { SwitchRow } from './SwitchRow';
 export type { EmptyStateProps } from './EmptyState';
 export { FilterChip } from './FilterChip';
 export type { FilterChipProps } from './FilterChip';
@@ -75,6 +76,7 @@ export {
   ThumbsUp,
   Video,
   VolumeOff,
+  Wifi,
   WifiOff,
   Wrench,
   X,

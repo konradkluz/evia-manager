@@ -5,7 +5,8 @@
 import type { CapturePipeline, CapturePorts, VideoSource } from '../capture/capture-pipeline';
 import type { MediaCategory } from './create-media-asset';
 
-export type MediaFileStatus = 'waiting' | 'uploading' | 'sent' | 'error' | 'attention';
+/** `waiting_wifi` (EVM-110 AC4): a film that waits for a network without charges - not an error, not "Wymaga uwagi". */
+export type MediaFileStatus = 'waiting' | 'waiting_wifi' | 'uploading' | 'sent' | 'error' | 'attention';
 export type MediaFileAction = 'retry' | 'discard';
 
 export interface MediaFileView {
@@ -57,6 +58,13 @@ export interface MediaControl {
    * sign-out, a lock-out or a wipe cleans anything; never throws.
    */
   stopRecording(timeoutMs?: number): Promise<void>;
+  /**
+   * EVM-110 AC4: the setting "Filmy tylko przez Wi-Fi" (a local value of the phone, default `true`, stays after the sign-out). Only `video/*` files wait
+   * for a network without charges; pictures and entries go through any network.
+   */
+  videoWifiOnly(): boolean;
+  /** Stores the setting (the module hands the unfinished films to the system again) and refreshes the rows; `false` = the value was not stored. */
+  setVideoWifiOnly(value: boolean): Promise<boolean>;
   /** EVM-110 AC3: `true` once after a start that found a recording killed with the process (the marker is removed at the same time). */
   consumeInterruptedRecording(): Promise<boolean>;
   /** EVM-110 AC3: keeps the screen on while a film is recorded (`true`) and lets it sleep again (`false`). */

@@ -255,6 +255,8 @@ export class MediaUploads implements MediaControl {
 
   async stopRecording(timeoutMs = STOP_RECORDING_MS): Promise<void> {
     const recording = this.#recording;
+    // the session ends after this call: a marker left by an earlier killed recording must not show its notice to the next user (EVM-110 AC3)
+    this.#mark(false);
     if (recording === null) return;
     recording.stop('interrupted');
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -289,6 +291,21 @@ export class MediaUploads implements MediaControl {
     } catch {
       return false;
     }
+  }
+
+  videoWifiOnly(): boolean {
+    try {
+      return this.#deps.native.getVideoWifiOnly();
+    } catch {
+      return true;
+    }
+  }
+
+  async setVideoWifiOnly(value: boolean): Promise<boolean> {
+    const saved = await this.#deps.native.setVideoWifiOnly(value).catch(() => false);
+    // the rows are read again: the module re-armed the films with the network the new value asks for
+    void this.reconcile({ sweep: false });
+    return saved;
   }
 
   /** EVM-110 AC3: the screen stays on while a film is recorded; never throws (a phone without the module just sleeps as usual). */
@@ -609,8 +626,13 @@ function viewOf(row: MediaFileRecord, status: UploadStatus | undefined): MediaFi
     case 'pending':
       return { ...base, status: 'waiting', percent: null, actions: [] };
     case 'applied':
-      return status?.state === 'uploading'
-        ? { ...base, status: 'uploading', percent: Math.max(0, Math.min(100, Math.round(status.percent))), actions: [] }
+      if (status?.state === 'uploading') {
+        return { ...base, status: 'uploading', percent: Math.max(0, Math.min(100, Math.round(status.percent))), actions: [] };
+      }
+      // EVM-110 AC4, AC5: a film that waits for a network without charges. The server's `failed` / `abandoned` of a file without a session (after 7
+      // days) is NOT looked at for a row that waits: it stays "Czeka na Wi-Fi" and is sent again as the same medium, with no "Ponów".
+      return status?.waitingForWifi === true && base.mediaType === 'video'
+        ? { ...base, status: 'waiting_wifi', percent: null, actions: [] }
         : { ...base, status: 'waiting', percent: null, actions: [] };
     case 'uploaded':
     case 'clean':

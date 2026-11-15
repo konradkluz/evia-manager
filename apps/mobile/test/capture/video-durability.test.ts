@@ -383,6 +383,23 @@ describe('interruptions, a kill and the end of the session (EVM-110 AC3)', () =>
     expect(await failing.uploads.consumeInterruptedRecording()).toBe(false);
   });
 
+  it('EVM-110 AC3: the end of the session removes a marker a killed recording left - the next user does not see a notice that is not theirs', async () => {
+    const w = await world();
+    w.state.marker = true;
+    const { uploads } = w.boot();
+    await uploads.stopRecording();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(w.state.marker).toBe(false);
+    expect(await uploads.consumeInterruptedRecording()).toBe(false);
+    // the same when a recording is running: the marker goes with the stop
+    const running = started(w);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(w.state.marker).toBe(true);
+    await running.uploads.stopRecording();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(w.state.marker).toBe(false);
+  });
+
   it('EVM-110 AC3 SEC-110-12: the sign-out stops the recording and waits for its save BEFORE it returns', async () => {
     const w = await world();
     const { recording, uploads } = started(w);

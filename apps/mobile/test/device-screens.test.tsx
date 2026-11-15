@@ -195,7 +195,9 @@ describe('lock of the app (EVM-101 AC3)', () => {
     const rig = stubPorts();
     await open(rig);
     await fireEvent.press(screen.getByRole('tab', { name: pl.shell.more.title }));
-    expect(screen.queryByRole('switch')).toBeNull();
+    // EVM-110: "Więcej" has ONE switch, "Filmy tylko przez Wi-Fi" - none for the lock
+    expect(screen.getAllByRole('switch').map((node) => String(node.props.accessibilityLabel))).toEqual(['Filmy tylko przez Wi-Fi']);
+    expect(screen.queryByRole('switch', { name: /blokad/i })).toBeNull();
     expect(whole().toLowerCase()).not.toContain('blokada aplikacji');
   });
 });

@@ -22,6 +22,11 @@ jest.mock('../src/storage', () => {
   };
   return {
     localData: () => host,
+    recordingMarker: {
+      set: jest.fn(() => Promise.resolve()),
+      clear: jest.fn(() => Promise.resolve()),
+      present: jest.fn(() => Promise.resolve(false)),
+    },
     randomSource: () => ({ getRandomValues: (bytes: Uint8Array) => crypto.getRandomValues(bytes as Uint8Array<ArrayBuffer>) }),
   };
 });
@@ -215,6 +220,21 @@ describe('composition of the native owner and the upload (EVM-130)', () => {
     expect(fake.wipeUploads).toHaveBeenCalledTimes(1);
     fake.wipeUploads.mockResolvedValueOnce(false);
     await expect(run()).rejects.toThrow('native wipe unfinished');
+  });
+
+  it('EVM-110 AC3: a wipe also removes the marker of a recording killed with the process (the next user must not see a notice that is not theirs)', async () => {
+    const storage = jest.requireMock<typeof import('../src/storage')>('../src/storage');
+    const host = storage.localData() as unknown as Record<string, jest.Mock>;
+    const marker = storage.recordingMarker as unknown as Record<string, jest.Mock>;
+    host['registerWipeStep']?.mockClear();
+    marker['clear']?.mockClear();
+    createSessionPorts(config, module().asModule);
+    const steps = (host['registerWipeStep']?.mock.calls ?? []) as [string, () => Promise<void>, { first?: boolean }?][];
+    // the native wipe stays the FIRST step; the marker goes with the others
+    expect(steps.map(([name]) => name)).toEqual(['native_uploads', 'recording_marker']);
+    expect(steps[1]?.[2]).toBeUndefined();
+    await steps[1]?.[1]();
+    expect(marker['clear']).toHaveBeenCalledTimes(1);
   });
 
   it('EVM-130 AC2, AC3: the owner and the queue of files listen to the module (the session state; progress, file state, session state)', () => {

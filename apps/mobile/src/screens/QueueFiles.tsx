@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AccessibilityInfo, Text, View } from 'react-native';
+import { pluralKey } from '../i18n/plural';
+import { useStartup } from '../startup';
 import type { MediaFileView } from '../upload/types';
-import { BellOff, Button, InlineAlert } from '../ui';
+import { BellOff, Button, InlineAlert, Wifi } from '../ui';
 import { color, space, text } from '../ui/theme';
 import { FileRow } from './FileRow';
 import { useMediaSnapshot, useSession } from './session-context';
@@ -18,8 +20,21 @@ const reasonKey = (code: string | null): 'quarantined' | 'id_conflict' | 'missin
  * category, the time and a type and a state - no order, name, address, thumbnail or path, so the list is the same in the hidden-data mode (the
  * upload goes on there). "Usuń z telefonu" asks the screen for the confirmation (`onDiscard`).
  */
-export function QueueFiles({ onRetryFailed, onDiscard }: { onRetryFailed: () => void; onDiscard: (assetId: string) => void }) {
+export function QueueFiles({
+  onRetryFailed,
+  onDiscard,
+  onOpenUploadSettings,
+  now = Date.now(),
+}: {
+  onRetryFailed: () => void;
+  onDiscard: (assetId: string) => void;
+  /** "Zmień ustawienie" of the banner of the films that wait for Wi-Fi (EVM-110 AC4): "Więcej -> Wysyłanie". */
+  onOpenUploadSettings?: () => void;
+  now?: number;
+}) {
   const { t } = useTranslation();
+  // "Czeka na Wi-Fi" is for a network WITH charges; with no network at all a film waits for the connection (the capsule says "Offline")
+  const online = useStartup().state.kind === 'online';
   const { media } = useSession();
   const snapshot = useMediaSnapshot();
   const files = snapshot.files;
@@ -53,7 +68,8 @@ export function QueueFiles({ onRetryFailed, onDiscard }: { onRetryFailed: () => 
   };
 
   const attention = files.filter((file) => file.status === 'attention');
-  const rest = files.filter((file) => file.status !== 'attention' && file.status !== 'sent');
+  const waitingWifi = files.filter((file) => file.status === 'waiting_wifi');
+  const rest = files.filter((file) => file.status !== 'attention' && file.status !== 'sent' && file.status !== 'waiting_wifi');
   const sent = files.filter((file) => file.status === 'sent');
   const reasons: Readonly<Record<ReturnType<typeof reasonKey>, string>> = {
     quarantined: t('upload.reasons.quarantined'),
@@ -67,6 +83,8 @@ export function QueueFiles({ onRetryFailed, onDiscard }: { onRetryFailed: () => 
       key={file.assetId}
       file={file}
       busy={busy === file.assetId}
+      online={online}
+      now={now}
       {...(file.actions.includes('retry')
         ? {
             onRetry: () => {
@@ -100,6 +118,32 @@ export function QueueFiles({ onRetryFailed, onDiscard }: { onRetryFailed: () => 
       <Text accessibilityRole="header" style={{ ...text.heading4, color: color.text.primary }} testID="files-summary">
         {t('upload.toSend', { count: unsent })}
       </Text>
+      {waitingWifi.length === 0 || !online ? null : (
+        // EVM-110 AC4: ONE summary for the films that wait for Wi-Fi - the pictures and entries go on normally; no action but the link to the setting
+        <InlineAlert
+          tone="warning"
+          icon={Wifi}
+          body={`${t(
+            pluralKey(waitingWifi.length, {
+              one: 'upload.waitingWifiBanner_one',
+              few: 'upload.waitingWifiBanner_few',
+              many: 'upload.waitingWifiBanner_many',
+            }),
+            { count: waitingWifi.length },
+          )}${t('upload.waitingWifiBannerNote')}`}
+          action={
+            onOpenUploadSettings === undefined ? undefined : (
+              <Button
+                variant="tertiary"
+                label={t('upload.waitingWifiChange')}
+                onPress={onOpenUploadSettings}
+                testID="waiting-wifi-change"
+              />
+            )
+          }
+          testID="waiting-wifi-banner"
+        />
+      )}
       {attention.length === 0 ? null : (
         <View style={{ rowGap: space.stack.sm }} testID="files-attention">
           <Text accessibilityRole="header" style={{ ...text.heading4, color: color.text.primary }}>
@@ -130,6 +174,14 @@ export function QueueFiles({ onRetryFailed, onDiscard }: { onRetryFailed: () => 
               discardTestID={`file-attention-${file.assetId}-discard`}
             />
           ))}
+        </View>
+      )}
+      {waitingWifi.length === 0 ? null : (
+        <View style={{ rowGap: space.stack.xs }} testID="files-waiting-wifi">
+          <Text accessibilityRole="header" style={{ ...text.heading4, color: color.text.primary }}>
+            {t('upload.sections.waitingWifi', { count: waitingWifi.length })}
+          </Text>
+          {waitingWifi.map(row)}
         </View>
       )}
       {rest.length === 0 ? null : (

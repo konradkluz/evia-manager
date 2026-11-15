@@ -81,6 +81,20 @@ export class FakeMedia implements MediaControl {
     this.keepAwake.push(on);
   }
 
+  /** The setting "Filmy tylko przez Wi-Fi" (EVM-110 AC4) as the module keeps it; the calls of the setter are in `calls`. */
+  wifiOnly = true;
+  wifiSaves = true;
+
+  videoWifiOnly(): boolean {
+    return this.wifiOnly;
+  }
+
+  setVideoWifiOnly(value: boolean): Promise<boolean> {
+    this.calls.push(`setVideoWifiOnly:${String(value)}`);
+    if (this.wifiSaves) this.wifiOnly = value;
+    return Promise.resolve(this.wifiSaves);
+  }
+
   async stopRecording(timeoutMs = 3000): Promise<void> {
     this.stopCalls.push(timeoutMs);
     this.recording?.stop('interrupted');

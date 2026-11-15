@@ -8,7 +8,7 @@ import { formatDateTime } from '../../src/i18n/format';
 import { FileRow } from '../../src/screens/FileRow';
 import { InterruptedRecordingNotice } from '../../src/screens/InterruptedRecordingNotice';
 import { SessionContext, type SessionActions } from '../../src/screens/session-context';
-import { CameraShutter, FilterChip } from '../../src/ui';
+import { CameraShutter, FilterChip, SwitchRow } from '../../src/ui';
 import { MediaUploads } from '../../src/upload/media-uploads';
 import type { NativeUpload } from '../../src/upload/native-upload';
 import type { MediaFileView } from '../../src/upload/types';
@@ -124,6 +124,38 @@ describe('the chips and the shutter in the film mode (EVM-110 AC6)', () => {
     expect(screen.getByRole('button', { name: 'Zatrzymaj nagrywanie' })).toBeEnabled();
     await fireEvent.press(screen.getByTestId('shutter'));
     expect(onPress).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('the switch (EVM-110 AC4; styleguide 3.4)', () => {
+  it('EVM-110 AC4: a switch role with the state, the whole row is the target, the explanation is its hint, a press gives the opposite value; focus and a disabled row are shown without changing the state', async () => {
+    const changes: boolean[] = [];
+    const { rerender } = await render(
+      <SwitchRow
+        label="Filmy tylko przez Wi-Fi"
+        description="Opis"
+        value
+        onValueChange={(next) => changes.push(next)}
+        testID="sw"
+        descriptionTestID="sw-d"
+      />,
+    );
+    const node = screen.getByRole('switch', { name: 'Filmy tylko przez Wi-Fi' });
+    expect(node).toBeChecked();
+    expect(node).toHaveProp('accessibilityHint', 'Opis');
+    expect(screen.getByTestId('sw-d')).toHaveTextContent('Opis');
+    await fireEvent(node, 'focus');
+    await fireEvent(node, 'blur');
+    await fireEvent.press(node);
+    expect(changes).toEqual([false]);
+    await rerender(
+      <SwitchRow label="Filmy tylko przez Wi-Fi" value={false} disabled onValueChange={(next) => changes.push(next)} testID="sw" />,
+    );
+    expect(screen.getByRole('switch', { name: 'Filmy tylko przez Wi-Fi' })).not.toBeChecked();
+    expect(screen.getByRole('switch', { name: 'Filmy tylko przez Wi-Fi' })).toBeDisabled();
+    expect(screen.queryByTestId('sw-d')).toBeNull();
+    await fireEvent.press(screen.getByTestId('sw'));
+    expect(changes).toEqual([false]);
   });
 });
 

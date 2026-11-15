@@ -124,6 +124,8 @@ export function createSessionPorts(
     },
     { first: true },
   );
+  // EVM-110 AC3: a marker left by a recording killed with the process must not show its notice to the NEXT user after a wipe
+  host.registerWipeStep('recording_marker', () => recordingMarker.clear());
   const clipboard = createSensitiveClipboard();
   // EVM-107: one synchronization service per session; the owner stops it (and the clipboard copy goes) BEFORE it removes the replica
   const sync = new SyncHost(

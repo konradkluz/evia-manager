@@ -23,9 +23,12 @@ const NOTICE_MS = 4_000;
 export function QueueScreen({
   onOpenQueue,
   onRecreate,
+  onOpenUploadSettings,
   now = Date.now,
 }: {
   onOpenQueue: () => void;
+  /** "Zmień ustawienie" of the banner of the films that wait for Wi-Fi (EVM-110 AC4): opens "Więcej -> Wysyłanie". */
+  onOpenUploadSettings?: () => void;
   /** Opens the form "Utwórz ponownie" of a rejected quick work order (EVM-128); without it every entry is created again as it is. */
   onRecreate?: (item: QueueItem) => void;
   now?: () => number;
@@ -251,6 +254,8 @@ export function QueueScreen({
                 say(t('upload.retryFailed'));
               }}
               onDiscard={setFileToDiscard}
+              {...(onOpenUploadSettings === undefined ? {} : { onOpenUploadSettings })}
+              now={now()}
             />
             <Text style={{ ...text.heading4, color: color.text.primary }} testID={hidden ? 'queue-hidden-count' : 'queue-count'}>
               {hidden

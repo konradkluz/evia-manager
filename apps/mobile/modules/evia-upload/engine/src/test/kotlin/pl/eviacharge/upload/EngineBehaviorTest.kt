@@ -98,6 +98,49 @@ class EngineBehaviorTest {
     }
 
     @Test
+    fun `EVM-110 AC5 a film abandoned after 7 days goes on as the same asset in a new session without a duplicate`() {
+        // the server aborted the session of a film that waited for Wi-Fi (the file is `failed` / `abandoned` until it is sent again)
+        val spec =
+            SERVER_SPEC +
+                mapOf(
+                    "sessions" to
+                        listOf(
+                            mapOf(
+                                "id" to "sess-old",
+                                "key" to "key-old",
+                                "state" to "aborted",
+                                "parts" to listOf(mapOf("partNumber" to 1L, "size" to 16L)),
+                            ),
+                        ),
+                )
+        val stored =
+            JobSnapshot(
+                SNAPSHOT_SCHEMA_VERSION,
+                ASSET,
+                SIZE,
+                "sess-old",
+                "key-old",
+                16L,
+                3,
+                false,
+                JobState.ACTIVE,
+                mapOf("1" to "\"etag-1\""),
+            )
+        val harness = Harness(spec, stored)
+        assertEquals(Outcome.Uploaded, harness.engine().run(ASSET, declare(SIZE)))
+        // one NEW session for the same asset, the parts of the abandoned one are not counted: all three parts go once
+        assertEquals(1, harness.server.sessionsCreated)
+        assertEquals(listOf(1, 2, 3), harness.server.puts.keys.toList())
+        assertTrue(harness.server.puts.values.all { it == 1 })
+        assertEquals(1, harness.server.objects)
+        assertEquals(listOf(0L, 16L, 32L), harness.requests.map { it.offset })
+        // the declaration is the same file (same digest and size) as before
+        assertEquals(1, harness.server.declarations.map { it.sha256 }.toSet().size)
+        assertEquals(ASSET, harness.saved.last().assetId)
+        assertFalse(harness.saved.last().uploadSessionId == "sess-old")
+    }
+
+    @Test
     fun `EVM-110 AC4 a video held for Wi-Fi sends no part at all and is not a failure`() {
         val harness = Harness()
         assertEquals(Outcome.WaitingForWifi, harness.engine { false }.run(ASSET, declare(SIZE)))

@@ -10,6 +10,7 @@ import { pl } from '../../src/i18n/pl';
 import { CameraScreen } from '../../src/screens/CameraScreen';
 import { SessionContext, type SessionActions } from '../../src/screens/session-context';
 import { StartupProvider, type StartupChecker } from '../../src/startup';
+import { EMPTY_COUNTS } from '../../src/sync/types';
 import type { CapturedPhoto, CapturedVideo } from '../../src/upload/create-media-asset';
 import { cameraMock } from '../mocks/expo-camera';
 import { stubPorts, type PortsRig } from '../session-helpers';
@@ -35,6 +36,7 @@ const settle = () =>
     for (let n = 0; n < 16; n += 1) await Promise.resolve();
   });
 const online: StartupChecker = () => Promise.resolve({ kind: 'online' });
+const offline: StartupChecker = () => Promise.resolve({ kind: 'offline' });
 
 function phone() {
   const state = {
@@ -81,7 +83,7 @@ function phone() {
 const actionsOf = (rig: PortsRig): SessionActions =>
   ({ media: rig.media, sync: rig.sync, guard: rig.device.guard }) as unknown as SessionActions;
 
-async function mount(rig: PortsRig, props: { onClose?: () => void } = {}) {
+async function mount(rig: PortsRig, props: { onClose?: () => void; checker?: StartupChecker } = {}) {
   const onClose = props.onClose ?? jest.fn();
   await act(async () => {
     await rig.device.guard.refresh();
@@ -89,7 +91,7 @@ async function mount(rig: PortsRig, props: { onClose?: () => void } = {}) {
   });
   const view = await render(
     <SafeAreaProvider>
-      <StartupProvider checker={online}>
+      <StartupProvider checker={props.checker ?? online}>
         <SessionContext.Provider value={actionsOf(rig)}>
           <CameraScreen orderId={WO} onClose={onClose} />
         </SessionContext.Provider>
@@ -472,5 +474,42 @@ describe('interruptions (EVM-110 AC3)', () => {
     expect(videos).toEqual([]);
     expect(screen.queryByText('Zapisano film w telefonie')).toBeNull();
     expect(count()).toBe('0 filmów');
+  });
+});
+
+describe('roles and states of the app around the film (EVM-110 AC6)', () => {
+  it('EVM-110 AC6: offline the film is recorded and saved as online - the capsule says "Offline · n" and no banner of the missing network covers the preview', async () => {
+    const { rig, videos } = setup();
+    rig.sync.set({ online: false, counts: { ...EMPTY_COUNTS, pending: 2, unsent: 2 } });
+    await mount(rig, { checker: offline });
+    expect(screen.getByTestId('sync-indicator')).toHaveTextContent('Offline · 2');
+    expect(screen.queryByTestId('offline-banner')).toBeNull();
+    expect(screen.queryByText(/Brak zasięgu/)).toBeNull();
+    await startRecording();
+    await progress(7, 2 * MB);
+    expect(screen.getByTestId('sync-indicator')).toHaveTextContent('Offline · 2');
+    expect(screen.queryByText(/Brak zasięgu/)).toBeNull();
+    await press('camera-shutter');
+    expect(videos).toHaveLength(1);
+    expect(screen.getByText('Zapisano film w telefonie')).toBeOnTheScreen();
+  });
+
+  it('EVM-110 AC6: in the hidden-data mode the film is recorded, the bar says "Aparat" and no number or title of an order is read or drawn', async () => {
+    const { rig, videos } = setup();
+    rig.device.facts.secure = false;
+    await act(async () => {
+      await rig.device.guard.refresh();
+    });
+    const asked = jest.spyOn(rig.sync, 'orderList');
+    await mount(rig);
+    expect(asked).not.toHaveBeenCalled();
+    expect(screen.getByRole('header', { name: 'Aparat' })).toBeOnTheScreen();
+    await startRecording();
+    await progress(12, 3 * MB);
+    await press('camera-shutter');
+    expect(videos).toHaveLength(1);
+    expect(screen.getByText('Zapisano film w telefonie')).toBeOnTheScreen();
+    expect(JSON.stringify(screen.toJSON())).not.toMatch(/ZL-|10000000-0000-4000/);
+    expect(asked).not.toHaveBeenCalled();
   });
 });

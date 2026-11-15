@@ -1,8 +1,9 @@
 import { useTranslation } from 'react-i18next';
 import { Text, View } from 'react-native';
 import { formatDateTime, formatDuration, formatFileSize } from '../i18n/format';
+import { pluralKey } from '../i18n/plural';
 import type { MediaFileView } from '../upload/types';
-import { Button, Clock, CloudAlert, CloudCheck, CloudUpload, Icon, ProgressBar, StatusBadge, TriangleAlert, Video } from '../ui';
+import { Button, Clock, CloudAlert, CloudCheck, CloudUpload, Icon, ProgressBar, StatusBadge, TriangleAlert, Video, Wifi } from '../ui';
 import { borderWidth, color, size, space, text } from '../ui/theme';
 
 export interface FileRowProps {
@@ -15,6 +16,10 @@ export interface FileRowProps {
   readonly onRetry?: () => void;
   /** "Usuń z telefonu" (EVM-108 AC6) - shown only where the caller passes it (the caller asks for the confirmation). */
   readonly onDiscard?: () => void;
+  /** EVM-110 AC4: `false` when the phone has no network at all - a film then waits for "połączenie", not for "Wi-Fi". Default `true`. */
+  readonly online?: boolean;
+  /** The time the age of a film that waits for Wi-Fi is counted to (ms); default now. */
+  readonly now?: number;
   readonly testID: string;
   readonly retryTestID?: string;
   readonly discardTestID?: string;
@@ -27,7 +32,18 @@ export interface FileRowProps {
  * (state, percentage) stands in words; the icon and the `color.sync.*` tone only support it. The buttons sit outside the spoken group, so a screen
  * reader reaches each of them. No component of its own: the badge, the progress bar and the buttons of the library.
  */
-export function FileRow({ file, reason, busy = false, onRetry, onDiscard, testID, retryTestID, discardTestID }: FileRowProps) {
+export function FileRow({
+  file,
+  reason,
+  busy = false,
+  onRetry,
+  onDiscard,
+  online = true,
+  now = Date.now(),
+  testID,
+  retryTestID,
+  discardTestID,
+}: FileRowProps) {
   const { t } = useTranslation();
   const category = file.category === null || file.category === 'unknown' ? t('upload.noCategory') : t(`camera.categories.${file.category}`);
   const video = file.mediaType === 'video';
@@ -40,7 +56,7 @@ export function FileRow({ file, reason, busy = false, onRetry, onDiscard, testID
       ].join(' · ')
     : t('upload.types.photo');
   const time = formatDateTime(file.capturedAt);
-  const state = stateOf(file, t);
+  const state = stateOf(file, t, online, now);
   const attention = file.status === 'attention';
   return (
     <View
@@ -101,7 +117,9 @@ export function FileRow({ file, reason, busy = false, onRetry, onDiscard, testID
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
-function stateOf(file: MediaFileView, t: Translate) {
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function stateOf(file: MediaFileView, t: Translate, online: boolean, now: number) {
   switch (file.status) {
     case 'uploading':
       return { label: t('upload.states.uploading', { percent: file.percent ?? 0 }), icon: CloudUpload, tone: color.sync.inProgress };
@@ -111,6 +129,23 @@ function stateOf(file: MediaFileView, t: Translate) {
       return { label: t('upload.states.error'), icon: CloudAlert, tone: color.sync.error };
     case 'attention':
       return { label: t('upload.states.attention'), icon: TriangleAlert, tone: color.sync.error };
+    case 'waiting_wifi': {
+      // not an error and not "Wymaga uwagi": the film waits for the technician's setting; with no network at all it waits for the connection
+      if (!online) return { label: t('upload.states.waitingConnection'), icon: Clock, tone: color.sync.queued };
+      const days = Math.floor((now - file.capturedAt) / DAY_MS);
+      const label =
+        days >= 1
+          ? t(
+              pluralKey(days, {
+                one: 'upload.states.waitingWifiSince_one',
+                few: 'upload.states.waitingWifiSince_few',
+                many: 'upload.states.waitingWifiSince_many',
+              }),
+              { count: days },
+            )
+          : t('upload.states.waitingWifi');
+      return { label, icon: Wifi, tone: color.sync.waitingWifi };
+    }
     case 'waiting':
       return { label: t('upload.states.waiting'), icon: Clock, tone: color.sync.queued };
   }

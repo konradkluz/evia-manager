@@ -39,6 +39,7 @@ export { default as HardDrive } from 'lucide-react-native/icons/hard-drive';
 export { default as Square } from 'lucide-react-native/icons/square';
 export { default as Video } from 'lucide-react-native/icons/video';
 export { default as VolumeOff } from 'lucide-react-native/icons/volume-off';
+export { default as Wifi } from 'lucide-react-native/icons/wifi';
 export { default as Wrench } from 'lucide-react-native/icons/wrench';
 export { default as X } from 'lucide-react-native/icons/x';
 export { default as ChevronRight } from 'lucide-react-native/icons/chevron-right';

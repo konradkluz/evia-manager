@@ -369,6 +369,15 @@ export const pl = {
     version: 'Wersja {{version}}',
     signOut: 'Wyloguj',
     wipe: 'Wyczyść dane firmowe',
+    // EVM-110 AC4: "Więcej -> Wysyłanie"
+    upload: {
+      title: 'Wysyłanie',
+      wifiLabel: 'Filmy tylko przez Wi-Fi',
+      wifiOn:
+        'Filmy wysyłamy tylko przez sieć bez opłat za transfer. Zdjęcia i wpisy wysyłamy normalnie, także przez sieć komórkową. Film to ok. 40 MB na minutę — do 5 minut ok. 190 MB. Hotspot z telefonu to sieć z opłatami: film poczeka.',
+      wifiOff:
+        'Filmy wysyłamy przez każdą sieć, także komórkową — zużyją pakiet danych. Film to ok. 40 MB na minutę — do 5 minut ok. 190 MB.',
+    },
   },
   logout: {
     title: 'Wylogować się?',
@@ -664,14 +673,26 @@ export const pl = {
     fileA11y: '{{category}}, {{type}}, {{time}}, {{state}}',
     discardBody: 'Usuniemy to zdjęcie z telefonu — nie trafi do biura. Tego nie da się cofnąć.',
     discardA11y: 'Usuń plik z telefonu',
-    sections: { files: 'Pliki', attention: 'Plik wymaga uwagi', sent: 'Wysłane pliki' },
+    sections: { files: 'Pliki', attention: 'Plik wymaga uwagi', sent: 'Wysłane pliki', waitingWifi: 'Czeka na Wi-Fi ({{count}})' },
     states: {
       waiting: 'Oczekuje',
+      // EVM-110 AC4: a film waits for a network without charges (not an error); with no network at all it waits for the connection
+      waitingWifi: 'Czeka na Wi-Fi',
+      waitingWifiSince_one: 'Czeka na Wi-Fi od {{count}} dnia',
+      waitingWifiSince_few: 'Czeka na Wi-Fi od {{count}} dni',
+      waitingWifiSince_many: 'Czeka na Wi-Fi od {{count}} dni',
+      waitingConnection: 'Czeka na połączenie',
       uploading: 'Wysyła się {{percent}}%',
       attention: 'Wymaga uwagi',
       sent: 'Wysłano',
       error: 'Nie wysłano — plik uszkodzony w transmisji',
     },
+    // EVM-110 AC4: the banner of the Queue for the films that wait for Wi-Fi
+    waitingWifiBanner_one: '{{count}} film czeka na Wi-Fi.',
+    waitingWifiBanner_few: '{{count}} filmy czekają na Wi-Fi.',
+    waitingWifiBanner_many: '{{count}} filmów czeka na Wi-Fi.',
+    waitingWifiBannerNote: ' Zdjęcia i wpisy wysyłamy normalnie.',
+    waitingWifiChange: 'Zmień ustawienie',
     progressA11y: 'Wysyłanie pliku, {{percent}}%',
     retry: 'Ponów',
     retryA11y: 'Ponów wysyłanie pliku',
