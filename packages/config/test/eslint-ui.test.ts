@@ -279,7 +279,8 @@ describe('mobile storage imports (EVM-093 AC1; SR-MOB-01, MASVS-STORAGE-1)', { t
   });
 });
 
-describe('camera lint rules (EVM-108 AC8; SR-FILE-08, SR-MOB-02, SR-MOB-12, CWE-359, CWE-927)', () => {
+// the last test starts a Node process with the real ESLint config of apps/mobile (seconds on a loaded CI runner), like the storage block above
+describe('camera lint rules (EVM-108 AC8; SR-FILE-08, SR-MOB-02, SR-MOB-12, CWE-359, CWE-927)', { timeout: 30_000 }, () => {
   /** Every banned snippet reports exactly the camera rule (its message names EVM-108), whichever file of src/ it is in. */
   const banned = (codes: string[], files = ['src/screens/orders.js', 'src/api/health.js', 'src/storage/expo-sqlite-driver.js']): void => {
     for (const file of files) {
