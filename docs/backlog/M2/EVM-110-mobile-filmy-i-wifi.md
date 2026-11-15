@@ -4,7 +4,7 @@ title: "Aplikacja: filmy i „filmy tylko przez Wi-Fi”"
 type: story
 milestone: M2
 epic: E11 Zdjęcia i filmy
-status: ready
+status: in-progress
 priority: P1
 path: pelna             # pliki, dane osobowe na urządzeniu, synchronizacja offline
 owner: mobile-developer
@@ -93,3 +93,4 @@ Dźwięk i mikrofon (decyzja 6); wybór jakości nagrania przez technika; pauza 
 - 2026-11-15 — naniesiono konsultacje architekta, security i UX oraz rozstrzygnięcia Tech Leada: `mute` zamiast `recordAudioAndroid`, 720p / 15 min / 1 GB, próg 200 MB, wysyłka filmu po 7 dniach tym samym medium, polityka sieci `video/*`, import przez przeniesienie pliku, nowe etapy; status `draft` (product-owner)
 - 2026-11-15 — decyzje Konrada: limit filmu 5 min zamiast 15 (720p, 5 Mb/s, ok. 190 MB; bezpiecznik rozmiaru 500 000 000 B), wymóg filmu ≥ 500 MB zniesiony, „tylko Wi-Fi” domyślnie włączone, film po 7 dniach wysyła się sam, przerwane nagranie wg rekomendacji; treść zaakceptowana, `ready` po `done` EVM-108 (Tech Lead)
 - 2026-11-15 — EVM-108 `done` (PR #144 scalony), wszystkie `depends_on` spełnione; treść zaakceptowana przez Konrada w `/refine` 2026-11-15; **status `ready`** (Tech Lead)
+- 2026-11-15 — start realizacji w kolejce nocnej 15/16.11 (etapami: plan → natywnie → aparat → Wi-Fi → E2E i dokumenty; klon `evia-manager-n1`); **status `in-progress`** (Tech Lead)
