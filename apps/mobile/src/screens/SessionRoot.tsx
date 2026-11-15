@@ -83,8 +83,12 @@ export function SessionRoot({ ports, children }: { ports: SessionPorts; children
   const refreshedAtStart = useRef(false);
   // M-11 is an overlay of the whole window (no router): it keeps what is under it (a typed e-mail, the tab) and "back" closes it (EVM-102 AC2)
   const [help, setHelp] = useState<HelpSection | null>(null);
+  const guardState = useSyncExternalStore(guard.subscribe, guard.getSnapshot);
+  // the lock covers the signed-in app only (M-01 before the sign-in is never behind the cover, although the guard starts locked)
+  const locked = guardState.locked && view.kind === 'signedIn';
+  // while the app is locked "back" must not close the overlay hidden under the cover: the handler is not registered (EVM-102 AC2)
   useEffect(() => {
-    if (help === null) return undefined;
+    if (help === null || locked) return undefined;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       setHelp(null);
       return true;
@@ -92,7 +96,7 @@ export function SessionRoot({ ports, children }: { ports: SessionPorts; children
     return () => {
       subscription.remove();
     };
-  }, [help]);
+  }, [help, locked]);
   const openHelp = useCallback(() => {
     setHelp('help');
   }, []);
@@ -100,7 +104,6 @@ export function SessionRoot({ ports, children }: { ports: SessionPorts; children
     setHelp('privacy');
   }, []);
 
-  const guardState = useSyncExternalStore(guard.subscribe, guard.getSnapshot);
   useEffect(() => guard.start(), [guard]);
   const { sync } = ports;
   const syncSnapshot = useSyncExternalStore(sync.subscribe, sync.getSnapshot);

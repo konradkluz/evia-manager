@@ -313,6 +313,47 @@ describe('entries and the overlay (EVM-102 AC2)', () => {
     spy.mockRestore();
   });
 
+  it('EVM-102 AC2: while the app is locked hardware back does not close the overlay under the cover; after the unlock it does', async () => {
+    const subscriptions: { handler: Parameters<typeof BackHandler.addEventListener>[1]; remove: jest.Mock }[] = [];
+    const spy = jest.spyOn(BackHandler, 'addEventListener').mockImplementation((_event, handler) => {
+      const subscription = { handler, remove: jest.fn() };
+      subscriptions.push(subscription);
+      return subscription;
+    });
+    const rig = withOffice(stubPorts());
+    await open(rig, offline);
+    await fireEvent.press(screen.getByRole('tab', { name: pl.shell.more.title }));
+    await fireEvent.press(screen.getByTestId('more-privacy'));
+    const open1 = subscriptions.at(-1);
+    expect(open1?.remove).not.toHaveBeenCalled();
+    rig.device.facts.auth = 'cancelled';
+    await act(() => {
+      rig.device.appState.emit('background');
+      rig.device.time.boot += 6 * 60_000;
+      rig.device.time.wall += 6 * 60_000;
+      rig.device.appState.emit('active');
+    });
+    await settle();
+    expect(screen.getByTestId('lock-overlay')).toBeOnTheScreen();
+    expect(open1?.remove).toHaveBeenCalled();
+    const registered = subscriptions.length;
+    expect(subscriptions.slice(registered - 1).every((subscription) => subscription.remove.mock.calls.length > 0)).toBe(true);
+    rig.device.facts.auth = 'success';
+    await act(async () => {
+      await rig.ports.guard.unlock();
+    });
+    await settle();
+    expect(screen.getByTestId('privacy-help')).toBeOnTheScreen();
+    const again = subscriptions.at(-1);
+    expect(again?.remove).not.toHaveBeenCalled();
+    await act(async () => {
+      expect(again?.handler({} as never)).toBe(true);
+      await Promise.resolve();
+    });
+    expect(screen.queryByTestId('privacy-help')).toBeNull();
+    spy.mockRestore();
+  });
+
   it('EVM-102 AC2: "Więcej" has "Pomoc" and "Prywatność": the same content offline, with the last synchronization of the session', async () => {
     const rig = withOffice(stubPorts());
     await open(rig, offline);
