@@ -63,6 +63,7 @@ const LABELS = {
   syncStatus: 'sync: status',
   mediaInject: 'media: inject file',
   mediaStatus: 'media: status',
+  cameraOpen: 'camera: open first order',
 } as const;
 
 /** EVM-130 (media block): the synthetic file of the scenarios — a work order that never existed, a size in MiB, random content made natively. */
@@ -86,6 +87,8 @@ export interface E2eHooksDeps {
     readonly inject: (assetId: string, sizeBytes: number, seed: number) => Promise<{ sizeBytes: number; sha256: string } | null>;
     readonly newId: () => string;
   };
+  /** EVM-108 (stage 2b, until the entries of stage 3 exist): opens the camera of the FIRST order of the replica of the session. */
+  readonly camera?: () => { readonly openFirst: () => Promise<boolean> };
 }
 
 const realDeps = (): E2eHooksDeps => ({
@@ -104,6 +107,15 @@ const realDeps = (): E2eHooksDeps => ({
       view: ports.media,
       inject: (assetId, sizeBytes, seed) => native?.e2eInjectFile(assetId, sizeBytes, seed) ?? Promise.resolve(null),
       newId: ports.newId,
+    };
+  },
+  camera: () => {
+    const requests = sessionPorts().camera;
+    return {
+      openFirst: async () => {
+        const id = await requests.firstOrderId();
+        return id !== null && (await requests.open(id));
+      },
     };
   },
 });
@@ -311,6 +323,14 @@ export function E2eHooks({ deps: injected }: { deps?: E2eHooksDeps } = {}) {
     await Promise.resolve();
   });
 
+  // the camera of the first order of the replica: the panel closes so that the screen of the camera (an overlay of the shell) is seen
+  const cameraOpen = guarded(async () => {
+    const camera = (get().camera ?? realDeps().camera)?.();
+    const opened = (await camera?.openFirst()) === true;
+    setStatus(opened ? { camera: 'opened' } : { camera: 'no_order' });
+    if (opened) setOpen(false);
+  });
+
   const device = (name: string, change: (o: DeviceOverrides) => void) => () => {
     change(deviceOverrides);
     setStatus({ device: name });
@@ -375,6 +395,7 @@ export function E2eHooks({ deps: injected }: { deps?: E2eHooksDeps } = {}) {
         <TextInput testID="e2e-media-mib" value={mediaMib} onChangeText={setMediaMib} keyboardType="number-pad" style={input} />
         <Button label={LABELS.mediaInject} onPress={mediaInject} testID="e2e-media-inject" />
         <Button label={LABELS.mediaStatus} onPress={mediaStatus} testID="e2e-media-status" />
+        <Button label={LABELS.cameraOpen} onPress={cameraOpen} testID="e2e-camera-open" />
         <Button
           label={LABELS.lockOff}
           onPress={device('lock_off', (o) => {

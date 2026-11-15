@@ -17,8 +17,17 @@ import { WIPE_MARKER_FILE, wipeFaultForE2e, type OpenResult } from '../src/stora
 import { boot, newDevice, type Device } from './storage/fakes';
 import { NodeSqliteEngine, newDisk, removeDisk, type TestDisk } from './storage/node-sqlite-engine';
 
+/** The first order of the replica the stand-in session offers to the camera hook (`null` = none). */
+const mockCamera = { first: null as string | null, opened: [] as string[] };
 jest.mock('../src/session', () => ({
   sessionPorts: () => ({
+    camera: {
+      firstOrderId: () => Promise.resolve(mockCamera.first),
+      open: (id: string) => {
+        mockCamera.opened.push(id);
+        return Promise.resolve(true);
+      },
+    },
     media: { getSnapshot: () => ({ notifications: 'granted', files: [] }) },
     newId: () => '0194c2a0-0000-7000-8000-0000000000b1',
     sync: undefined,
@@ -369,6 +378,37 @@ describe('e2e hooks of the files (EVM-130 AC1, AC8; media block)', () => {
     await render(<Slot />);
     expect(screen.toJSON()).toBeNull();
     expect(releaseOverrides).toBeNull();
+  });
+});
+
+describe('the camera hook (EVM-108 stage 2b; temporary entry until the entries of stage 3)', () => {
+  it('EVM-108 AC2: the hook opens the camera of the first order of the replica and closes the panel so that the screen is seen; no order is a code, the panel stays', async () => {
+    const opened: string[] = [];
+    const deps = { ...depsOf(), camera: () => ({ openFirst: () => Promise.resolve(opened.push('first') > 0) }) } satisfies E2eHooksDeps;
+    await render(inProvider(<E2eHooks deps={deps} />));
+    await tap(E2E_HOOKS_MARKER);
+    await tap('e2e-camera-open');
+    expect(opened).toEqual(['first']);
+    expect(screen.queryByTestId('e2e-status')).toBeNull();
+
+    const none = { ...depsOf(), camera: () => ({ openFirst: () => Promise.resolve(false) }) } satisfies E2eHooksDeps;
+    await screen.unmount();
+    await render(inProvider(<E2eHooks deps={none} />));
+    await tap(E2E_HOOKS_MARKER);
+    await tap('e2e-camera-open');
+    await expectStatus('camera=no_order');
+  });
+
+  it('EVM-108 AC2: without injected deps the hook asks the real session; a phone without an order of the replica says "no_order" and opens nothing', async () => {
+    await render(inProvider(<E2eHooks />));
+    await tap(E2E_HOOKS_MARKER);
+    await tap('e2e-camera-open');
+    await expectStatus('camera=no_order');
+    expect(mockCamera.opened).toEqual([]);
+    mockCamera.first = '30000000-0000-4000-8000-000000000001';
+    await tap('e2e-camera-open');
+    expect(mockCamera.opened).toEqual(['30000000-0000-4000-8000-000000000001']);
+    mockCamera.first = null;
   });
 });
 
