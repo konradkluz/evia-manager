@@ -91,7 +91,7 @@ describe('mobile-apk (EVM-009 AC5, AC6)', () => {
     // elsewhere the name appears only as plain text of a message (no `$`)
     expect(joined.split('EVIA_STORAGE_HOSTS')).toHaveLength(4);
     // no shell tracing and no dump of the environment in any step of the job
-    expect(joined).not.toMatch(/sets+-[a-z]*x|sets+-os+xtrace/);
+    expect(joined).not.toMatch(/set\s+-[a-z]*x|set\s+-o\s+xtrace/);
     expect(joined).not.toMatch(/(^|[\s;|&(])(env|printenv|export\s+-p|declare\s+-x)(\s*($|[|;&)>])|\s+-0)/m);
   });
 
