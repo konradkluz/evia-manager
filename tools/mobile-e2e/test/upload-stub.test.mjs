@@ -92,6 +92,8 @@ describe('upload scenario server: session of the contract (EVM-130 AC8)', () => 
       const checkpoint = (await call(stub.controlPort, '/control/checkpoint')).json;
       assert.equal(checkpoint.assets[ASSET].objects, 1);
       assert.equal(checkpoint.assets[ASSET].sha256, sha(data));
+      // EVM-108 AC7: the checkpoint names the work order of every asset (the step of 30 shots checks they all went to the right one)
+      assert.equal(checkpoint.assets[ASSET].workOrderId, WORK_ORDER);
       assert.equal(checkpoint.orphanedMultiparts, 0);
       assert.equal(checkpoint.openMultiparts, 0);
       // idempotent complete

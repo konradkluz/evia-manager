@@ -1,0 +1,25 @@
+# EVM-108 AC7: the app was killed (kill -9) right after the 30 pictures were confirmed, and starts again without a network: the Queue has all
+# thirty files waiting ("30 do wysłania"), none sent, none lost; the states in the snapshot say the same. tools/mobile-e2e then proves that no
+# job is armed and that the server has not seen a byte.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: true
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- extendedWaitUntil:
+    visible: 'Brak zasięgu.*'
+    timeout: 45000
+- tapOn:
+    id: 'nav-queue'
+- extendedWaitUntil:
+    visible:
+      id: 'files-summary'
+      text: '30 do wysłania'
+    timeout: 60000
+- takeScreenshot: m07-batch-after-kill
+- runFlow:
+    file: common/media-status.yaml
+    env:
+      STATUS: 'files=30;waiting=30;uploading=0;sent=0;failed=0;attention=0;notifications=[a-z_]+'

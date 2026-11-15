@@ -52,6 +52,10 @@ export function buildReport(evidence) {
   );
   const screenshots = evidence.screenshots ?? [];
   const retried = evidence.results.filter((result) => result.attempts === 2).map((result) => result.flow);
+  const notPerformed = evidence.results.reduce(
+    (sum, result) => sum + (result.checks ?? []).filter((check) => check.skipped === true).length,
+    0,
+  );
   return [
     `# Maestro smoke test — ${evidence.date}`,
     '',
@@ -63,6 +67,7 @@ export function buildReport(evidence) {
     `- Application version in the build: ${evidence.appVersion}`,
     `- Result: ${String(passed)} passed, ${String(failed)} failed, ${String(evidence.results.length - passed - failed)} skipped`,
     `- Retried flows: ${retried.length === 0 ? 'none' : retried.join(', ')}`,
+    ...(notPerformed === 0 ? [] : [`- Device steps NOT PERFORMED (no evidence either way): ${String(notPerformed)}`]),
     `- Requests that reached the scenario server: ${String(evidence.requests.length)}; X-Client-Platform=android and X-Client-Version on every request: ${headersSent ? 'yes' : 'NO'}`,
     evidence.logcat === null
       ? '- Logcat of the app process: not collected'
@@ -85,7 +90,10 @@ export function buildReport(evidence) {
  */
 function deviceStepRows(results) {
   const rows = results.flatMap((result) =>
-    (result.checks ?? []).map((check) => `| ${result.flow} | ${check.action} | ${check.ok ? 'ok' : 'FAILED'} | ${check.detail} |`),
+    (result.checks ?? []).map(
+      (check) =>
+        `| ${result.flow} | ${check.action} | ${check.skipped === true ? 'NOT PERFORMED' : check.ok ? 'ok' : 'FAILED'} | ${check.detail} |`,
+    ),
   );
   return rows.length === 0 ? [] : ['| Flow | Device step | Result | Detail |', '| --- | --- | --- | --- |', ...rows, ''];
 }

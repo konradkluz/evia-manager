@@ -1,0 +1,106 @@
+# EVM-108 AC5 AC6: the mode of hidden data (the hook makes the phone report no screen lock; the app re-checks when it comes back to the
+# foreground). The sheet "Dodaj" says why "Wpis" is off; "Zdjęcie lub film" stays on; the choice of the order shows NUMBERS only (no title, no
+# customer); the bar of the camera has no number ("Aparat"); the camera works; the row of the file in the Queue has no number either.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- tapOn:
+    id: 'evia-e2e-hooks-panel'
+# the hook lies below the fold of the panel (a scroll view), its status line at the top
+- scrollUntilVisible:
+    element:
+      id: 'e2e-lock-off'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'e2e-lock-off'
+- scrollUntilVisible:
+    element:
+      id: 'e2e-status'
+    direction: UP
+    centerElement: true
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-status'
+      text: 'device=lock_off'
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      id: 'e2e-close'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'e2e-close'
+- pressKey: home
+- launchApp:
+    stopApp: false
+- tapOn:
+    id: 'nav-orders'
+- extendedWaitUntil:
+    visible: 'Dane zleceń są ukryte.*'
+    timeout: 60000
+- tapOn:
+    id: 'orders-add'
+- extendedWaitUntil:
+    visible:
+      id: 'add-sheet'
+    timeout: 10000
+- assertVisible:
+    id: 'add-hidden-reason'
+    text: 'Dane zleceń są ukryte — wpis dodasz po ponownym zalogowaniu\.'
+- assertVisible:
+    id: 'add-entry'
+    enabled: false
+- assertVisible:
+    id: 'add-media'
+    enabled: true
+- takeScreenshot: m05-add-sheet-hidden
+- tapOn:
+    id: 'add-media'
+- extendedWaitUntil:
+    visible: 'Do którego zlecenia\?'
+    timeout: 10000
+- assertVisible:
+    id: 'media-picker-hidden'
+# the option is the number alone: "ZL-E2E-1", never "ZL-E2E-1 · Zlecenie testowe 1"
+- assertVisible: 'ZL-E2E-1'
+- assertNotVisible: 'ZL-E2E-1 · .*'
+- assertNotVisible: 'Zlecenie testowe.*'
+- assertNotVisible: 'Klient Testowy.*'
+- takeScreenshot: m05-media-picker-hidden
+- tapOn:
+    id: 'media-picker-30000000-0000-4000-8000-000000000001'
+- extendedWaitUntil:
+    visible:
+      id: 'camera'
+    timeout: 20000
+- extendedWaitUntil:
+    notVisible: 'Uruchamianie aparatu…'
+    timeout: 30000
+# the bar has the title "Aparat" and no number
+- assertVisible: 'Aparat'
+- assertNotVisible: 'ZL-E2E-1'
+- tapOn:
+    id: 'camera-category-site_survey'
+- tapOn:
+    id: 'camera-shutter'
+- extendedWaitUntil:
+    visible:
+      id: 'camera-count'
+      text: '1 zdjęcie'
+    timeout: 20000
+- takeScreenshot: m06-camera-hidden
+- tapOn:
+    id: 'camera-done'
+- tapOn:
+    id: 'nav-queue'
+- extendedWaitUntil:
+    visible: 'Oględziny, Zdjęcie, .*, (Oczekuje|Wysyła się [0-9]+%|Wysłano)'
+    timeout: 60000
+- assertNotVisible: 'ZL-E2E-1'
+- assertNotVisible: 'Zlecenie testowe.*'
+- takeScreenshot: m07-queue-hidden

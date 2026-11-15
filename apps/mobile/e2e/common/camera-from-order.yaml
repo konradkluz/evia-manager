@@ -1,0 +1,19 @@
+# EVM-108 AC1 AC5: the shared way to the camera through the screens of the app (no hook): the first order of the list (ZL-E2E-1, the order of
+# the scenario server), its details, the main action of the bottom bar "Zrób zdjęcie", the camera. Ends when the camera has started (the
+# loading text "Uruchamianie aparatu…" is gone), so the shutter can be used.
+appId: pl.eviacharge.manager
+---
+- tapOn:
+    id: 'order-row-30000000-0000-4000-8000-000000000001'
+- extendedWaitUntil:
+    visible: 'Zlecenie testowe 1'
+    timeout: 10000
+- tapOn:
+    id: 'order-detail-take-photo'
+- extendedWaitUntil:
+    visible:
+      id: 'camera'
+    timeout: 20000
+- extendedWaitUntil:
+    notVisible: 'Uruchamianie aparatu…'
+    timeout: 30000

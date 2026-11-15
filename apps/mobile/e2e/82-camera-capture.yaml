@@ -1,0 +1,50 @@
+# EVM-108 AC1 AC2: the real camera of the emulator (the permission is granted by tools/mobile-e2e). The shutter is blocked with the hint
+# "Wybierz kategorię przed zdjęciem." until a category is chosen; the shot is saved at once ("Zapisano w telefonie", the counter "1 zdjęcie"
+# comes after the durable save); the second shot takes the last category without asking; "Gotowe" goes back to the ORDER (not to the Queue).
+# tools/mobile-e2e then proves: the two files are in the private folder of the app with no GPS in them (the emulator had a location), the
+# gallery is as it was, the app holds no location permission, and the two objects reached the server in the right work order.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- runFlow: common/camera-from-order.yaml
+- assertVisible: 'Wybierz kategorię przed zdjęciem\.'
+- assertVisible:
+    id: 'camera-shutter'
+    enabled: false
+- takeScreenshot: m06-camera-choose-category
+- tapOn:
+    id: 'camera-category-site_survey'
+- assertNotVisible: 'Wybierz kategorię przed zdjęciem\.'
+- tapOn:
+    id: 'camera-shutter'
+- extendedWaitUntil:
+    visible: 'Zapisano w telefonie'
+    timeout: 20000
+- extendedWaitUntil:
+    visible:
+      id: 'camera-count'
+      text: '1 zdjęcie'
+    timeout: 10000
+- takeScreenshot: m06-camera-saved
+# the next shot needs no new choice
+- tapOn:
+    id: 'camera-shutter'
+- extendedWaitUntil:
+    visible:
+      id: 'camera-count'
+      text: '2 zdjęcia'
+    timeout: 20000
+- assertNotVisible: 'Wybierz kategorię przed zdjęciem\.'
+- tapOn:
+    id: 'camera-done'
+# back at the order, not at the Queue
+- extendedWaitUntil:
+    visible: 'Zlecenie testowe 1'
+    timeout: 20000
+- assertVisible:
+    id: 'order-detail-take-photo'
+- takeScreenshot: m03-after-camera

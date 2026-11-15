@@ -1,0 +1,45 @@
+# EVM-108 AC7: no network (airplane mode, set by tools/mobile-e2e). 30 pictures go through the hook of the e2e variant `media: capture N`: every
+# one is a synthetic JPEG written to the cache folder of the camera and taken by the SAME capture pipeline as a photograph (the native import,
+# the digest, one transaction of the encrypted database), so the files and the commands are in the durable queue exactly as after 30 shots of
+# the camera. The status line confirms only after the LAST durable save; tools/mobile-e2e kills the app (kill -9) right after this flow.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- extendedWaitUntil:
+    visible: 'Brak zasięgu.*'
+    timeout: 30000
+- tapOn:
+    id: 'evia-e2e-hooks-panel'
+# the panel is a scroll view: the field and the button lie below the fold
+- scrollUntilVisible:
+    element:
+      id: 'e2e-capture-count'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'e2e-capture-count'
+- eraseText
+- inputText: '30'
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: 'e2e-capture-batch'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'e2e-capture-batch'
+- scrollUntilVisible:
+    element:
+      id: 'e2e-status'
+    direction: UP
+    centerElement: true
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-status'
+      text: 'capture_added=30'
+    timeout: 240000
+- takeScreenshot: m07-batch-saved

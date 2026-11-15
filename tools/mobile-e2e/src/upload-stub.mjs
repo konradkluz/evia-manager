@@ -609,11 +609,12 @@ export function createUploadStub({
 
   /** The checkpoint: per asset the objects, the SHA-256 and the parts; plus the orphaned multiparts and the counters (no addresses, no tokens). */
   function checkpoint() {
-    /** @type {Record<string, { state: FileState, objects: number, sha256: string | null, declaredSize: number | null, sessions: number, activeParts: number, partCount: number | null }>} */
+    /** @type {Record<string, { workOrderId: string, state: FileState, objects: number, sha256: string | null, declaredSize: number | null, sessions: number, activeParts: number, partCount: number | null }>} */
     const byAsset = {};
     for (const [id, asset] of assets) {
       const open = [...sessions.values()].find((s) => s.assetId === id && s.state === 'active');
       byAsset[id] = {
+        workOrderId: asset.workOrderId,
         state: asset.state,
         objects: asset.objects,
         sha256: asset.sha256,
