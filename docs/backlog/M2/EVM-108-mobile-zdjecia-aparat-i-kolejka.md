@@ -146,3 +146,4 @@ EVM-108 pokazuje w Kolejce **minimum**: wiersz pliku, 4 etykiety stanu, licznik,
 - 2026-11-15 — po etapie 1: scalono `main` (EVM-121, #143) do gałęzi; zapisano decyzje z realizacji (AC6 — decyzja Konrada: „Ponów” zostaje; pozostałe Tech Lead, część do potwierdzenia w demo) (Tech Lead)
 - 2026-11-15 — etap 2a (zapis zdjęcia: część natywna, schemat v3, ścieżka zapisu) zrealizowany (mobile-developer)
 - 2026-11-15 — etap 2b (ekran aparatu, zgoda, błędy i brak miejsca) zrealizowany (mobile-developer)
+- 2026-11-15 — etap 3 (AC5–AC6: wejścia do aparatu, tryb ukrytych danych, pliki w Kolejce) zrealizowany (mobile-developer)

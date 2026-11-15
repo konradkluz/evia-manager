@@ -250,6 +250,12 @@ describe('the bottom bar of the details (EVM-108 AC5)', () => {
     await settle();
     expect(screen.queryByTestId('camera')).toBeNull();
     expect(screen.getByTestId('order-detail-camera-refused')).toBeOnTheScreen();
+    // a port that throws (it does not, but nothing may open on it) is a refusal as well
+    rig.ports.camera.open = () => Promise.reject(new Error('synthetic'));
+    await fireEvent.press(screen.getByTestId('order-detail-take-photo'));
+    await settle();
+    expect(screen.queryByTestId('camera')).toBeNull();
+    expect(screen.getByTestId('order-detail-camera-refused')).toBeOnTheScreen();
   });
 
   it('EVM-108 AC5: while the data of the company are wiped the bar is not shown', async () => {

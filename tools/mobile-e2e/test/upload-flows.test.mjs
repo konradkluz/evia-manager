@@ -203,8 +203,8 @@ describe('Maestro flows 50-69 and the upload scenarios agree (EVM-130 stage C)',
       'Zaktualizuj aplikację',
       'Plik wymaga uwagi',
       'Dane zleceń są ukryte',
-      'Wysłano {{sent}} z {{total}} · {{queued}} w kolejce',
-      'Wysyłanie {{percent}}%',
+      '{{count}} do wysłania',
+      'Wysyła się {{percent}}%',
     ])
       assert.ok(catalogue.includes(sentence), sentence);
     const used = uploadFlows.map(flowText).join('\n');
