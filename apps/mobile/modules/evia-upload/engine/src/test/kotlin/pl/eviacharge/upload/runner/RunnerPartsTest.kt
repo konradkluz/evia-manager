@@ -12,6 +12,8 @@ import pl.eviacharge.upload.AttentionReason
 import pl.eviacharge.upload.JobSnapshot
 import pl.eviacharge.upload.JobState
 import pl.eviacharge.upload.JobStore
+import pl.eviacharge.upload.TEST_SHA
+import pl.eviacharge.upload.TEST_TYPE
 import pl.eviacharge.upload.UploadCancelledException
 import pl.eviacharge.upload.files.JobFileData
 import pl.eviacharge.upload.notification.JobNotification
@@ -70,7 +72,7 @@ class RunnerPartsTest {
 
     @Test
     fun `EVM-130 AC4 the status of a file - queued, uploading, a percent of the confirmed parts, uploaded, paused`() {
-        val fresh = JobFileData(ASSET, "wo", 100L, "u", "d", null)
+        val fresh = JobFileData(ASSET, "wo", 100L, "u", "d", TEST_TYPE, TEST_SHA, null)
         assertEquals(JobStatus(ASSET, FileJobState.QUEUED, 0, 0, 0, 100L), JobStatuses.of(fresh, running = false))
         assertEquals(FileJobState.UPLOADING, JobStatuses.of(fresh, running = true).state)
         val half = fresh.copy(snapshot = snapshot(done = 2))

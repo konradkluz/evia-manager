@@ -246,14 +246,16 @@ class EviaUploadModule : Module() {
      * Arms the job of a file once the server applied `CreateMediaAsset` (idempotent). Resolves `armed_user_initiated` | `armed` |
      * `already_armed` | `missing_original` | `invalid` | `wipe_active` | `failed` | `upload_unavailable` (no storage hosts in the build) | `unavailable`.
      */
-    AsyncFunction("armUpload") { assetId: String, workOrderId: String, userId: String, deviceId: String, wifiOnly: Boolean ->
-      withUpload(UploadUnavailable.WIRE) { rt -> rt.arming.arm(JobArming.Item(assetId, workOrderId, userId, deviceId), wifiOnly).wire() }
+    AsyncFunction("armUpload") { assetId: String, workOrderId: String, userId: String, deviceId: String, wifiOnly: Boolean, contentType: String? ->
+      withUpload(UploadUnavailable.WIRE) { rt ->
+        rt.arming.arm(JobArming.Item(assetId, workOrderId, userId, deviceId, contentType.orEmpty()), wifiOnly).wire()
+      }
     }
 
-    /** Arms every file of the list (start, return to the foreground, after a sign-in). Items: `{assetId, workOrderId, userId, deviceId}`. */
+    /** Arms every file of the list (start, return to the foreground, after a sign-in). Items: `{assetId, workOrderId, userId, deviceId, contentType}` (`contentType` = the MIME type of the file; the module declares it in the upload session). */
     AsyncFunction("reconcile") { items: List<Map<String, String>>, wifiOnly: Boolean ->
       withUpload(UploadUnavailable.reconcile(items.map { it["assetId"].orEmpty() })) { rt ->
-        val list = items.map { JobArming.Item(it["assetId"].orEmpty(), it["workOrderId"].orEmpty(), it["userId"].orEmpty(), it["deviceId"].orEmpty()) }
+        val list = items.map { JobArming.Item(it["assetId"].orEmpty(), it["workOrderId"].orEmpty(), it["userId"].orEmpty(), it["deviceId"].orEmpty(), it["contentType"].orEmpty()) }
         rt.arming.reconcile(list, wifiOnly).mapValues { it.value.wire() }
       }
     }

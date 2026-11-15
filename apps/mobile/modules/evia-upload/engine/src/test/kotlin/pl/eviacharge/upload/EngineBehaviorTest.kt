@@ -85,7 +85,7 @@ class EngineBehaviorTest {
     @Test
     fun `EVM-109 AC3 a part request carries only Content-Length and never Authorization`() {
         val harness = Harness()
-        assertEquals(Outcome.Uploaded, harness.engine().run(ASSET, SIZE))
+        assertEquals(Outcome.Uploaded, harness.engine().run(ASSET, declare(SIZE)))
         assertEquals(3, harness.requests.size)
         harness.requests.forEach {
             assertEquals(setOf("Content-Length"), it.headers.keys)
@@ -97,7 +97,7 @@ class EngineBehaviorTest {
     @Test
     fun `EVM-109 AC3 the persisted snapshot holds only allowlisted keys and no address, token or name`() {
         val harness = Harness()
-        harness.engine().run(ASSET, SIZE)
+        harness.engine().run(ASSET, declare(SIZE))
         assertTrue(harness.saved.isNotEmpty())
         harness.saved.forEach { saved ->
             val fields = saved.toFields()
@@ -111,7 +111,7 @@ class EngineBehaviorTest {
     @Test
     fun `EVM-109 AC3 the engine logs through the redacting logger and never writes an address or a signature`() {
         val harness = Harness(faults = listOf(mapOf("op" to "put", "part" to 1L, "effect" to "http:403", "times" to 1L)))
-        harness.engine().run(ASSET, SIZE)
+        harness.engine().run(ASSET, declare(SIZE))
         assertTrue(harness.logs.isNotEmpty())
         harness.logs.forEach { assertFalse(Regex("(?i)https?:|x-amz|sig[0-9]|store\\.example").containsMatchIn(it), it) }
         assertTrue(harness.logs.any { it.startsWith("url_renewed") })
@@ -129,14 +129,14 @@ class EngineBehaviorTest {
     @Test
     fun `EVM-109 AC1 a persisted plan that is inconsistent ends in needs_attention instead of sending`() {
         val harness = Harness(initial = snapshot(partCount = 9))
-        assertEquals(Outcome.NeedsAttention(AttentionReason.PLAN_MISMATCH), harness.engine().run(ASSET, SIZE))
+        assertEquals(Outcome.NeedsAttention(AttentionReason.PLAN_MISMATCH), harness.engine().run(ASSET, declare(SIZE)))
         assertTrue(harness.requests.isEmpty())
     }
 
     @Test
     fun `EVM-109 AC1 a persisted snapshot without a plan reads the plan as a mismatch`() {
         val harness = Harness(initial = snapshot().copy(partSize = 16L, completeSent = false, partCount = null))
-        assertEquals(Outcome.NeedsAttention(AttentionReason.PLAN_MISMATCH), harness.engine().run(ASSET, SIZE))
+        assertEquals(Outcome.NeedsAttention(AttentionReason.PLAN_MISMATCH), harness.engine().run(ASSET, declare(SIZE)))
     }
 
     @Test
@@ -148,15 +148,15 @@ class EngineBehaviorTest {
                         ("sessions" to listOf(mapOf("id" to "id-1", "key" to "id-2", "state" to "active", "parts" to emptyList<Any?>()))),
                 initial = snapshot(state = JobState.PAUSED_REVOKED),
             )
-        assertEquals(Outcome.Uploaded, harness.engine().run(ASSET, SIZE, resume = true))
+        assertEquals(Outcome.Uploaded, harness.engine().run(ASSET, declare(SIZE), resume = true))
         assertTrue(harness.saved.none { it.state == JobState.PAUSED_REVOKED })
     }
 
     @Test
     fun `EVM-130 AC5 a paused_revoked snapshot without the explicit resume is refused, nothing is sent and the snapshot stays`() {
         val harness = Harness(initial = snapshot(state = JobState.PAUSED_REVOKED))
-        assertEquals(Outcome.PausedRevoked, harness.engine().run(ASSET, SIZE))
-        assertEquals(Outcome.PausedRevoked, harness.engine().run(ASSET, SIZE, resume = false))
+        assertEquals(Outcome.PausedRevoked, harness.engine().run(ASSET, declare(SIZE)))
+        assertEquals(Outcome.PausedRevoked, harness.engine().run(ASSET, declare(SIZE), resume = false))
         assertTrue(harness.server.calls.isEmpty())
         assertTrue(harness.saved.isEmpty())
         assertEquals(JobState.PAUSED_REVOKED, harness.store.snapshot?.state)
@@ -166,7 +166,7 @@ class EngineBehaviorTest {
     fun `EVM-109 AC2 paused_revoked keeps the snapshot and the engine has no way to delete anything`() {
         val faults = listOf(mapOf("op" to "listParts", "effect" to "http:401:session_revoked", "times" to 1L))
         val harness = Harness(faults = faults)
-        assertEquals(Outcome.PausedRevoked, harness.engine().run(ASSET, SIZE))
+        assertEquals(Outcome.PausedRevoked, harness.engine().run(ASSET, declare(SIZE)))
         assertEquals(JobState.PAUSED_REVOKED, harness.store.snapshot?.state)
         assertTrue(UploadEngine::class.java.declaredMethods.none { it.name.contains("delete", ignoreCase = true) })
     }
@@ -186,7 +186,7 @@ class EngineBehaviorTest {
                     ids = { "id-1" },
                 ),
             )
-        assertThrows(UploadCancelledException::class.java) { engine.run(ASSET, SIZE) }
+        assertThrows(UploadCancelledException::class.java) { engine.run(ASSET, declare(SIZE)) }
         assertEquals(JobState.ACTIVE, harness.store.snapshot?.state)
         assertNotNull(harness.store.snapshot?.partCount)
     }
@@ -208,9 +208,9 @@ class EngineBehaviorTest {
                     stop = { stopped },
                 ),
             )
-        assertEquals(Outcome.DeviceWipe, engine.run(ASSET, SIZE))
+        assertEquals(Outcome.DeviceWipe, engine.run(ASSET, declare(SIZE)))
         stopped = false
-        assertEquals(Outcome.DeviceWipe, engine.run(ASSET, SIZE))
+        assertEquals(Outcome.DeviceWipe, engine.run(ASSET, declare(SIZE)))
         assertTrue(harness.server.calls.isEmpty())
     }
 
@@ -219,16 +219,16 @@ class EngineBehaviorTest {
         val faults = listOf(mapOf("op" to "createSession", "effect" to "http:401:device_wipe_required", "times" to 1L))
         val harness = Harness(faults = faults)
         val engine = harness.engine()
-        assertEquals(Outcome.DeviceWipe, engine.run(ASSET, SIZE))
+        assertEquals(Outcome.DeviceWipe, engine.run(ASSET, declare(SIZE)))
         val calls = harness.server.calls.size
-        assertEquals(Outcome.DeviceWipe, engine.run(ASSET, SIZE))
+        assertEquals(Outcome.DeviceWipe, engine.run(ASSET, declare(SIZE)))
         assertEquals(calls, harness.server.calls.size)
     }
 
     @Test
     fun `EVM-109 AC2 a 401 with an unknown code is the generic needs_attention`() {
         val faults = listOf(mapOf("op" to "createSession", "effect" to "http:401:unauthenticated", "times" to 1L))
-        assertEquals(Outcome.NeedsAttention(AttentionReason.UNKNOWN), Harness(faults = faults).engine().run(ASSET, SIZE))
+        assertEquals(Outcome.NeedsAttention(AttentionReason.UNKNOWN), Harness(faults = faults).engine().run(ASSET, declare(SIZE)))
     }
 
     @Test
@@ -246,20 +246,20 @@ class EngineBehaviorTest {
                     ids = { "id" },
                 ),
             )
-        assertThrows(CrashSignal::class.java) { engine.run(ASSET, SIZE) }
+        assertThrows(CrashSignal::class.java) { engine.run(ASSET, declare(SIZE)) }
     }
 
     @Test
     fun `EVM-109 AC1 an uploaded snapshot sends nothing`() {
         val harness = Harness(initial = snapshot(state = JobState.UPLOADED))
-        assertEquals(Outcome.Uploaded, harness.engine().run(ASSET, SIZE))
+        assertEquals(Outcome.Uploaded, harness.engine().run(ASSET, declare(SIZE)))
         assertTrue(harness.server.calls.isEmpty())
     }
 
     @Test
     fun `EVM-109 AC1 an etag from storage is kept only as information`() {
         val harness = Harness(spec = SERVER_SPEC + ("putEtag" to null))
-        harness.engine().run(ASSET, SIZE)
+        harness.engine().run(ASSET, declare(SIZE))
         assertNotNull(harness.store.snapshot)
     }
 

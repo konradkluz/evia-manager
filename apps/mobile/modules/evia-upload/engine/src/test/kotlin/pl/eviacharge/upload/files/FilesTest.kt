@@ -9,9 +9,12 @@ import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import pl.eviacharge.upload.FileDeclaration
 import pl.eviacharge.upload.JobSnapshot
 import pl.eviacharge.upload.JobState
 import pl.eviacharge.upload.Json
+import pl.eviacharge.upload.TEST_SHA
+import pl.eviacharge.upload.TEST_TYPE
 import java.io.File
 import java.io.IOException
 
@@ -37,7 +40,7 @@ internal fun snapshotOf(
 internal fun jobOf(
     assetId: String = ASSET_A,
     snapshot: JobSnapshot? = null,
-) = JobFileData(assetId, "0193a000-0000-7000-8000-0000000000d1", 40L, "user-1", "device-1", snapshot)
+) = JobFileData(assetId, "0193a000-0000-7000-8000-0000000000d1", 40L, "user-1", "device-1", TEST_TYPE, TEST_SHA, snapshot)
 
 /** EVM-130 AC1, AC3, AC4: the atomic file, the layout of the base directory, the job file and its store. */
 class FilesTest {
@@ -222,7 +225,17 @@ class FilesTest {
             Json.stringify(fields.toMutableMap().also(change)).toByteArray()
         val bad =
             listOf(
-                variant { it["fileSchemaVersion"] = 2 },
+                // version 1 (before the declaration of the file) and an unknown one are unreadable: the next arming writes a new job file
+                variant { it["fileSchemaVersion"] = 1 },
+                variant { it["fileSchemaVersion"] = 3 },
+                variant { it.remove("sha256") },
+                variant { it.remove("contentType") },
+                variant { it["sha256"] = "ABC" },
+                variant { it["sha256"] = TEST_SHA.uppercase() },
+                variant { it["sha256"] = 5 },
+                variant { it["contentType"] = "image/svg+xml" },
+                variant { it["contentType"] = "IMAGE/JPEG" },
+                variant { it["contentType"] = 5 },
                 variant { it["extra"] = "x" },
                 variant { it.remove("userId") },
                 variant { it["userId"] = "a/b" },
@@ -237,6 +250,26 @@ class FilesTest {
                 "not json".toByteArray(),
             )
         bad.forEachIndexed { index, bytes -> assertNull(JobFileCodec.decode(bytes), "variant $index") }
+    }
+
+    @Test
+    fun `EVM-131 AC1 the job file carries the declaration of the file (size, type, SHA-256), the same after every restart`() {
+        val files = UploadFiles(root)
+        val store = JobFileStore(files)
+        store.arm(jobOf())
+        val read = store.read(ASSET_A)
+        assertEquals("image/jpeg", read?.contentType)
+        assertEquals(TEST_SHA, read?.sha256)
+        assertEquals(FileDeclaration("$ASSET_A.jpg", 40L, "image/jpeg", TEST_SHA), read?.declaration)
+        // the schema: only these keys are new, none of them is personal data or a secret
+        assertEquals(
+            setOf("fileSchemaVersion", "assetId", "workOrderId", "size", "userId", "deviceId", "contentType", "sha256", "snapshot"),
+            JobFileCodec.FIELD_NAMES,
+        )
+        assertEquals(2, JobFileCodec.FILE_SCHEMA_VERSION)
+        // a later save of the snapshot never changes the declaration
+        store.save(snapshotOf())
+        assertEquals(read?.declaration, JobFileStore(files).read(ASSET_A)?.declaration)
     }
 
     @Test

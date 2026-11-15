@@ -1,5 +1,6 @@
 package pl.eviacharge.upload.files
 
+import pl.eviacharge.upload.FileDeclaration
 import pl.eviacharge.upload.JobSnapshot
 import pl.eviacharge.upload.JobStore
 import pl.eviacharge.upload.Json
@@ -29,9 +30,15 @@ data class JobFileData(
     val size: Long,
     val userId: String,
     val deviceId: String,
+    /** The type of the file from the allow-list of the contract and its SHA-256, computed natively before the first session (EVM-131). Not personal data, not secrets. */
+    val contentType: String,
+    val sha256: String,
     val snapshot: JobSnapshot?,
 ) {
     val ownerId: String get() = OwnerId.of(userId, deviceId)
+
+    /** The declaration of the file the session carries; the same on every repeat because the job file never changes it. */
+    val declaration: FileDeclaration get() = FileDeclaration(UploadTypes.fileNameFor(assetId, contentType), size, contentType, sha256)
 }
 
 private val IDENTIFIER = Regex("^[A-Za-z0-9-]{1,64}$")
@@ -41,12 +48,14 @@ private const val MAX_FILE_BYTES = 256 * 1024
 
 /** Serialization of [JobFileData]: the keys are an allowlist, in both directions (an unknown key makes the file unreadable). */
 object JobFileCodec {
-    const val FILE_SCHEMA_VERSION = 1
+    /** 2: the declaration of the file (type, SHA-256). A job file of version 1 is unreadable, so the next arming writes a new one from the original (the snapshot restarts through ListParts). */
+    const val FILE_SCHEMA_VERSION = 2
 
     /** An identifier of the server (UUID, `-` and alphanumerics, at most 64 characters): the only shape allowed in a job file. */
     fun isIdentifier(value: String): Boolean = IDENTIFIER.matches(value)
 
-    val FIELD_NAMES = setOf("fileSchemaVersion", "assetId", "workOrderId", "size", "userId", "deviceId", "snapshot")
+    val FIELD_NAMES =
+        setOf("fileSchemaVersion", "assetId", "workOrderId", "size", "userId", "deviceId", "contentType", "sha256", "snapshot")
 
     fun encode(data: JobFileData): ByteArray {
         val fields =
@@ -57,6 +66,8 @@ object JobFileCodec {
                 "size" to data.size,
                 "userId" to data.userId,
                 "deviceId" to data.deviceId,
+                "contentType" to data.contentType,
+                "sha256" to data.sha256,
                 "snapshot" to data.snapshot?.toFields(),
             )
         return Json.stringify(fields).toByteArray(Charsets.UTF_8)
@@ -84,6 +95,8 @@ object JobFileCodec {
             size = size,
             userId = identifier(fields["userId"]) ?: return null,
             deviceId = identifier(fields["deviceId"]) ?: return null,
+            contentType = (fields["contentType"] as? String)?.takeIf { it in UploadTypes.EXTENSIONS } ?: return null,
+            sha256 = (fields["sha256"] as? String)?.takeIf { UploadTypes.isSha256(it) } ?: return null,
             snapshot = snapshot(fields["snapshot"], assetId),
         )
     }

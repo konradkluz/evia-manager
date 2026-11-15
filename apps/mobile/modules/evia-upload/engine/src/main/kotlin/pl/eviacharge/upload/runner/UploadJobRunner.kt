@@ -71,7 +71,7 @@ class UploadJobRunner(
         // a job paused by `session_revoked` has an owner that signed in again (the gate above): this is the explicit resume
         val resume = job.snapshot?.state == JobState.PAUSED_REVOKED
         return try {
-            map(newEngine(job).run(job.assetId, job.size, resume))
+            map(newEngine(job).run(job.assetId, job.declaration, resume))
         } catch (error: UploadCancelledException) {
             if (marker.isStopped()) JobResult.DeviceWipe else JobResult.Stopped
         } catch (error: JobFileGoneException) {

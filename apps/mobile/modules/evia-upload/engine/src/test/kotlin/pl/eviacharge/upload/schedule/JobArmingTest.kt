@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import pl.eviacharge.upload.TEST_TYPE
 import pl.eviacharge.upload.files.FileDigest
 import pl.eviacharge.upload.files.JobFileStore
 import pl.eviacharge.upload.files.JobIdRegistry
@@ -67,7 +68,7 @@ class JobArmingTest {
         files.originalFile(assetId).apply { parentFile.mkdirs() }.writeBytes(ByteArray(size) { it.toByte() })
     }
 
-    private fun item(assetId: String = ASSET) = JobArming.Item(assetId, WORK_ORDER, "user-1", "device-1")
+    private fun item(assetId: String = ASSET) = JobArming.Item(assetId, WORK_ORDER, "user-1", "device-1", TEST_TYPE)
 
     @Test
     fun `EVM-130 AC1 a file with its original is armed - the job file, a durable id, a user-initiated job on API 34, app visible`() {
@@ -143,10 +144,10 @@ class JobArmingTest {
         files.originalFile(ASSET).apply { parentFile.mkdirs() }.writeBytes(ByteArray(0))
         assertEquals(ArmResult.MissingOriginal, arming().arm(item()))
         original()
-        assertEquals(ArmResult.Invalid, arming().arm(JobArming.Item("../x", WORK_ORDER, "u", "d")))
-        assertEquals(ArmResult.Invalid, arming().arm(JobArming.Item(ASSET, "a/b", "u", "d")))
-        assertEquals(ArmResult.Invalid, arming().arm(JobArming.Item(ASSET, WORK_ORDER, "", "d")))
-        assertEquals(ArmResult.Invalid, arming().arm(JobArming.Item(ASSET, WORK_ORDER, "u", "d:e")))
+        assertEquals(ArmResult.Invalid, arming().arm(JobArming.Item("../x", WORK_ORDER, "u", "d", TEST_TYPE)))
+        assertEquals(ArmResult.Invalid, arming().arm(JobArming.Item(ASSET, "a/b", "u", "d", TEST_TYPE)))
+        assertEquals(ArmResult.Invalid, arming().arm(JobArming.Item(ASSET, WORK_ORDER, "", "d", TEST_TYPE)))
+        assertEquals(ArmResult.Invalid, arming().arm(JobArming.Item(ASSET, WORK_ORDER, "u", "d:e", TEST_TYPE)))
         WipeMarker(files.wipeMarkerFile).begin()
         assertEquals(ArmResult.WipeActive, arming().arm(item()))
         assertTrue(system.requests.isEmpty())
@@ -200,6 +201,43 @@ class JobArmingTest {
                 .last()
                 .spec.network,
         )
+    }
+
+    @Test
+    fun `EVM-131 AC1 arming writes the declaration into the job file - the allow-listed type and the SHA-256 of the original`() {
+        original()
+        assertEquals(
+            ArmResult.Armed(true),
+            arming().arm(
+                item().let {
+                    JobArming.Item(it.assetId, it.workOrderId, it.userId, it.deviceId, " Image/JPG ")
+                },
+            ),
+        )
+        val job = jobs().read(ASSET)
+        assertEquals("image/jpeg", job?.contentType)
+        assertEquals(FileDigest.sha256Hex(files.originalFile(ASSET)), job?.sha256)
+        assertEquals("$ASSET.jpg", job?.declaration?.fileName)
+        assertEquals(40L, job?.declaration?.declaredSize)
+        // an existing job keeps its declaration: the original is not hashed again and a later change of the file never changes what was declared
+        val before = job?.declaration
+        files.originalFile(ASSET).writeBytes(ByteArray(40) { 9 })
+        system.pending.clear()
+        arming().arm(item())
+        assertEquals(before, jobs().read(ASSET)?.declaration)
+        // "Ponów" keeps the type of the job
+        assertEquals(ArmResult.Armed(true), arming().retry(ASSET))
+        assertEquals("image/jpeg", jobs().read(ASSET)?.contentType)
+    }
+
+    @Test
+    fun `EVM-131 AC1 a type outside the allow-list is refused before anything is written`() {
+        original()
+        for (type in listOf("", "image/svg+xml", "text/html", "application/octet-stream")) {
+            assertEquals(ArmResult.Invalid, arming().arm(JobArming.Item(ASSET, WORK_ORDER, "user-1", "device-1", type)), type)
+        }
+        assertNull(jobs().read(ASSET))
+        assertTrue(system.requests.isEmpty())
     }
 
     @Test

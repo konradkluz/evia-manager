@@ -53,6 +53,9 @@ enum class AttentionReason(
     INVALID_STATE("invalid_state"),
     URL_RENEWAL_EXHAUSTED("url_renewal_exhausted"),
     UPLOAD_INCOMPLETE("upload_incomplete"),
+
+    /** `400 validation_failed` of the session: the server refused the declaration of the file (type, size, checksum, name, or another declaration than the stored one). */
+    DECLARATION_REJECTED("declaration_rejected"),
     UNKNOWN("unknown"),
 }
 
@@ -79,6 +82,18 @@ sealed class Outcome(
         val delayMs: Long? = null,
     ) : Outcome("retry_later")
 }
+
+/**
+ * The declaration of the file that the session creation carries (EVM-131 contract `UploadFileDeclaration`): the phone declares what it is going to send.
+ * [fileName] is the UUID of the asset with the extension of the type - never a name from the user - and [contentType] is from the allow-list of the contract.
+ * The same declaration is sent on every repeat of `createSession` (a lost answer, a resumption): the server accepts an identical one and refuses another.
+ */
+data class FileDeclaration(
+    val fileName: String,
+    val declaredSize: Long,
+    val contentType: String,
+    val sha256: String,
+)
 
 /** Session as returned by the server: the server decides the split (fixed part size, the last part smaller, at most 1000 parts). */
 data class SessionInfo(
@@ -121,6 +136,7 @@ interface UploadApi {
         assetId: String,
         sessionId: String,
         idempotencyKey: String,
+        file: FileDeclaration,
     ): SessionInfo
 
     fun listParts(sessionId: String): List<RemotePart>

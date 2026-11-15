@@ -1,5 +1,6 @@
 package pl.eviacharge.upload
 
+import pl.eviacharge.upload.files.UploadTypes
 import java.io.File
 import java.net.URI
 
@@ -93,6 +94,9 @@ class FakeServer(
 ) : UploadApi,
     PartTransport {
     val calls = mutableListOf<String>()
+
+    /** Every declaration of a file that `createSession` received, in order (the vectors assert it is present, valid and never changes, EVM-131). */
+    val declarations = mutableListOf<FileDeclaration>()
     val puts = sortedMapOf<Int, Int>()
     var objects = 0
     var sessionsCreated = 0
@@ -162,7 +166,9 @@ class FakeServer(
         assetId: String,
         sessionId: String,
         idempotencyKey: String,
+        file: FileDeclaration,
     ): SessionInfo {
+        declarations.add(file)
         val lost = enter("createSession")
         val byKey = sessions.firstOrNull { it.key == idempotencyKey }
         var session = byKey ?: sessions.firstOrNull { it.state == "active" }
@@ -268,6 +274,8 @@ fun runScenario(
     var runStart = 0
     var seen = 0
     val assetId = defaults["assetId"] as String
+    val declared = Json.obj(defaults["file"])
+    val file = FileDeclaration(declared["fileName"] as String, size, declared["contentType"] as String, declared["sha256"] as String)
 
     fun newEngine() =
         UploadEngine(
@@ -303,7 +311,7 @@ fun runScenario(
         runStart = before
         val outcome: Any =
             try {
-                outcomeWire(engine.run(assetId, size, resume = run["resume"] == true))
+                outcomeWire(engine.run(assetId, file, resume = run["resume"] == true))
             } catch (crash: CrashSignal) {
                 engine = newEngine()
                 "crashed"
@@ -313,6 +321,12 @@ fun runScenario(
         if (expected.containsKey("store")) actual["store"] = store.snapshot?.state?.wire
         if (normalize(actual) != normalize(expected)) problems.add("$id run ${index + 1}: $actual != $expected")
     }
+    // the declaration of the file: present on every createSession, valid for the contract, and the SAME one every time (a repeat is identical)
+    server.declarations.forEachIndexed { index, sent ->
+        if (sent != file) problems.add("$id createSession ${index + 1}: declaration $sent != $file")
+        if (!UploadTypes.isDeclarable(sent)) problems.add("$id createSession ${index + 1}: declaration is not declarable")
+    }
+    if (server.declarations.size != server.calls.count { it == "createSession" }) problems.add("$id: a createSession without a declaration")
     val expectedFinal = Json.obj(scenario["final"])
     val actualFinal =
         mapOf(

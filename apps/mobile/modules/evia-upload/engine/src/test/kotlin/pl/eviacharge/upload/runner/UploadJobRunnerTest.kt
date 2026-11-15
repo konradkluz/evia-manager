@@ -12,10 +12,13 @@ import pl.eviacharge.upload.CancelHandle
 import pl.eviacharge.upload.FakeServer
 import pl.eviacharge.upload.JobSnapshot
 import pl.eviacharge.upload.JobState
+import pl.eviacharge.upload.Json
 import pl.eviacharge.upload.OriginalMissingException
 import pl.eviacharge.upload.PartTransport
 import pl.eviacharge.upload.RedactingLogger
 import pl.eviacharge.upload.StopCheck
+import pl.eviacharge.upload.TEST_SHA
+import pl.eviacharge.upload.TEST_TYPE
 import pl.eviacharge.upload.UploadCancelledException
 import pl.eviacharge.upload.UploadEngine
 import pl.eviacharge.upload.UploadEngineDeps
@@ -72,7 +75,7 @@ class UploadJobRunnerTest {
         snapshot: JobSnapshot? = null,
         userId: String = "user-1",
     ) {
-        jobs.arm(JobFileData(ASSET, WORK_ORDER, 40L, userId, "device-1", snapshot))
+        jobs.arm(JobFileData(ASSET, WORK_ORDER, 40L, userId, "device-1", TEST_TYPE, TEST_SHA, snapshot))
         if (snapshot != null) jobs.save(snapshot)
     }
 
@@ -343,7 +346,7 @@ class UploadJobOverHttpTest {
         val jobs = JobFileStore(files)
         val original = ByteArray(40) { (it * 7).toByte() }
         files.originalFile(ASSET).apply { parentFile.mkdirs() }.writeBytes(original)
-        jobs.arm(JobFileData(ASSET, WORK_ORDER, 40L, "user-1", "device-1", null))
+        jobs.arm(JobFileData(ASSET, WORK_ORDER, 40L, "user-1", "device-1", TEST_TYPE, TEST_SHA, null))
         val marker = WipeMarker(files.wipeMarkerFile)
         val config = HttpConfig(api.origin, listOf(api.authority), "1.0.0", e2eCleartext = true, readTimeoutMs = 5_000)
         val cancel = CancelHandle()
@@ -375,6 +378,14 @@ class UploadJobOverHttpTest {
         assertEquals(JobState.UPLOADED, jobs.read(ASSET)?.snapshot?.state)
         assertEquals(JobResult.Finished, runner.run(ASSET))
         assertEquals(mapOf(1 to 1, 2 to 1, 3 to 1), storage.puts)
+        // EVM-131: every createSession carries the same declaration of the file (the name is the asset's, never a user's)
+        val sessions = api.requests.filter { it.method == "POST" && it.path.endsWith("/upload-sessions") }
+        assertTrue(sessions.isNotEmpty())
+        for (seen in sessions) {
+            val body = Json.obj(Json.parse(String(seen.body)))
+            val file = Json.obj(body["file"])
+            assertEquals(mapOf("fileName" to "$ASSET.jpg", "declaredSize" to 40L, "contentType" to TEST_TYPE, "sha256" to TEST_SHA), file)
+        }
         assertFalse(files.jobFile(ASSET).readText().contains("access-0"))
         assertFalse(files.jobFile(ASSET).readText().contains("X-Amz"))
     }
@@ -386,7 +397,7 @@ class UploadJobOverHttpTest {
         val files = UploadFiles(root)
         val jobs = JobFileStore(files)
         files.originalFile(ASSET).apply { parentFile.mkdirs() }.writeBytes(ByteArray(40))
-        jobs.arm(JobFileData(ASSET, WORK_ORDER, 40L, "user-1", "device-1", null))
+        jobs.arm(JobFileData(ASSET, WORK_ORDER, 40L, "user-1", "device-1", TEST_TYPE, TEST_SHA, null))
         val marker = WipeMarker(files.wipeMarkerFile)
         val config = HttpConfig(api.origin, listOf(api.authority), "1.0.0", e2eCleartext = true)
         val core = HttpCore(config, CancelHandle(), marker)

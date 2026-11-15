@@ -10,6 +10,8 @@ import org.junit.jupiter.api.io.TempDir
 import pl.eviacharge.upload.AttentionReason
 import pl.eviacharge.upload.CancelHandle
 import pl.eviacharge.upload.RedactingLogger
+import pl.eviacharge.upload.TEST_SHA
+import pl.eviacharge.upload.TEST_TYPE
 import pl.eviacharge.upload.files.ContactSink
 import pl.eviacharge.upload.files.JobFileData
 import pl.eviacharge.upload.files.JobFileStore
@@ -132,7 +134,7 @@ class UploadWorkerTest {
             .originalFile(assetId)
             .apply { parentFile.mkdirs() }
             .writeBytes(ByteArray(40) { it.toByte() })
-        wiring.jobs.arm(JobFileData(assetId, WORK_ORDER, 40L, userId, "device-1", null))
+        wiring.jobs.arm(JobFileData(assetId, WORK_ORDER, 40L, userId, "device-1", TEST_TYPE, TEST_SHA, null))
     }
 
     private fun begin(

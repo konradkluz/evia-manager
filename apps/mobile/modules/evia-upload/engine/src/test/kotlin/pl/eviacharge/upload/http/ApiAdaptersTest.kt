@@ -14,8 +14,11 @@ import pl.eviacharge.upload.PartUrl
 import pl.eviacharge.upload.RemotePart
 import pl.eviacharge.upload.SessionInfo
 import pl.eviacharge.upload.StopCheck
+import pl.eviacharge.upload.TEST_SHA
 import pl.eviacharge.upload.UploadCancelledException
 import pl.eviacharge.upload.UploadFailure
+import pl.eviacharge.upload.declare
+import pl.eviacharge.upload.files.UploadTypes
 import pl.eviacharge.upload.session.ApiSession
 import pl.eviacharge.upload.session.LogoutAnswer
 import pl.eviacharge.upload.session.RefreshAnswer
@@ -54,6 +57,8 @@ private class FakeSession(
 }
 
 /** EVM-130 AC1, AC2, AC4: the API adapters of the upload and of the session, against a real server of the JDK. */
+private val FILE = declare(40L, ASSET)
+
 class ApiAdaptersTest {
     private val servers = mutableListOf<TestServer>()
     private val contacts = mutableListOf<Long?>()
@@ -86,6 +91,32 @@ class ApiAdaptersTest {
     // ---- the four calls of the upload
 
     @Test
+    fun `EVM-131 AC1 a repeat of createSession sends the IDENTICAL declaration, and a declaration the server would refuse is never sent`() {
+        val server = server { Reply(201, """{"id":"$SESSION","partSize":16,"partCount":3}""") }
+        val api = api(server)
+        session.tokens = mutableListOf(TokenResult.Ready("access-1", "u:d"), TokenResult.Ready("access-1", "u:d"))
+        api.createSession(ASSET, SESSION, KEY, FILE)
+        api.createSession(ASSET, SESSION, KEY, FILE)
+        assertEquals(2, server.requests.size)
+        assertEquals(String(server.requests[0].body), String(server.requests[1].body))
+        val refused =
+            listOf(
+                FILE.copy(contentType = "image/svg+xml"),
+                FILE.copy(contentType = "video/mp4"),
+                FILE.copy(sha256 = "ABC"),
+                FILE.copy(sha256 = TEST_SHA.uppercase()),
+                FILE.copy(declaredSize = 0L),
+                FILE.copy(declaredSize = UploadTypes.MAX_BYTES + 1),
+                FILE.copy(fileName = "../x.jpg"),
+                FILE.copy(fileName = "jan-kowalski.jpg"),
+            )
+        for (bad in refused) {
+            assertEquals(Failure.Http(400, "validation_failed"), failure { api.createSession(ASSET, SESSION, KEY, bad) }, bad.toString())
+        }
+        assertEquals(2, server.requests.size)
+    }
+
+    @Test
     fun `EVM-130 AC1 createSession sends the session id and the idempotency key to the right path with the access token`() {
         val server =
             server {
@@ -94,7 +125,7 @@ class ApiAdaptersTest {
                     """{"id":"$SESSION","mediaAssetId":"$ASSET","state":"active","partSize":16777216,"partCount":3,"expiresAt":"x"}""",
                 )
             }
-        val info = api(server).createSession(ASSET, SESSION, KEY)
+        val info = api(server).createSession(ASSET, SESSION, KEY, FILE)
         assertEquals(SessionInfo(SESSION, 16_777_216L, 3), info)
         val seen = server.requests.single()
         assertEquals("POST", seen.method)
@@ -104,7 +135,14 @@ class ApiAdaptersTest {
         assertEquals("android", seen.headers["x-client-platform"])
         assertEquals("1.2.3", seen.headers["x-client-version"])
         assertEquals("application/json", seen.headers["content-type"])
-        assertEquals(mapOf("id" to SESSION), Json.obj(Json.parse(String(seen.body))))
+        // EVM-131: the declaration of the file goes with the id - the contract refuses a medium without a file and without `file`
+        assertEquals(
+            mapOf(
+                "id" to SESSION,
+                "file" to mapOf("fileName" to FILE.fileName, "declaredSize" to 40L, "contentType" to "image/jpeg", "sha256" to TEST_SHA),
+            ),
+            Json.obj(Json.parse(String(seen.body))),
+        )
         assertEquals(1, contacts.size)
         assertTrue(contacts.single() != null)
     }
@@ -164,7 +202,7 @@ class ApiAdaptersTest {
         for (body in bodies) {
             session.tokens = mutableListOf(TokenResult.Ready("access-1", "u:d"))
             val server = server { Reply(200, body) }
-            assertEquals(Failure.Http(200), failure { api(server).createSession(ASSET, SESSION, KEY) }, body)
+            assertEquals(Failure.Http(200), failure { api(server).createSession(ASSET, SESSION, KEY, FILE) }, body)
         }
         val listBodies =
             listOf(
@@ -206,8 +244,8 @@ class ApiAdaptersTest {
         }
         val api = api(server)
         assertEquals(Failure.Http(400), failure { api.listParts("../../etc") })
-        assertEquals(Failure.Http(400), failure { api.createSession(ASSET, "a b", KEY) })
-        assertEquals(Failure.Http(400), failure { api.createSession(ASSET, SESSION, "a\nb") })
+        assertEquals(Failure.Http(400), failure { api.createSession(ASSET, "a b", KEY, FILE) })
+        assertEquals(Failure.Http(400), failure { api.createSession(ASSET, SESSION, "a\nb", FILE) })
         assertThrows(IllegalArgumentException::class.java) { api.partUrl(SESSION, 0) }
         assertThrows(IllegalArgumentException::class.java) { api.partUrl(SESSION, 1001) }
         assertTrue(server.requests.isEmpty())

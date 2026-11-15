@@ -1,11 +1,13 @@
 package pl.eviacharge.upload.schedule
 
 import pl.eviacharge.upload.StopCheck
+import pl.eviacharge.upload.files.FileDigest
 import pl.eviacharge.upload.files.JobFileCodec
 import pl.eviacharge.upload.files.JobFileData
 import pl.eviacharge.upload.files.JobFileStore
 import pl.eviacharge.upload.files.JobIdRegistry
 import pl.eviacharge.upload.files.UploadFiles
+import pl.eviacharge.upload.files.UploadTypes
 import java.io.IOException
 
 /** One job of the system scheduler: the glue turns it into a `JobInfo` (persisted, with the network of [JobSpec]) without any decision. */
@@ -91,6 +93,8 @@ class JobArming(
         val workOrderId: String,
         val userId: String,
         val deviceId: String,
+        /** The type of the file as the app knows it; it must be (an alias of) a type of the allow-list of the contract. */
+        val contentType: String,
     )
 
     fun arm(
@@ -106,9 +110,24 @@ class JobArming(
         val original = files.originalFile(item.assetId)
         val size = if (original.isFile) original.length() else 0L
         if (size <= 0L) return ArmResult.MissingOriginal
+        val contentType = UploadTypes.normalize(item.contentType) ?: return ArmResult.Invalid
         val id =
             try {
-                jobs.arm(JobFileData(item.assetId, item.workOrderId, size, item.userId, item.deviceId, null))
+                // the SHA-256 of the declaration is computed once, as a stream, before the first session; an existing job keeps its own
+                if (jobs.read(item.assetId) == null) {
+                    jobs.arm(
+                        JobFileData(
+                            item.assetId,
+                            item.workOrderId,
+                            size,
+                            item.userId,
+                            item.deviceId,
+                            contentType,
+                            FileDigest.sha256Hex(original),
+                            null,
+                        ),
+                    )
+                }
                 ids.idFor(item.assetId)
             } catch (error: IOException) {
                 return ArmResult.Failed
@@ -126,7 +145,7 @@ class JobArming(
     ): ArmResult {
         if (!UploadFiles.isAssetId(assetId)) return ArmResult.Invalid
         val job = jobs.read(assetId) ?: return ArmResult.Invalid
-        return arm(Item(job.assetId, job.workOrderId, job.userId, job.deviceId), wifiOnly, force = true)
+        return arm(Item(job.assetId, job.workOrderId, job.userId, job.deviceId, job.contentType), wifiOnly, force = true)
     }
 
     /** Arms every file of the list (start of the app, return to the foreground, after a sign-in); the result of each. */

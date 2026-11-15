@@ -40,6 +40,10 @@ private fun mapHttp(failure: Failure.Http): Outcome =
             }
         }
 
+        failure.status == 400 && failure.code == "validation_failed" -> {
+            Outcome.NeedsAttention(AttentionReason.DECLARATION_REJECTED)
+        }
+
         failure.status == 422 && failure.code in INCOMPLETE_CODES -> {
             Outcome.NeedsAttention(AttentionReason.UPLOAD_INCOMPLETE)
         }

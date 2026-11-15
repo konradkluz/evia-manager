@@ -30,6 +30,8 @@ private fun attention(reason: AttentionReason) = Stop(Outcome.NeedsAttention(rea
 private class RunContext(
     var snapshot: JobSnapshot,
     var regenerated: Boolean,
+    /** The declaration of the file, sent unchanged by every `createSession` of the run (a repeat is identical, the server compares). */
+    val file: FileDeclaration,
     /** True once this run reconciled again after `422 upload_incomplete`; a second one is `needs_attention`. */
     var reconciled: Boolean = false,
 )
@@ -69,7 +71,7 @@ class UploadEngine(
      */
     fun run(
         assetId: String,
-        size: Long,
+        file: FileDeclaration,
         resume: Boolean = false,
     ): Outcome {
         if (wiped || deps.stop.isStopped()) {
@@ -79,7 +81,7 @@ class UploadEngine(
         var context: RunContext? = null
         val outcome =
             try {
-                context = start(assetId, size, resume)
+                context = start(assetId, file, resume)
                 if (context.snapshot.state == JobState.UPLOADED) return Outcome.Uploaded
                 drive(context)
             } catch (stop: Stop) {
@@ -105,19 +107,20 @@ class UploadEngine(
 
     private fun start(
         assetId: String,
-        size: Long,
+        file: FileDeclaration,
         resume: Boolean,
     ): RunContext {
+        val size = file.declaredSize
         val stored = deps.store.load(assetId)
         if (stored?.state == JobState.PAUSED_REVOKED && !resume) throw Stop(Outcome.PausedRevoked)
         if (stored != null && stored.schemaVersion == SNAPSHOT_SCHEMA_VERSION && stored.size == size) {
             val state = if (stored.state == JobState.UPLOADED) JobState.UPLOADED else JobState.ACTIVE
-            return RunContext(stored.copy(state = state), regenerated = false)
+            return RunContext(stored.copy(state = state), regenerated = false, file = file)
         }
         // Nothing stored, an unknown schema version or a changed file: start from the beginning (the server hands back an active session).
         val snapshot = freshSnapshot(assetId, size)
         deps.store.save(snapshot)
-        return RunContext(snapshot, regenerated = true)
+        return RunContext(snapshot, regenerated = true, file = file)
     }
 
     private fun freshSnapshot(
@@ -180,7 +183,7 @@ class UploadEngine(
     /** Opens (or resumes) the session and returns its part size. */
     private fun openSession(context: RunContext): Long {
         val snapshot = context.snapshot
-        val session = call { deps.api.createSession(snapshot.assetId, snapshot.uploadSessionId, snapshot.idempotencyKey) }
+        val session = call { deps.api.createSession(snapshot.assetId, snapshot.uploadSessionId, snapshot.idempotencyKey, context.file) }
         if (!SESSION_ID.matches(session.id)) throw attention(AttentionReason.INVALID_SERVER_RESPONSE)
         plan(snapshot.size, session.partSize, session.partCount)
         // The server may hand back an already active session of this asset (another id): adopt it.

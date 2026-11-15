@@ -1,6 +1,7 @@
 package pl.eviacharge.upload.http
 
 import pl.eviacharge.upload.Failure
+import pl.eviacharge.upload.FileDeclaration
 import pl.eviacharge.upload.FileState
 import pl.eviacharge.upload.Json
 import pl.eviacharge.upload.JsonException
@@ -10,6 +11,7 @@ import pl.eviacharge.upload.SessionInfo
 import pl.eviacharge.upload.UploadApi
 import pl.eviacharge.upload.UploadFailure
 import pl.eviacharge.upload.files.ContactSink
+import pl.eviacharge.upload.files.UploadTypes
 import pl.eviacharge.upload.session.ApiSession
 import pl.eviacharge.upload.session.LogoutAnswer
 import pl.eviacharge.upload.session.LogoutApi
@@ -58,7 +60,7 @@ class HttpUploadApi(
     private val session: ApiSession,
     private val contact: ContactSink,
     workOrderId: String,
-    mediaAssetId: String,
+    private val mediaAssetId: String,
 ) : UploadApi {
     private val base: String
 
@@ -71,13 +73,27 @@ class HttpUploadApi(
         assetId: String,
         sessionId: String,
         idempotencyKey: String,
+        file: FileDeclaration,
     ): SessionInfo {
+        // the name is ALWAYS the identifier of the asset with the extension of the type (no name from the user); a declaration the server would refuse is not sent: the same answer as the server's own refusal (`400 validation_failed`)
+        if (!UploadTypes.isDeclarable(file) ||
+            file.fileName != UploadTypes.fileNameFor(mediaAssetId, file.contentType)
+        ) {
+            throw UploadFailure(Failure.Http(HTTP_BAD_REQUEST, "validation_failed"))
+        }
+        val declared =
+            linkedMapOf<String, Any?>(
+                "fileName" to file.fileName,
+                "declaredSize" to file.declaredSize,
+                "contentType" to file.contentType,
+                "sha256" to file.sha256,
+            )
         val answer =
             send(
                 "POST",
                 base,
                 mapOf("Idempotency-Key" to checked(idempotencyKey), "Content-Type" to "application/json"),
-                jsonBody(mapOf("id" to checked(sessionId))),
+                jsonBody(mapOf("id" to checked(sessionId), "file" to declared)),
             )
         val fields = answer.jsonObject() ?: throw invalid(answer)
         val id = fields["id"] as? String ?: throw invalid(answer)
