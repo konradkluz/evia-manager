@@ -17,6 +17,15 @@ import { WIPE_MARKER_FILE, wipeFaultForE2e, type OpenResult } from '../src/stora
 import { boot, newDevice, type Device } from './storage/fakes';
 import { NodeSqliteEngine, newDisk, removeDisk, type TestDisk } from './storage/node-sqlite-engine';
 
+jest.mock('../src/session', () => ({
+  sessionPorts: () => ({
+    media: { getSnapshot: () => ({ notifications: 'granted', files: [] }) },
+    newId: () => '0194c2a0-0000-7000-8000-0000000000b1',
+    sync: undefined,
+  }),
+  sessionMediaUploads: () => ({ add: () => Promise.resolve({ ok: true }) }),
+}));
+
 const metrics = { frame: { x: 0, y: 0, width: 360, height: 760 }, insets: { top: 24, left: 0, right: 0, bottom: 16 } };
 const inProvider = (element: ReactElement) => <SafeAreaProvider initialMetrics={metrics}>{element}</SafeAreaProvider>;
 
@@ -360,5 +369,16 @@ describe('e2e hooks of the files (EVM-130 AC1, AC8; media block)', () => {
     await render(<Slot />);
     expect(screen.toJSON()).toBeNull();
     expect(releaseOverrides).toBeNull();
+  });
+});
+
+describe('the real wiring of the media hook (EVM-130 AC8)', () => {
+  it('EVM-130 AC8: without injected deps the hook reads the files of the session; outside the e2e package the native injection is absent (a code, nothing written)', async () => {
+    await render(inProvider(<E2eHooks />));
+    await tap(E2E_HOOKS_MARKER);
+    await tap('e2e-media-status');
+    await expectStatus('files=0;waiting=0;uploading=0;sent=0;failed=0;attention=0;notifications=granted');
+    await tap('e2e-media-inject');
+    await expectStatus('error=no_media_hook');
   });
 });

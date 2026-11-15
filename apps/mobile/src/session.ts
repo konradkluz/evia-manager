@@ -36,6 +36,7 @@ import { SyncHost } from './sync/sync-host';
 import { SyncService } from './sync/sync-service';
 import { MediaUploads } from './upload/media-uploads';
 import { nativeUploadOf } from './upload/native-upload';
+import { reconcileOnSyncChange } from './upload/reconcile-trigger';
 
 /** Fixed path of the password reset of the panel (apps/web `LOGIN_RESET_PATH`); no part of it comes from input (security W9). */
 export const PASSWORD_RESET_PATH = '/login/reset';
@@ -160,14 +161,7 @@ export function createSessionPorts(
   media.start();
   mediaUploads = media;
   // a session starts, a cycle ends, something settles or the replica changes: the rows are reconciled again (single-flight)
-  let seen = { active: false, last: null as number | null, unsent: -1 };
-  sync.subscribe(() => {
-    const snapshot = sync.getSnapshot();
-    const next = { active: snapshot.active, last: snapshot.lastSuccessAt, unsent: snapshot.counts.unsent };
-    const changed = next.active !== seen.active || next.last !== seen.last || next.unsent !== seen.unsent;
-    seen = next;
-    if (changed && next.active) void media.reconcile();
-  });
+  reconcileOnSyncChange(sync, media);
   owner.onBeforeSessionEnd(() => {
     sync.stop();
     clipboard.clear();

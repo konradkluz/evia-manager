@@ -116,6 +116,8 @@ describe('unsent files (EVM-130 AC4; offline-sync.md, pkt 7)', () => {
       createdAt: 1,
     });
     expect(await store.unsentItemCount()).toBe(1);
+    // the server state of a file the replica does not know yet is absent (through the capability of the store)
+    expect((await store.replicaExtras.readMediaServerStates([id(1)])).size).toBe(0);
     await (store.queue as unknown as { settle(id: string, info: unknown): Promise<void> }).settle(id(501), {
       outcome: 'applied',
       warnings: [],

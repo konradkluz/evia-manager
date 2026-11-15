@@ -57,7 +57,14 @@ export function QueueFiles({ onRetryFailed }: { onRetryFailed: () => void }) {
   const sent = files.filter((file) => file.status === 'sent');
   const stateText = (file: MediaFileView): string => {
     if (file.status === 'uploading') return t('upload.states.uploading', { percent: file.percent ?? 0 });
-    return file.status === 'waiting' || file.status === 'sent' ? t(`upload.states.${file.status}`) : t('upload.states.error');
+    if (file.status === 'waiting') return t('upload.states.waiting');
+    return file.status === 'sent' ? t('upload.states.sent') : t('upload.states.error');
+  };
+  const reasons: Readonly<Record<ReturnType<typeof reasonKey>, string>> = {
+    quarantined: t('upload.reasons.quarantined'),
+    id_conflict: t('upload.reasons.id_conflict'),
+    missing_original: t('upload.reasons.missing_original'),
+    unknown: t('upload.reasons.unknown'),
   };
 
   const row = (file: MediaFileView) => (
@@ -127,7 +134,7 @@ export function QueueFiles({ onRetryFailed }: { onRetryFailed: () => void }) {
             {t('upload.sections.attention')}
           </Text>
           {attention.map((file) => {
-            const reason = t(`upload.reasons.${reasonKey(file.code)}`);
+            const reason = reasons[reasonKey(file.code)];
             return (
               <AttentionCard
                 key={file.assetId}

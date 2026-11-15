@@ -253,9 +253,16 @@ describe('composition of the native owner and the upload (EVM-130)', () => {
       ok: false,
       code: 'invalid',
     });
+    const reconcile = jest.spyOn(ports.owner, 'reconcileNative');
+    const merge = jest.spyOn(ports.owner, 'mergeNativeContact');
+    const refresh = jest.spyOn(ports.media, 'refresh');
     handler('background');
     handler('active');
     await tick();
+    // a return to the foreground compares the state of the module, merges its contact and reconciles the files
+    expect(reconcile).toHaveBeenCalledTimes(1);
+    expect(merge).toHaveBeenCalledTimes(1);
+    expect(refresh).toHaveBeenCalledTimes(1);
     expect(ports.media.getSnapshot()).toEqual({ files: [], notifications: 'granted' });
     expect(fake.sessionState).not.toHaveBeenCalled();
     spy.mockRestore();
