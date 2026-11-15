@@ -272,7 +272,7 @@ describe('upload device steps: actions (EVM-130 AC1–AC6)', () => {
     const none = fake({ control: () => ({ status: 200, body: { assets: {}, counters: {} } }), adb: {} });
     assert.equal((await runUploadAction('original-present', none.context)).ok, false);
     const unreachable = fake({ control: () => null });
-    assert.match((await runUploadAction('original-absent', unreachable.context)).detail, /no asset/);
+    assert.match((await runUploadAction('original-absent', unreachable.context)).detail, /control port did not answer/);
   });
 
   it('EVM-130 AC1: the checkpoint waits for the object, compares SHA-256 with the original on the device and counts the interruptions', async () => {

@@ -423,6 +423,7 @@ export async function runUploadAction(action, context) {
     case 'original-absent': {
       const point = await checkpointOf(context);
       const ids = point === null ? [] : Object.keys(point.assets);
+      if (point === null) return check(false, 'the control port did not answer, so the assets are unknown');
       if (ids.length === 0) return check(false, 'the server registered no asset, so there is no original to look for');
       const wantPresent = name === 'original-present';
       const present = (/** @type {string[]} */ list) => list.filter((id) => context.adb(...uploadCommands.listOriginal(id)).status === 0);
@@ -499,6 +500,7 @@ export async function runUploadAction(action, context) {
       if (first === undefined || first === '') return check(false, 'upload-file-state needs a state');
       const point = await checkpointOf(context);
       const ids = point === null ? [] : Object.keys(point.assets);
+      if (point === null) return check(false, 'the control port did not answer, so the assets are unknown');
       if (ids.length === 0) return check(false, 'the server registered no asset');
       for (const assetId of ids) {
         const answer = await control(context, 'POST', '/control/file-state', { assetId, state: first });

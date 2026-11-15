@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSyn
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, it, mock } from 'node:test';
-import { parseAppVersion, parseLongPathsEnabled, realHost, startStubInWorker } from '../src/process.mjs';
+import { httpJson, parseAppVersion, parseLongPathsEnabled, realHost, startStubInWorker } from '../src/process.mjs';
 
 describe('wiring of the smoke test to the machine (EVM-009 AC4)', () => {
   it('EVM-009 AC4: the registry answer of LongPathsEnabled is read exactly (0x1 only)', () => {
@@ -251,6 +251,28 @@ describe('control port of the upload part through the worker (EVM-130 AC8)', () 
 });
 
 describe('control requests of the host (EVM-130 AC8)', () => {
+  it('EVM-130 AC8: a control call whose connection is reset is repeated and answered (the first call after a long synchronous Maestro run)', async () => {
+    const { createServer } = await import('node:http');
+    let calls = 0;
+    const server = createServer((request, response) => {
+      calls += 1;
+      if (calls === 1) request.socket.destroy();
+      else response.writeHead(200).end('{"ok":true}');
+    });
+    await new Promise((resolve) => {
+      server.listen(0, '127.0.0.1', () => {
+        resolve(undefined);
+      });
+    });
+    const address = /** @type {import('node:net').AddressInfo} */ (server.address());
+    try {
+      assert.deepEqual(await httpJson('GET', `http://127.0.0.1:${String(address.port)}/x`), { status: 200, body: { ok: true } });
+      assert.equal(calls, 2);
+    } finally {
+      server.close();
+    }
+  });
+
   it('EVM-130 AC8: httpJson sends a JSON body and reads JSON, an empty body and a text that is not JSON; a closed port is null; any other host is refused', async () => {
     const { createServer } = await import('node:http');
     /** @type {string[]} */
@@ -273,7 +295,6 @@ describe('control requests of the host (EVM-130 AC8)', () => {
     );
     const address = server.address();
     const port = typeof address === 'object' && address !== null ? address.port : 0;
-    const { httpJson } = await import('../src/process.mjs');
     try {
       assert.deepEqual(await httpJson('POST', `http://127.0.0.1:${String(port)}/json`, { a: 1 }), { status: 200, body: { ok: true } });
       assert.deepEqual(await httpJson('GET', `http://127.0.0.1:${String(port)}/empty`), { status: 204, body: null });

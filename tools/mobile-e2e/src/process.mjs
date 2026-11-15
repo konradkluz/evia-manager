@@ -11,6 +11,8 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { MessageChannel, receiveMessageOnPort, Worker } from 'node:worker_threads';
 
+const CONTROL_ATTEMPTS = 3;
+const CONTROL_RETRY_MS = 300;
 const MAX_OUTPUT = 64 * 1024 * 1024;
 const FILE_SYSTEM_KEY = String.raw`HKLM\SYSTEM\CurrentControlSet\Control\FileSystem`;
 
@@ -121,25 +123,33 @@ export async function startStubInWorker(
  */
 export async function httpJson(method, url, body) {
   if (new URL(url).hostname !== '127.0.0.1') throw new Error('the control port is reached on the loopback only');
-  try {
-    const response = await fetch(url, {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-      signal: AbortSignal.timeout(10_000),
-    });
-    const text = await response.text();
-    /** @type {unknown} */
-    let parsed = null;
+  // EVM-130: a control call right after a long synchronous child process (Maestro) may meet a connection the server closed meanwhile
+  // ("other side closed"); the call is idempotent for the host's purposes, so a few attempts are made and each failure is named
+  for (let attempt = 1; attempt <= CONTROL_ATTEMPTS; attempt += 1) {
     try {
-      parsed = text === '' ? null : JSON.parse(text);
-    } catch {
-      parsed = null;
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        signal: AbortSignal.timeout(10_000),
+      });
+      const text = await response.text();
+      /** @type {unknown} */
+      let parsed = null;
+      try {
+        parsed = text === '' ? null : JSON.parse(text);
+      } catch {
+        parsed = null;
+      }
+      return { status: response.status, body: parsed };
+    } catch (error) {
+      const cause = /** @type {{ cause?: { code?: string } }} */ (error).cause?.code ?? (error instanceof Error ? error.name : 'error');
+      process.stdout.write(`CONTROL: ${method} ${new URL(url).pathname} attempt ${String(attempt)} failed (${cause})
+`);
+      if (attempt < CONTROL_ATTEMPTS) await new Promise((resolve) => setTimeout(resolve, CONTROL_RETRY_MS));
     }
-    return { status: response.status, body: parsed };
-  } catch {
-    return null;
   }
+  return null;
 }
 
 /**
