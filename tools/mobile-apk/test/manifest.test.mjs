@@ -278,4 +278,29 @@ describe('manifest of the package with the background upload (EVM-130 AC7; SR-MO
       `${API_BASE_URL_META} is missing (the upload service needs the API address of the build)`,
     ]);
   });
+
+  it('EVM-130 AC7: a package WITHOUT the upload (no storage hosts at build time) is fine with the API address alone - the session still works', () => {
+    const apiOnly = `<meta-data android:name="${API_BASE_URL_META}" android:value="https://api.example.com" />`;
+    assert.deepEqual(verdict('', apiOnly), []);
+    assert.deepEqual(verdict('', ''), []);
+  });
+
+  it('EVM-130 AC7: the API address of a package without the upload must still be https, and the e2e switch is still refused', () => {
+    /** @param {string} value */
+    const meta = (value) => `<meta-data android:name="${API_BASE_URL_META}" android:value="${value}" />`;
+    for (const api of ['http://api.example.com', 'ftp://api.example.com', '10.0.2.2:3000', '']) {
+      assert.deepEqual(verdict('', meta(api)), [`${API_BASE_URL_META} is not an https address`], api);
+    }
+    const e2e = `<meta-data android:name="${UPLOAD_E2E_CLEARTEXT_META}" android:value="true" />`;
+    assert.equal(
+      verdict('', meta('https://api.example.com') + e2e).some((problem) => problem.startsWith(UPLOAD_E2E_CLEARTEXT_META)),
+      true,
+    );
+  });
+
+  it('EVM-130 AC7: the upload permissions without the job service are still only the allowed ones (no service is not a way to add others)', () => {
+    assert.deepEqual(verdict('<uses-permission android:name="android.permission.CAMERA" />', ''), [
+      'unexpected permission android.permission.CAMERA',
+    ]);
+  });
 });
