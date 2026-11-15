@@ -15,6 +15,7 @@
  * The device and server steps are in device-upload.mjs; the interruptions are the steps `kill-9`, `force-stop`, `reboot` and the airplane mode
  * of the step. What each scenario proves and how to read a failure: docs/qa/EVM-130/plan-i-polecenia.md.
  */
+import { CAMERA_SCENARIOS } from './camera-scenarios.mjs';
 import { SCENARIOS } from './scenarios.mjs';
 
 /** The answer to every part is held this long (ms): ten parts of the big file take about a minute. */
@@ -241,11 +242,11 @@ export const UPLOAD_SCENARIOS = [
 
 /**
  * The scenarios a run takes: without `only` the scenarios of scenarios.mjs; with it the scenarios (those and the upload ones) whose name
- * is, or starts with, one of the given words.
+ * is, or starts with, one of the given words (the upload scenarios and, from EVM-108, the camera ones `camera-`).
  * @param {string[] | null} only
  * @returns {import('./scenarios.mjs').Scenario[]}
  */
 export function selectScenarios(only) {
   if (only === null) return SCENARIOS;
-  return [...SCENARIOS, ...UPLOAD_SCENARIOS].filter((scenario) => only.some((word) => scenario.name.startsWith(word)));
+  return [...SCENARIOS, ...UPLOAD_SCENARIOS, ...CAMERA_SCENARIOS].filter((scenario) => only.some((word) => scenario.name.startsWith(word)));
 }

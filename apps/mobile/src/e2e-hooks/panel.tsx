@@ -14,10 +14,12 @@ import { NO_OVERRIDES, type DeviceOverrides } from '../device-guard/overrides';
 import { LocalDataLostScreen } from '../screens/LocalDataScreens';
 import { loadEviaUpload } from '../../modules/evia-upload/src';
 import { sessionMediaUploads, sessionPorts } from '../session';
+import type { CaptureRequest, CaptureResult } from '../capture/capture-pipeline';
+import { saveSyntheticPicture } from './synthetic-picture';
 import { tokenStore } from '../secure-store';
 import type { SyncControl } from '../sync/types';
 import type { AddMediaResult } from '../upload/media-uploads';
-import type { NewMediaAsset } from '../upload/create-media-asset';
+import { MEDIA_CATEGORIES, type NewMediaAsset } from '../upload/create-media-asset';
 import type { MediaControl, MediaFileStatus } from '../upload/types';
 import { localData, storageE2eSupport, type LocalDataHost, type OpenResult, type UnlockedStore } from '../storage';
 import { Button } from '../ui';
@@ -63,12 +65,15 @@ const LABELS = {
   syncStatus: 'sync: status',
   mediaInject: 'media: inject file',
   mediaStatus: 'media: status',
+  captureBatch: 'media: capture N',
 } as const;
 
 /** EVM-130 (media block): the synthetic file of the scenarios — a work order that never existed, a size in MiB, random content made natively. */
 export const E2E_MEDIA_WORK_ORDER = '30000000-0000-4000-8000-000000000001';
 export const MIB = 1024 * 1024;
 export const E2E_MEDIA_MAX_MIB = 256;
+/** EVM-108 AC7: the most shots of one press of `media: capture N` (the story asks for 30). */
+export const E2E_CAPTURE_MAX = 60;
 
 export interface E2eHooksDeps {
   readonly host: Pick<LocalDataHost, 'openForUser' | 'wipeCompanyData' | 'facts' | 'probe'>;
@@ -86,6 +91,11 @@ export interface E2eHooksDeps {
     readonly inject: (assetId: string, sizeBytes: number, seed: number) => Promise<{ sizeBytes: number; sha256: string } | null>;
     readonly newId: () => string;
   };
+  /**
+   * EVM-108 AC7: one shot through the capture pipeline of the session (the SAME one the camera screen uses) with a synthetic picture of `seed`
+   * written to `cacheDir/Camera/<uuid>.jpg` instead of the picture of `takePictureAsync`; every step after that is the path of a photograph.
+   */
+  readonly capture?: () => { readonly shoot: (request: CaptureRequest, seed: number) => Promise<CaptureResult> };
 }
 
 const realDeps = (): E2eHooksDeps => ({
@@ -104,6 +114,18 @@ const realDeps = (): E2eHooksDeps => ({
       view: ports.media,
       inject: (assetId, sizeBytes, seed) => native?.e2eInjectFile(assetId, sizeBytes, seed) ?? Promise.resolve(null),
       newId: ports.newId,
+    };
+  },
+  capture: () => {
+    const ports = sessionPorts();
+    const uploads = sessionMediaUploads();
+    let seed = 0;
+    const pipeline = uploads?.capturePipeline(() => saveSyntheticPicture(ports.newId(), seed));
+    return {
+      shoot: (request, next) => {
+        seed = next;
+        return pipeline?.capture(request) ?? Promise.resolve({ ok: false, code: 'camera_failed' });
+      },
     };
   },
 });
@@ -311,6 +333,32 @@ export function E2eHooks({ deps: injected }: { deps?: E2eHooksDeps } = {}) {
     await Promise.resolve();
   });
 
+  const [captureCount, setCaptureCount] = useState('1');
+  /**
+   * EVM-108 AC7: N shots through the capture pipeline of the camera (one after another, categories in turn), each with its own synthetic
+   * picture (a different SHA-256). The status line confirms only after the LAST durable save: from then on the app may be killed.
+   */
+  const captureBatch = guarded(async () => {
+    const capture = (get().capture ?? realDeps().capture)?.();
+    if (capture === undefined) {
+      setStatus({ error: 'no_capture' });
+      return;
+    }
+    const n = Math.min(Math.max(Number.parseInt(captureCount, 10) || 1, 1), E2E_CAPTURE_MAX);
+    const base = get().now();
+    let added = 0;
+    for (let i = 0; i < n; i += 1) {
+      const category = MEDIA_CATEGORIES[i % MEDIA_CATEGORIES.length] ?? 'other';
+      const result = await capture.shoot({ workOrderId: E2E_MEDIA_WORK_ORDER, category }, base + i);
+      if (!result.ok) {
+        setStatus({ capture_added: added, error: result.code });
+        return;
+      }
+      added += 1;
+    }
+    setStatus({ capture_added: added });
+  });
+
   const device = (name: string, change: (o: DeviceOverrides) => void) => () => {
     change(deviceOverrides);
     setStatus({ device: name });
@@ -375,6 +423,8 @@ export function E2eHooks({ deps: injected }: { deps?: E2eHooksDeps } = {}) {
         <TextInput testID="e2e-media-mib" value={mediaMib} onChangeText={setMediaMib} keyboardType="number-pad" style={input} />
         <Button label={LABELS.mediaInject} onPress={mediaInject} testID="e2e-media-inject" />
         <Button label={LABELS.mediaStatus} onPress={mediaStatus} testID="e2e-media-status" />
+        <TextInput testID="e2e-capture-count" value={captureCount} onChangeText={setCaptureCount} keyboardType="number-pad" style={input} />
+        <Button label={LABELS.captureBatch} onPress={captureBatch} testID="e2e-capture-batch" />
         <Button
           label={LABELS.lockOff}
           onPress={device('lock_off', (o) => {

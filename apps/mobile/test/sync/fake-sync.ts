@@ -14,6 +14,7 @@ import {
   type SyncPauseReason,
   type SyncRuntime,
   type SyncSnapshot,
+  type OrderNumber,
   type TargetOption,
 } from '../../src/sync/types';
 
@@ -163,5 +164,11 @@ export class FakeSync implements SyncRuntime {
   retargetOptions(exclude: string | null): Promise<readonly TargetOption[]> {
     this.calls.push(`options:${String(exclude)}`);
     return Promise.resolve(this.targets);
+  }
+  /** What `orderNumbers` answers: derived from `targets` as `{id, number}` only (EVM-108; a title never passes through here). */
+  readonly numberRequests: number[] = [];
+  orderNumbers(): Promise<readonly OrderNumber[]> {
+    this.numberRequests.push(this.numberRequests.length);
+    return Promise.resolve(this.targets.map((target) => ({ id: target.id, number: target.number })));
   }
 }

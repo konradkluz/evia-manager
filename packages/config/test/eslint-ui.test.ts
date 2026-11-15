@@ -278,3 +278,100 @@ describe('mobile storage imports (EVM-093 AC1; SR-MOB-01, MASVS-STORAGE-1)', { t
       expect(driverText, banned).toContain(banned);
   });
 });
+
+// the last test starts a Node process with the real ESLint config of apps/mobile (seconds on a loaded CI runner), like the storage block above
+describe('camera lint rules (EVM-108 AC8; SR-FILE-08, SR-MOB-02, SR-MOB-12, CWE-359, CWE-927)', { timeout: 30_000 }, () => {
+  /** Every banned snippet reports exactly the camera rule (its message names EVM-108), whichever file of src/ it is in. */
+  const banned = (codes: string[], files = ['src/screens/orders.js', 'src/api/health.js', 'src/storage/expo-sqlite-driver.js']): void => {
+    for (const file of files) {
+      for (const code of codes) {
+        const messages = lintMobile(code, file);
+        expect(messages.length, `${file}: ${code}`).toBeGreaterThan(0);
+        expect(
+          messages.some((message) => message.includes('EVM-108')),
+          `${file}: ${code}`,
+        ).toBe(true);
+      }
+    }
+  };
+
+  it('EVM-108 AC8 the libraries that read the gallery, the position or start the camera of another app are not importable (also in the API client and the driver)', () => {
+    banned([
+      "import * as ImagePicker from 'expo-image-picker';",
+      "import { getAssetsAsync } from 'expo-media-library';",
+      "import * as Location from 'expo-location';",
+      "import { startActivityAsync } from 'expo-intent-launcher';",
+      "export { x } from 'expo-image-picker';",
+      "import { y } from 'expo-media-library/next';",
+    ]);
+  });
+
+  it('EVM-108 AC8 the same libraries are not loadable dynamically either', () => {
+    banned([
+      "const picker = await import('expo-image-picker');",
+      "const picker = require('expo-media-library');",
+      "const Location = require('expo-location');",
+    ]);
+  });
+
+  it('EVM-108 AC8 the camera of another app (intent actions) and the public gallery are not named in the TypeScript code', () => {
+    banned([
+      "const action = 'android.media.action.IMAGE_CAPTURE';",
+      "const action = 'android.media.action.VIDEO_CAPTURE';",
+      'const action = MediaStore.ACTION_IMAGE_CAPTURE;',
+      'const action = Intent.ACTION_VIDEO_CAPTURE;',
+      "const target = 'MediaStore';",
+      'const text = `intent ACTION_IMAGE_CAPTURE`;',
+    ]);
+  });
+
+  it('EVM-108 AC8 the scanners of Google and of codes are not used: their props and methods are banned', () => {
+    banned([
+      'const a = <CameraView onBarcodeScanned={f} />;',
+      'const a = <CameraView barcodeScannerSettings={{ barcodeTypes: [] }} />;',
+      'CameraView.launchScanner();',
+      'await Camera.scanFromURLAsync(uri);',
+      'const options = { onBarcodeScanned: f };',
+      'const options = { barcodeScannerSettings: {} };',
+    ]);
+  });
+
+  it('EVM-108 AC8 takePictureAsync takes no position or copy of the picture: additionalExif, exif: true and base64 are banned in its options', () => {
+    banned([
+      'await camera.takePictureAsync({ additionalExif: { GPSLatitude: 1 } });',
+      'await camera.takePictureAsync({ exif: true });',
+      'await camera.takePictureAsync({ quality: 0.8, exif: true });',
+      'await camera.takePictureAsync({ base64: true });',
+      'await ref.current?.takePictureAsync({ base64: false });',
+    ]);
+  });
+
+  it('EVM-108 AC8 the camera itself, exif: false and unrelated names are allowed', () => {
+    for (const code of [
+      "import { CameraView, useCameraPermissions } from 'expo-camera';",
+      'const a = <CameraView mode="picture" active={active} ref={ref} />;',
+      'await camera.takePictureAsync({ quality: 0.8, exif: false, skipProcessing: false });',
+      'const exif = true;',
+      'const view = { exif: true };',
+      'const text = "media store";',
+    ]) {
+      expect(lintMobile(code), code).toEqual([]);
+    }
+  });
+
+  it('EVM-108 AC8 the real eslint.config.js of apps/mobile applies the camera bans (no local override of the import list)', () => {
+    const script = [
+      "import { ESLint } from 'eslint';",
+      'const eslint = new ESLint({ cwd: process.cwd() });',
+      "const rules = async (file) => JSON.stringify((await eslint.calculateConfigForFile(file)).rules['no-restricted-imports']);",
+      "process.stdout.write(JSON.stringify({ screen: await rules('src/screens/Shell.tsx'), api: await rules('src/api/health.ts'), driver: await rules('src/storage/expo-sqlite-driver.ts') }));",
+    ].join(';');
+    const output = JSON.parse(
+      execFileSync(process.execPath, ['--input-type=module', '-e', script], { cwd: MOBILE_APP_DIR, encoding: 'utf8' }),
+    ) as Record<string, string>;
+    for (const where of ['screen', 'api', 'driver']) {
+      for (const name of ['expo-image-picker', 'expo-media-library', 'expo-location', 'expo-intent-launcher'])
+        expect(output[where], `${where}: ${name}`).toContain(name);
+    }
+  });
+});

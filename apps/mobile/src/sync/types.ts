@@ -115,6 +115,12 @@ export interface TargetOption {
   readonly title: string;
 }
 
+/** What the picker of the order for the camera may know in the hidden-data mode (EVM-108 AC5): an id and a number, never a title. */
+export interface OrderNumber {
+  readonly id: string;
+  readonly number: string;
+}
+
 export interface SyncControl {
   subscribe: (listener: () => void) => () => void;
   getSnapshot: () => SyncSnapshot;
@@ -165,6 +171,11 @@ export interface SyncControl {
   copyText(id: string): Promise<string | null>;
   /** Work orders of the local replica that a note may be moved to (visible data only). */
   retargetOptions(excludeWorkOrderId: string | null): Promise<readonly TargetOption[]>;
+  /**
+   * The work orders of the replica as `{id, number}` ONLY (EVM-108 AC5, security 17): the title does not leave the data layer, so the picker of
+   * the order for the camera in the hidden-data mode cannot show it. Safe in both modes.
+   */
+  orderNumbers(): Promise<readonly OrderNumber[]>;
 }
 
 /** What the composition gives the session root: the control plus the lifecycle (screens use `SyncControl` only). */

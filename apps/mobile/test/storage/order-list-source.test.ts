@@ -191,3 +191,26 @@ describe('readOrderListSource (EVM-103)', () => {
     removeDisk(fresh.engine.disk);
   });
 });
+
+describe('listOrderNumbers (EVM-108 AC5, security 17)', () => {
+  it('EVM-108 AC5: the read selects the id and the number only - no title, no customer, no place; the title never leaves the database', async () => {
+    const numbers = await store.listOrderNumbers(200);
+    expect(numbers).toEqual([
+      { id: 'o1', number: 'ZL-o1' },
+      { id: 'o2', number: 'ZL-2' },
+    ]);
+    const sql = engine.statements.filter((statement) => /^SELECT/.test(statement)).join('\n');
+    expect(sql).not.toMatch(/(?<!json_extract\()\be\.fields\b/);
+    expect(sql).toContain("json_extract(e.fields, '$.number')");
+    expect(sql).not.toMatch(/title|displayName|phone|street/i);
+    expect(JSON.stringify(numbers)).not.toContain(MARKER);
+  });
+
+  it('EVM-108 AC5: an order without a number reads as an empty one, and the limit is bounded', async () => {
+    await apply([upsert('work_order', 'o3', { title: `${MARKER}-title`, status: 'in_progress' })]);
+    expect(await store.listOrderNumbers(1)).toHaveLength(1);
+    expect(await store.listOrderNumbers(10_000)).toHaveLength(3);
+    expect(await store.listOrderNumbers(0)).toHaveLength(1);
+    expect((await store.listOrderNumbers(200)).find((row) => row.id === 'o3')).toEqual({ id: 'o3', number: '' });
+  });
+});

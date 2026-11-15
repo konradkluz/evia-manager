@@ -1,0 +1,63 @@
+# EVM-108 AC5: the second way in. The sheet "Dodaj" of the list has "Zdjęcie lub film" (no "Zdjęcie / Film" switch in version 1); it leads to the
+# choice of the order - the order opened a moment ago under "Ostatnio otwierane", a search by number (and title) that narrows the list - and
+# then to the camera of THAT order (its number is in the bar).
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+# an order opened in this process is "recent"
+- tapOn:
+    id: 'order-row-30000000-0000-4000-8000-000000000001'
+- extendedWaitUntil:
+    visible: 'Zlecenie testowe 1'
+    timeout: 10000
+- tapOn:
+    id: 'order-detail-back'
+- extendedWaitUntil:
+    visible: 'ZL-E2E-2'
+    timeout: 10000
+- tapOn:
+    id: 'orders-add'
+- extendedWaitUntil:
+    visible:
+      id: 'add-sheet'
+    timeout: 10000
+- assertVisible: 'Zdjęcie lub film'
+- takeScreenshot: m05-add-sheet
+- tapOn:
+    id: 'add-media'
+- extendedWaitUntil:
+    visible: 'Do którego zlecenia\?'
+    timeout: 10000
+- assertVisible:
+    id: 'media-picker-recent'
+- assertVisible: 'Ostatnio otwierane'
+- takeScreenshot: m05-media-picker
+# the search by number narrows the list to the other order
+- tapOn:
+    id: 'media-picker-search'
+- inputText: 'E2E-2'
+- hideKeyboard
+- assertVisible: 'ZL-E2E-2 · .*'
+- assertNotVisible: 'ZL-E2E-1 · .*'
+- tapOn:
+    id: 'media-picker-30000000-0000-4000-8000-000000000002'
+- extendedWaitUntil:
+    visible:
+      id: 'camera'
+    timeout: 20000
+- extendedWaitUntil:
+    notVisible: 'Uruchamianie aparatu…'
+    timeout: 30000
+# the bar of the camera names the chosen order
+- assertVisible: 'ZL-E2E-2'
+- takeScreenshot: m06-camera-from-sheet
+- tapOn:
+    id: 'camera-close'
+- extendedWaitUntil:
+    visible:
+      id: 'orders-add'
+    timeout: 20000

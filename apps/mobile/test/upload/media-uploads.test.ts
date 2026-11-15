@@ -97,6 +97,9 @@ class FakeNativeUpload implements NativeUpload {
     return this.target;
   };
   e2eInjectFile: NativeUpload['e2eInjectFile'] = () => Promise.resolve(null);
+  importOriginal: NativeUpload['importOriginal'] = () => Promise.resolve('unavailable');
+  sweepOriginals: NativeUpload['sweepOriginals'] = () => Promise.resolve(0);
+  cancelUpload: NativeUpload['cancelUpload'] = () => Promise.resolve(true);
   addListener: NativeUpload['addListener'] = (name, listener) => {
     const list = this.listeners.get(name) ?? [];
     list.push(listener);
@@ -362,7 +365,7 @@ describe('adding a file and arming it after applied (EVM-130 AC1; architect 7)',
     expect(await states(r)).toEqual(['01:needs_attention', '02:needs_attention', '03:applied']);
     expect((await r.store.media.list()).map((row) => row.lastCode)).toEqual(['missing_original', 'invalid', null]);
     expect(r.uploads.getSnapshot().files.map((f) => [f.status, f.actions])).toEqual([
-      ['attention', ['retry']],
+      ['attention', ['retry', 'discard']],
       ['attention', ['retry']],
       ['waiting', []],
     ]);
@@ -502,10 +505,10 @@ describe('the state of a file in the view (EVM-130 AC4)', () => {
     // the event is handled asynchronously: wait for the effect (not a fixed time - a loaded machine is slower)
     for (let waited = 0; waited < 3000 && r.uploads.getSnapshot().files[0]?.status !== 'attention'; waited += 20)
       await new Promise((resolve) => setTimeout(resolve, 20));
-    expect(r.uploads.getSnapshot().files).toMatchObject([{ status: 'attention', code: 'id_conflict', actions: ['retry'] }]);
+    expect(r.uploads.getSnapshot().files).toMatchObject([{ status: 'attention', code: 'id_conflict', actions: ['retry', 'discard'] }]);
     await r.store.media.setState(asset(1), 'needs_attention', 'quarantined', 9);
     await r.uploads.refresh();
-    expect(r.uploads.getSnapshot().files).toMatchObject([{ status: 'attention', code: 'quarantined', actions: [] }]);
+    expect(r.uploads.getSnapshot().files).toMatchObject([{ status: 'attention', code: 'quarantined', actions: ['discard'] }]);
   });
 
   it('EVM-130 AC4: a file the module finished while no JavaScript listened (a lost event) is found from the status', async () => {
@@ -613,7 +616,7 @@ describe('the state of a file in the view (EVM-130 AC4)', () => {
     await serverState(r, 1, 'quarantined');
     await r.uploads.reconcile();
     expect(await states(r)).toEqual(['01:needs_attention']);
-    expect(r.uploads.getSnapshot().files).toMatchObject([{ status: 'attention', code: 'quarantined', actions: [] }]);
+    expect(r.uploads.getSnapshot().files).toMatchObject([{ status: 'attention', code: 'quarantined', actions: ['discard'] }]);
     expect(r.native.completed).toEqual([]);
     expect(r.native.deleted).toEqual([]);
   });
@@ -759,6 +762,132 @@ describe('"Ponów" (EVM-130 AC4)', () => {
     expect(await refusing.uploads.retry(asset(1))).toBe(false);
     refusing.state.signedIn = false;
     expect(await refusing.uploads.retry(asset(1))).toBe(false);
+  });
+});
+
+describe('"Usuń z telefonu" (EVM-108 AC6, security 19)', () => {
+  const attention = async (code: string, state: 'failed' | 'needs_attention' = 'needs_attention'): Promise<Rig> => {
+    const r = await rig();
+    hold(r, 1);
+    await r.uploads.add(photo(1));
+    await apply(r, 1);
+    await r.store.media.setState(asset(1), state, code, 5);
+    await r.uploads.refresh();
+    return r;
+  };
+
+  it.each(['quarantined', 'id_conflict', 'missing_original'])(
+    'EVM-108 AC6: a file in "Wymaga uwagi" with the code %s offers "discard" (and keeps "retry" where EVM-130 had it)',
+    async (code) => {
+      const r = await attention(code);
+      const [view] = r.uploads.getSnapshot().files;
+      expect(view?.actions).toEqual(code === 'quarantined' ? ['discard'] : ['retry', 'discard']);
+    },
+  );
+
+  it('EVM-108 AC6: a file that can only be retried ("Wymaga uwagi" with another code, "Ponów" after a checksum error) has no "discard"', async () => {
+    expect((await attention('unknown')).uploads.getSnapshot().files[0]?.actions).toEqual(['retry']);
+    expect((await attention('checksum_mismatch', 'failed')).uploads.getSnapshot().files[0]?.actions).toEqual(['retry']);
+  });
+
+  it('EVM-108 AC6 (security 19): the native file goes FIRST (the job and the original), the row after; nothing of the file stays', async () => {
+    const r = await attention('quarantined');
+    const order: string[] = [];
+    r.native.cancelUpload = (assetId, deleteOriginal) => {
+      order.push(`native:${assetId}:${String(deleteOriginal)}`);
+      return Promise.resolve(true);
+    };
+    const original = r.store.media.discard.bind(r.store.media);
+    r.store.media.discard = async (assetId) => {
+      order.push('row');
+      await original(assetId);
+    };
+    expect(await r.uploads.discard(asset(1))).toBe(true);
+    expect(order).toEqual([`native:${asset(1)}:true`, 'row']);
+    expect(await r.store.media.list()).toEqual([]);
+    expect(r.uploads.getSnapshot().files).toEqual([]);
+  });
+
+  it('EVM-108 AC6 (security 19): when the native file cannot be removed (or the module throws) the row STAYS and the answer is false', async () => {
+    const r = await attention('quarantined');
+    r.native.cancelUpload = () => Promise.resolve(false);
+    expect(await r.uploads.discard(asset(1))).toBe(false);
+    expect(await states(r)).toEqual(['01:needs_attention']);
+    r.native.cancelUpload = () => Promise.reject(new Error('synthetic'));
+    expect(await r.uploads.discard(asset(1))).toBe(false);
+    expect(await states(r)).toEqual(['01:needs_attention']);
+    expect(r.uploads.getSnapshot().files).toHaveLength(1);
+  });
+
+  it('EVM-108 AC6: a failing row removal after the native file is gone answers false (the next try finds nothing to remove natively and ends)', async () => {
+    const r = await attention('missing_original');
+    r.store.media.discard = () => Promise.reject(new Error('synthetic'));
+    expect(await r.uploads.discard(asset(1))).toBe(false);
+    expect(await states(r)).toEqual(['01:needs_attention']);
+  });
+
+  it('EVM-108 AC6: only a file of "Wymaga uwagi" that cannot be retried is discarded - not a waiting one, not one with "Ponów" only, not an unknown id, not without a session', async () => {
+    const waiting = await rig();
+    hold(waiting, 1);
+    await waiting.uploads.add(photo(1));
+    const cancelled: string[] = [];
+    waiting.native.cancelUpload = (assetId) => {
+      cancelled.push(assetId);
+      return Promise.resolve(true);
+    };
+    expect(await waiting.uploads.discard(asset(1))).toBe(false);
+    expect(await waiting.uploads.discard(asset(404))).toBe(false);
+    const retryable = await attention('unknown');
+    retryable.native.cancelUpload = (assetId) => {
+      cancelled.push(assetId);
+      return Promise.resolve(true);
+    };
+    expect(await retryable.uploads.discard(asset(1))).toBe(false);
+    const failedFile = await attention('checksum_mismatch', 'failed');
+    expect(await failedFile.uploads.discard(asset(1))).toBe(false);
+    const gone = await attention('quarantined');
+    gone.state.signedIn = false;
+    expect(await gone.uploads.discard(asset(1))).toBe(false);
+    expect(cancelled).toEqual([]);
+  });
+});
+
+describe('what a file in the view tells (EVM-108 AC6)', () => {
+  it('EVM-108 AC6: the category, the type and the time of the capture come from the row; a row without a category has none, an unknown code is "unknown", a video is a video', async () => {
+    const r = await rig();
+    await r.store.media.register({
+      assetId: asset(1),
+      mutationId: asset(11),
+      workOrderId: WO,
+      ownerUserId: USER,
+      fileName: asset(1),
+      sizeBytes: 10,
+      sha256: SHA,
+      mime: 'image/jpeg',
+      createdAt: 1_700_000_000_000,
+      category: 'defect',
+    });
+    await r.store.media.register({
+      assetId: asset(2),
+      mutationId: asset(12),
+      workOrderId: WO,
+      ownerUserId: USER,
+      fileName: asset(2),
+      sizeBytes: 10,
+      sha256: SHA,
+      mime: 'video/mp4',
+      createdAt: 1_700_000_001_000,
+    });
+    await r.db.transaction((tx) => tx.run("UPDATE media_files SET category = 'from_the_future' WHERE asset_id = ?", [asset(2)]));
+    await r.uploads.refresh();
+    expect(r.uploads.getSnapshot().files).toMatchObject([
+      { assetId: asset(1), category: 'defect', mediaType: 'photo', capturedAt: 1_700_000_000_000 },
+      { assetId: asset(2), category: 'unknown', mediaType: 'video', capturedAt: 1_700_000_001_000 },
+    ]);
+    // a row that has no category at all (before v3, the hook of the e2e variant)
+    await r.db.transaction((tx) => tx.run('UPDATE media_files SET category = NULL WHERE asset_id = ?', [asset(2)]));
+    await r.uploads.refresh();
+    expect(r.uploads.getSnapshot().files[1]?.category).toBeNull();
   });
 });
 

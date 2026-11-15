@@ -25,6 +25,10 @@ export interface NativeState {
   accessToken: string;
   contact: LastContact | null;
   signOutHangs: Promise<void> | null;
+  /** The answers of `clearCaptureCache`, one per call (the last one repeats); `'throws'` rejects. */
+  cacheAnswers: (boolean | 'throws')[];
+  /** How many times `clearCaptureCache` was called (kept apart from `calls`: it is not a call about the session). */
+  cacheCalls: number;
 }
 
 export function newNativeState(): NativeState {
@@ -40,6 +44,8 @@ export function newNativeState(): NativeState {
     accessToken: token('access-1'),
     contact: null,
     signOutHangs: null,
+    cacheAnswers: [true],
+    cacheCalls: 0,
   };
 }
 
@@ -183,6 +189,7 @@ export class FakeHost {
         readLastSuccess: () => Promise.resolve(null),
         writeLastSuccess: () => Promise.resolve(),
         listWorkOrders: () => Promise.resolve([]),
+        listOrderNumbers: () => Promise.resolve([]),
         readOrderListSource: () => Promise.resolve({ orders: [], customers: [], sites: [], stages: [] }),
         readOrderDetailSource: () => Promise.resolve(null),
         readTemplates: () => Promise.resolve(null),
@@ -195,6 +202,7 @@ export class FakeHost {
         list: () => Promise.resolve([]),
         setState: () => Promise.resolve(),
         remove: () => Promise.resolve(),
+        discard: () => Promise.resolve(),
       },
       takeSettled: () => Promise.resolve([]),
       unsentItemCount: async () => {
@@ -377,6 +385,12 @@ export class FakeNative implements NativeSession {
   clearWipeMarkerAfterLogin: NativeSession['clearWipeMarkerAfterLogin'] = () => {
     this.#log('clearWipeMarkerAfterLogin');
     return Promise.resolve(true);
+  };
+  clearCaptureCache: NativeSession['clearCaptureCache'] = () => {
+    this.state.cacheCalls += 1;
+    const answers = this.state.cacheAnswers;
+    const answer = (answers.length > 1 ? answers.shift() : answers[0]) ?? true;
+    return answer === 'throws' ? Promise.reject(new Error('synthetic')) : Promise.resolve(answer);
   };
   lastContact: NativeSession['lastContact'] = () => {
     this.#log('lastContact');

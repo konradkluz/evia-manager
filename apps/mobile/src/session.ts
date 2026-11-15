@@ -35,6 +35,8 @@ import { localData, randomSource } from './storage';
 import { createHttpSyncTransport } from './sync/http-transport';
 import { SyncHost } from './sync/sync-host';
 import { SyncService } from './sync/sync-service';
+import { CameraRequests } from './capture/camera-requests';
+import { expoDiskSpace } from './capture/disk-space';
 import { MediaUploads } from './upload/media-uploads';
 import { nativeUploadOf } from './upload/native-upload';
 import { reconcileOnSyncChange } from './upload/reconcile-trigger';
@@ -66,6 +68,8 @@ const NO_SYNC_TRANSPORT = {
 };
 
 let makeId: (() => string) | undefined;
+/** The ids of the session: UUIDv7 from the CSPRNG of the storage module, never a non-cryptographic generator (SR-SYNC-03). */
+const newId = (): string => (makeId ??= createUuidV7({ now: Date.now }, randomSource()))();
 /** The queue of files of the session, for the e2e hook that adds a synthetic file (`src/e2e-hooks/panel.tsx`); screens use `ports.media`. */
 let mediaUploads: MediaUploads | null = null;
 
@@ -158,6 +162,8 @@ export function createSessionPorts(
     onNativeEvent: () => {
       void owner.mergeNativeContact();
     },
+    // the camera (EVM-108): the free space of the phone and the ids of the session (UUIDv7, CSPRNG)
+    capture: { disk: expoDiskSpace, newId },
   });
   media.start();
   mediaUploads = media;
@@ -192,9 +198,9 @@ export function createSessionPorts(
     guard,
     companyWipe,
     screenLockOk: () => deviceLock.isDeviceSecure().catch(() => false),
-    openAddTarget: () => undefined,
     // the ids of entries written on the phone: UUIDv7 from the CSPRNG of the storage module, never a non-cryptographic generator (SR-SYNC-03)
-    newId: () => (makeId ??= createUuidV7({ now: Date.now }, randomSource()))(),
+    newId,
+    camera: new CameraRequests({ orders: () => sync.orderList(false) }),
     sync,
     media,
     copyToClipboard: (text) => clipboard.copy(text),
@@ -209,7 +215,7 @@ export function createSessionPorts(
 }
 
 /** The queue of files of the process (for the e2e hook only; `null` before the session ports exist). */
-export function sessionMediaUploads(): Pick<MediaUploads, 'add'> | null {
+export function sessionMediaUploads(): Pick<MediaUploads, 'add' | 'capturePipeline'> | null {
   sessionPorts();
   return mediaUploads;
 }

@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Text, View } from 'react-native';
+import { Text } from 'react-native';
 import type { TargetOption } from '../sync/types';
 import { AlertDialog, Button } from '../ui';
-import { color, space, text } from '../ui/theme';
+import { color, text } from '../ui/theme';
 import { useSession } from './session-context';
+import { TargetOptionList } from './TargetOptionList';
 
 /** The orders of the dialog are limited like in the move of a rejected entry (a list, not a search; the local search is M-02). */
 const MAX_OPTIONS = 20;
@@ -44,20 +45,7 @@ export function EntryTargetPicker({ onPick, onCancel }: { onPick: (orderId: stri
           {t('entryForm.picker.empty')}
         </Text>
       ) : (
-        <View style={{ rowGap: space.stack.xs }}>
-          {options.slice(0, MAX_OPTIONS).map((option) => (
-            <Button
-              key={option.id}
-              variant="tertiary"
-              label={t('entryForm.picker.option', { number: option.number, title: option.title })}
-              onPress={() => {
-                onPick(option.id);
-              }}
-              fullWidth
-              testID={`entry-picker-${option.id}`}
-            />
-          ))}
-        </View>
+        <TargetOptionList options={options.slice(0, MAX_OPTIONS)} onPick={onPick} testIDPrefix="entry-picker" />
       )}
     </AlertDialog>
   );

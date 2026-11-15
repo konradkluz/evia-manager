@@ -164,6 +164,8 @@ export async function runE2e({ skipBuild, port, only = null }, host) {
     backupFile: join(reportDirectory, 'evm093-backup.ab'),
     releaseApk: release.signed,
     e2eApk: apk,
+    // EVM-108: what a step keeps for a later step of the run (the baseline of the gallery)
+    memory: new Map(),
     // EVM-130: the control port of the upload part of the scenario server (host only, loopback); absent when the server has none
     ...(stub.uploadControlPort === undefined || host.httpJson === undefined
       ? {}

@@ -1,0 +1,35 @@
+# EVM-108 AC3 AC5 (preparation of every camera scenario): a fresh install WITHOUT the permission for the camera (Maestro grants every permission
+# by default; here the camera is the one left out) signs in against the scenario server (its upload part serves the sign-in of these scenarios);
+# the first download ends on the list. Then the bottom bar of the details of an order: the main action "Zrób zdjęcie" and the second one
+# "Dodaj wpis" are there all the time (AC5).
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    clearState: true
+    permissions:
+      all: allow
+      camera: unset
+- runFlow: common/sign-in.yaml
+- extendedWaitUntil:
+    visible: 'ZL-E2E-1'
+    timeout: 60000
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- tapOn:
+    id: 'order-row-30000000-0000-4000-8000-000000000001'
+- extendedWaitUntil:
+    visible: 'Zlecenie testowe 1'
+    timeout: 10000
+- assertVisible:
+    id: 'order-detail-take-photo'
+- assertVisible: 'Zrób zdjęcie'
+- assertVisible:
+    id: 'order-detail-add-entry'
+- assertVisible: 'Dodaj wpis'
+- takeScreenshot: m03-bottom-bar-camera
+- tapOn:
+    id: 'order-detail-back'
+- extendedWaitUntil:
+    visible: 'ZL-E2E-2'
+    timeout: 10000

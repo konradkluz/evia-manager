@@ -14,6 +14,8 @@ class InvalidIdentifierException : IllegalArgumentException("invalid identifier"
  */
 class UploadFiles(
     val root: File,
+    /** Where the camera leaves a picture (`cacheDir/Camera` of the app): read by the import, emptied by the wipe and at sign-out. */
+    val cameraDirectory: File = File(root, "camera-cache"),
     private val canonicalize: (File) -> File = { it.canonicalFile },
 ) {
     val jobsDirectory = File(root, "jobs")

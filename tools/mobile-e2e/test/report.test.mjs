@@ -77,6 +77,29 @@ describe('report of the smoke test (EVM-009 AC4; ADR-0015)', () => {
     assert.match(report, /Logcat of the app process: not collected/);
   });
 
+  it('EVM-108 AC1: a device step that could not be performed is shown as NOT PERFORMED and counted, never as ok', () => {
+    const report = buildReport(
+      evidence({
+        results: [
+          {
+            scenario: 'camera-capture',
+            flow: '82-camera-capture.yaml',
+            status: 'passed',
+            seconds: 1,
+            checks: [
+              { action: 'original-exif-clean:2', ok: true, skipped: true, detail: 'NOT PERFORMED: the emulator reports no back camera' },
+              { action: 'gallery-unchanged', ok: true, detail: 'unchanged' },
+            ],
+          },
+        ],
+      }),
+    );
+    assert.match(report, /\| 82-camera-capture\.yaml \| original-exif-clean:2 \| NOT PERFORMED \| NOT PERFORMED: the emulator/);
+    assert.match(report, /\| gallery-unchanged \| ok \|/);
+    assert.match(report, /Device steps NOT PERFORMED \(no evidence either way\): 1/);
+    assert.doesNotMatch(buildReport(evidence()), /NOT PERFORMED/);
+  });
+
   it('EVM-009 AC4: green means every flow passed, the headers were sent and the log of the app is clean', () => {
     assert.equal(isGreen(evidence()), true);
     assert.equal(isGreen(evidence({ logcat: null })), true);

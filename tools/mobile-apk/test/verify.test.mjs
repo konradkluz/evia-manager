@@ -186,3 +186,44 @@ describe('verification of the built APK (EVM-009 AC5, AC6)', () => {
     assert.ok(empty.problems.includes('application id of the package is not pl.eviacharge.manager'));
   });
 });
+
+describe('verification of a package with the camera (EVM-108 AC8; SR-MOB-12, SR-SUPPLY-06)', () => {
+  const MANIFEST = read('manifest-print.txt');
+  const withCamera = MANIFEST.replace('</manifest>', '<uses-permission android:name="android.permission.CAMERA" /></manifest>');
+
+  it('EVM-108 AC8: a package with CAMERA, CameraX and nothing of Google passes', () => {
+    const { host } = analyzer({
+      'manifest print app.apk': withCamera,
+      'dex packages --defined-only app.apk': `${DEX_PACKAGES}P d 1 1 10 androidx.camera.core\nP d 1 1 10 expo.modules.camera\n`,
+    });
+    assert.deepEqual(verifyApk(OPTIONS, host).problems, []);
+  });
+
+  it('EVM-108 AC8: ML Kit in the package is found three ways at once: the manifest meta-data, the DEX package and the version marker', () => {
+    const { host } = analyzer({
+      'manifest print app.apk': withCamera.replace(
+        '</application>',
+        '<meta-data android:name="com.google.mlkit.vision.DEPENDENCIES" android:value="barcode_ui" /></application>',
+      ),
+      'dex packages --defined-only app.apk': `${DEX_PACKAGES}P d 1 1 10 com.google.mlkit.vision.barcode\n`,
+      'files list app.apk': `${read('files-list.txt')}\n/META-INF/com.google.mlkit_barcode-scanning.version\n/assets/index.android.bundle\n/assets/app.config\n`,
+    });
+    assert.deepEqual(verifyApk(OPTIONS, host).problems, [
+      'forbidden file /META-INF/com.google.mlkit_barcode-scanning.version',
+      'telemetry: meta-data com.google.mlkit.vision.DEPENDENCIES configures a telemetry, analytics or advertising SDK',
+      'telemetry: DEX contains the package com.google.mlkit of a telemetry, analytics or advertising SDK',
+    ]);
+  });
+
+  it('EVM-108 AC8: the microphone in the manifest of the package is refused', () => {
+    const { host } = analyzer({
+      'manifest print app.apk': withCamera.replace(
+        '</manifest>',
+        '<uses-permission android:name="android.permission.RECORD_AUDIO" /></manifest>',
+      ),
+    });
+    assert.deepEqual(verifyApk(OPTIONS, host).problems, [
+      'manifest: forbidden permission android.permission.RECORD_AUDIO (the microphone is requested from EVM-110 only)',
+    ]);
+  });
+});

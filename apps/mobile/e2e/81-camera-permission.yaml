@@ -1,0 +1,55 @@
+# EVM-108 AC3: no permission for the camera (tools/mobile-e2e revokes it first). "Zrób zdjęcie" shows the screen "Aparat do zdjęć z prac" with
+# "bez zapisu w galerii, bez lokalizacji", "Zezwól na dostęp do aparatu" and "Nie teraz"; the refusal in the dialog of the system leaves the
+# same screen (nothing else is asked); "Nie teraz" goes back to the order and the Queue has nothing new. The refusal for good and the return
+# from the settings are not automated (manual, EVM-112); tools/mobile-e2e then proves that the app holds no other permission.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+    # without this list Maestro allows every permission again at the launch and the screen of the consent would never show
+    permissions:
+      camera: unset
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- tapOn:
+    id: 'order-row-30000000-0000-4000-8000-000000000001'
+- extendedWaitUntil:
+    visible: 'Zlecenie testowe 1'
+    timeout: 10000
+- tapOn:
+    id: 'order-detail-take-photo'
+- extendedWaitUntil:
+    visible: 'Aparat do zdjęć z prac'
+    timeout: 20000
+- assertVisible: 'Zdjęcia zapisujemy tylko w aplikacji: bez zapisu w galerii, bez lokalizacji\.'
+- assertVisible: 'Zezwól na dostęp do aparatu'
+- assertVisible: 'Nie teraz'
+- takeScreenshot: m06-camera-permission
+- tapOn:
+    id: 'camera-allow'
+# the dialog of the system (the permission controller of AOSP or of Google): the button that refuses
+- tapOn:
+    id: '.*permission_deny_button'
+- extendedWaitUntil:
+    visible: 'Aparat do zdjęć z prac'
+    timeout: 10000
+- assertVisible:
+    id: 'camera-allow'
+- assertNotVisible:
+    id: 'camera-loading'
+- takeScreenshot: m06-camera-permission-refused
+- tapOn:
+    id: 'camera-later'
+- extendedWaitUntil:
+    visible: 'Zlecenie testowe 1'
+    timeout: 10000
+- assertVisible:
+    id: 'order-detail-take-photo'
+- tapOn:
+    id: 'order-detail-back'
+- tapOn:
+    id: 'nav-queue'
+- extendedWaitUntil:
+    visible: 'Nic nie czeka na wysłanie\.'
+    timeout: 10000

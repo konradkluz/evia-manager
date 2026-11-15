@@ -44,10 +44,11 @@ const NEWLINE = /\r?\n/;
  *   adb: (...args: string[]) => Outcome,
  *   sleep: (ms: number) => Promise<void>,
  *   uploadControl?: (method: string, path: string, body?: unknown) => Promise<ControlAnswer | null>,
- * }} UploadContext
- * @typedef {{ ok: boolean, detail: string }} Judgement
+ *   memory?: Map<string, unknown>,
+ * }} UploadContext `memory`: what a step keeps for a later step of the same run (EVM-108: the baseline of the gallery)
+ * @typedef {{ ok: boolean, detail: string, skipped?: boolean }} Judgement
  * @typedef {{
- *   state: string, objects: number, sha256: string | null, declaredSize: number | null, sessions: number, activeParts: number, partCount: number | null,
+ *   workOrderId?: string, state: string, objects: number, sha256: string | null, declaredSize: number | null, sessions: number, activeParts: number, partCount: number | null,
  * }} AssetPoint
  * @typedef {{
  *   assets: Record<string, AssetPoint>,
@@ -343,7 +344,7 @@ async function control(context, method, path, body) {
 }
 
 /** @param {UploadContext} context @returns {Promise<Checkpoint | null>} */
-async function checkpointOf(context) {
+export async function checkpointOf(context) {
   const answer = await control(context, 'GET', '/control/checkpoint');
   return answer === null || answer.status !== 200 ? null : readCheckpoint(answer.body);
 }
@@ -353,7 +354,7 @@ async function checkpointOf(context) {
  * @param {UploadContext} context @param {string[]} assetIds
  * @returns {Record<string, string | null>}
  */
-function originalsOnDevice(context, assetIds) {
+export function originalsOnDevice(context, assetIds) {
   /** @type {Record<string, string | null>} */
   const digests = {};
   for (const id of assetIds) {
@@ -372,7 +373,7 @@ function originalsOnDevice(context, assetIds) {
  * @param {(value: T) => boolean} done
  * @returns {Promise<T>}
  */
-async function pollUntil(context, limitMs, read, done) {
+export async function pollUntil(context, limitMs, read, done) {
   let value = await read();
   for (let waited = 0; !done(value) && waited < limitMs; waited += POLL_MS) {
     await context.sleep(POLL_MS);

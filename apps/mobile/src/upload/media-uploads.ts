@@ -14,17 +14,24 @@
  * The view carries no order, name, address or path: it is the same in the hidden-data mode (the upload goes on there, SR-MOB-05).
  */
 import type { EnqueueInput } from '@evia/sync-core';
-import type { FileStateEvent, UploadProgressEvent, UploadStatus } from '../../modules/evia-upload/src';
+import type { FileStateEvent, OriginalDigest, UploadProgressEvent, UploadStatus } from '../../modules/evia-upload/src';
 import type { MediaFileRecord, MediaFileState } from '../storage/media-file-store';
 import type { UnlockedStore } from '../storage';
-import { createMediaAssetInput, type NewMediaAsset } from './create-media-asset';
+import {
+  createCapturedPhotoInput,
+  createMediaAssetInput,
+  type AddMediaResult,
+  type CapturedPhoto,
+  type NewMediaAsset,
+} from './create-media-asset';
+import { CapturePipeline, type CapturePorts } from '../capture/capture-pipeline';
+import type { DiskSpace } from '../capture/disk-space';
 import type { NativeUpload } from './native-upload';
 import type { MediaControl, MediaFileView, MediaUploadsSnapshot } from './types';
 
 export type { MediaControl, MediaFileAction, MediaFileStatus, MediaFileView, MediaUploadsSnapshot } from './types';
 
-export type AddMediaResult =
-  { readonly ok: true } | { readonly ok: false; readonly code: 'invalid' | 'no_session' | 'missing_original' | 'enqueue_failed' };
+export type { AddMediaResult };
 
 export interface MediaUploadsDeps {
   readonly native: NativeUpload;
@@ -39,11 +46,21 @@ export interface MediaUploadsDeps {
   readonly dataVisible: () => boolean;
   /** After an event of the module (the contact of a refresh made in the background is merged, EVM-130 architect 9). */
   readonly onNativeEvent?: () => void;
+  /** The camera (EVM-108): the free space and the id generator of the session; without them a picture cannot be taken (`camera_failed`). */
+  readonly capture?: { readonly disk: DiskSpace; readonly newId: () => string };
 }
 
 /** Files confirmed by the server stay in the view as "Wysłano" this many (newest first). */
 export const CLEAN_KEPT = 20;
+/**
+ * The sweep of the module removes only files older than this (EVM-108): a picture that is being saved right now has no row yet and is never touched.
+ */
+export const SWEEP_MIN_AGE_MS = 10 * 60 * 1000;
 const EMPTY: MediaUploadsSnapshot = { files: [], notifications: 'granted' };
+
+/** The codes of "Wymaga uwagi" for which "Usuń z telefonu" is offered (EVM-108 AC6, decision of Konrad 2026-11-15). */
+const DISCARDABLE_CODES: readonly string[] = ['quarantined', 'id_conflict', 'missing_original'];
+const isDiscardable = (code: string | null): boolean => code !== null && DISCARDABLE_CODES.includes(code);
 
 const mimeOf = (mediaType: unknown): string => (mediaType === 'video' ? 'video/mp4' : 'image/jpeg');
 
@@ -56,6 +73,7 @@ export class MediaUploads implements MediaControl {
   #snapshot: MediaUploadsSnapshot = EMPTY;
   #running: Promise<void> | undefined;
   #again = false;
+  #againSweep = false;
   #subscriptions: { remove(): void }[] = [];
 
   constructor(deps: MediaUploadsDeps) {
@@ -168,29 +186,85 @@ export class MediaUploads implements MediaControl {
     } catch {
       // repaired by the next reconcile from the command in the queue
     }
-    void this.reconcile();
+    // no sweep here: a series of 30 shots would sweep 30 times; the start, the return to the foreground and the end of a cycle sweep
+    void this.reconcile({ sweep: false });
     return { ok: true };
+  }
+
+  /**
+   * A picture the native import made the durable original (EVM-108 AC1): the command `CreateMediaAsset` and the row of the file are written in
+   * ONE transaction of the encrypted database (`registerPendingMedia` + `enqueue`; the row takes the mutation id of the command, its time is the
+   * time of the capture). The file was made durable BEFORE this call; the caller removes it when this answers a failure. Nothing is uploaded
+   * yet — the job is armed after `applied`.
+   */
+  async addCaptured(photo: CapturedPhoto, digest: OriginalDigest): Promise<AddMediaResult> {
+    const input = createCapturedPhotoInput(photo);
+    if (input === null) return { ok: false, code: 'invalid' };
+    const store = this.#deps.store();
+    if (store === null) return { ok: false, code: 'no_session' };
+    store.queue.registerPendingMedia({
+      assetId: photo.assetId,
+      workOrderId: photo.workOrderId,
+      ownerUserId: store.userId,
+      fileName: photo.assetId,
+      sizeBytes: digest.sizeBytes,
+      sha256: digest.sha256,
+      mime: mimeOf('photo'),
+      createdAt: Date.parse(photo.capturedAt),
+      category: photo.category,
+    });
+    let queued: { readonly ok: boolean; readonly mutationId?: string };
+    try {
+      queued = await this.#deps.enqueue(input);
+    } catch {
+      queued = { ok: false };
+    } finally {
+      // a registration that was not used up (the command was refused before the store) must not wait for another command
+      store.queue.clearPendingMedia(photo.assetId);
+    }
+    if (!queued.ok || queued.mutationId === undefined) return { ok: false, code: 'enqueue_failed' };
+    void this.reconcile({ sweep: false });
+    return { ok: true };
+  }
+
+  capturePipeline(takePicture: CapturePorts['takePicture']): CapturePipeline {
+    const capture = this.#deps.capture;
+    return new CapturePipeline({
+      takePicture: capture === undefined ? () => Promise.resolve(null) : takePicture,
+      native: this.#deps.native,
+      disk: capture?.disk ?? { freeBytes: () => null },
+      registerAndEnqueue: (photo, digest) => this.addCaptured(photo, digest),
+      now: this.#deps.now,
+      newId: capture?.newId ?? (() => ''),
+    });
+  }
+
+  freeDiskBytes(): number | null {
+    return this.#deps.capture?.disk.freeBytes() ?? null;
   }
 
   // ---- reconciliation -------------------------------------------------------------------------------------------------------
 
   /** Start, return to the foreground, after a synchronization, after an event: single-flight, one more run when asked meanwhile. */
-  reconcile(): Promise<void> {
+  reconcile({ sweep = true }: { readonly sweep?: boolean } = {}): Promise<void> {
     if (this.#running !== undefined) {
       this.#again = true;
+      this.#againSweep ||= sweep;
       return this.#running;
     }
-    this.#running = this.#run().finally(() => {
+    this.#running = this.#run(sweep).finally(() => {
       this.#running = undefined;
       if (this.#again) {
+        const sweepAgain = this.#againSweep;
         this.#again = false;
-        void this.reconcile();
+        this.#againSweep = false;
+        void this.reconcile({ sweep: sweepAgain });
       }
     });
     return this.#running;
   }
 
-  async #run(): Promise<void> {
+  async #run(sweep: boolean): Promise<void> {
     const store = this.#deps.store();
     if (store === null) {
       this.#publish(EMPTY);
@@ -198,6 +272,7 @@ export class MediaUploads implements MediaControl {
     }
     try {
       await this.#repairOrphans(store);
+      if (sweep) await this.#sweep(store);
       await this.#arm(store);
       await this.#syncStatuses(store);
       await this.#confirm(store);
@@ -235,6 +310,15 @@ export class MediaUploads implements MediaControl {
         })
         .catch(() => undefined);
     }
+  }
+
+  /**
+   * The native sweep (EVM-108): originals nobody knows and leftovers of imports go; every file of a row that is not `clean` is kept, whatever its
+   * state. Only files older than [SWEEP_MIN_AGE_MS] — a picture saved right now has no row yet.
+   */
+  async #sweep(store: UnlockedStore): Promise<void> {
+    const keep = (await store.media.list()).filter((file) => file.state !== 'clean').map((file) => file.assetId);
+    await this.#deps.native.sweepOriginals(keep, SWEEP_MIN_AGE_MS).catch(() => 0);
   }
 
   /** Every `applied` file gets its job (idempotent); a file that is gone or refused goes to "Wymaga uwagi" (nothing is deleted). */
@@ -328,6 +412,32 @@ export class MediaUploads implements MediaControl {
     return true;
   }
 
+  // ---- "Usuń z telefonu" ------------------------------------------------------------------------------------------------------
+
+  /**
+   * "Usuń z telefonu" (EVM-108 AC6; security 19): only for a file of "Wymaga uwagi" with a code from [DISCARDABLE_CODES]. The native file goes FIRST
+   * (`cancelUpload(assetId, true)`: the job and the original, no row yet); only when the module says it is gone is the row removed - a refusal
+   * leaves the row and the user sees the file again, so nothing is ever left on the disk without a row. A removal of the row that fails after
+   * the file is gone changes nothing for the user: the next try finds no file and ends the job.
+   */
+  async discard(assetId: string): Promise<boolean> {
+    const store = this.#deps.store();
+    if (store === null) return false;
+    const file = (await store.media.list()).find((row) => row.assetId === assetId);
+    if (file === undefined || file.state !== 'needs_attention' || !isDiscardable(file.lastCode)) return false;
+    const removed = await this.#deps.native.cancelUpload(assetId, true).catch(() => false);
+    if (!removed) return false;
+    try {
+      await store.media.discard(assetId);
+    } catch {
+      return false;
+    }
+    this.#progress.delete(assetId);
+    this.#retried.delete(assetId);
+    await this.#rebuild();
+    return true;
+  }
+
   // ---- notifications --------------------------------------------------------------------------------------------------------
 
   /** The system consent (the explaining sheet is shown by the caller first); the view follows the answer. */
@@ -395,7 +505,15 @@ export class MediaUploads implements MediaControl {
 }
 
 function viewOf(row: MediaFileRecord, status: UploadStatus | undefined): MediaFileView {
-  const base = { assetId: row.assetId, sizeBytes: row.sizeBytes, updatedAt: row.updatedAt, code: row.lastCode };
+  const base = {
+    assetId: row.assetId,
+    sizeBytes: row.sizeBytes,
+    updatedAt: row.updatedAt,
+    code: row.lastCode,
+    category: row.category ?? null,
+    mediaType: row.mime === 'video/mp4' ? ('video' as const) : ('photo' as const),
+    capturedAt: row.createdAt,
+  };
   switch (row.state) {
     case 'pending':
       return { ...base, status: 'waiting', percent: null, actions: [] };
@@ -409,6 +527,14 @@ function viewOf(row: MediaFileRecord, status: UploadStatus | undefined): MediaFi
     case 'failed':
       return { ...base, status: 'error', percent: null, actions: ['retry'] };
     case 'needs_attention':
-      return { ...base, status: 'attention', percent: null, actions: row.lastCode === 'quarantined' ? [] : ['retry'] };
+      return {
+        ...base,
+        status: 'attention',
+        percent: null,
+        actions: [
+          ...(row.lastCode === 'quarantined' ? [] : (['retry'] as const)),
+          ...(isDiscardable(row.lastCode) ? (['discard'] as const) : []),
+        ],
+      };
   }
 }

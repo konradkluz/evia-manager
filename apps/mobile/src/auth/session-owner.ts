@@ -566,15 +566,18 @@ export class MobileSessionOwner implements SessionOwner {
       if (this.#meta !== null) {
         await this.#deps.tokens.set('sessionMeta', JSON.stringify({ ...this.#meta, ending: true })).catch(() => undefined);
       }
-      // without a session there is nothing to sign out of (and nothing is asked)
+      // without a session there is nothing to sign out of (the module is not asked: its state, e.g. a revoked session, stays as it is)
       const nativeDone = this.#userId === null ? Promise.resolve(false) : this.#call(() => this.#deps.native.signOut(online), false);
+      // the capture cache of the camera goes with the session, session or not (EVM-108 pkt 13); this call touches no token and no state; a cleaning
+      // that leaves something is retried by the module at the next start and at the next return of the network (`flushPendingRevocations`)
+      const cacheDone = this.#call(() => this.#deps.native.clearCaptureCache(), false);
       const store = this.#store;
       const unsentItems = store === null ? 0 : await store.unsentItemCount().catch(() => 0);
       if (store !== null) await store.endSession().catch(() => undefined);
       await this.#clearSession();
       const ended: SessionEnded = { reason: 'signed_out', unsentItems };
       this.#emit(ended);
-      await nativeDone;
+      await Promise.all([nativeDone, cacheDone]);
       return ended;
     });
   }

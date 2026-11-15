@@ -54,4 +54,25 @@ describe('EviaUpload binding (EVM-130 AC2, AC3; SR-SESS-09)', () => {
     expect(EVIA_UPLOAD_FUNCTIONS).toContain('wipeUploads');
     expect(EVIA_UPLOAD_FUNCTIONS).toContain('clearWipeMarkerAfterLogin');
   });
+
+  it('EVM-108 AC1: the import answers only a code of the closed list and the glue holds no logic - the checks are in the engine; sign-out empties the camera cache', () => {
+    expect(EVIA_UPLOAD_FUNCTIONS).toContain('importOriginal');
+    expect(EVIA_UPLOAD_FUNCTIONS).toContain('sweepOriginals');
+    expect(CODE).toMatch(/AsyncFunction\("importOriginal"\)\s*\{[^}]*rt\.importer\.import\(assetId, sourceUri\)\.wire/);
+    expect(CODE).toMatch(/AsyncFunction\("sweepOriginals"\)\s*\{[^}]*rt\.importer\.sweep\(/);
+    // the cleaning is its own call (it touches no token); sign-out of the tokens does not clean, and the retry runs only for a signed-out phone
+    expect(EVIA_UPLOAD_FUNCTIONS).toContain('clearCaptureCache');
+    expect(CODE).toMatch(/AsyncFunction\("clearCaptureCache"\)[\s\S]*?rt\.importer\.clearLeftovers\(\)/);
+    expect(CODE).not.toMatch(/AsyncFunction\("signOut"\)(?:(?!AsyncFunction)[\s\S])*?clearLeftovers/);
+    expect(CODE).toMatch(
+      /AsyncFunction\("flushPendingRevocations"\)[\s\S]*?clearLeftoversIfSignedOut \{ rt\.tokens\.state\(\) == SessionState\.SIGNED_OUT \}/,
+    );
+    // the capture cache of the app is the only source the module is told about; no external or shared storage
+    const runtime = readFileSync(
+      join(MODULE_DIR, 'android', 'src', 'main', 'java', 'pl', 'eviacharge', 'upload', 'android', 'UploadRuntime.kt'),
+      'utf8',
+    );
+    expect(runtime).toMatch(/File\(app\.cacheDir, "Camera"\)/);
+    expect(CODE).not.toMatch(/ACTION_IMAGE_CAPTURE|MediaStore|getExternal|Environment\.DIRECTORY|setLocation|TAG_GPS/);
+  });
 });

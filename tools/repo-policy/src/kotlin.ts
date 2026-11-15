@@ -190,3 +190,24 @@ export function enginePurityProblems(sources: Record<string, string>): string[] 
 export function binaryLibraryProblems(paths: readonly string[]): string[] {
   return paths.filter((path) => /\.aar$/i.test(path)).map((path) => `${path}: binarny AAR w repozytorium`);
 }
+
+/**
+ * EVM-108 AC8 (SR-FILE-08, SR-MOB-02; CWE-359, CWE-927): the camera is the in-app one (CameraX); native sources must not reach for the camera of
+ * another app (an intent writes a position and copies to the gallery or the cloud), the public gallery, the external storage, or put a
+ * position into a picture. The same words are banned in TypeScript by the ESLint rules of the mobile app.
+ */
+const FORBIDDEN_CAMERA_ACCESS: ReadonlyArray<[RegExp, string]> = [
+  [/\bMediaStore\b/, 'MediaStore'],
+  [/\bACTION_(?:IMAGE|VIDEO)_CAPTURE\b|android\.media\.action\.(?:IMAGE|VIDEO)_CAPTURE/, 'zamiar aparatu systemowego'],
+  [/\bgetExternal\w*\s*\(|\bEnvironment\.DIRECTORY_/, 'pamięć zewnętrzna'],
+  [/\bsetLocation\b/, 'pozycja w zdjęciu (setLocation)'],
+  [/\bTAG_GPS\w*/, 'znacznik GPS w EXIF'],
+];
+
+export function cameraSourceProblems(sources: Record<string, string>): string[] {
+  return Object.entries(sources).flatMap(([file, content]) =>
+    FORBIDDEN_CAMERA_ACCESS.filter(([pattern]) => pattern.test(withoutComments(content))).map(
+      ([, name]) => `${file}: zakazane w kodzie natywnym aparatu (${name})`,
+    ),
+  );
+}

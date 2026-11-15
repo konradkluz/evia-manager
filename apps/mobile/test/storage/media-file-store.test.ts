@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { QueueRecord } from '@evia/sync-core';
 import { Database } from '../../src/storage/database';
 import { SqlMediaFileStore, type NewMediaFile } from '../../src/storage/media-file-store';
@@ -68,6 +70,8 @@ describe('the table of files of the queue (EVM-130 AC4; architect 6)', () => {
       'last_code',
       'created_at',
       'updated_at',
+      // v3 (EVM-108): the only addition, a closed code of the category of the picture
+      'category',
     ]);
   });
 
@@ -81,7 +85,7 @@ describe('the table of files of the queue (EVM-130 AC4; architect 6)', () => {
     );
     expect(await db.read(readVersions)).toEqual({ queue: 1, replica: 1 });
     expect(await migrate(db, SCHEMA)).toEqual({ kind: 'ok', replicaReset: false });
-    expect(await db.read(readVersions)).toEqual({ queue: 2, replica: 1 });
+    expect(await db.read(readVersions)).toEqual({ queue: 3, replica: 1 });
     expect(
       JSON.stringify(await db.read((tx) => tx.all('SELECT seq, mutation_id, owner_user_id, record FROM queue_entries ORDER BY seq'))),
     ).toBe(before);
@@ -182,6 +186,25 @@ describe('the table of files of the queue (EVM-130 AC4; architect 6)', () => {
     expect((await store.list()).map((row) => row.assetId)).toEqual([asset(1)]);
   });
 
+  it('EVM-108 AC6 (security 19): `discard` removes the row of a file that needs attention - only that state, only the own row', async () => {
+    const { db } = await migratedDatabase(disk);
+    const store = new SqlMediaFileStore(db, OWNER);
+    const other = new SqlMediaFileStore(db, OTHER);
+    await store.register(file(1));
+    await store.register(file(2));
+    await other.register(file(3, { ownerUserId: OTHER }));
+    await store.setState(asset(1), 'needs_attention', 'quarantined', 5);
+    await store.setState(asset(2), 'failed', 'checksum_mismatch', 5);
+    await other.setState(asset(3), 'needs_attention', 'quarantined', 5);
+    // a file in another state (a failed one still has "Ponów") and another owner's row are not touched
+    await store.discard(asset(2));
+    await store.discard(asset(3));
+    expect((await store.list()).map((row) => row.assetId)).toEqual([asset(1), asset(2)]);
+    expect((await other.list()).map((row) => row.assetId)).toEqual([asset(3)]);
+    await store.discard(asset(1));
+    expect((await store.list()).map((row) => row.assetId)).toEqual([asset(2)]);
+  });
+
   it('EVM-130 AC4: the state of the file on the server comes from the active generation of the replica; nothing else of the entity leaves', async () => {
     const { db } = await migratedDatabase(disk);
     const replica = new SqlReplicaStore(db);
@@ -225,5 +248,117 @@ describe('the table of files of the queue (EVM-130 AC4; architect 6)', () => {
     await db.close();
     expect(db).toBeInstanceOf(Database);
     await expect(store.list()).rejects.toBeDefined();
+  });
+});
+
+describe('the category of a picture, schema v3 (EVM-108 AC1; SR-MOB-10; RR-98)', () => {
+  const V2_ONLY: SchemaPlan = { queue: SCHEMA.queue.filter((m) => m.version <= 2), replica: SCHEMA.replica };
+
+  /** A row as the previous app version wrote it (the table of v2 has no column of the category). */
+  const rowOfV2 = async (db: Database, n: number): Promise<void> => {
+    await db.transaction((tx) =>
+      tx.run(
+        "INSERT INTO media_files (asset_id, mutation_id, work_order_id, owner_user_id, file_name, size_bytes, sha256, mime, state, last_code, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'image/jpeg', 'pending', NULL, ?, ?)",
+        [asset(n), mutation(n), WO, OWNER, asset(n), 1000 + n, SHA, n, n],
+      ),
+    );
+  };
+
+  it('EVM-108 AC1: v2 -> v3 keeps every row of the files and the queue, the new column is empty (shown as a picture without a category)', async () => {
+    const { db } = await migratedDatabase(disk, V2_ONLY);
+    const queue = new SqlQueueStore(db);
+    const store = new SqlMediaFileStore(db, OWNER);
+    for (let n = 1; n <= 5; n += 1) {
+      await queue.append(command(n));
+      await rowOfV2(db, n);
+    }
+    await store.setState(asset(2), 'failed', 'checksum_mismatch', 9);
+    const rowsOf = async (): Promise<string> =>
+      JSON.stringify(
+        await db.read((tx) =>
+          tx.all('SELECT asset_id, mutation_id, state, last_code, size_bytes, created_at, updated_at FROM media_files ORDER BY asset_id'),
+        ),
+      );
+    const rowsBefore = await rowsOf();
+    const queueBefore = JSON.stringify(await db.read((tx) => tx.all('SELECT seq, mutation_id, record FROM queue_entries ORDER BY seq')));
+    expect(await db.read(readVersions)).toEqual({ queue: 2, replica: 1 });
+    expect(await migrate(db, SCHEMA)).toEqual({ kind: 'ok', replicaReset: false });
+    expect(await db.read(readVersions)).toEqual({ queue: 3, replica: 1 });
+    expect(await rowsOf()).toBe(rowsBefore);
+    expect(await store.list()).toHaveLength(5);
+    expect(JSON.stringify(await db.read((tx) => tx.all('SELECT seq, mutation_id, record FROM queue_entries ORDER BY seq')))).toBe(
+      queueBefore,
+    );
+    expect(await db.read((tx) => tx.all('SELECT category FROM media_files WHERE category IS NOT NULL'))).toEqual([]);
+    // running the migration again is nothing to do (the version is stored in the same transaction)
+    expect(await migrate(db, SCHEMA)).toEqual({ kind: 'ok', replicaReset: false });
+  });
+
+  it('EVM-108 AC1: a v3 migration that fails is rolled back with its version - the app keeps v2 and every row (rollback)', async () => {
+    const { db, engine } = await migratedDatabase(disk, V2_ONLY);
+    await new SqlQueueStore(db).append(command(1));
+    await rowOfV2(db, 1);
+    engine.failNext((sql) => sql.includes('ADD COLUMN category'));
+    await expect(migrate(db, SCHEMA)).rejects.toBeDefined();
+    expect(await db.read(readVersions)).toEqual({ queue: 2, replica: 1 });
+    const columns = (await db.read((tx) => tx.all('PRAGMA table_info(media_files)'))).map((c) => String(c['name']));
+    expect(columns).not.toContain('category');
+    expect(await db.read((tx) => tx.all('SELECT asset_id FROM media_files'))).toHaveLength(1);
+    expect(await migrate(db, SCHEMA)).toEqual({ kind: 'ok', replicaReset: false });
+    expect(await db.read(readVersions)).toEqual({ queue: 3, replica: 1 });
+  });
+
+  it('EVM-108 AC1: the category is stored with the row and read back; a row without one has no category, an unknown code reads as "unknown"', async () => {
+    const { db } = await migratedDatabase(disk);
+    const store = new SqlMediaFileStore(db, OWNER);
+    await store.register(file(1, { category: 'defect' }));
+    await store.register(file(2));
+    await store.register(file(3, { category: 'other' }));
+    await db.transaction((tx) => tx.run("UPDATE media_files SET category = 'from-the-future' WHERE asset_id = ?", [asset(3)]));
+    const rows = await store.list();
+    expect(rows.map((row) => row.category)).toEqual(['defect', undefined, 'unknown']);
+    expect('category' in (rows[1] ?? {})).toBe(false);
+  });
+
+  it('EVM-108 AC1: a category outside the closed list is refused before anything is written', async () => {
+    const { db } = await migratedDatabase(disk);
+    const store = new SqlMediaFileStore(db, OWNER);
+    await expect(store.register(file(1, { category: 'holiday' as never }))).rejects.toThrow('invalid_media_file');
+    expect(await store.list()).toEqual([]);
+  });
+
+  it('EVM-108 AC1: the job file of the native module never carries the category (RR-98) - the allow-list of its keys is unchanged', () => {
+    const kotlin = readFileSync(
+      join(
+        __dirname,
+        '..',
+        '..',
+        'modules',
+        'evia-upload',
+        'engine',
+        'src',
+        'main',
+        'kotlin',
+        'pl',
+        'eviacharge',
+        'upload',
+        'files',
+        'JobFile.kt',
+      ),
+      'utf8',
+    );
+    const names = /val FIELD_NAMES =\s*setOf\(([^)]*)\)/.exec(kotlin)?.[1] ?? '';
+    expect([...names.matchAll(/"([A-Za-z0-9]+)"/g)].map((match) => match[1])).toEqual([
+      'fileSchemaVersion',
+      'assetId',
+      'workOrderId',
+      'size',
+      'userId',
+      'deviceId',
+      'contentType',
+      'sha256',
+      'snapshot',
+    ]);
+    expect(kotlin).not.toMatch(/category/i);
   });
 });

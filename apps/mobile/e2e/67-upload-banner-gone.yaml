@@ -10,7 +10,7 @@ appId: pl.eviacharge.manager
 - tapOn:
     id: 'nav-queue'
 - extendedWaitUntil:
-    visible: 'Plik, Oczekuje'
+    visible: 'Bez kategorii, Zdjęcie, .*, Oczekuje'
     timeout: 30000
 - assertNotVisible:
     id: 'notifications-banner'

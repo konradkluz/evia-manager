@@ -335,6 +335,23 @@ jobs:
           ./gradlew assembleRelease --no-daemon --console=plain \
             -PreactNativeArchitectures=arm64-v8a,armeabi-v7a \
             "-Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g"
+      # EVM-108 AC8 (SR-MOB-12, SR-SUPPLY-06): the camera library brings ML Kit, Play services and Firebase unless its scanners are off AND it is
+      # built from source (apps/mobile/package.json autolinking, plugins/with-camera.ts). Two checks from the build: the release runtime tree of the
+      # app and of the library (only this configuration: compileOnly dependencies are not in the package) and the R8 mapping (DEX names are renamed).
+      - name: Gradle dependency tree of the release runtime classpath (no ML Kit, Play services, Firebase)
+        working-directory: apps/mobile/android
+        env:
+          DEPS_FILE: ${{ runner.temp }}/gradle-deps.txt
+        run: |
+          set -euo pipefail
+          ./gradlew :app:dependencies --configuration releaseRuntimeClasspath :expo-camera:dependencies --configuration releaseRuntimeClasspath \
+            --no-daemon --console=plain > "$DEPS_FILE"
+          cd "$GITHUB_WORKSPACE"
+          node tools/mobile-apk/cli.mjs deps --file "$DEPS_FILE"
+      - name: R8 mapping (no classes of ML Kit, Play services, Firebase)
+        run: |
+          set -euo pipefail
+          node tools/mobile-apk/cli.mjs mapping --file apps/mobile/android/app/build/outputs/mapping/release/mapping.txt
       - name: Name the package (version from app.config, run number)
         id: name
         run: |

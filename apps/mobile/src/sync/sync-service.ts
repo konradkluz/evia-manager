@@ -51,6 +51,7 @@ import {
   type SyncFailureKind,
   type SyncPauseReason,
   type SyncSnapshot,
+  type OrderNumber,
   type TargetOption,
   type TemplateTransport,
 } from './types';
@@ -71,6 +72,7 @@ export interface SyncServiceStore {
     readLastSuccess(): Promise<number | null>;
     writeLastSuccess(at: number): Promise<void>;
     listWorkOrders(limit?: number): Promise<{ id: string; number: string; title: string }[]>;
+    listOrderNumbers(limit?: number): Promise<{ id: string; number: string }[]>;
     readOrderListSource(withData: boolean): Promise<OrderListSource>;
     readOrderDetailSource(workOrderId: string): Promise<OrderDetailSource | null>;
     /** The templates of work orders (EVM-106): the stored document as it is (`unknown`; the reader validates it) and its atomic replacement. */
@@ -717,6 +719,12 @@ export class SyncService implements SyncControl {
   async copyText(id: string): Promise<string | null> {
     const record = (await this.#records()).find((r) => r.mutationId === id);
     return record === undefined ? null : copyTextOf(record);
+  }
+
+  /** The orders of the replica as an id and a number only (EVM-108 AC5, security 17): the title is not read; the camera picker of the hidden-data mode. */
+  async orderNumbers(): Promise<readonly OrderNumber[]> {
+    const list = await this.#deps.store.replicaExtras.listOrderNumbers(200).catch(() => []);
+    return list.map((order) => ({ id: order.id, number: order.number }));
   }
 
   async retargetOptions(excludeWorkOrderId: string | null): Promise<readonly TargetOption[]> {

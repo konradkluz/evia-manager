@@ -1,0 +1,73 @@
+# EVM-108 AC2 AC5 AC6: no network (airplane mode, set by tools/mobile-e2e) and no permission to notify. The camera works as it does online and
+# shows no banner of the missing network - only the capsule "Offline · n" of the bar; three shots of one category chosen once; "Gotowe" goes back
+# to the order and, once, offers "Powiadomienia o wysyłaniu" ("Nie teraz": the work goes on); the Queue says "3 do wysłania" and shows three
+# files "Oczekuje" without the name of a customer or an address. tools/mobile-e2e then proves the three originals have no GPS, the gallery is as it
+# was, and the server has not seen a byte.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+    permissions:
+      notifications: deny
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- extendedWaitUntil:
+    visible: 'Brak zasięgu.*'
+    timeout: 30000
+- runFlow: common/camera-from-order.yaml
+- tapOn:
+    id: 'camera-category-before_work'
+- tapOn:
+    id: 'camera-shutter'
+- extendedWaitUntil:
+    visible:
+      id: 'camera-count'
+      text: '1 zdjęcie'
+    timeout: 20000
+# the camera has the capsule and no offline banner (the banner would cover the preview)
+- assertVisible: 'Offline · [0-9]+'
+- assertNotVisible: 'Brak zasięgu.*'
+- takeScreenshot: m06-camera-offline
+- tapOn:
+    id: 'camera-shutter'
+- extendedWaitUntil:
+    visible:
+      id: 'camera-count'
+      text: '2 zdjęcia'
+    timeout: 20000
+- tapOn:
+    id: 'camera-shutter'
+- extendedWaitUntil:
+    visible:
+      id: 'camera-count'
+      text: '3 zdjęcia'
+    timeout: 20000
+- tapOn:
+    id: 'camera-done'
+- extendedWaitUntil:
+    visible: 'Powiadomienia o wysyłaniu'
+    timeout: 20000
+- takeScreenshot: m06-notification-consent
+- tapOn:
+    id: 'notification-consent-later'
+- extendedWaitUntil:
+    visible: 'Zlecenie testowe 1'
+    timeout: 20000
+- tapOn:
+    id: 'order-detail-back'
+- tapOn:
+    id: 'nav-queue'
+- extendedWaitUntil:
+    visible:
+      id: 'files-summary'
+      text: '3 do wysłania'
+    timeout: 20000
+- assertVisible: 'Stan przed pracami, Zdjęcie, .*, Oczekuje'
+- assertNotVisible: 'Klient Testowy.*'
+- assertNotVisible: 'Testowa.*'
+- takeScreenshot: m07-queue-three-waiting
+- runFlow:
+    file: common/media-status.yaml
+    env:
+      STATUS: 'files=3;waiting=3;uploading=0;sent=0;failed=0;attention=0;notifications=[a-z_]+'

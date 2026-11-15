@@ -361,6 +361,10 @@ describe('the queue and "needs attention" (EVM-107 AC3, AC4)', () => {
     const before = must((await service.queueView(true)).items[0]);
     const targets = await service.retargetOptions(before.id);
     expect(targets.map((t) => t.number)).toEqual(['ZL-1', 'ZL-2']);
+    // EVM-108 AC5 (security 17): the numbers for the camera picker carry the id and the number and nothing else
+    const numbers = await service.orderNumbers();
+    expect(numbers.map((n) => n.number)).toEqual(['ZL-1', 'ZL-2']);
+    for (const entry of numbers) expect(Object.keys(entry).sort()).toEqual(['id', 'number']);
     expect(await service.retarget(before.id, uid('work_order', 77))).toEqual({ ok: false, code: 'invalid_input' });
     expect(await service.retarget(before.id, uid('work_order', 2))).toEqual({ ok: true });
     phone.clockNow += 2_000;

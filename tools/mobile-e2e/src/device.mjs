@@ -13,13 +13,15 @@
  * this module; the steps that read the device and the scenario server of the upload part are in device-upload.mjs (`UploadAction`).
  * @typedef {'force-stop' | 'kill-9' | 'reboot' | 'copy-db' | 'corrupt-db' | 'check-encrypted' | 'check-backup-transport'
  *   | 'adb-backup-start' | 'adb-backup-check' | 'adb-backup-control-check' | 'install-release-debugkey' | 'reinstall-e2e'} LocalAction
- * @typedef {LocalAction | import('./device-upload.mjs').UploadAction} DeviceAction
+ * @typedef {LocalAction | import('./device-upload.mjs').UploadAction | import('./device-camera.mjs').CameraAction} DeviceAction
  * @typedef {{ status: number | null, stdout: string, stderr: string }} Outcome
- * @typedef {{ action: DeviceAction | 'check-sync-report', ok: boolean, detail: string }} Check
+ * @typedef {{ action: DeviceAction | 'check-sync-report', ok: boolean, detail: string, skipped?: boolean }} Check
+ * `skipped` (EVM-108): the step could not be performed here (no camera) and is reported as such, never as a pass
  */
 import { createHash } from 'node:crypto';
 import { inflateSync } from 'node:zlib';
 import { APPLICATION_ID } from './commands.mjs';
+import { isCameraAction, runCameraAction } from './device-camera.mjs';
 import { isUploadAction, MAESTRO_LINE, runUploadAction } from './device-upload.mjs';
 
 /** The marker that the hooks write into the queue (composed at run time in the app); it must not appear in any file or log. */
@@ -322,6 +324,7 @@ export function backupLogLine(outcome) {
  *   releaseApk: string,
  *   e2eApk: string,
  *   uploadControl?: (method: string, path: string, body?: unknown) => Promise<{ status: number, body: unknown } | null>,
+ *   memory?: Map<string, unknown>,
  * }} DeviceContext adb with the serial already applied; the archive lives in .scratch and is removed after the check;
  * `releaseApk` is the not debuggable release package signed with the debug key (.scratch/mobile-e2e/*-debugkey.apk), `e2eApk` the e2e one
  */
@@ -337,6 +340,7 @@ const succeeded = (outcome) => outcome.status === 0;
  */
 export async function runDeviceAction(action, context) {
   if (isUploadAction(action)) return /** @type {Promise<Check>} */ (runUploadAction(action, context));
+  if (isCameraAction(action)) return /** @type {Promise<Check>} */ (runCameraAction(action, context));
   const { adb } = context;
   /** @param {boolean} ok @param {string} detail @returns {Check} */
   const check = (ok, detail) => ({ action, ok, detail });

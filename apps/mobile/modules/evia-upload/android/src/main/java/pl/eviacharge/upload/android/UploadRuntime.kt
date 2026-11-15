@@ -14,6 +14,7 @@ import pl.eviacharge.upload.files.ContactMarker
 import pl.eviacharge.upload.files.JobCanceller
 import pl.eviacharge.upload.files.JobFileStore
 import pl.eviacharge.upload.files.JobIdRegistry
+import pl.eviacharge.upload.files.OriginalImporter
 import pl.eviacharge.upload.files.TokenWiper
 import pl.eviacharge.upload.files.UploadFiles
 import pl.eviacharge.upload.files.WipeChain
@@ -88,8 +89,10 @@ class UploadRuntime private constructor(
   context: Context,
 ) {
   private val app: Context = context.applicationContext
-  val files = UploadFiles(File(app.noBackupFilesDir, "evia-upload"))
+  // the camera writes a picture to cacheDir/Camera (app-private); the import copies it into the private folder of the originals
+  val files = UploadFiles(File(app.noBackupFilesDir, "evia-upload"), File(app.cacheDir, "Camera"))
   val marker = WipeMarker(files.wipeMarkerFile)
+  val importer = OriginalImporter(files, marker)
   val contact = ContactMarker(files.contactFile, AndroidClockReadings(app))
   val ids = JobIdRegistry(files.jobIdsFile)
   val jobs = JobFileStore(files)

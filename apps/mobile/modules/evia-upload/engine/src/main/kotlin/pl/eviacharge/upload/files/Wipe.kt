@@ -65,7 +65,7 @@ class WipeMarker(
 
 /**
  * The cleaning of the device in the order of the architect (8) and of the security review (A3): the marker first, then the jobs of the
- * system are cancelled, the running instances stop, and only then the files go (job files, originals, temporary files, the token store)
+ * system are cancelled, the running instances stop, and only then the files go (job files, originals, the camera cache, temporary files, the token store)
  * and the key alias. Every step is idempotent and a failed step does not stop the others: [run] returns `false` when something stayed,
  * the marker then stays at "cleaning" and [run] is called again (at the next start of the app or of the service).
  */
@@ -89,6 +89,8 @@ class WipeChain(
                 { stopper.stopAll() },
                 { check(AtomicFiles.deleteTree(files.jobsDirectory)) },
                 { check(AtomicFiles.deleteTree(files.originalsDirectory)) },
+                // the pictures the camera left in the cache of the app are not in the originals: they go too (EVM-108, fail closed)
+                { check(CaptureCache.deleteTree(files.cameraDirectory)) },
                 { AtomicFiles.temporaryFiles(files.root).forEach { AtomicFiles.delete(it) } },
                 { tokens.wipe() },
                 { AtomicFiles.delete(files.tokenFile) },

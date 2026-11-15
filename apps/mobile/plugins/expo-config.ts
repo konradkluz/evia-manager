@@ -3,7 +3,9 @@
  * - `version` (semver) is the single source of the app version shown to the update check (AC3);
  * - the Android `versionCode` comes from the CI run number so that it only grows (an older code cannot be installed over a newer one);
  * - a release build fails when the API address is not HTTPS (SR-COMM-04); plain HTTP to the emulator host exists in the e2e variant only;
- * - no permission is requested (INTERNET is added by the platform template) and risky defaults are blocked (SR-MOB-02);
+ * - the app requests no permission itself (INTERNET is added by the platform template) and risky defaults are blocked (SR-MOB-02); the only
+ *   one let through by the merge is CAMERA of the camera library (EVM-108 AC8: plugins/with-camera.ts, scanners of Google off); the microphone
+ *   (RECORD_AUDIO) stays blocked until EVM-110;
  * - no OTA updates, no dev client, no analytics SDK (SR-MOB-09);
  * - the local database is SQLCipher only (EVM-093 AC1): expo-sqlite with `useSQLCipher`, there is no build without the cipher;
  * - the background upload (EVM-130 AC7, plugins/with-upload.ts) is configured from the SAME API address and from `EVIA_STORAGE_HOSTS` (the
@@ -27,7 +29,6 @@ export const BLOCKED_ANDROID_PERMISSIONS: readonly string[] = [
   'android.permission.SYSTEM_ALERT_WINDOW',
   'android.permission.VIBRATE',
   'android.permission.RECORD_AUDIO',
-  'android.permission.CAMERA',
   // Added by expo-secure-store for biometric prompts; the decision on biometrics is an ADR (not in the skeleton).
   'android.permission.USE_BIOMETRIC',
   'android.permission.USE_FINGERPRINT',
@@ -107,6 +108,7 @@ export function buildExpoConfig(env: Readonly<Record<string, string | undefined>
       ['expo-sqlite', { useSQLCipher: true }],
       ['./plugins/with-hardening.ts', { variant }],
       ['./plugins/with-upload.ts', { variant, apiBaseUrl: url.url, storageHosts }],
+      './plugins/with-camera.ts',
     ],
     extra: {
       buildVariant: variant,

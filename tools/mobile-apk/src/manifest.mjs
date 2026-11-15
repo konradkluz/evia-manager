@@ -4,6 +4,7 @@
  * MASVS-PLATFORM-1, MASVS-PRIVACY-1; security-engineer B3). The source after `expo prebuild` is not enough: libraries add
  * permissions and components during the merge, so the check reads the manifest decoded from the finished package.
  */
+import { forbiddenPrefixOf } from './forbidden.mjs';
 import { childrenNamed, parseXml } from './xml.mjs';
 
 /** The meta-data of the e2e variant that turns FLAG_SECURE off (apps/mobile/plugins/with-hardening.ts `SCREENSHOTS_META`). */
@@ -37,6 +38,10 @@ const FORBIDDEN_COMPONENT = /expo\.modules\.(updates|devlauncher|devmenu)|com\.f
 const FORBIDDEN_PERMISSION =
   /^android\.permission\.(READ_MEDIA_[A-Z_]+|READ_EXTERNAL_STORAGE|WRITE_EXTERNAL_STORAGE|MANAGE_EXTERNAL_STORAGE|READ_CONTACTS|WRITE_CONTACTS|GET_ACCOUNTS|ACCESS_[A-Z_]*LOCATION)$/;
 
+/** EVM-108 AC8: the camera is the one permission let through next to the upload ones; the microphone waits for EVM-110. */
+const CAMERA_PERMISSION = 'android.permission.CAMERA';
+const RECORD_AUDIO_PERMISSION = 'android.permission.RECORD_AUDIO';
+
 /** EVM-130 AC7: no foreground service — Android 13 and older upload in a plain job, Android 14+ in a user-initiated one (ADR-0020a). */
 const FOREGROUND_SERVICE_PERMISSION = /^android\.permission\.FOREGROUND_SERVICE[A-Z_]*$/;
 
@@ -55,6 +60,7 @@ export function checkManifest(manifestText, { applicationId, minimumTargetSdk = 
   const permissions = [...childrenNamed(manifest, 'uses-permission'), ...childrenNamed(manifest, 'uses-permission-sdk-23')].map(
     (element) => element.attributes['android:name'] ?? '',
   );
+  const sdk23Permissions = childrenNamed(manifest, 'uses-permission-sdk-23').map((element) => element.attributes['android:name'] ?? '');
   const allowed = [
     'android.permission.INTERNET',
     `${applicationId}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`,
@@ -64,13 +70,21 @@ export function checkManifest(manifestText, { applicationId, minimumTargetSdk = 
     'android.permission.ACCESS_NETWORK_STATE',
     'android.permission.RECEIVE_BOOT_COMPLETED',
     'android.permission.POST_NOTIFICATIONS',
+    // EVM-108 AC8: the camera of the app (CameraX through expo-camera; the library declares it, plugins/with-camera.ts adds nothing)
+    CAMERA_PERMISSION,
   ];
   for (const permission of permissions) {
-    if (FOREGROUND_SERVICE_PERMISSION.test(permission)) problems.push(`forbidden permission ${permission} (foreground service, ADR-0020a)`);
+    if (permission === RECORD_AUDIO_PERMISSION)
+      problems.push(`forbidden permission ${permission} (the microphone is requested from EVM-110 only)`);
+    else if (FOREGROUND_SERVICE_PERMISSION.test(permission))
+      problems.push(`forbidden permission ${permission} (foreground service, ADR-0020a)`);
     else if (FORBIDDEN_PERMISSION.test(permission))
       problems.push(`forbidden permission ${permission} (gallery, storage, contacts or location)`);
+    else if (permission === CAMERA_PERMISSION && sdk23Permissions.includes(permission))
+      problems.push(`permission ${permission} must be declared by uses-permission, not uses-permission-sdk-23`);
     else if (!allowed.includes(permission)) problems.push(`unexpected permission ${permission}`);
   }
+  problems.push(...forbiddenLibraryProblems(manifest));
   if (!permissions.includes('android.permission.INTERNET')) problems.push('INTERNET permission is missing');
 
   const targetSdk = Number(childrenNamed(manifest, 'uses-sdk')[0]?.attributes['android:targetSdkVersion']);
@@ -114,6 +128,36 @@ export function checkManifest(manifestText, { applicationId, minimumTargetSdk = 
       if (exported && !(tag === 'activity' && name.endsWith(LAUNCHER_ACTIVITY_SUFFIX))) problems.push(`exported component ${name}`);
       if (tag === 'activity' && name.endsWith(LAUNCHER_ACTIVITY_SUFFIX)) problems.push(...launcherProblems(component, filters));
     }
+  }
+  return problems;
+}
+
+/**
+ * EVM-108 AC8 (SR-MOB-12): no package, library or content authority of a forbidden group (ML Kit, Google Play services, Firebase,
+ * datatransport, ODML, the ML Kit artifact of CameraX) in `<queries>`, `<uses-library>` or the providers. The names of the components
+ * are checked by checkTelemetry.
+ * @param {import('./xml.mjs').XmlElement} manifest
+ * @returns {string[]}
+ */
+function forbiddenLibraryProblems(manifest) {
+  /** @type {string[]} */
+  const problems = [];
+  /** @param {string} what @param {string} name */
+  const check = (what, name) => {
+    const prefix = forbiddenPrefixOf(name);
+    if (prefix !== undefined) problems.push(`${what} ${name} belongs to a forbidden library group (${prefix})`);
+  };
+  /** @param {string} what @param {import('./xml.mjs').XmlElement} provider */
+  const authorities = (what, provider) => {
+    for (const authority of (provider.attributes['android:authorities'] ?? '').split(';')) check(`${what} authority`, authority.trim());
+  };
+  for (const queries of childrenNamed(manifest, 'queries')) {
+    for (const element of childrenNamed(queries, 'package')) check('queries package', element.attributes['android:name'] ?? '');
+    for (const provider of childrenNamed(queries, 'provider')) authorities('queries provider', provider);
+  }
+  for (const application of childrenNamed(manifest, 'application')) {
+    for (const library of childrenNamed(application, 'uses-library')) check('uses-library', library.attributes['android:name'] ?? '');
+    for (const provider of childrenNamed(application, 'provider')) authorities('provider', provider);
   }
   return problems;
 }

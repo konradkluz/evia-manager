@@ -60,6 +60,7 @@ export type NativeSession = Pick<
   | 'flushPendingRevocations'
   | 'sessionState'
   | 'clearWipeMarkerAfterLogin'
+  | 'clearCaptureCache'
   | 'lastContact'
   | 'addListener'
 >;

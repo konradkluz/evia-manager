@@ -384,7 +384,9 @@ describe('sheet "Dodaj" and the queue in the hidden-data mode (EVM-101 AC8)', ()
     expect(screen.getByText(pl.add.hiddenReason)).toBeOnTheScreen();
     expect(screen.getByTestId('add-media')).toBeEnabled();
     await fireEvent.press(screen.getByTestId('add-media'));
-    expect(rig.opened).toEqual(['add:media']);
+    // EVM-108 AC5: it leads to the choice of the order for the camera (numbers only in this mode)
+    expect(screen.getByTestId('media-picker')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByTestId('media-picker-cancel'));
     await fireEvent.press(screen.getByTestId('orders-add'));
     await fireEvent.press(screen.getByTestId('add-close'));
     expect(screen.queryByTestId('add-sheet')).toBeNull();

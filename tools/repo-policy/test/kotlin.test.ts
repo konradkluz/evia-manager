@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { exists, filesBelow, json, read, record, ROOT } from '../src/files.ts';
 import {
   binaryLibraryProblems,
+  cameraSourceProblems,
   buildCacheProblems,
   denylistProblems,
   enginePurityProblems,
@@ -292,5 +293,59 @@ describe('EVM-109 AC6: the checkers reject bad examples', () => {
 
   it('EVM-109 AC6: AAR files are found', () => {
     expect(binaryLibraryProblems(['a/b/lib.aar', 'a/b/LIB.AAR', 'a/c/lib.jar'])).toHaveLength(2);
+  });
+});
+
+const COMMENT_AND_LOOKALIKES = [
+  '// MediaStore.ACTION_IMAGE_CAPTURE is forbidden',
+  '/* setLocation getExternalFilesDir */',
+  'val a = "Media" + "Store"',
+  'fun setLocationName() = 1',
+  'val cache = cacheDir',
+].join(String.fromCharCode(10));
+
+describe('EVM-108 AC8: no way around the camera of the app in native sources (SR-FILE-08, SR-MOB-02, CWE-359, CWE-927)', () => {
+  it('EVM-108 AC8: the Kotlin and Java sources of modules, android and plugins use no system camera intent, MediaStore, position or external storage', () => {
+    const sources = {
+      ...moduleSources('apps/mobile/modules'),
+      ...moduleSources('apps/mobile/android'),
+      ...moduleSources('apps/mobile/plugins'),
+    };
+    expect(Object.keys(sources).length).toBeGreaterThan(10);
+    expect(cameraSourceProblems(sources)).toEqual([]);
+  });
+
+  it('EVM-108 AC8: every forbidden call is found, in Kotlin and in Java, once per rule and file', () => {
+    for (const code of [
+      'startActivity(Intent(MediaStore.ACTION_IMAGE_CAPTURE))',
+      'val action = "android.media.action.IMAGE_CAPTURE"',
+      'Intent(MediaStore.ACTION_VIDEO_CAPTURE)',
+      'val uri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI',
+      'import android.provider.MediaStore',
+      'builder.setLocation(location)',
+      'context.getExternalFilesDir(null)',
+      'context.getExternalCacheDir()',
+      'Environment.getExternalStorageDirectory()',
+      'exif.getAttribute(ExifInterface.TAG_GPS_LATITUDE)',
+      'val key = ExifInterface.TAG_GPS_LONGITUDE',
+    ]) {
+      expect(cameraSourceProblems({ 'A.kt': code }).length, code).toBeGreaterThan(0);
+      expect(cameraSourceProblems({ 'A.java': `class A { void f() { ${code}; } }` }).length, code).toBeGreaterThan(0);
+    }
+    expect(
+      cameraSourceProblems({ 'A.kt': 'startActivity(Intent(MediaStore.ACTION_IMAGE_CAPTURE)); val x = getExternalCacheDir()' }),
+    ).toEqual([
+      'A.kt: zakazane w kodzie natywnym aparatu (MediaStore)',
+      'A.kt: zakazane w kodzie natywnym aparatu (zamiar aparatu systemowego)',
+      'A.kt: zakazane w kodzie natywnym aparatu (pamięć zewnętrzna)',
+    ]);
+  });
+
+  it('EVM-108 AC8: a comment is text, a similar name is not a finding', () => {
+    expect(
+      cameraSourceProblems({
+        'A.kt': COMMENT_AND_LOOKALIKES,
+      }),
+    ).toEqual([]);
   });
 });

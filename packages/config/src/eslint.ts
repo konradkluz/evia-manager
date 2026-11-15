@@ -119,6 +119,35 @@ const MOBILE_ASYNC_STORAGE_PATTERN = { group: ['@react-native-async-storage/*'],
 const NONZERO_NUMBER = String.raw`/^-?([1-9]\d*|0\.\d+)/`;
 
 /**
+ * The camera of the app (EVM-108 AC8; SR-FILE-08, SR-MOB-02, SR-MOB-12; CWE-359, CWE-927): the in-app camera (`expo-camera`, CameraX) only. No
+ * library that reads the public gallery or the position, or starts the camera of another app (an intent writes a position and copies the
+ * picture to the gallery or a cloud); no scanner of codes or of documents (the scanners of Google are off at build time, the code of the
+ * app must not call them); no position, copy (`base64`) or EXIF in the options of the picture.
+ */
+const MOBILE_CAMERA_MESSAGE =
+  'EVM-108 AC8: the camera is the in-app one (expo-camera) only: no gallery, position, system camera intent, scanner or EXIF in the picture options (SR-FILE-08, SR-MOB-12).';
+const CAMERA_FORBIDDEN_LIBRARIES = ['expo-image-picker', 'expo-media-library', 'expo-location', 'expo-intent-launcher'];
+const MOBILE_CAMERA_PATHS = CAMERA_FORBIDDEN_LIBRARIES.map((name) => ({ name, message: MOBILE_CAMERA_MESSAGE }));
+const MOBILE_CAMERA_PATTERN = { group: CAMERA_FORBIDDEN_LIBRARIES.map((name) => `${name}/*`), message: MOBILE_CAMERA_MESSAGE };
+/** A prefix match (also the subpaths of a library); esquery regular expressions cannot hold a slash. */
+const CAMERA_LIBRARY_SOURCE = `/^(${CAMERA_FORBIDDEN_LIBRARIES.join('|')})/`;
+const CAMERA_INTENT_NAME = String.raw`/ACTION_(IMAGE|VIDEO)_CAPTURE|android\.media\.action\.(IMAGE|VIDEO)_CAPTURE|MediaStore/`;
+const CAMERA_SCANNER_NAME = '/^(onBarcodeScanned|barcodeScannerSettings|launchScanner|scanFromURLAsync|dismissScanner)$/';
+const TAKE_PICTURE = "CallExpression[callee.property.name='takePictureAsync']";
+const MOBILE_CAMERA_SELECTORS = [
+  { selector: `ImportExpression[source.value=${CAMERA_LIBRARY_SOURCE}]`, message: MOBILE_CAMERA_MESSAGE },
+  { selector: `CallExpression[callee.name='require'][arguments.0.value=${CAMERA_LIBRARY_SOURCE}]`, message: MOBILE_CAMERA_MESSAGE },
+  { selector: `Literal[value=${CAMERA_INTENT_NAME}]`, message: MOBILE_CAMERA_MESSAGE },
+  { selector: `TemplateElement[value.raw=${CAMERA_INTENT_NAME}]`, message: MOBILE_CAMERA_MESSAGE },
+  { selector: `Identifier[name=${CAMERA_INTENT_NAME}]`, message: MOBILE_CAMERA_MESSAGE },
+  { selector: `JSXAttribute[name.name=${CAMERA_SCANNER_NAME}]`, message: MOBILE_CAMERA_MESSAGE },
+  { selector: `MemberExpression[property.name=${CAMERA_SCANNER_NAME}]`, message: MOBILE_CAMERA_MESSAGE },
+  { selector: `Property[key.name=${CAMERA_SCANNER_NAME}]`, message: MOBILE_CAMERA_MESSAGE },
+  { selector: `${TAKE_PICTURE} Property[key.name=/^(additionalExif|base64)$/]`, message: MOBILE_CAMERA_MESSAGE },
+  { selector: `${TAKE_PICTURE} Property[key.name='exif'][value.value=true]`, message: MOBILE_CAMERA_MESSAGE },
+];
+
+/**
  * Mobile UI rules (EVM-009 AC1, AC6): UI text only through i18n, colours and sizes only from tokens, no console output (the single
  * logger takes fixed event names; SR-LOG-08), rules of hooks. One `no-restricted-syntax` list together with the SQL selectors.
  */
@@ -150,6 +179,7 @@ export function mobileUi({
             selector: 'JSXAttribute[name.name=/^(accessibilityLabel|accessibilityHint|label|title|placeholder|alt)$/] > Literal',
             message: I18N_MESSAGE,
           },
+          ...MOBILE_CAMERA_SELECTORS,
         ],
       },
     },
@@ -163,8 +193,8 @@ export function mobileUi({
         'no-restricted-imports': [
           'error',
           {
-            paths: [...PG_PATHS, MOBILE_CONTRACT_PATH, ...MOBILE_SQLITE_PATHS, ...MOBILE_PLAIN_STORE_PATHS],
-            patterns: [MOBILE_CONTRACT_PATTERN, MOBILE_SQLITE_PATTERN, MOBILE_ASYNC_STORAGE_PATTERN],
+            paths: [...PG_PATHS, MOBILE_CONTRACT_PATH, ...MOBILE_SQLITE_PATHS, ...MOBILE_PLAIN_STORE_PATHS, ...MOBILE_CAMERA_PATHS],
+            patterns: [MOBILE_CONTRACT_PATTERN, MOBILE_SQLITE_PATTERN, MOBILE_ASYNC_STORAGE_PATTERN, MOBILE_CAMERA_PATTERN],
           },
         ],
       },
@@ -175,11 +205,12 @@ export function mobileUi({
         'no-restricted-imports': [
           'error',
           {
-            paths: [...PG_PATHS, ...MOBILE_SQLITE_PATHS, ...MOBILE_PLAIN_STORE_PATHS],
+            paths: [...PG_PATHS, ...MOBILE_SQLITE_PATHS, ...MOBILE_PLAIN_STORE_PATHS, ...MOBILE_CAMERA_PATHS],
             patterns: [
               { group: ['@evia/contracts/authz'], message: 'The authorization manifest is a server concern (ADR-0004).' },
               MOBILE_SQLITE_PATTERN,
               MOBILE_ASYNC_STORAGE_PATTERN,
+              MOBILE_CAMERA_PATTERN,
             ],
           },
         ],
@@ -192,8 +223,8 @@ export function mobileUi({
         'no-restricted-imports': [
           'error',
           {
-            paths: [...PG_PATHS, MOBILE_CONTRACT_PATH, ...MOBILE_PLAIN_STORE_PATHS],
-            patterns: [MOBILE_CONTRACT_PATTERN, MOBILE_ASYNC_STORAGE_PATTERN],
+            paths: [...PG_PATHS, MOBILE_CONTRACT_PATH, ...MOBILE_PLAIN_STORE_PATHS, ...MOBILE_CAMERA_PATHS],
+            patterns: [MOBILE_CONTRACT_PATTERN, MOBILE_ASYNC_STORAGE_PATTERN, MOBILE_CAMERA_PATTERN],
           },
         ],
       },

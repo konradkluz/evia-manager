@@ -10,7 +10,7 @@ appId: pl.eviacharge.manager
 - tapOn:
     id: 'nav-queue'
 - extendedWaitUntil:
-    visible: 'Plik, Nie wysłano — plik uszkodzony w transmisji'
+    visible: 'Bez kategorii, Zdjęcie, .*, Nie wysłano — plik uszkodzony w transmisji'
     timeout: 90000
 - assertVisible:
     id: 'file-retry-.*'

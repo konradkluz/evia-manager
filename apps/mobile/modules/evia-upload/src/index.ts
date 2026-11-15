@@ -80,6 +80,11 @@ export interface UploadItem {
   readonly contentType: string;
 }
 
+/**
+ * The answer of `importOriginal` (EVM-108): a short code, never a path or a message. `unavailable` = no native module / no configuration.
+ */
+export type ImportResultName = 'ok' | 'invalid' | 'source_missing' | 'no_space' | 'io_error' | 'wipe_active' | 'exists' | 'unavailable';
+
 export interface OriginalDigest {
   readonly sizeBytes: number;
   /** Lower-case hex, 64 characters. */
@@ -169,9 +174,24 @@ export interface EviaUploadModule {
   flushPendingRevocations(): Promise<boolean>;
   sessionState(): Promise<SessionStateResult>;
   clearWipeMarkerAfterLogin(): Promise<boolean>;
+  /**
+   * Sign-out (EVM-108, security pkt 13): the capture cache of the camera and the temporary files of the import go. Touches no token and no state
+   * of the session. `true` when nothing stayed; `false` = something stayed (the module retries at the next start and the next return of the network).
+   */
+  clearCaptureCache(): Promise<boolean>;
   // files and jobs
   originalPath(assetId: string): Promise<string | null>;
   digestOriginal(assetId: string): Promise<OriginalDigest | null>;
+  /**
+   * EVM-108: makes the picture the camera wrote (`file://` URI in the capture cache of the app) the durable original of [assetId]:
+   * checked natively, copied with `fsync`, the source removed. Only a code comes back.
+   */
+  importOriginal(assetId: string, sourceUri: string): Promise<ImportResultName>;
+  /**
+   * EVM-108: removes originals nobody knows (not in [keepAssetIds], older than [olderThanMs]), leftovers of imports and old pictures of
+   * the camera cache. Resolves the number of removed files (`0` when unavailable).
+   */
+  sweepOriginals(keepAssetIds: readonly string[], olderThanMs: number): Promise<number>;
   armUpload(
     assetId: string,
     workOrderId: string,
@@ -215,8 +235,11 @@ export const EVIA_UPLOAD_FUNCTIONS = [
   'flushPendingRevocations',
   'sessionState',
   'clearWipeMarkerAfterLogin',
+  'clearCaptureCache',
   'originalPath',
   'digestOriginal',
+  'importOriginal',
+  'sweepOriginals',
   'armUpload',
   'reconcile',
   'retryUpload',

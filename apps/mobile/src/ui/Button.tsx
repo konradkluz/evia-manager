@@ -13,7 +13,7 @@ export interface ButtonProps {
   disabled?: boolean;
   /** A request is running: the press is blocked, the label stays, the state is announced (styleguide § 3.1 "ładowanie"). */
   busy?: boolean;
-  /** Tertiary button on `color.bg.brand` (M-01): text `color.text.on-brand`, inverse focus ring (styleguide § 3.2.1). */
+  /** Tertiary button on `color.bg.brand` (M-01): text `color.text.on-brand`, inverse focus ring (styleguide § 3.2.1); a primary one on the dark panel of the camera gets the outline `color.border.inverse` (§ 3.24). */
   inverse?: boolean;
   /** Stretches to the full width of the bottom bar (styleguide § 3.1 mobile). */
   fullWidth?: boolean;
@@ -36,6 +36,7 @@ export function Button({
   testID,
 }: ButtonProps) {
   const [focused, setFocused] = useState(false);
+  const outlined = inverse && variant === 'primary';
   return (
     <Pressable
       accessibilityRole="button"
@@ -58,8 +59,8 @@ export function Button({
         alignItems: 'center',
         justifyContent: 'center',
         ...(fullWidth ? { alignSelf: 'stretch' as const } : {}),
-        borderWidth: focused ? size.focusRing.width : borderWidth.default,
-        borderColor: focused ? (inverse ? color.focus.ringInverse : color.focus.ring) : 'transparent',
+        borderWidth: focused ? size.focusRing.width : outlined ? borderWidth.strong : borderWidth.default,
+        borderColor: focused ? (inverse ? color.focus.ringInverse : color.focus.ring) : outlined ? color.border.inverse : 'transparent',
         backgroundColor: backgroundFor(variant, disabled, pressed, inverse),
       })}
     >

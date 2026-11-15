@@ -120,3 +120,47 @@ describe('no signing in CI (EVM-009 AC5; decision 2026-10-20, RR-21)', () => {
     expect(problemsOf({ jobs: {} }, 'env:\n  ANDROID_KEY_ALIAS: x\n')).toContain('podpis APK wyłącznie lokalnie');
   });
 });
+
+describe('Gradle checks of the camera in CI (EVM-108 AC8; SR-MOB-12, SR-SUPPLY-06)', () => {
+  const find = (prefix: string): Record<string, unknown> | undefined =>
+    steps('mobile-apk').find((step) => text(step['name']).startsWith(prefix));
+  const order = (): string[] => steps('mobile-apk').map((step) => text(step['name']));
+
+  it('EVM-108 AC8: the dependency tree of the release runtime classpath of the app and of expo-camera is checked after the build and before verify, from one configuration', () => {
+    const tree = find('Gradle dependency tree');
+    expect(tree).toBeDefined();
+    expect(tree?.['working-directory']).toBe('apps/mobile/android');
+    const script = text(tree?.['run']);
+    expect(script).toContain(':app:dependencies --configuration releaseRuntimeClasspath');
+    expect(script).toContain(':expo-camera:dependencies --configuration releaseRuntimeClasspath');
+    expect(script).toContain('node tools/mobile-apk/cli.mjs deps --file "$DEPS_FILE"');
+    const names = order();
+    expect(names.indexOf(text(tree?.['name']))).toBeGreaterThan(names.findIndex((name) => name.startsWith('Release package')));
+    expect(names.indexOf(text(tree?.['name']))).toBeLessThan(names.findIndex((name) => name.startsWith('Verify the finished package')));
+  });
+
+  it('EVM-108 AC8: the mapping of R8 is checked after the build and before verify', () => {
+    const mapping = find('R8 mapping');
+    expect(mapping).toBeDefined();
+    expect(text(mapping?.['run'])).toContain(
+      'node tools/mobile-apk/cli.mjs mapping --file apps/mobile/android/app/build/outputs/mapping/release/mapping.txt',
+    );
+    const names = order();
+    expect(names.indexOf(text(mapping?.['name']))).toBeGreaterThan(names.findIndex((name) => name.startsWith('Release package')));
+    expect(names.indexOf(text(mapping?.['name']))).toBeLessThan(names.findIndex((name) => name.startsWith('Verify the finished package')));
+  });
+
+  it('EVM-108 AC8: the steps fail on the first error (pipefail), never continue on error, interpolate no expression into the script and leave no artifact', () => {
+    for (const step of [find('Gradle dependency tree'), find('R8 mapping')]) {
+      expect(step?.['continue-on-error']).toBeUndefined();
+      expect(text(step?.['run'])).not.toContain('${{');
+      expect(step?.['uses']).toBeUndefined();
+    }
+    expect(text(find('Gradle dependency tree')?.['run'])).toMatch(/^set -euo pipefail$/m);
+    expect(record(find('Gradle dependency tree')?.['env'])['DEPS_FILE']).toBe('${{ runner.temp }}/gradle-deps.txt');
+    // permissions of the job are unchanged and the tree is not uploaded
+    expect(job('mobile-apk')['permissions']).toEqual({ contents: 'read' });
+    const uploads = steps('mobile-apk').filter((step) => text(step['uses']).startsWith('actions/upload-artifact'));
+    expect(uploads.map((step) => record(step['with'])['name'])).toEqual(['lcov-mobile-kotlin', 'mobile-apk-unsigned']);
+  });
+});

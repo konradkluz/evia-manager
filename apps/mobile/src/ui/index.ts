@@ -9,6 +9,10 @@ export { BottomNav } from './BottomNav';
 export type { BottomNavItem } from './BottomNav';
 export { Button } from './Button';
 export type { ButtonProps, ButtonVariant } from './Button';
+export { CameraPanel } from './CameraPanel';
+export type { CameraPanelProps } from './CameraPanel';
+export { CameraShutter } from './CameraShutter';
+export type { CameraShutterProps } from './CameraShutter';
 export { Disclosure } from './Disclosure';
 export type { DisclosureProps } from './Disclosure';
 export { EmptyState } from './EmptyState';
@@ -40,6 +44,7 @@ export {
   Calculator,
   Camera,
   Check,
+  Circle,
   CircleAlert,
   CircleCheck,
   ChevronDown,
@@ -48,7 +53,9 @@ export {
   CirclePause,
   CircleQuestionMark,
   CloudAlert,
+  TriangleAlert,
   CloudCheck,
+  CloudUpload,
   ClipboardList,
   Clock,
   Download,

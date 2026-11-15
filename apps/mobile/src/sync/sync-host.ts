@@ -17,6 +17,7 @@ import {
   type SyncRuntime,
   type SyncPauseReason,
   type SyncSnapshot,
+  type OrderNumber,
   type TargetOption,
 } from './types';
 
@@ -146,5 +147,8 @@ export class SyncHost implements SyncRuntime {
   }
   retargetOptions(exclude: string | null): Promise<readonly TargetOption[]> {
     return this.#service?.retargetOptions(exclude) ?? Promise.resolve([]);
+  }
+  orderNumbers(): Promise<readonly OrderNumber[]> {
+    return this.#service?.orderNumbers() ?? Promise.resolve([]);
   }
 }

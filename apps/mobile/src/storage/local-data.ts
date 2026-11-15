@@ -9,7 +9,7 @@ import { InstallationProof } from './installation-proof';
 import { SqlMediaFileStore, type MediaFileStore } from './media-file-store';
 import { cipherVersionSupported, generateKeyHex, keyCheckValue, keyPragma } from './key';
 import type { AppFiles, CryptoSource, DeviceSecrets, InstallationIdentity, KeyVault, StorageDiagnostic } from './ports';
-import { SqlQueueStore } from './queue-store';
+import { SqlQueueStore, type PendingMediaRegistry } from './queue-store';
 import { SqlReplicaStore } from './replica-store';
 import { SCHEMA, isNewerThan, latest, migrate, readVersions, type SchemaPlan } from './schema';
 import type { SqlEngine } from './sql';
@@ -36,7 +36,8 @@ export interface LocalDataDeps {
 /** Access to the contents of the store, handed out only to the owner after a full sign-in (capability; SR-MOB-13). */
 export interface UnlockedStore {
   readonly userId: string;
-  readonly queue: QueueStore;
+  /** The queue; also takes the registration of the row of a captured file, written in the same transaction as its command (EVM-108 AC1). */
+  readonly queue: QueueStore & PendingMediaRegistry;
   readonly replica: ReplicaStore;
   /**
    * Installation identity of this device. The guard protects the WRITE (only the owner after a full sign-in stores the new secret of
@@ -53,6 +54,8 @@ export interface UnlockedStore {
     readLastSuccess(): Promise<number | null>;
     writeLastSuccess(at: number): Promise<void>;
     listWorkOrders(limit?: number): Promise<{ id: string; number: string; title: string }[]>;
+    /** The id and the number only (EVM-108, hidden-data mode): the title is never read. */
+    listOrderNumbers(limit?: number): Promise<{ id: string; number: string }[]>;
     /** The source of "Moje zlecenia" (EVM-103): allow-listed keys only; no customer, place or stage without `withData`. */
     readOrderListSource(withData: boolean): Promise<OrderListSource>;
     /** The source of the work order details (EVM-104): allow-listed keys of one order; null = not in the active generation. */
@@ -396,6 +399,7 @@ export class LocalDataHost {
         readLastSuccess: () => replica.readLastSuccess(),
         writeLastSuccess: (at) => replica.writeLastSuccess(at),
         listWorkOrders: (limit) => replica.listWorkOrders(limit),
+        listOrderNumbers: (limit) => replica.listOrderNumbers(limit),
         readOrderListSource: (withData) => replica.readOrderListSource(withData),
         readOrderDetailSource: (workOrderId) => replica.readOrderDetailSource(workOrderId),
         readTemplates: () => replica.readTemplates(),

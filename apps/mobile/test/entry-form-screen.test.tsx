@@ -493,12 +493,12 @@ describe('entries and the target (EVM-105 AC4)', () => {
     expect(whole()).not.toContain('read failed');
   });
 
-  it('EVM-105 AC4: the other picks of "Dodaj" still go to the stand-ins of the session', async () => {
+  it('EVM-105 AC4: "Zdjęcie lub film" of "Dodaj" opens the choice of the order for the camera (EVM-108 AC5), not the picker of an entry', async () => {
     const rig = rigWith();
     await open(rig);
     await fireEvent.press(screen.getByTestId('orders-add'));
     await fireEvent.press(screen.getByTestId('add-media'));
-    expect(rig.opened).toContain('add:media');
+    expect(screen.getByTestId('media-picker')).toBeOnTheScreen();
     expect(screen.queryByTestId('entry-picker')).toBeNull();
   });
 

@@ -753,6 +753,29 @@ describe('sign-out through the module (EVM-100 AC7; EVM-130 AC2, AC5)', () => {
     expect(await restarted.owner.accessToken()).toBeNull();
   });
 
+  it('EVM-108 pkt 13: signing out cleans the capture cache through its own call - the call of the tokens is not involved, and the screens do not wait for either', async () => {
+    const rig = await signedIn(phone);
+    expect(await rig.owner.signOut({ online: true })).toEqual({ reason: 'signed_out', unsentItems: 0 });
+    expect(phone.native.cacheCalls).toBe(1);
+  });
+
+  it('EVM-108 pkt 13: with no session the cache is still cleaned, and the module is NOT asked to sign out (a revoked or wiped state of the module stays)', async () => {
+    const rig = start(phone);
+    await rig.owner.signOut({ online: true });
+    expect(natives()).toEqual([]);
+    expect(phone.native.cacheCalls).toBe(1);
+  });
+
+  it('EVM-108 pkt 13: a cleaning that leaves something or fails does not stop the end of the session and makes no second call here (the module retries at the start and when the network returns)', async () => {
+    for (const answer of [false, 'throws'] as const) {
+      const own = newPhone();
+      const rig = await signedIn(own);
+      own.native.cacheAnswers = [answer];
+      expect(await rig.owner.signOut({ online: false })).toEqual({ reason: 'signed_out', unsentItems: 0 });
+      expect(own.native.cacheCalls).toBe(1);
+    }
+  });
+
   it('EVM-100 AC7: the screens hear about the end BEFORE the answer of the server (the call of the module is still running)', async () => {
     const rig = await signedIn(phone);
     let release: () => void = () => undefined;

@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import type { ReactElement } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -5,6 +7,7 @@ import { E2eHooks as Slot, deviceOverrides as releaseOverrides } from '../src/e2
 import { NO_OVERRIDES } from '../src/device-guard/overrides';
 import {
   E2E_HOOKS_MARKER,
+  E2E_MEDIA_WORK_ORDER,
   E2E_USERS,
   E2eHooks,
   deviceOverrides,
@@ -17,13 +20,40 @@ import { WIPE_MARKER_FILE, wipeFaultForE2e, type OpenResult } from '../src/stora
 import { boot, newDevice, type Device } from './storage/fakes';
 import { NodeSqliteEngine, newDisk, removeDisk, type TestDisk } from './storage/node-sqlite-engine';
 
+/** What the stand-in session received from the capture hook: the requests of the pipeline and the pictures it asked for. */
+const mockCapture = {
+  requests: [] as { workOrderId: string; category: string }[],
+  pictures: [] as { id: string; seed: number }[],
+  failAt: null as number | null,
+  noUploads: false,
+};
+jest.mock('../src/e2e-hooks/synthetic-picture', () => ({
+  saveSyntheticPicture: (id: string, seed: number) => {
+    mockCapture.pictures.push({ id, seed });
+    return Promise.resolve({ uri: `file:///synthetic/cache/Camera/${id}.jpg` });
+  },
+}));
 jest.mock('../src/session', () => ({
   sessionPorts: () => ({
     media: { getSnapshot: () => ({ notifications: 'granted', files: [] }) },
     newId: () => '0194c2a0-0000-7000-8000-0000000000b1',
     sync: undefined,
   }),
-  sessionMediaUploads: () => ({ add: () => Promise.resolve({ ok: true }) }),
+  sessionMediaUploads: () =>
+    mockCapture.noUploads
+      ? null
+      : {
+          add: () => Promise.resolve({ ok: true }),
+          // the pipeline of the session: it asks the source for the picture exactly once per shot, like the real one
+          capturePipeline: (takePicture: () => Promise<{ uri: string } | null>) => ({
+            capture: async (request: { workOrderId: string; category: string }) => {
+              mockCapture.requests.push(request);
+              if (mockCapture.failAt === mockCapture.requests.length) return { ok: false, code: 'no_space' };
+              await takePicture();
+              return { ok: true, assetId: 'a', sizeBytes: 1 };
+            },
+          }),
+        },
 }));
 
 const metrics = { frame: { x: 0, y: 0, width: 360, height: 760 }, insets: { top: 24, left: 0, right: 0, bottom: 16 } };
@@ -319,9 +349,42 @@ describe('e2e hooks of the files (EVM-130 AC1, AC8; media block)', () => {
         getSnapshot: () => ({
           notifications: 'denied' as const,
           files: [
-            { assetId: asset, status: 'waiting' as const, percent: null, sizeBytes: 1, actions: [], code: null, updatedAt: 1 },
-            { assetId: asset, status: 'uploading' as const, percent: 3, sizeBytes: 1, actions: [], code: null, updatedAt: 1 },
-            { assetId: asset, status: 'sent' as const, percent: null, sizeBytes: 1, actions: [], code: null, updatedAt: 1 },
+            {
+              assetId: asset,
+              status: 'waiting' as const,
+              percent: null,
+              sizeBytes: 1,
+              actions: [],
+              code: null,
+              updatedAt: 1,
+              category: null,
+              mediaType: 'photo' as const,
+              capturedAt: 1,
+            },
+            {
+              assetId: asset,
+              status: 'uploading' as const,
+              percent: 3,
+              sizeBytes: 1,
+              actions: [],
+              code: null,
+              updatedAt: 1,
+              category: null,
+              mediaType: 'photo' as const,
+              capturedAt: 1,
+            },
+            {
+              assetId: asset,
+              status: 'sent' as const,
+              percent: null,
+              sizeBytes: 1,
+              actions: [],
+              code: null,
+              updatedAt: 1,
+              category: null,
+              mediaType: 'photo' as const,
+              capturedAt: 1,
+            },
           ],
         }),
       },
@@ -369,6 +432,104 @@ describe('e2e hooks of the files (EVM-130 AC1, AC8; media block)', () => {
     await render(<Slot />);
     expect(screen.toJSON()).toBeNull();
     expect(releaseOverrides).toBeNull();
+  });
+});
+
+describe('the batch capture hook (EVM-108 AC7; security requirement 20)', () => {
+  beforeEach(() => {
+    mockCapture.requests = [];
+    mockCapture.pictures = [];
+    mockCapture.failAt = null;
+    mockCapture.noUploads = false;
+  });
+
+  it('EVM-108 AC7: "media: capture N" takes N shots one after another through the capture pipeline, the categories in turn, each with its own seed, and confirms only after the last one', async () => {
+    const shots: { category: string; seed: number }[] = [];
+    const capture: NonNullable<E2eHooksDeps['capture']> = () => ({
+      shoot: (request, seed) => {
+        shots.push({ category: request.category, seed });
+        expect(request.workOrderId).toBe(E2E_MEDIA_WORK_ORDER);
+        return Promise.resolve({ ok: true as const, assetId: 'a', sizeBytes: 1 });
+      },
+    });
+    await render(inProvider(<E2eHooks deps={{ ...depsOf(), capture }} />));
+    await tap(E2E_HOOKS_MARKER);
+    await type('e2e-capture-count', '9');
+    await tap('e2e-capture-batch');
+    await expectStatus('capture_added=9');
+    expect(shots.map((shot) => shot.category)).toEqual([
+      'site_survey',
+      'before_work',
+      'in_progress',
+      'completed_work',
+      'defect',
+      'measurement',
+      'other',
+      'site_survey',
+      'before_work',
+    ]);
+    // every shot has its own seed, hence its own content and SHA-256
+    expect(new Set(shots.map((shot) => shot.seed)).size).toBe(9);
+  });
+
+  it('EVM-108 AC7: the count is kept in 1..60; a shot the pipeline refuses stops the batch with the number saved so far and the code', async () => {
+    const calls: number[] = [];
+    const capture: NonNullable<E2eHooksDeps['capture']> = () => ({
+      shoot: (_request, seed) => {
+        calls.push(seed);
+        return Promise.resolve(
+          calls.length === 3 ? { ok: false as const, code: 'no_space' as const } : { ok: true as const, assetId: 'a', sizeBytes: 1 },
+        );
+      },
+    });
+    await render(inProvider(<E2eHooks deps={{ ...depsOf(), capture }} />));
+    await tap(E2E_HOOKS_MARKER);
+    await type('e2e-capture-count', '30');
+    await tap('e2e-capture-batch');
+    await expectStatus('capture_added=2;error=no_space');
+    expect(calls).toHaveLength(3);
+    calls.length = 0;
+    await type('e2e-capture-count', 'x');
+    await tap('e2e-capture-batch');
+    await expectStatus('capture_added=1');
+    // 9999 is kept to 60 — the batch would run 60 shots; the third is refused again, so the batch stops there
+    await type('e2e-capture-count', '9999');
+    calls.length = 0;
+    await tap('e2e-capture-batch');
+    expect(calls).toHaveLength(3);
+    await expectStatus('capture_added=2;error=no_space');
+  });
+
+  it('EVM-108 AC7: without injected deps the hook goes through the real wiring — the pipeline of the session, a synthetic picture under a name of the camera cache, the same request as the camera screen', async () => {
+    await render(inProvider(<E2eHooks />));
+    await tap(E2E_HOOKS_MARKER);
+    await type('e2e-capture-count', '2');
+    await tap('e2e-capture-batch');
+    await expectStatus('capture_added=2');
+    expect(mockCapture.requests).toEqual([
+      { workOrderId: E2E_MEDIA_WORK_ORDER, category: 'site_survey' },
+      { workOrderId: E2E_MEDIA_WORK_ORDER, category: 'before_work' },
+    ]);
+    expect(mockCapture.pictures).toHaveLength(2);
+    expect(mockCapture.pictures[0]?.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+    expect(mockCapture.pictures[0]?.seed).not.toBe(mockCapture.pictures[1]?.seed);
+  });
+
+  it('EVM-108 AC7: a session without the queue of files answers camera_failed and writes no picture; a refusal of the pipeline is reported', async () => {
+    mockCapture.noUploads = true;
+    await render(inProvider(<E2eHooks />));
+    await tap(E2E_HOOKS_MARKER);
+    await tap('e2e-capture-batch');
+    await expectStatus('capture_added=0;error=camera_failed');
+    expect(mockCapture.pictures).toEqual([]);
+    mockCapture.noUploads = false;
+    mockCapture.failAt = 1;
+    await tap('e2e-capture-batch');
+    await expectStatus('capture_added=0;error=no_space');
+  });
+
+  it('EVM-108 AC7: the temporary entry to the camera is gone — the flows reach the camera through the screens of the app', () => {
+    expect(readFileSync(join(__dirname, '..', 'src', 'e2e-hooks', 'panel.tsx'), 'utf8')).not.toContain('e2e-camera-open');
   });
 });
 

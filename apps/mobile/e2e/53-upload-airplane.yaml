@@ -13,6 +13,6 @@ appId: pl.eviacharge.manager
     timeout: 60000
 - tapOn:
     id: 'nav-queue'
-- assertNotVisible: 'Plik, Wysłano'
-- assertVisible: 'Plik, (Oczekuje|Wysyłanie [0-9]+%)'
+- assertNotVisible: 'Bez kategorii, Zdjęcie, .*, Wysłano'
+- assertVisible: 'Bez kategorii, Zdjęcie, .*, (Oczekuje|Wysyła się [0-9]+%)'
 - takeScreenshot: u130-network-cut

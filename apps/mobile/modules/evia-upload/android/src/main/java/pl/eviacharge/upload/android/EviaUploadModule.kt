@@ -19,6 +19,7 @@ import pl.eviacharge.upload.schedule.SyntheticFile
 import pl.eviacharge.upload.schedule.wire
 import pl.eviacharge.upload.session.AppAccess
 import pl.eviacharge.upload.session.LoginInput
+import pl.eviacharge.upload.session.SessionState
 import java.io.IOException
 
 /**
@@ -217,10 +218,21 @@ class EviaUploadModule : Module() {
       }
     }
 
+    /**
+     * Sign-out, with or without a session (EVM-108, security pkt 13): the pictures the camera left in the cache and the temporary files of an import
+     * go. It touches no token and no state of the session. Resolves `true` when nothing stayed, `false` when something did (fail closed: the retry
+     * is `flushPendingRevocations` at the next start and the next return of the network).
+     */
+    AsyncFunction("clearCaptureCache") {
+      withRuntime(false) { rt -> rt.importer.clearLeftovers() }
+    }
+
     /** Sends the pending revocations (start, return of the network, after a sign-in). Resolves `true` | `false`. */
     AsyncFunction("flushPendingRevocations") {
       withRuntime(false) { rt ->
         rt.tokens.flushPendingRevocations()
+        // the retry of a cleaning that sign-out could not finish (EVM-108, fail closed): a signed-out phone keeps no picture of the camera
+        rt.importer.clearLeftoversIfSignedOut { rt.tokens.state() == SessionState.SIGNED_OUT }
         true
       }
     }
@@ -248,6 +260,22 @@ class EviaUploadModule : Module() {
     /** The private place of the original of [assetId] (a lower-case UUID): where the camera writes it. `null` for a bad identifier. */
     AsyncFunction("originalPath") { assetId: String ->
       withRuntime<String?>(null) { rt -> rt.lifecycle.originalFile(assetId).absolutePath }
+    }
+
+    /**
+     * EVM-108: the picture the camera wrote becomes the durable original of [assetId] (checked, copied with fsync, the source removed).
+     * Resolves `ok` | `invalid` | `source_missing` | `no_space` | `io_error` | `wipe_active` | `exists` | `unavailable`; never a path or a message.
+     */
+    AsyncFunction("importOriginal") { assetId: String, sourceUri: String ->
+      withRuntime("unavailable") { rt -> rt.importer.import(assetId, sourceUri).wire }
+    }
+
+    /**
+     * EVM-108: the sweep of originals nobody knows (not in [keepAssetIds], older than [olderThanMs]), of import leftovers and of old pictures
+     * in the camera cache. Resolves how many files went (`0` when unavailable).
+     */
+    AsyncFunction("sweepOriginals") { keepAssetIds: List<String>, olderThanMs: Double ->
+      withRuntime(0) { rt -> rt.importer.sweep(keepAssetIds.toSet(), olderThanMs.toLong()) }
     }
 
     /** `{sizeBytes, sha256}` of the original, computed natively as a stream; `null` when there is none. */

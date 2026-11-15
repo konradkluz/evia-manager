@@ -53,3 +53,43 @@ export function createMediaAssetInput(asset: NewMediaAsset): EnqueueInput | null
     },
   };
 }
+
+/** The answer of the queue of files to a registered file (defined here, with the data it is about, so that the capture and the queue need not import each other). */
+export type AddMediaResult =
+  { readonly ok: true } | { readonly ok: false; readonly code: 'invalid' | 'no_session' | 'missing_original' | 'enqueue_failed' };
+
+/** What the camera hands over (EVM-108 AC1): a photo of a work order with the category chosen by the technician. No description, no stage. */
+export interface CapturedPhoto {
+  /** UUIDv7; also the id of the file of the native module. */
+  readonly assetId: string;
+  readonly workOrderId: string;
+  readonly category: MediaCategory;
+  /** ISO instant (UTC, with milliseconds) of the capture. */
+  readonly capturedAt: string;
+}
+
+const isIsoInstant = (value: string): boolean => {
+  const time = Date.parse(value);
+  return !Number.isNaN(time) && new Date(time).toISOString() === value;
+};
+
+/**
+ * The entry for the queue of a captured photo, or `null`. The payload is built field by field (no spread of the argument): EXACTLY
+ * `id`, `workOrderId`, `mediaType`, `category`, `capturedAt` — nothing the technician did not choose (security 15; RR-96: no description in v1).
+ */
+export function createCapturedPhotoInput(photo: CapturedPhoto): EnqueueInput | null {
+  if (!CLIENT_ID.test(photo.assetId) || !UUID.test(photo.workOrderId)) return null;
+  if (!(MEDIA_CATEGORIES as readonly string[]).includes(photo.category)) return null;
+  if (!isIsoInstant(photo.capturedAt)) return null;
+  return {
+    type: 'CreateMediaAsset',
+    commandVersion: MEDIA_COMMAND_VERSION,
+    payload: {
+      id: photo.assetId,
+      workOrderId: photo.workOrderId,
+      mediaType: 'photo',
+      category: photo.category,
+      capturedAt: photo.capturedAt,
+    },
+  };
+}

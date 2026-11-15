@@ -10,6 +10,7 @@
  * Findings carry the rule and the name of the component or package — never contents.
  */
 import { PLACEHOLDER_API_HOST } from './contents.mjs';
+import { FORBIDDEN_PACKAGE_PREFIXES } from './forbidden.mjs';
 import { childrenNamed, parseXml } from './xml.mjs';
 
 /** Meta-data of the package: the address of the API (https) and the hosts of the object storage (comma separated, no scheme). */
@@ -18,10 +19,8 @@ export const STORAGE_HOSTS_META = 'pl.eviacharge.STORAGE_HOSTS';
 
 /** Package prefixes of SDKs that report errors, measure usage, serve advertising or record the screen. */
 const SDK_PREFIXES = Object.freeze([
-  'com.google.firebase',
-  'com.google.android.gms',
-  'com.google.mlkit',
-  'com.google.android.datatransport',
+  // Google (ML Kit, Play services, Firebase, datatransport, ODML, the ML Kit artifact of CameraX): one list for all checks (EVM-108 AC8)
+  ...FORBIDDEN_PACKAGE_PREFIXES,
   'io.sentry',
   'com.bugsnag',
   'com.crashlytics',
@@ -54,7 +53,8 @@ const SDK_PREFIXES = Object.freeze([
 ]);
 
 /** Meta-data names that configure analytics or advertising SDKs. */
-const SDK_META = /^(?:firebase_|google_analytics_|google_app_id\b|com\.google\.android\.gms\.|io\.sentry\.|com\.crashlytics\.)/;
+const SDK_META =
+  /^(?:firebase_|google_analytics_|google_app_id\b|com\.google\.android\.gms\.|com\.google\.mlkit\.|io\.sentry\.|com\.crashlytics\.)/;
 
 /** The advertising identifier and the privacy-sandbox ad services (MASVS-PRIVACY-1), and the capture of the screen. */
 const FORBIDDEN_PERMISSION =

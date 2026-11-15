@@ -3,6 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
 import { APPLICATION_ID } from '../src/commands.mjs';
+import { CAMERA_SCENARIOS } from '../src/camera-scenarios.mjs';
 import { SCENARIOS } from '../src/scenarios.mjs';
 import { UPLOAD_SCENARIOS } from '../src/upload-scenarios.mjs';
 
@@ -27,7 +28,9 @@ describe('Maestro flows and scenarios agree (EVM-009 AC4)', () => {
     // EVM-130: the flows 50-69 belong to the upload scenarios (src/upload-scenarios.mjs; test/upload-flows.test.mjs judges them); one of them
     // serves several steps of a scenario, so they are counted once
     const uploadFlows = [...new Set(UPLOAD_SCENARIOS.flatMap((scenario) => scenario.steps.map((step) => step.flow)))];
-    assert.deepEqual([...referenced, ...uploadFlows].sort(), files);
+    // EVM-108: the flows 80-89 belong to the camera scenarios (src/camera-scenarios.mjs; test/camera-flows.test.mjs judges them)
+    const cameraFlows = [...new Set(CAMERA_SCENARIOS.flatMap((scenario) => scenario.steps.map((step) => step.flow)))];
+    assert.deepEqual([...referenced, ...uploadFlows, ...cameraFlows].sort(), files);
     assert.equal(new Set(referenced).size, referenced.length);
   });
 

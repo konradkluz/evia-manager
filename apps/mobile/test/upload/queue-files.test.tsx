@@ -3,6 +3,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { AccessibilityInfo } from 'react-native';
 import { App } from '../../src/App';
+import { formatDateTime } from '../../src/i18n/format';
 import { pl } from '../../src/i18n/pl';
 import { NotificationConsentSheet } from '../../src/screens/NotificationConsentSheet';
 import type { StartupChecker } from '../../src/startup';
@@ -36,6 +37,9 @@ const file = (n: number, patch: Partial<MediaFileView> = {}): MediaFileView => (
   actions: [],
   code: null,
   updatedAt: AT,
+  category: null,
+  mediaType: 'photo',
+  capturedAt: AT,
   ...patch,
 });
 const snap = (files: MediaFileView[], notifications: 'granted' | 'denied' = 'granted'): MediaUploadsSnapshot => ({ files, notifications });
@@ -62,21 +66,24 @@ describe('states of the files (EVM-130 AC4)', () => {
     );
     await openQueue(rig);
     expect(screen.queryByTestId('queue-empty')).toBeNull();
-    expect(screen.getByTestId('files-summary')).toHaveTextContent('Wysłano 1 z 6 · 5 w kolejce', { exact: false });
+    expect(screen.getByTestId('files-summary')).toHaveTextContent('5 do wysłania', { exact: false });
     expect(screen.getByTestId(`file-row-${ID(1)}`)).toHaveTextContent(pl.upload.states.waiting, { exact: false });
-    expect(screen.getByTestId(`file-row-${ID(2)}`)).toHaveTextContent('Wysyłanie 40%', { exact: false });
+    expect(screen.getByTestId(`file-row-${ID(2)}`)).toHaveTextContent('Wysyła się 40%', { exact: false });
     expect(screen.getByTestId(`file-row-${ID(2)}`)).toHaveAccessibilityValue({});
     expect(screen.getByTestId(`file-progress-${ID(2)}`)).toBeOnTheScreen();
     expect(screen.getByTestId(`file-row-${ID(3)}`)).toHaveTextContent('Nie wysłano — plik uszkodzony w transmisji', { exact: false });
     expect(screen.getByTestId(`file-row-${ID(6)}`)).toHaveTextContent('Wysłano', { exact: false });
-    expect(screen.getByLabelText('Plik, Oczekuje')).toBeOnTheScreen();
-    expect(screen.getByLabelText('Plik, Wysyłanie 40%')).toBeOnTheScreen();
+    // the spoken name of a row: the category, the type, the time of the capture and the state
+    expect(screen.getByLabelText(`Bez kategorii, Zdjęcie, ${formatDateTime(AT)}, Oczekuje`)).toBeOnTheScreen();
+    expect(screen.getByLabelText(`Bez kategorii, Zdjęcie, ${formatDateTime(AT)}, Wysyła się 40%`)).toBeOnTheScreen();
     // "Wymaga uwagi": a card with a plain reason; a quarantine has no "Ponów"
     expect(screen.getByTestId(`file-attention-${ID(4)}`)).toHaveTextContent(pl.upload.reasons.id_conflict, { exact: false });
     expect(screen.getByTestId(`file-attention-${ID(5)}`)).toHaveTextContent(pl.upload.reasons.quarantined, { exact: false });
-    expect(screen.getAllByRole('button', { name: pl.upload.retry })).toHaveLength(1);
-    expect(screen.getAllByLabelText(pl.upload.retryA11y)).toHaveLength(1);
+    // "Ponów" stays where EVM-130 had it: the failed file (3) and the file of "Wymaga uwagi" that can be retried (4); the quarantine (5) has none
+    expect(screen.getAllByRole('button', { name: pl.upload.retryA11y })).toHaveLength(2);
     expect(screen.getByTestId(`file-retry-${ID(3)}`)).toBeOnTheScreen();
+    expect(screen.getByTestId(`file-attention-${ID(4)}-retry`)).toBeOnTheScreen();
+    expect(screen.queryByTestId(`file-attention-${ID(5)}-retry`)).toBeNull();
   });
 
   it('EVM-130 AC4: "Ponów" hands the file to the module; a refusal says so and the list stays', async () => {
@@ -102,7 +109,7 @@ describe('states of the files (EVM-130 AC4)', () => {
     rig.media.set(snap([file(4, { status: 'attention', code: 'unknown', actions: ['retry'] })]));
     await openQueue(rig);
     expect(screen.getByTestId(`file-attention-${ID(4)}`)).toHaveTextContent(pl.upload.reasons.unknown, { exact: false });
-    await fireEvent.press(screen.getByRole('button', { name: pl.upload.retry }));
+    await fireEvent.press(screen.getByRole('button', { name: pl.upload.retryA11y }));
     await settle();
     expect(rig.media.calls).toContain(`retry:${ID(4)}`);
   });
@@ -140,7 +147,7 @@ describe('states of the files (EVM-130 AC4)', () => {
     rig.media.set(snap([file(1, { status: 'uploading', percent: 10 })]));
     await openQueue(rig);
     expect(screen.getByTestId('queue-list-hidden')).toBeOnTheScreen();
-    expect(screen.getByTestId(`file-row-${ID(1)}`)).toHaveTextContent('Wysyłanie 10%', { exact: false });
+    expect(screen.getByTestId(`file-row-${ID(1)}`)).toHaveTextContent('Wysyła się 10%', { exact: false });
     const text = JSON.stringify(screen.toJSON());
     expect(text).not.toContain('ZL-');
     expect(text).not.toContain('10000000-0000-4000');
@@ -236,5 +243,159 @@ describe('the target of a notification passes through the lock of the app (EVM-1
     await settle();
     expect(screen.getByTestId('queue-files')).toBeOnTheScreen();
     expect(rig.media.launchTarget).toBeNull();
+  });
+});
+
+describe('the rows of the files and "Usuń z telefonu" (EVM-108 AC6)', () => {
+  const DEFECT = { category: 'defect' as const, capturedAt: AT };
+
+  it('EVM-108 AC6: every file is a row of the shared component - the category, the time of the capture and the type - with exactly one of the four labels', async () => {
+    const rig = stubPorts();
+    rig.media.set(
+      snap([
+        file(1, { status: 'waiting', ...DEFECT }),
+        file(2, { status: 'uploading', percent: 45, category: 'measurement', capturedAt: AT + 60_000 }),
+        file(3, { status: 'sent', category: 'other' }),
+        file(4, { status: 'attention', code: 'quarantined', actions: ['discard'], category: 'site_survey' }),
+      ]),
+    );
+    await openQueue(rig);
+    const labels = [
+      [1, 'Usterka / problem', 'Oczekuje'],
+      [2, 'Pomiary', 'Wysyła się 45%'],
+      [3, 'Inne', 'Wysłano'],
+      [4, 'Oględziny', 'Wymaga uwagi'],
+    ] as const;
+    for (const [n, category, label] of labels) {
+      const prefix = n === 4 ? 'file-attention' : 'file-row';
+      const row = screen.getByTestId(`${prefix}-${ID(n)}`);
+      expect(row).toHaveTextContent(category, { exact: false });
+      expect(row).toHaveTextContent('Zdjęcie', { exact: false });
+      expect(row).toHaveTextContent(label, { exact: false });
+      // the same component: the same structure under every row (the group that is spoken)
+      expect(screen.getByTestId(`${prefix}-${ID(n)}-info`)).toBeOnTheScreen();
+    }
+    expect(screen.getByTestId(`file-row-${ID(1)}`)).toHaveTextContent(formatDateTime(AT), { exact: false });
+    expect(screen.getByTestId(`file-row-${ID(2)}`)).toHaveTextContent(formatDateTime(AT + 60_000), { exact: false });
+    expect(screen.getByLabelText(`Usterka / problem, Zdjęcie, ${formatDateTime(AT)}, Oczekuje`)).toBeOnTheScreen();
+    expect(screen.getByLabelText(`Pomiary, Zdjęcie, ${formatDateTime(AT + 60_000)}, Wysyła się 45%`)).toBeOnTheScreen();
+    expect(screen.getByLabelText(`Inne, Zdjęcie, ${formatDateTime(AT)}, Wysłano`)).toBeOnTheScreen();
+    expect(screen.getByLabelText(`Oględziny, Zdjęcie, ${formatDateTime(AT)}, Wymaga uwagi`)).toBeOnTheScreen();
+  });
+
+  it('EVM-108 AC6: a file without a category (or with one from a newer version) says so in words; a video is a "Film"', async () => {
+    const rig = stubPorts();
+    rig.media.set(snap([file(1, { category: null }), file(2, { category: 'unknown', mediaType: 'video' })]));
+    await openQueue(rig);
+    expect(screen.getByTestId(`file-row-${ID(1)}`)).toHaveTextContent('Bez kategorii', { exact: false });
+    expect(screen.getByTestId(`file-row-${ID(2)}`)).toHaveTextContent('Film', { exact: false });
+    expect(screen.getByTestId(`file-row-${ID(2)}`)).toHaveTextContent('Bez kategorii', { exact: false });
+  });
+
+  it('EVM-108 AC6: the header counts the files that are still to be sent (waiting, sending and the ones that need attention), not the sent ones', async () => {
+    const rig = stubPorts();
+    rig.media.set(
+      snap([
+        file(1),
+        file(2, { status: 'uploading', percent: 3 }),
+        file(3, { status: 'attention', code: 'unknown', actions: ['retry'] }),
+        file(4, { status: 'sent' }),
+      ]),
+    );
+    await openQueue(rig);
+    expect(screen.getByTestId('files-summary')).toHaveTextContent('3 do wysłania', { exact: true });
+    expect(screen.getByRole('header', { name: '3 do wysłania' })).toBeOnTheScreen();
+    await act(() => {
+      rig.media.set(snap([file(4, { status: 'sent' })]));
+    });
+    await settle();
+    expect(screen.getByTestId('files-summary')).toHaveTextContent('0 do wysłania', { exact: true });
+  });
+
+  it('EVM-108 AC6: no files = the existing empty message of the Queue (no counter, no list of files)', async () => {
+    const rig = stubPorts();
+    await openQueue(rig);
+    expect(screen.getByTestId('queue-empty')).toBeOnTheScreen();
+    expect(screen.getByText(pl.shell.queue.emptyTitle)).toBeOnTheScreen();
+    expect(screen.queryByTestId('files-summary')).toBeNull();
+  });
+
+  it('EVM-108 AC6: "Usuń z telefonu" only on the files of "Wymaga uwagi" that offer it; the failed file and the one with "Ponów" only have none', async () => {
+    const rig = stubPorts();
+    rig.media.set(
+      snap([
+        file(1, { status: 'attention', code: 'quarantined', actions: ['discard'] }),
+        file(2, { status: 'attention', code: 'id_conflict', actions: ['retry', 'discard'] }),
+        file(3, { status: 'attention', code: 'unknown', actions: ['retry'] }),
+        file(4, { status: 'error', code: 'checksum_mismatch', actions: ['retry'] }),
+        file(5, { status: 'waiting' }),
+      ]),
+    );
+    await openQueue(rig);
+    expect(screen.getAllByRole('button', { name: pl.upload.discardA11y })).toHaveLength(2);
+    expect(screen.getByTestId(`file-attention-${ID(1)}-discard`)).toHaveTextContent('Usuń z telefonu');
+    expect(screen.getByTestId(`file-attention-${ID(2)}-discard`)).toBeOnTheScreen();
+    expect(screen.queryByTestId(`file-attention-${ID(3)}-discard`)).toBeNull();
+    expect(screen.queryByTestId(`file-row-${ID(4)}-discard`)).toBeNull();
+    // "Ponów" is untouched by it: still on the files that had it (EVM-130)
+    expect(screen.getByTestId(`file-attention-${ID(2)}-retry`)).toBeOnTheScreen();
+    expect(screen.queryByTestId(`file-attention-${ID(1)}-retry`)).toBeNull();
+  });
+
+  it('EVM-108 AC6: "Usuń z telefonu" asks first; "Anuluj" changes nothing, the confirmation removes the file through the module', async () => {
+    const rig = stubPorts();
+    rig.media.set(snap([file(1, { status: 'attention', code: 'quarantined', actions: ['discard'] })]));
+    await openQueue(rig);
+    await fireEvent.press(screen.getByTestId(`file-attention-${ID(1)}-discard`));
+    expect(screen.getByTestId('file-discard-dialog')).toBeOnTheScreen();
+    expect(screen.getByText(pl.upload.discardBody)).toBeOnTheScreen();
+    expect(pl.upload.discardBody).toBe('Usuniemy to zdjęcie z telefonu — nie trafi do biura. Tego nie da się cofnąć.');
+    expect(rig.media.calls).not.toContain(`discard:${ID(1)}`);
+    await fireEvent.press(screen.getByTestId('file-discard-cancel'));
+    expect(screen.queryByTestId('file-discard-dialog')).toBeNull();
+    expect(rig.media.calls.filter((call) => call.startsWith('discard:'))).toEqual([]);
+    expect(screen.getByTestId(`file-attention-${ID(1)}`)).toBeOnTheScreen();
+    await fireEvent.press(screen.getByTestId(`file-attention-${ID(1)}-discard`));
+    await fireEvent.press(screen.getByTestId('file-discard-confirm'));
+    await settle();
+    expect(rig.media.calls.filter((call) => call.startsWith('discard:'))).toEqual([`discard:${ID(1)}`]);
+    expect(screen.queryByTestId('file-discard-dialog')).toBeNull();
+    expect(screen.queryByTestId('queue-notice')).toBeNull();
+  });
+
+  it('EVM-108 AC6: a refusal (the module could not remove the file, or it throws) says so and the row stays', async () => {
+    const rig = stubPorts();
+    rig.media.set(snap([file(1, { status: 'attention', code: 'quarantined', actions: ['discard'] })]));
+    await openQueue(rig);
+    rig.media.discardResult = false;
+    await fireEvent.press(screen.getByTestId(`file-attention-${ID(1)}-discard`));
+    await fireEvent.press(screen.getByTestId('file-discard-confirm'));
+    await settle();
+    expect(screen.getByTestId('queue-notice')).toHaveTextContent(pl.attention.failed, { exact: false });
+    expect(screen.getByTestId(`file-attention-${ID(1)}`)).toBeOnTheScreen();
+    rig.media.discard = () => Promise.reject(new Error('synthetic'));
+    await fireEvent.press(screen.getByTestId(`file-attention-${ID(1)}-discard`));
+    await fireEvent.press(screen.getByTestId('file-discard-confirm'));
+    await settle();
+    expect(screen.getByTestId('queue-notice')).toHaveTextContent(pl.attention.failed, { exact: false });
+  });
+
+  it('EVM-108 AC6: the rows show no customer and no address, and in the hidden-data mode no number of the order either; "Usuń z telefonu" works there too', async () => {
+    const rig = stubPorts();
+    rig.device.facts.secure = false;
+    rig.media.set(
+      snap([
+        file(1, { status: 'attention', code: 'quarantined', actions: ['discard'], ...DEFECT }),
+        file(2, { status: 'waiting', ...DEFECT }),
+      ]),
+    );
+    await openQueue(rig);
+    expect(screen.getByTestId('queue-list-hidden')).toBeOnTheScreen();
+    const tree = JSON.stringify(screen.toJSON());
+    for (const secret of ['ZL-', 'Jan Łódzki', 'ul. ', '10000000-0000-4000']) expect(tree).not.toContain(secret);
+    await fireEvent.press(screen.getByTestId(`file-attention-${ID(1)}-discard`));
+    await fireEvent.press(screen.getByTestId('file-discard-confirm'));
+    await settle();
+    expect(rig.media.calls).toContain(`discard:${ID(1)}`);
   });
 });

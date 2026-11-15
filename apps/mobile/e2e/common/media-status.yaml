@@ -1,0 +1,31 @@
+# EVM-108 AC7: the shared reading of the states of the files through the hook of the e2e variant (`media: status` counts the very snapshot the
+# Queue draws its rows from). Called with the variable STATUS (a regex for the whole status line). Ends with the panel closed.
+appId: pl.eviacharge.manager
+---
+- tapOn:
+    id: 'evia-e2e-hooks-panel'
+# the panel is a scroll view: the button lies below the fold, the status line at the top
+- scrollUntilVisible:
+    element:
+      id: 'e2e-media-status'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'e2e-media-status'
+- scrollUntilVisible:
+    element:
+      id: 'e2e-status'
+    direction: UP
+    centerElement: true
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-status'
+      text: ${STATUS}
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: 'e2e-close'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'e2e-close'

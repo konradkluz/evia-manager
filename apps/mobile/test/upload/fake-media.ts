@@ -1,4 +1,5 @@
 // A fake of the files of the queue seen by the screens (EVM-130): a settable snapshot, recorded calls.
+import { CapturePipeline, type CapturePorts } from '../../src/capture/capture-pipeline';
 import type { MediaControl, MediaUploadsSnapshot } from '../../src/upload/types';
 
 export class FakeMedia implements MediaControl {
@@ -7,6 +8,14 @@ export class FakeMedia implements MediaControl {
   retryResult = true;
   consent: 'granted' | 'denied' = 'granted';
   readonly calls: string[] = [];
+  /** The ports of the pipeline the camera gets (set by the test; `takePicture` is the one the screen passes). */
+  capturePorts: Omit<CapturePorts, 'takePicture'> | null = null;
+  /** Free bytes of the phone; `null` = unknown. */
+  freeBytes: number | null = null;
+  /** When set, the free space is read from here at every call (a test that changes it between shots). */
+  freeSource: (() => number | null) | null = null;
+  /** The pipelines made so far (the test waits for their saves). */
+  readonly pipelines: CapturePipeline[] = [];
   readonly #listeners = new Set<() => void>();
 
   subscribe = (listener: () => void): (() => void) => {
@@ -29,6 +38,13 @@ export class FakeMedia implements MediaControl {
     return Promise.resolve(this.retryResult);
   }
 
+  /** What `discard` answers; the assets it was asked about are recorded in `calls`. */
+  discardResult = true;
+  discard(assetId: string): Promise<boolean> {
+    this.calls.push(`discard:${assetId}`);
+    return Promise.resolve(this.discardResult);
+  }
+
   requestNotifications(): Promise<'granted' | 'denied'> {
     this.calls.push('requestNotifications');
     return Promise.resolve(this.consent);
@@ -44,6 +60,18 @@ export class FakeMedia implements MediaControl {
     const target = this.launchTarget;
     this.launchTarget = null;
     return target;
+  }
+
+  capturePipeline(takePicture: CapturePorts['takePicture']): CapturePipeline {
+    const base = this.capturePorts;
+    if (base === null) throw new Error('the test sets capturePorts first');
+    const pipeline = new CapturePipeline({ ...base, takePicture });
+    this.pipelines.push(pipeline);
+    return pipeline;
+  }
+
+  freeDiskBytes(): number | null {
+    return this.freeSource?.() ?? this.freeBytes;
   }
 
   refresh(): Promise<void> {
