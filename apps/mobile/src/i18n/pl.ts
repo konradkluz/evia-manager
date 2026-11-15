@@ -580,6 +580,8 @@ export const pl = {
     searchLabel: 'Szukaj zlecenia',
     searchPlaceholder: 'Szukaj: numer lub tytuł',
     searchPlaceholderHidden: 'Szukaj: numer',
+    // the picker of a photo is not about an entry: the sheet "Dodaj" and the bar of the details keep `add.hiddenReason`
+    hiddenReason: 'Dane zleceń są ukryte — pokazujemy tylko numery.',
     recent: 'Ostatnio otwierane',
     all: 'Zlecenia',
     noMatch: 'Brak zleceń pasujących do wyszukiwania.',
@@ -632,7 +634,7 @@ export const pl = {
     types: { photo: 'Zdjęcie', video: 'Film' },
     noCategory: 'Bez kategorii',
     fileA11y: '{{category}}, {{type}}, {{time}}, {{state}}',
-    discardBody: 'Usuniemy ten plik z telefonu. Tego nie da się cofnąć.',
+    discardBody: 'Usuniemy to zdjęcie z telefonu — nie trafi do biura. Tego nie da się cofnąć.',
     discardA11y: 'Usuń plik z telefonu',
     sections: { files: 'Pliki', attention: 'Plik wymaga uwagi', sent: 'Wysłane pliki' },
     states: {

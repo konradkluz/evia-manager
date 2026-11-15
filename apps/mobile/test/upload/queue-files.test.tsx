@@ -349,6 +349,7 @@ describe('the rows of the files and "Usuń z telefonu" (EVM-108 AC6)', () => {
     await fireEvent.press(screen.getByTestId(`file-attention-${ID(1)}-discard`));
     expect(screen.getByTestId('file-discard-dialog')).toBeOnTheScreen();
     expect(screen.getByText(pl.upload.discardBody)).toBeOnTheScreen();
+    expect(pl.upload.discardBody).toBe('Usuniemy to zdjęcie z telefonu — nie trafi do biura. Tego nie da się cofnąć.');
     expect(rig.media.calls).not.toContain(`discard:${ID(1)}`);
     await fireEvent.press(screen.getByTestId('file-discard-cancel'));
     expect(screen.queryByTestId('file-discard-dialog')).toBeNull();

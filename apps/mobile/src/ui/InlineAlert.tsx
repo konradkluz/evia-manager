@@ -16,6 +16,8 @@ export interface InlineAlertProps {
   action?: ReactNode;
   /** Overrides the tone icon (e.g. a refresh icon for a background refresh). */
   icon?: LucideIcon;
+  /** How the screen reader announces it (default `polite`); `assertive` for an error that must not be drowned by another announcement (the camera). */
+  live?: 'polite' | 'assertive';
   testID?: string;
 }
 
@@ -23,13 +25,13 @@ export interface InlineAlertProps {
  * Alert / banner (styleguide § 3.19; `warning` for a state the user can fix, e.g. notifications off): tone colours, tone icon, a left bar. Only errors are `role="alert"`; other tones are polite
  * live regions (announced once when they appear, no spam).
  */
-export function InlineAlert({ tone, title, body, code, action, icon, testID }: InlineAlertProps) {
+export function InlineAlert({ tone, title, body, code, action, icon, live = 'polite', testID }: InlineAlertProps) {
   const tokens = color.feedback[tone];
   return (
     <View
       testID={testID}
       accessibilityRole={tone === 'error' ? 'alert' : undefined}
-      accessibilityLiveRegion="polite"
+      accessibilityLiveRegion={live}
       style={{
         flexDirection: 'row',
         columnGap: space.inline.md,

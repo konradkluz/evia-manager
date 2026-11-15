@@ -1,6 +1,7 @@
 // The camera screen (EVM-108 AC1-AC4): the series and the return to the order, the permission, the lack of space and the errors of the camera.
 // The photo itself goes through the REAL `CapturePipeline` on in-memory ports of a phone; the library `expo-camera` is the stand-in of test/mocks.
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { StatusBar } from 'expo-status-bar';
 import { AccessibilityInfo, AppState, BackHandler, Linking } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { App } from '../../src/App';
@@ -32,6 +33,9 @@ jest.mock('react-native-safe-area-context', () => {
 
 const GB = 1024 ** 3;
 const WO = '10000000-0000-4000-8000-000000000001';
+// the status bar is a native effect: the stand-in records its props
+jest.mock('expo-status-bar', () => ({ StatusBar: jest.fn(() => null) }));
+
 const settle = () =>
   act(async () => {
     for (let n = 0; n < 12; n += 1) await Promise.resolve();
@@ -497,6 +501,13 @@ describe('the permission of the camera (EVM-108 AC3)', () => {
     expect(rig.media.calls).toEqual([]);
   });
 
+  it('EVM-108 AC3: the explaining screen is light, so its status bar has dark icons (the app default is light)', async () => {
+    const { rig } = setup();
+    cameraMock.set(UNDETERMINED);
+    await mount(rig);
+    expect(jest.mocked(StatusBar).mock.calls.map(([props]) => props.style)).toContain('dark');
+  });
+
   it('EVM-108 AC3: the system "back" on the explaining screen does what "Nie teraz" does', async () => {
     const { rig } = setup();
     cameraMock.set(UNDETERMINED);
@@ -618,6 +629,8 @@ describe('no space and the errors of the camera (EVM-108 AC4)', () => {
     await shoot();
     expect(screen.getByText('Brak miejsca — zdjęcie nie zostało zapisane. Zwolnij miejsce w telefonie.')).toBeOnTheScreen();
     expect(screen.getByTestId('camera-problem')).toHaveProp('accessibilityRole', 'alert');
+    // an error of the save is not drowned by the announcement of a success
+    expect(screen.getByTestId('camera-problem')).toHaveProp('accessibilityLiveRegion', 'assertive');
     expect(cameraMock.takePictureAsync).not.toHaveBeenCalled();
     expect(count()).toBe('0 zdjęć');
     expect(originals.size).toBe(0);

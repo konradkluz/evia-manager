@@ -450,7 +450,9 @@ describe('the choice of the order in the hidden-data mode (EVM-108 AC5; security
     await openPicker();
     expect(rig.sync.numberRequests.length).toBeGreaterThan(0);
     expect(rig.sync.calls.filter((call) => call.startsWith('options:'))).toEqual([]);
-    expect(screen.getByTestId('media-picker-hidden')).toHaveTextContent(pl.add.hiddenReason);
+    expect(screen.getByTestId('media-picker-hidden')).toHaveTextContent('Dane zleceń są ukryte — pokazujemy tylko numery.');
+    expect(screen.getByTestId('media-picker-hidden')).toHaveTextContent(pl.mediaTarget.hiddenReason);
+    expect(pl.mediaTarget.hiddenReason).not.toBe(pl.add.hiddenReason);
     expect(screen.getByRole('button', { name: 'ZL-2026-0042' })).toBeOnTheScreen();
     const tree = whole();
     for (const secret of [TITLE_A, TITLE_B, TITLE_C, CUSTOMER, STREET, 'Łódź']) expect(tree).not.toContain(secret);

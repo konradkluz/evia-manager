@@ -131,7 +131,7 @@ export function MediaTargetPicker({
     >
       {hidden ? (
         <Text style={{ ...text.body, color: color.text.secondary }} testID="media-picker-hidden">
-          {t('add.hiddenReason')}
+          {t('mediaTarget.hiddenReason')}
         </Text>
       ) : null}
       <TextField

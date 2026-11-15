@@ -1,3 +1,4 @@
+import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BackHandler, View } from 'react-native';
@@ -34,6 +35,8 @@ export function CameraPermissionScreen({
   const blocked = state === 'denied_blocked';
   return (
     <View style={{ flex: 1, backgroundColor: color.bg.canvas }} testID="camera-permission">
+      {/* a light screen over the dark bar of the app: the icons of the system must be dark here */}
+      <StatusBar style="dark" />
       <EmptyState
         icon={Camera}
         title={blocked ? t('camera.permission.blocked') : t('camera.permission.title')}

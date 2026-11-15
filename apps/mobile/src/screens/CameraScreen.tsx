@@ -211,7 +211,7 @@ function CameraCapture({ orderId, onClose, focused }: { orderId: string; onClose
     problem !== null || level !== 'ok' || needsCategory ? (
       <View style={{ rowGap: space.stack.sm }}>
         {problem !== null ? (
-          <InlineAlert tone="error" body={t(PROBLEM_KEY[problem])} testID="camera-problem" />
+          <InlineAlert tone="error" body={t(PROBLEM_KEY[problem])} live="assertive" testID="camera-problem" />
         ) : level !== 'ok' && free !== null ? (
           <InlineAlert tone="warning" body={t('camera.lowSpace', { free: formatFreeSpace(free) })} testID="camera-low-space" />
         ) : null}
