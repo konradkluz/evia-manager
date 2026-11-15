@@ -72,12 +72,27 @@ describe('mobile-apk (EVM-009 AC5, AC6)', () => {
     expect(script).toContain('::warning title=Paczka bez wysyłania plików::');
     expect(script).toContain('>> "$GITHUB_STEP_SUMMARY"');
     expect(script).not.toMatch(/exit [1-9]/);
-    expect(script).not.toMatch(/echo[^\n]*\$\{?EVIA_STORAGE_HOSTS(?!\/\/)/);
     expect(script).not.toContain('${{');
     expect(step?.['env']).toBeUndefined();
     expect(JSON.stringify(step)).not.toMatch(/secrets./);
     const names = steps('mobile-apk').map((item) => text(item['name']));
     expect(names.indexOf(text(step?.['name']))).toBeLessThan(names.indexOf('SHA-256 of the package to the summary'));
+  });
+
+  it('EVM-112 AC2: the only reference to the value in any script of the job is the whitespace-trimmed emptiness check; no tracing, no env dump', () => {
+    const scripts = runs('mobile-apk');
+    const joined = scripts.join('\n');
+    // exactly one expansion of the variable (`$NAME`, `${NAME...}`) in all the scripts of the job: the exact condition below
+    const expansions = joined.match(/\$\{?EVIA_STORAGE_HOSTS[^\n]*/g) ?? [];
+    expect(expansions).toHaveLength(1);
+    expect(expansions[0]).toBe('${EVIA_STORAGE_HOSTS//[[:space:]]/}" ]; then');
+    const step = steps('mobile-apk').find((item) => text(item['name']).startsWith('File upload in the package'));
+    expect(text(step?.['run'])).toContain('if [ -z "${EVIA_STORAGE_HOSTS//[[:space:]]/}" ]; then');
+    // elsewhere the name appears only as plain text of a message (no `$`)
+    expect(joined.split('EVIA_STORAGE_HOSTS')).toHaveLength(4);
+    // no shell tracing and no dump of the environment in any step of the job
+    expect(joined).not.toMatch(/sets+-[a-z]*x|sets+-os+xtrace/);
+    expect(joined).not.toMatch(/(^|[\s;|&(])(env|printenv|export\s+-p|declare\s+-x)(\s*($|[|;&)>])|\s+-0)/m);
   });
 
   it('EVM-009 AC5: a frozen lockfile, a clean prebuild, assembleRelease, the run number in the version code, no EAS and no other public variable', () => {
