@@ -4,7 +4,7 @@ title: "Aplikacja: zdjęcia — aparat, kategoria, kolejka plików"
 type: story
 milestone: M2
 epic: E11 Zdjęcia i filmy
-status: in-progress
+status: in-review
 priority: P1
 path: pelna             # pliki, dane osobowe na urządzeniu
 owner: mobile-developer
@@ -138,9 +138,9 @@ EVM-108 pokazuje w Kolejce **minimum**: wiersz pliku, 4 etykiety stanu, licznik,
 - Serwer nadal przyjmuje `description` z kanału `mobile` — rozstrzygnięte decyzją Konrada z 2026-11-15 (RR-96 wariant B: odrzucanie po stronie serwera w EVM-132).
 
 ## Definition of Done
-- [ ] AC1–AC8 pokryte testami oznaczonymi `EVM-108 AC#` (Jest, Maestro na emulatorze z aparatem emulatora, `node:test` dla `verify` i serwera scenariuszy); `pnpm run gate` i `npm run docs:check` zielone.
-- [ ] Recenzje: code-reviewer, security-engineer (uprawnienia, biblioteka aparatu, telemetria), ux-designer (statycznie: teksty, tokeny, nazwy dostępne, stany) — approve.
-- [ ] Makieta 09 / M-06 poprawiona; odstępstwa wpisane do changelogu styleguide'u; kryteria `manual` widoczne w EVM-112; `CHANGELOG.md`.
+- [x] AC1–AC8 pokryte testami oznaczonymi `EVM-108 AC#` (Jest, Maestro na emulatorze z aparatem emulatora, `node:test` dla `verify` i serwera scenariuszy); `pnpm run gate` i `npm run docs:check` zielone.
+- [x] Recenzje: code-reviewer, security-engineer (uprawnienia, biblioteka aparatu, telemetria), ux-designer (statycznie: teksty, tokeny, nazwy dostępne, stany) — approve.
+- [x] Makieta 09 / M-06 poprawiona; odstępstwa wpisane do changelogu styleguide'u; kryteria `manual` widoczne w EVM-112; `CHANGELOG.md`.
 
 ## Dziennik
 - 2026-10-27 — utworzono (product-owner)
@@ -164,3 +164,6 @@ EVM-108 pokazuje w Kolejce **minimum**: wiersz pliku, 4 etykiety stanu, licznik,
 - 2026-11-15 — weryfikacja i przeglądy, runda 1: QA PASS (AC7 z dowodem emulatora: 30 obiektów, 0 duplikatów), ux-designer APPROVE (uwagi minor naniesione), code-reviewer CHANGES REQUIRED (major: toast „Zapisano w telefonie” nie znikał — naprawione w rundzie poprawek 1); decyzje AC6 doprecyzowane w „Decyzjach z realizacji” (Tech Lead)
 - 2026-11-15 — przegląd bezpieczeństwa końcowy (security-engineer): APPROVE; RR-96 i RR-98 ocenione ponownie (Low, bez zmian); dokumenty bezpieczeństwa skorygowane
 - 2026-11-15 — przebieg końcowy na emulatorze (Tech Lead): część domyślna 70/71 na paczce z `d249c99e` — jedyny czerwony `41-order-details-offline` (druga karta dziennika zasłonięta wyższym dolnym paskiem; przepływ przewija teraz do elementu, `f8c78cfb`); powtórka `order-details-offline`, `upload-*` i `camera-*` na `f8c78cfb`: 61/61, w tym 30 zdjęć bez duplikatów, EXIF bez GPS, galeria bez zmian, uprawnienia minimalne; raport QA uzupełniony (F1 zamknięte)
+- 2026-11-15 — weryfikacja orkiestratora (ścieżka `pelna`) na `3a2f26dd`: `pnpm run gate` zielona (pokrycie zmienionego kodu: linie 99,3%, gałęzie 95,4%), `npm run test:tools` zielone, `npm run docs:check` 0 błędów, `pnpm run scan` zielony (gitleaks 0, Semgrep 0, OSV i Trivy bez blokujących, zizmor i actionlint 0); emulator jak we wpisie wyżej; do potwierdzenia w CI przed scaleniem: job `mobile-apk` na paczce release i cztery testy JVM z dowiązaniami na Linuksie (Tech Lead)
+- 2026-11-15 — Koszt: bez rozbicia w $ i bez pełnej sumy tokenów (nieodczytane w sesji; kontekst sesji był kompaktowany) — realizacja etapami: plan, 4 etapy i 2 serie poprawek wykonawcy, makieta (ux-designer), wymagania i dokumenty security, QA, 3 przeglądy; rundy poprawek po przeglądach: 1; ścieżka pełna; sonnet; plik historyjki ok. 26 KB; vs baseline: szacunkowo powyżej celu ścieżki pełnej (historyjka z modułem natywnym, JS i Maestro naraz — przy kolejnych dzielić już w `/refine`)
+- 2026-11-15 — bramki zielone, przeglądy APPROVE; **status `in-review`** — demo i akceptacja Konrada (Tech Lead)
