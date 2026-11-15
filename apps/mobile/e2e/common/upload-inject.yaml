@@ -1,0 +1,22 @@
+# EVM-130 AC1: the shared injection of a synthetic file of ${MIB} MiB through the hook of the e2e variant (no camera, nothing binary in the
+# repository: the module writes random content as the original of a new asset and the app puts the command CreateMediaAsset into the durable
+# queue). Called with the variables MIB (the number typed into the field) and BYTES (the size the status line must report). The status line
+# confirms only after the file and the command are in the durable queue - from then on the app may be killed. Ends with the panel closed.
+appId: pl.eviacharge.manager
+---
+- tapOn:
+    id: 'evia-e2e-hooks-panel'
+- tapOn:
+    id: 'e2e-media-mib'
+- eraseText
+- inputText: ${MIB}
+- hideKeyboard
+- tapOn:
+    id: 'e2e-media-inject'
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-status'
+      text: 'media_added=1;asset=[0-9a-f-]+;bytes=${BYTES}'
+    timeout: 60000
+- tapOn:
+    id: 'e2e-close'

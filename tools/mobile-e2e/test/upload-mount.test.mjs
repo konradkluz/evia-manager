@@ -89,7 +89,7 @@ describe('upload part mounted on the scenario server (EVM-130 stage C, AC1, AC4,
         body: { id: SESSION },
       });
       assert.equal(created.status, 201);
-      assert.equal(created.json.partCount, 3);
+      assert.equal(created.json.partCount, 5);
       const url = (await call(stub.port, `${sessions}/${SESSION}/parts/1/url`, { headers: auth })).json.url;
       assert.equal(new URL(url).port, String(stub.port));
       assert.equal(new URL(url).hostname, '10.0.2.2');

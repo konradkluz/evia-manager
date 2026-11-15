@@ -1,0 +1,18 @@
+# EVM-130 AC1: the network was cut (airplane mode, set by tools/mobile-e2e before this flow) while the file was being sent: the app says it is
+# offline, the file is not "Wysłano" and not lost - it waits ("Oczekuje") or shows the last progress, and the transfer resumes when the next
+# step brings the network back.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- extendedWaitUntil:
+    visible: 'Brak zasięgu.*'
+    timeout: 60000
+- tapOn:
+    id: 'nav-queue'
+- assertNotVisible: 'Plik, Wysłano'
+- assertVisible: 'Plik, (Oczekuje|Wysyłanie [0-9]+%)'
+- takeScreenshot: u130-network-cut

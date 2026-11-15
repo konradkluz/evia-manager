@@ -1,0 +1,17 @@
+# EVM-130 AC6: the permission to notify was granted (tools/mobile-e2e, pm grant) and the app opened again: the Queue still lists the unsent
+# file but the banner about the notifications is gone.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- tapOn:
+    id: 'nav-queue'
+- extendedWaitUntil:
+    visible: 'Plik, Oczekuje'
+    timeout: 30000
+- assertNotVisible:
+    id: 'notifications-banner'
+- takeScreenshot: u130-notifications-granted

@@ -36,7 +36,8 @@ import {
 import { runDeviceAction } from './device.mjs';
 import { checkPreflight } from './preflight.mjs';
 import { buildReport, isGreen, scanLogcat } from './report.mjs';
-import { BACKGROUND_WAIT_MS, NETWORK_RESTORE_WAIT_MS, SCENARIOS } from './scenarios.mjs';
+import { BACKGROUND_WAIT_MS, NETWORK_RESTORE_WAIT_MS } from './scenarios.mjs';
+import { selectScenarios } from './upload-scenarios.mjs';
 
 const BOOT_ATTEMPTS = 90;
 const BOOT_POLL_MS = 2000;
@@ -67,6 +68,7 @@ const BOOT_POLL_MS = 2000;
  *   resolveExpoCli: (directory: string) => string,
  *   readAppVersion: (appDirectory: string) => string,
  *   startStub: (port: number) => Promise<import('./stub-api.mjs').StubApi>,
+ *   httpJson?: (method: string, url: string, body?: unknown) => Promise<{ status: number, body: unknown } | null>,
  *   log: (line: string) => void,
  *   today: () => string,
  * }} Host
@@ -80,11 +82,17 @@ function sdkDefault(host) {
 }
 
 /**
- * @param {{ skipBuild: boolean, port: number }} options
+ * @param {{ skipBuild: boolean, port: number, only?: string[] | null }} options `only`: names (or prefixes of names) of the scenarios to run,
+ * among them the upload scenarios of EVM-130 (`--only upload-`); without it the scenarios of scenarios.mjs run
  * @param {Host} host
  * @returns {Promise<number>}
  */
-export async function runE2e({ skipBuild, port }, host) {
+export async function runE2e({ skipBuild, port, only = null }, host) {
+  const scenarios = selectScenarios(only);
+  if (scenarios.length === 0) {
+    host.log(`SCENARIOS: none matches ${(only ?? []).join(', ')}`);
+    return 1;
+  }
   const appDirectory = join(host.repoRoot, 'apps', 'mobile');
   const reportDirectory = join(host.repoRoot, '.scratch', 'mobile-e2e');
   const androidHome = host.env['ANDROID_HOME'] ?? sdkDefault(host);
@@ -138,6 +146,7 @@ export async function runE2e({ skipBuild, port }, host) {
   host.resetDirectory(screenshotsDirectory);
   const stub = await host.startStub(port);
   let airplane = false;
+  let uploadActive = false;
   /** @type {import('./report.mjs').Result[]} */
   const results = [];
   /** @type {import('./device.mjs').DeviceContext} */
@@ -155,6 +164,17 @@ export async function runE2e({ skipBuild, port }, host) {
     backupFile: join(reportDirectory, 'evm093-backup.ab'),
     releaseApk: release.signed,
     e2eApk: apk,
+    // EVM-130: the control port of the upload part of the scenario server (host only, loopback); absent when the server has none
+    ...(stub.uploadControlPort === undefined || host.httpJson === undefined
+      ? {}
+      : {
+          uploadControl: (/** @type {string} */ method, /** @type {string} */ path, /** @type {unknown} */ body) =>
+            /** @type {NonNullable<Host['httpJson']>} */ (host.httpJson)(
+              method,
+              `http://127.0.0.1:${String(stub.uploadControlPort)}${path}`,
+              body,
+            ),
+        }),
   };
   // EVM-093 AC4 (security K6): once the release package went onto the device, the e2e package must come back before any later scenario
   const state = { releaseOnDevice: false, aborted: false };
@@ -175,7 +195,7 @@ export async function runE2e({ skipBuild, port }, host) {
       host.log(`INSTALL: adb install failed: ${`${installed.stderr} ${installed.stdout}`.trim().slice(0, 300)}`);
       return 1;
     }
-    for (const scenario of SCENARIOS) {
+    for (const scenario of scenarios) {
       if (state.aborted) {
         for (const step of scenario.steps) results.push({ scenario: scenario.name, flow: step.flow, status: 'skipped', seconds: 0 });
         continue;
@@ -202,7 +222,12 @@ export async function runE2e({ skipBuild, port }, host) {
         const started = host.now();
         /** @type {import('./device.mjs').Check[]} */
         const checks = [];
-        for (const action of step.before ?? []) {
+        // EVM-130: the sign-in of the run is served by the upload part only in the scenarios that ask for it (`upload: true`)
+        const wantsUpload = step.upload === true;
+        /** @type {import('./device.mjs').DeviceAction[]} */
+        const switchUpload = wantsUpload === uploadActive ? [] : [wantsUpload ? 'upload-active:on' : 'upload-active:off'];
+        uploadActive = wantsUpload;
+        for (const action of [...switchUpload, ...(step.before ?? [])]) {
           const check = await act(action);
           checks.push(check);
           if (!check.ok) break;

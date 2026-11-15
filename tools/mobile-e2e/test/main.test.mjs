@@ -37,3 +37,23 @@ describe('arguments of the smoke test (EVM-009 AC4)', () => {
     assert.deepEqual(logs, [USAGE]);
   });
 });
+
+describe('selection of the scenarios (EVM-130 stage C)', () => {
+  it('EVM-130 AC1: --only takes names or prefixes of scenario names, separated by commas, in any position', () => {
+    assert.deepEqual(parseArguments(['--only', 'upload-']), { skipBuild: false, port: DEFAULT_PORT, only: ['upload-'] });
+    assert.deepEqual(parseArguments(['--skip-build', '--only', 'online,upload-device-wipe']), {
+      skipBuild: true,
+      port: DEFAULT_PORT,
+      only: ['online', 'upload-device-wipe'],
+    });
+  });
+
+  it('EVM-130 AC1: --only without a usable value is refused', () => {
+    for (const argv of [['--only'], ['--only', ''], ['--only', 'UPPER'], ['--only', 'a,,b'], ['--only', 'a b'], ['--only', 'a,']])
+      assert.equal(parseArguments(argv), null, argv.join(' '));
+  });
+
+  it('EVM-130 AC1: the usage names --only', () => {
+    assert.match(USAGE, /--only/);
+  });
+});

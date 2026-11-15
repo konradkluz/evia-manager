@@ -1,0 +1,21 @@
+# EVM-130 AC2 AC5 AC6: a synthetic file of 24 MiB (six parts) goes into the queue online and the transfer starts: "Wysyłanie N%". The scenario
+# disturbs the transfer right after this flow (the access token expires, the session is revoked, the version is refused, the device is
+# wiped) or reads the notification of the system.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- runFlow:
+    file: common/upload-inject.yaml
+    env:
+      MIB: '24'
+      BYTES: '25165824'
+- tapOn:
+    id: 'nav-queue'
+- extendedWaitUntil:
+    visible: 'Plik, Wysyłanie [0-9]+%'
+    timeout: 120000
+- takeScreenshot: u130-uploading-medium

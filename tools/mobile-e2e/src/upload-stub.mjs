@@ -723,7 +723,7 @@ export function createUploadStub({
 
 /**
  * Starts both listeners on the loopback: the app port (API + parts) and the control port (host only).
- * @param {{ port?: number, controlPort?: number, partSize?: number, publicHost?: string, now?: () => number, accessTtlMs?: number }} [options]
+ * @param {{ port?: number, controlPort?: number } & Parameters<typeof createUploadStub>[0]} [options]
  */
 export async function startUploadStub({ port = 0, controlPort = 0, ...options } = {}) {
   const stub = createUploadStub(options);

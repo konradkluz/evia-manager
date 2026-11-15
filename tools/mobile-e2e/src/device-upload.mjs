@@ -33,8 +33,9 @@ const NEWLINE = /\r?\n/;
 /**
  * @typedef {'logcat-clear' | 'logcat-clean' | 'tokens-not-in-clear' | 'jobs-armed' | 'jobs-none' | 'app-files-none' | 'original-present'
  *   | 'original-absent' | 'notification-private' | 'notifications-revoke' | 'notifications-grant' | 'upload-reset' | 'upload-none-yet'
- *   | 'upload-expire-access' | 'upload-refreshed' | `upload-checkpoint:${number}` | `upload-fault:${string}` | `upload-fault-clear:${string}`
- *   | `upload-size:${number}` | `upload-part-delay:${number}` | `upload-verdict:${string}` | `upload-file-state:${string}`} UploadAction
+ *   | 'upload-active:on' | 'upload-active:off'
+ *   | 'upload-expire-access' | 'upload-refreshed' | `upload-checkpoint:${string}` | `upload-fault:${string}` | `upload-fault-clear:${string}`
+ *   | `upload-size:${string}` | `upload-part-delay:${string}` | `upload-verdict:${string}` | `upload-file-state:${string}`} UploadAction
  */
 /** @typedef {{ status: number | null, stdout: string, stderr: string }} Outcome */
 /**
@@ -69,6 +70,7 @@ export const UPLOAD_ACTION_NAMES = new Set([
   'notification-private',
   'notifications-revoke',
   'notifications-grant',
+  'upload-active',
   'upload-reset',
   'upload-none-yet',
   'upload-expire-access',
@@ -445,6 +447,11 @@ export async function runUploadAction(action, context) {
         context.adb(...uploadCommands.notificationPermission(name === 'notifications-grant')).status === 0,
         name === 'notifications-grant' ? 'permission to notify granted' : 'permission to notify revoked',
       );
+    case 'upload-active':
+      // the sign-in of the run is served by the upload part (its tokens are the ones the upload operations check) only while it is on
+      return first === 'on' || first === 'off'
+        ? steer('/control/active', { active: first === 'on' }, `the sign-in of the run is served by the upload part: ${first}`)
+        : check(false, 'upload-active needs on or off');
     case 'upload-reset':
       return steer('/control/reset', {}, 'the scenario server of the upload part reset');
     case 'upload-expire-access':

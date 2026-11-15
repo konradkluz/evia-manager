@@ -741,3 +741,94 @@ describe('the Auto Backup check before the backup proof (EVM-093 AC4)', () => {
     assert.ok(machine.maestroFlows().includes('11-key-missing.yaml'));
   });
 });
+
+describe('upload scenarios in the run (EVM-130 stage C, AC1, AC5, AC6, AC8)', () => {
+  const NOTIFICATION_DUMP =
+    `  NotificationRecord(0x1: pkg=${APP} user=UserHandle{0} id=1 tag=null importance=2:\n` +
+    '    Notification(channel=upload pri=-1 category=progress vis=PRIVATE publicVersion=Notification(channel=upload))\n' +
+    '      android.title=String (Wysyłanie 2 z 5 plików)\n' +
+    "  NotificationChannel{mId='upload', mName=Wysyłanie plików, mImportance=2, mSound=null, mVibrationEnabled=false, mLockscreenVisibility=0}\n";
+  /** @type {{ assets: Record<string, unknown>, counters: Record<string, number>, orphanedMultiparts: number, openMultiparts: number }} */
+  const CHECKPOINT = { assets: {}, counters: {}, orphanedMultiparts: 0, openMultiparts: 0 };
+
+  /** A machine whose scenario server has the control port of the upload part and answers it from `controlAnswer`. @param {{ control?: boolean, notification?: string }} [options] */
+  function uploadMachine({ control = true, notification = NOTIFICATION_DUMP } = {}) {
+    const machine = fakeMachine({ exists: () => true });
+    /** @type {string[]} */
+    const calls = [];
+    const startStub = machine.host.startStub;
+    machine.host.startStub = async (port) => ({ ...(await startStub(port)), ...(control ? { uploadControlPort: 4555 } : {}) });
+    machine.host.httpJson = (method, url, body) => {
+      calls.push(`${method} ${url}${body === undefined ? '' : ` ${JSON.stringify(body)}`}`);
+      return Promise.resolve({ status: 200, body: url.endsWith('/control/checkpoint') ? CHECKPOINT : {} });
+    };
+    const run = machine.host.run;
+    machine.host.run = (command, args, options) =>
+      args.join(' ').includes('dumpsys notification') ? { status: 0, stdout: notification, stderr: '' } : run(command, args, options);
+    return { machine, calls };
+  }
+
+  it('EVM-130 AC1: --only runs the chosen upload scenario; the sign-in of the run is switched to the upload part first, through the control port of the scenario server', async () => {
+    const { machine, calls } = uploadMachine();
+    const code = await runE2e({ skipBuild: true, port: 3199, only: ['upload-notification'] }, machine.host);
+    assert.equal(code, 0, machine.logs.join('\n'));
+    assert.deepEqual(machine.maestroFlows(), ['50-upload-sign-in.yaml', '56-upload-inject-uploading.yaml']);
+    // the control port is on the loopback, the first call switches the sign-in on, then the reset and the settings of the scenario
+    assert.deepEqual(calls.slice(0, 4), [
+      'POST http://127.0.0.1:4555/control/active {"active":true}',
+      'POST http://127.0.0.1:4555/control/reset {}',
+      'POST http://127.0.0.1:4555/control/default-size {"bytes":25165824}',
+      'POST http://127.0.0.1:4555/control/part-delay {"ms":5000}',
+    ]);
+    assert.ok(calls.every((call) => call.includes('http://127.0.0.1:4555/control/')));
+    // the switch is made once for the scenario, not before every step
+    assert.equal(calls.filter((call) => call.includes('/control/active')).length, 1);
+    const report = machine.written[join('/repo', '.scratch', 'mobile-e2e', 'report.md')] ?? '';
+    assert.match(report, /upload-notification/);
+    assert.match(report, /notification: low-importance channel/);
+  });
+
+  it('EVM-130 AC6: a notification that is not private fails the step, and the step after it is skipped', async () => {
+    const { machine } = uploadMachine({ notification: NOTIFICATION_DUMP.replace('vis=PRIVATE', 'vis=PUBLIC') });
+    const code = await runE2e({ skipBuild: true, port: 3199, only: ['upload-notification'] }, machine.host);
+    assert.equal(code, 1);
+    const report = machine.written[join('/repo', '.scratch', 'mobile-e2e', 'report.md')] ?? '';
+    assert.match(report, /visibility is not PRIVATE/);
+  });
+
+  it('EVM-130 AC8: a scenario server without the control port of the upload part fails the first step instead of running blind', async () => {
+    const { machine } = uploadMachine({ control: false });
+    const code = await runE2e({ skipBuild: true, port: 3199, only: ['upload-notification'] }, machine.host);
+    assert.equal(code, 1);
+    assert.deepEqual(machine.maestroFlows(), []);
+    const report = machine.written[join('/repo', '.scratch', 'mobile-e2e', 'report.md')] ?? '';
+    assert.match(report, /did not answer/);
+  });
+
+  it('EVM-130 AC8: a host without httpJson cannot steer the upload part (the same refusal)', async () => {
+    const { machine } = uploadMachine();
+    machine.host.httpJson = undefined;
+    assert.equal(await runE2e({ skipBuild: true, port: 3199, only: ['upload-notification'] }, machine.host), 1);
+    assert.deepEqual(machine.maestroFlows(), []);
+  });
+
+  it('EVM-130 AC1: --only that matches no scenario is a refusal before anything runs', async () => {
+    const machine = fakeMachine({ exists: () => true });
+    assert.equal(await runE2e({ skipBuild: true, port: 3199, only: ['nothing-like-it'] }, machine.host), 1);
+    assert.ok(machine.logs.some((line) => line.includes('SCENARIOS: none matches nothing-like-it')));
+    assert.deepEqual(machine.processes, []);
+  });
+
+  it('EVM-130 AC1: the scenarios of scenarios.mjs run without --only exactly as before, and the sign-in of the run is not switched', async () => {
+    const machine = fakeMachine({ exists: () => true });
+    /** @type {string[]} */
+    const calls = [];
+    machine.host.httpJson = (method, url) => {
+      calls.push(`${method} ${url}`);
+      return Promise.resolve({ status: 200, body: {} });
+    };
+    await runE2e({ skipBuild: true, port: 3199 }, machine.host);
+    assert.deepEqual(machine.maestroFlows(), ALL_FLOWS);
+    assert.deepEqual(calls, []);
+  });
+});

@@ -1,0 +1,14 @@
+# EVM-130 AC5: the scenario server answered `401 device_wipe_required` to the transfer: the module reports the order, the app wipes the company
+# data (the native step first) and shows "Dane firmowe usunięte z telefonu". tools/mobile-e2e then proves with the system that no job is
+# registered, that no job file, original or token file is left, and that the log holds no token and no signed address.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- extendedWaitUntil:
+    visible: 'Dane firmowe usunięte z telefonu'
+    timeout: 90000
+- assertVisible: 'Administrator zablokował ten telefon\. Usunęliśmy wszystkie dane firmowe, także niewysłane elementy\.'
+- assertNotVisible:
+    id: 'nav-queue'
+- takeScreenshot: u130-wiped-by-order

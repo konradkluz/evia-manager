@@ -1,0 +1,19 @@
+# EVM-130 AC4: the server keeps the file after the check (quarantine): the Queue shows the card "Plik wymaga uwagi" without "Ponów" (a
+# quarantined file has no retry); the original stays on the phone (tools/mobile-e2e checks it afterwards).
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- tapOn:
+    id: 'nav-queue'
+- extendedWaitUntil:
+    visible:
+      id: 'file-attention-.*'
+    timeout: 90000
+- assertVisible: 'Plik wymaga uwagi'
+- assertNotVisible:
+    id: 'file-retry-.*'
+- takeScreenshot: u130-quarantined

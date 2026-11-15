@@ -100,6 +100,36 @@ export async function startStubInWorker(port, workerUrl = new URL('./stub-worker
 }
 
 /**
+ * One JSON request to the control port of the scenario server (EVM-130): the host only, the loopback only — any other address is refused.
+ * @param {string} method
+ * @param {string} url
+ * @param {unknown} [body]
+ * @returns {Promise<{ status: number, body: unknown } | null>} null when the server does not answer
+ */
+export async function httpJson(method, url, body) {
+  if (new URL(url).hostname !== '127.0.0.1') throw new Error('the control port is reached on the loopback only');
+  try {
+    const response = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    const text = await response.text();
+    /** @type {unknown} */
+    let parsed = null;
+    try {
+      parsed = text === '' ? null : JSON.parse(text);
+    } catch {
+      parsed = null;
+    }
+    return { status: response.status, body: parsed };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Gathers the screenshots of Maestro (<source>/<timestamp>/<flow>/takeScreenshot/*.png) flat into every target directory. The
  * traversal is in name order and the timestamps sort in time order, so a later run of a flow overwrites an earlier one.
  * @param {string} source
@@ -196,6 +226,7 @@ export function realHost(repoRoot) {
     resolveExpoCli: (directory) => createRequire(join(directory, 'package.json')).resolve('expo/bin/cli'),
     readAppVersion: (directory) => parseAppVersion(readFileSync(join(directory, 'plugins', 'expo-config.ts'), 'utf8')),
     startStub: startStubInWorker,
+    httpJson,
     log: (line) => {
       process.stdout.write(`${line}\n`);
     },

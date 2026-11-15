@@ -1,0 +1,17 @@
+# EVM-130 AC4: the server answers `failed: checksum_mismatch` after the file was sent: the row says "Nie wysłano — plik uszkodzony w
+# transmisji" and offers "Ponów"; the original is still on the phone (tools/mobile-e2e checks it afterwards).
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- tapOn:
+    id: 'nav-queue'
+- extendedWaitUntil:
+    visible: 'Plik, Nie wysłano — plik uszkodzony w transmisji'
+    timeout: 90000
+- assertVisible:
+    id: 'file-retry-.*'
+- takeScreenshot: u130-checksum-failed

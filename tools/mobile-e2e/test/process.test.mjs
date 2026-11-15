@@ -231,3 +231,47 @@ describe('control port of the upload part through the worker (EVM-130 AC8)', () 
     await stub.close();
   });
 });
+
+describe('control requests of the host (EVM-130 AC8)', () => {
+  it('EVM-130 AC8: httpJson sends a JSON body and reads JSON, an empty body and a text that is not JSON; a closed port is null; any other host is refused', async () => {
+    const { createServer } = await import('node:http');
+    /** @type {string[]} */
+    const seen = [];
+    const server = createServer((request, response) => {
+      /** @type {Buffer[]} */
+      const chunks = [];
+      request.on('data', (/** @type {Buffer} */ chunk) => chunks.push(chunk));
+      request.on('end', () => {
+        seen.push(`${request.method ?? ''} ${request.url ?? ''} ${Buffer.concat(chunks).toString('utf8')}`);
+        if (request.url === '/json') response.writeHead(200).end('{"ok":true}');
+        else if (request.url === '/empty') response.writeHead(204).end();
+        else response.writeHead(500).end('not json');
+      });
+    });
+    await new Promise((resolve) =>
+      server.listen(0, '127.0.0.1', () => {
+        resolve(undefined);
+      }),
+    );
+    const address = server.address();
+    const port = typeof address === 'object' && address !== null ? address.port : 0;
+    const { httpJson } = await import('../src/process.mjs');
+    try {
+      assert.deepEqual(await httpJson('POST', `http://127.0.0.1:${String(port)}/json`, { a: 1 }), { status: 200, body: { ok: true } });
+      assert.deepEqual(await httpJson('GET', `http://127.0.0.1:${String(port)}/empty`), { status: 204, body: null });
+      assert.deepEqual(await httpJson('GET', `http://127.0.0.1:${String(port)}/text`), { status: 500, body: null });
+      assert.deepEqual(seen, ['POST /json {"a":1}', 'GET /empty ', 'GET /text ']);
+    } finally {
+      server.closeAllConnections();
+      await new Promise((resolve) =>
+        server.close(() => {
+          resolve(undefined);
+        }),
+      );
+    }
+    assert.equal(await httpJson('GET', `http://127.0.0.1:${String(port)}/json`), null);
+    await assert.rejects(httpJson('GET', 'http://example.com/control/checkpoint'), /loopback only/);
+    await assert.rejects(httpJson('GET', 'http://localhost:1/x'), /loopback only/);
+    assert.equal(realHost(process.cwd()).httpJson, httpJson);
+  });
+});

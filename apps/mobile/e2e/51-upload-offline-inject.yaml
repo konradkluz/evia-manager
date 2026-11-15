@@ -1,0 +1,27 @@
+# EVM-130 AC1: in airplane mode (set by tools/mobile-e2e) a synthetic file of 40 MiB goes into the durable queue through the hook: the file is
+# in the Queue as "Oczekuje" and nothing is sent. tools/mobile-e2e then proves, with the system and the scenario server, that NO job is armed
+# (no `applied` of the command yet: dumpsys jobscheduler) and that the server has not seen a byte of the file.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- extendedWaitUntil:
+    visible: 'Brak zasięgu.*'
+    timeout: 30000
+- runFlow:
+    file: common/upload-inject.yaml
+    env:
+      MIB: '40'
+      BYTES: '41943040'
+- tapOn:
+    id: 'nav-queue'
+- extendedWaitUntil:
+    visible: 'Plik, Oczekuje'
+    timeout: 20000
+- assertVisible:
+    id: 'files-summary'
+    text: 'Wysłano 0 z 1 · 1 w kolejce'
+- takeScreenshot: u130-offline-waiting

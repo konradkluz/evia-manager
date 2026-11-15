@@ -29,6 +29,8 @@ export const E2E_ACCOUNT = Object.freeze({ email: 'technik@example.test', passwo
 const E2E_USER = { id: '90000000-0000-4000-8000-0000000000e2', displayName: 'Technik Testowy', role: 'editor' };
 const E2E_DEVICE_ID = '7a000000-0000-4000-8000-0000000000e2';
 const MAX_BODY = 8192;
+/** The part size of the upload part of the run: small, so that a file of 40 MiB has ten parts and there is room to interrupt it (the real server uses 16 MiB). */
+export const E2E_PART_SIZE = 4 * 1024 * 1024;
 /** A batch of 50 mutations of the contract is up to 1 MB. */
 const MAX_SYNC_BODY = 1_048_576;
 
@@ -127,6 +129,7 @@ export async function startStubApi({ port = 0, uploadControlPort = 0, onRequest,
   /** @type {ReturnType<typeof createMediaGlue> | undefined} */
   let media;
   const upload = createUploadStub({
+    partSize: E2E_PART_SIZE,
     onAssetState: (assetId, state, reason) => {
       media?.fileStateChanged(assetId, state, reason);
     },
