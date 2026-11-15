@@ -13,6 +13,9 @@ import { CLEAN_KEPT, MediaUploads, type MediaUploadsDeps } from '../../src/uploa
 import { migratedDatabase } from '../storage/harness';
 import { newDisk, removeDisk, type TestDisk } from '../storage/node-sqlite-engine';
 
+/** The core of this branch does not know the type yet (the contract branch adds it): the rows of the queue are written raw. */
+const MEDIA_COMMAND = 'CreateMediaAsset' as unknown as QueueRecord['type'];
+
 let disk: TestDisk;
 beforeEach(() => {
   disk = newDisk();
@@ -151,7 +154,7 @@ async function rig(native = new FakeNativeUpload()): Promise<Rig> {
         const payload = input.payload as { id: string; workOrderId: string };
         const record: QueueRecord = {
           mutationId: asset(counter),
-          type: 'CreateMediaAsset',
+          type: MEDIA_COMMAND,
           commandVersion: 1,
           payload: payload,
           objectId: payload.id,
@@ -225,7 +228,7 @@ describe('adding a file and arming it after applied (EVM-130 AC1; architect 7)',
     hold(r, 1);
     expect(await r.uploads.add(photo(1))).toEqual({ ok: true });
     expect(r.enqueued).toHaveLength(1);
-    expect(r.enqueued[0]).toMatchObject({ type: 'CreateMediaAsset', commandVersion: 1, payload: { id: asset(1), workOrderId: WO } });
+    expect(r.enqueued[0]).toMatchObject({ type: MEDIA_COMMAND, commandVersion: 1, payload: { id: asset(1), workOrderId: WO } });
     expect(await r.store.media.list()).toMatchObject([
       { assetId: asset(1), state: 'pending', sizeBytes: 1001, sha256: SHA, fileName: asset(1), mime: 'image/jpeg' },
     ]);
@@ -280,7 +283,7 @@ describe('adding a file and arming it after applied (EVM-130 AC1; architect 7)',
     for (const n of [1, 2]) {
       await r.queue.append({
         mutationId: asset(600 + n),
-        type: 'CreateMediaAsset',
+        type: MEDIA_COMMAND,
         commandVersion: 1,
         payload: { id: asset(n), workOrderId: WO, mediaType: n === 1 ? 'video' : 'photo', category: 'other' },
         objectId: asset(n),
@@ -306,7 +309,7 @@ describe('adding a file and arming it after applied (EVM-130 AC1; architect 7)',
     });
     await r.queue.append({
       mutationId: asset(701),
-      type: 'CreateMediaAsset',
+      type: MEDIA_COMMAND,
       commandVersion: 1,
       payload: { id: asset(8), workOrderId: WO, mediaType: 'photo', category: 'other' },
       objectId: asset(8),

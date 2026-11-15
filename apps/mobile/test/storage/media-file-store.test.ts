@@ -7,6 +7,9 @@ import { SCHEMA, migrate, readVersions, type SchemaPlan } from '../../src/storag
 import { migratedDatabase } from './harness';
 import { newDisk, removeDisk, type TestDisk } from './node-sqlite-engine';
 
+/** The core of this branch does not know the type yet (the contract branch adds it): the rows of the queue are written raw. */
+const MEDIA_COMMAND = 'CreateMediaAsset' as unknown as QueueRecord['type'];
+
 let disk: TestDisk;
 beforeEach(() => {
   disk = newDisk();
@@ -37,7 +40,7 @@ const file = (n: number, overrides: Partial<NewMediaFile> = {}): NewMediaFile =>
 
 const command = (n: number, owner = OWNER): QueueRecord => ({
   mutationId: mutation(n),
-  type: 'CreateMediaAsset',
+  type: MEDIA_COMMAND,
   commandVersion: 1,
   payload: { id: asset(n), workOrderId: WO, mediaType: 'photo', category: 'other' },
   objectId: asset(n),

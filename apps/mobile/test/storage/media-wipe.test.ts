@@ -5,6 +5,9 @@ import { CompanyDataWipe } from '../../src/wipe/company-wipe';
 import { boot, newDevice, type Device } from './fakes';
 import { newDisk, removeDisk, type TestDisk } from './node-sqlite-engine';
 
+/** The core of this branch does not know the type yet (the contract branch adds it): the rows of the queue are written raw. */
+const MEDIA_COMMAND = 'CreateMediaAsset' as unknown as QueueRecord['type'];
+
 let disk: TestDisk;
 let device: Device;
 beforeEach(() => {
@@ -28,7 +31,7 @@ function unlocked(result: OpenResult): UnlockedStore {
 
 const command = (n: number): QueueRecord => ({
   mutationId: id(n + 500),
-  type: 'CreateMediaAsset',
+  type: MEDIA_COMMAND,
   commandVersion: 1,
   payload: { id: id(n), workOrderId: WO, mediaType: 'photo', category: 'other' },
   objectId: id(n),
