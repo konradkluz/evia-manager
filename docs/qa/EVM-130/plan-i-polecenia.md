@@ -81,20 +81,22 @@ Narzędzia są sprawdzone na atrapach; poniższe zależą od zachowania systemu 
 
 ## 7. Wyniki (do wypełnienia po przebiegu)
 
-Commit, na którym wykonano przebieg: _(brak)_ · data: _(brak)_ · emulator / API: _(brak)_ · Maestro: 2.11.0.
+Commit integracyjny ostatniego builda (release + e2e): `5a1d3d0c` (lokalna gałąź `night/int-a-b` w `C:e` = tor A do `9fcd47ac` + tor B; od tego czasu zmieniały się wyłącznie przepływy i narzędzie, kod aplikacji — nie; ostatni przebieg na integracji `d6dbb98d`, tor A `95139146`) · data: 2026-11-15 · emulator / API: sdk_gphone64_x86_64, Android 15 (API 35), obraz Google Play, build user, bez adb root · Maestro: 2.11.0.
 
 | Scenariusz | Wynik | Uwagi / poprawki |
 |---|---|---|
-| `upload-interruptions` | _niewykonany_ | |
-| `upload-original-until-clean` | _niewykonany_ | |
-| `upload-file-verdicts` | _niewykonany_ | |
-| `upload-token-refresh` | _niewykonany_ | |
-| `upload-session-revoked` | _niewykonany_ | |
-| `upload-update-required` | _niewykonany_ | |
-| `upload-device-wipe` | _niewykonany_ | |
-| `upload-manual-wipe` | _niewykonany_ | |
-| `upload-hidden-data` | _niewykonany_ | |
-| `upload-notification` | _niewykonany_ | |
-| `upload-permission-banner` | _niewykonany_ | |
+| `upload-interruptions` | zielony (próba 3; 54 po restarcie emulatora z jedną wbudowaną powtórką sterownika) | punkt kontrolny: 1 obiekt, SHA-256 równe, 0 osieroconych multipartów, 0 części powtórzonych po 4 przerwaniach; brak tokenów i `X-Amz-` w logu i plikach. Poprawki: `kill-9` (zadanie uzbrojone restartuje proces od razu — dowodem jest zniknięcie starego pid), opóźnienie części 20 s (przy 5 s plik kończył się przed ostatnim wznowieniem) |
+| `upload-original-until-clean` | zielony (próba 4) | poprawki narzędzia: Play Store wyłączony (aktualizacja WebView zabijała aplikację w trakcie przepływu), ponowienie wywołań portu sterującego |
+| `upload-file-verdicts` | zielony (próba 5) | j.w. |
+| `upload-token-refresh` | zielony (próba 5) | bez poprawek po stronie scenariusza |
+| `upload-session-revoked` | zielony (próba 5) | 60 i 61 przechodzą na kodzie z `9fcd47ac` |
+| `upload-update-required` | zielony (próba 6) | poprawka przepływu 62: aplikacja pokazuje ekran sesji „Ta wersja nie jest już obsługiwana…”, nie tekst ekranu aktualizacji |
+| `upload-device-wipe` | zielony (próba 6) | |
+| `upload-manual-wipe` | zielony (próba 7) | poprawka przepływu 68: terminalny ekran „Wylogowano” z przyciskiem „Zaloguj się” przed formularzem |
+| `upload-hidden-data` | zielony (próba 7) | poprawka przepływów 64 i 65: komunikat ukrytych danych jest na karcie „Moje zlecenia”, aplikacja zostaje na Kolejce |
+| `upload-notification` | zielony (próba 7) | poprawka narzędzia: system nadpisuje wartość lock screen nowego kanału (`-1000`); prywatność zapewnia `vis=PRIVATE` + `publicVersion` samego powiadomienia (sprawdzane); kanał z `1` (PUBLIC) jest odrzucany |
+| `upload-permission-banner` | zielony (próba 5) | |
+
+Przyczyny porażek były po stronie narzędzia i scenariuszy; błędów aplikacji nie znaleziono w tym przebiegu (szczegóły: `.scratch/EVM-130/raport-e2e.md`).
 
 Weryfikacja wersji zależności w buildzie aplikacji (po `prebuild`, w katalogu z `android/`): `gradlew :app:buildEnvironment` oraz `gradlew :app:dependencies --configuration releaseRuntimeClasspath`, wynik filtrowany po `org.bouncycastle|org.freemarker|io.opentelemetry`; sprawdź też, że `org.gradle.caching` nie jest `true` w wygenerowanym `gradle.properties` (CVE-2026-53914, wtyczka Kotlin 2.2.21).
