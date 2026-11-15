@@ -4,7 +4,7 @@ title: "API: media z telefonu"
 type: story
 milestone: M2
 epic: E11 Zdjęcia i filmy
-status: in-review
+status: done
 priority: P1
 path: pelna             # zmiana uprawnień i kanałów, pliki, dziennik zmian, migracja
 owner: backend-developer
@@ -61,7 +61,7 @@ Zmiana czasu ważności adresu części (zostaje ≤ 60 min; kryterium „≤ 15
 - Decyzja Konrada 2026-11-14 (rekomendacja architekta D3): nowa historyjka; kontrakt przed EVM-108, całość przed EVM-112; noc na telefonie pracuje na serwerze scenariuszy zgodnym z kontraktem.
 - Ważność podpisanego adresu części — brzmienie security: pobierany tuż przed wysłaniem części, tylko w pamięci; serwer zachowuje wartość ≤ 60 min.
 - Uprawnienia: kanał mobile dla Administratora i Edytora; Tylko odczyt nie loguje się do aplikacji (decyzja Konrada 2026-11-12), z tokenem telefonu dostaje `403 channel_not_allowed` (jak EVM-127); niezalogowany — `401`.
-- Zakres replikacji `media_asset`: zlecenia w zakresie urządzenia, jak wpisy (`offline-sync.md`: `MediaAsset` ↓ pobieranie); ładunek minimalny wg AC4. Założenie do potwierdzenia rano w PR, nie blokuje.
+- Zakres replikacji `media_asset`: zlecenia w zakresie urządzenia, jak wpisy (`offline-sync.md`: `MediaAsset` ↓ pobieranie); ładunek minimalny wg AC4. Założenie potwierdzone przez Konrada 2026-11-15 (akceptacja zbiorcza tematów z nocy 14/15.11).
 - **Scalenie PR = wdrożenie na jedyne środowisko** (migracja i zmiana kanałów trafiają na produkcję razem z kodem); zakaz dystrybucji aplikacji z aparatem/wysyłaniem przed dowodami EVM-084 i sign-offem EVM-112 pozostaje.
 - Bezpieczeństwo i prywatność: dane — metadane mediów (kategoria, opis może zawierać dane osobowe — tylko w komendzie i bazie, nie w logach); testy tylko na danych syntetycznych; brak adresów i tokenów w logach.
 - UX / UI: nie dotyczy.
@@ -89,3 +89,4 @@ Zmiana czasu ważności adresu części (zostaje ≤ 60 min; kryterium „≤ 15
 - 2026-11-14 — workflow `deliver-story` passed (2 rundy; QA pass 6/6 AC; code-reviewer i security-engineer approve po poprawkach: `capturedAt` opcjonalny wg AC3, RR-96 dla medium bez pliku); bramka orkiestratora `pnpm run gate` zielona; część kontenerowa (integracja z PostgreSQL) uruchomiona przez QA dla 8 plików (144 testy), pełna w CI; status `in-review` (Tech Lead)
 - 2026-11-14 — do decyzji Konrada: RR-96 (medium bez pliku — brak widoku w panelu, retencji i limitu; warunek sign-offu EVM-112, historyjka przez `/refine`); założenie AC4 (zmiany mediów tylko dla urządzeń ze zleceniem w zakresie); odmowa 404 dla cudzej sesji jak w panelu
 - 2026-11-14 — Koszt: 11 agentów, ok. 1,43 mln tokenów subagentów, 123 min pracy agentów
+- 2026-11-15 — akceptacja Konrada („Akceptuję tematy z nocy”): kryteria zatwierdzone z delegacji przyjęte, założenie zakresu replikacji potwierdzone, RR-96 zaakceptowane do sign-offu EVM-112 (warunki (1)–(3) blokują wydanie aplikacji z wysyłaniem; historyjka przez `/refine`); scalone przez Konrada (#141, `252b2fd5`); **status `done`** (Tech Lead)
