@@ -19,9 +19,17 @@ const FILE_SYSTEM_KEY = String.raw`HKLM\SYSTEM\CurrentControlSet\Control\FileSys
  * Requests come back on a channel read with receiveMessageOnPort, which works synchronously.
  * @param {number} port
  * @param {URL} [workerUrl] the worker module; tests pass a fixture that ends early
+ * @param {(line: string) => void} [log] where the failure of the worker thread is reported (EVM-130: a dead scenario server must not be silent)
  * @returns {Promise<import('./stub-api.mjs').StubApi>}
  */
-export async function startStubInWorker(port, workerUrl = new URL('./stub-worker.mjs', import.meta.url)) {
+export async function startStubInWorker(
+  port,
+  workerUrl = new URL('./stub-worker.mjs', import.meta.url),
+  log = (line) => {
+    process.stdout.write(`${line}
+`);
+  },
+) {
   const { port1, port2 } = new MessageChannel();
   const worker = new Worker(workerUrl, { workerData: { port, channel: port2 }, transferList: [port2] });
   /** @type {import('./stub-api.mjs').RecordedRequest[]} */
@@ -45,7 +53,12 @@ export async function startStubInWorker(port, workerUrl = new URL('./stub-worker
     }
   };
   let exited = false;
-  worker.on('exit', () => {
+  // after the port was reported the rejection below is already settled, so without this listener a dying server leaves no trace at all
+  worker.on('error', (/** @type {Error} */ error) => {
+    log(`STUB: the scenario server thread failed: ${error.stack ?? error.message}`);
+  });
+  worker.on('exit', (/** @type {number} */ code) => {
+    if (!exited && code !== 0) log(`STUB: the scenario server thread ended (exit code ${String(code)})`);
     exited = true;
     drain();
     port1.close();

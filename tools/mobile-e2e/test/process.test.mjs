@@ -147,6 +147,24 @@ describe('wiring of the smoke test to the machine (EVM-009 AC4)', () => {
     await assert.rejects(startStubInWorker(0, new URL('./fixtures/exit-before-port.mjs', import.meta.url)), /stub worker exited/);
   });
 
+  it('EVM-130 AC8: a worker that dies on an exception after the port is reported is named in the log with the reason', async () => {
+    /** @type {string[]} */
+    const lines = [];
+    const stub = await startStubInWorker(0, new URL('./fixtures/throw-after-port.mjs', import.meta.url), (line) => {
+      lines.push(line);
+    });
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    assert.ok(
+      lines.some((line) => line.includes('thread failed') && line.includes('synthetic worker failure')),
+      lines.join('|'),
+    );
+    assert.ok(
+      lines.some((line) => line.includes('thread ended (exit code 1)')),
+      lines.join('|'),
+    );
+    await stub.close();
+  });
+
   it('EVM-009 AC4: close() of a server whose worker is already gone resolves at once', async () => {
     const stub = await startStubInWorker(0, new URL('./fixtures/exit-after-port.mjs', import.meta.url));
     await new Promise((resolve) => setTimeout(resolve, 300));
