@@ -23,7 +23,9 @@ Maszyna: jeden emulator naraz (E2E torów naprzemiennie; sprawdź, czy nie istni
 
 Kolejność scenariuszy jest ustalona w `src/upload-scenarios.mjs`; każdy zaczyna od czystej instalacji (`50-upload-sign-in`) i od `upload-reset` na serwerze scenariuszy. `--only upload-` trwa długo (restart emulatora w scenariuszu AC1, pliki 40 i 24 MiB z opóźnieniem 5 s na część): najpierw `upload-interruptions` osobno, bo jest najważniejszy i najbardziej zależny od czasu.
 
-Ręczne sterowanie serwerem wysyłania (do diagnozy, gdy scenariusz stoi): przebieg wypisuje port sterujący tylko w kodzie — do ręcznych prób uruchom samodzielny serwer `node tools/mobile-e2e/upload-stub-cli.mjs` (wypisuje oba porty); w przebiegu `run.mjs` port sterujący jest dostępny hostowi (`stub.uploadControlPort`) i nie jest wypisywany.
+Diagnoza ręczna: runner nie wypisuje portu sterującego części wysyłania (hostowi udostępnia go w kodzie, `stub.uploadControlPort`). Do prób bez emulatora uruchom samodzielny serwer `node tools/mobile-e2e/upload-stub-cli.mjs` (wypisuje oba porty) i steruj nim żądaniami `POST /control/…` na `127.0.0.1`.
+
+Po scaleniu torów i zielonym przebiegu scenariusze wysyłania można włączyć do domyślnego przebiegu (`selectScenarios(null)` w `src/upload-scenarios.mjs` zwracałby oba zestawy; wymaga to dostosowania oczekiwań w `test/run.test.mjs`, które dziś liczą tylko scenariusze z `src/scenarios.mjs`) — decyzja orkiestratora.
 
 ## 3. Scenariusze i przepływy
 
