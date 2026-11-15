@@ -5,8 +5,8 @@
  * - the job of the system is armed only AFTER the server applied `CreateMediaAsset` (the same transaction that settles the mutation
  *   marks the row `applied`); at start, on return to the foreground and after every synchronization each `applied` row is armed again,
  *   idempotently (a file in `needs_attention` waits for "Ponów");
- * - the original stays until the replica says that the server confirmed the file (`processing` / `ready`, the module's verdict);
- *   `checksum_mismatch` is "Ponów", a quarantine is "Wymaga uwagi", the row stays after `clean`;
+ * - the original stays until the replica says `clean` (not before: `uploaded` of the module, `processing`, `ready` change nothing);
+ *   `failed` + `checksum_mismatch` is "Ponów", `quarantined` is "Wymaga uwagi", the row stays after `clean`;
  * - the percentage comes from the native status and its events and is never written to the database;
  * - a command that is in the queue without a row (the process died between the two writes) is repaired from its payload and the
  *   digest of the original — nothing the technician registered is lost.
@@ -262,20 +262,32 @@ export class MediaUploads implements MediaControl {
     }
   }
 
-  /** The original goes only when the replica shows the file confirmed; nothing is read from the replica in the hidden-data mode. */
+  /**
+   * The decision about the original comes from the REPLICA `media_asset` and from nothing else (AC4, offline-sync.md pkt 7): `clean` →
+   * the original is removed (one native call) and the row stays; `failed` with `checksum_mismatch` → "Ponów" (the file stays, a new
+   * session follows); `quarantined` → "Wymaga uwagi" (the file stays, no retry). What the module says (`uploaded`) and the replica
+   * states `processing` / `ready` / `uploading` only mean "sent, waiting for the confirmation" — the original STAYS. `clean` is honoured
+   * for a row still `applied` too (the replica came before the event of the module); a failure or a quarantine only for a row the
+   * module reported as `uploaded` (after "Ponów" the replica still shows the old failure until the new upload is judged). Nothing is read
+   * from the replica in the hidden-data mode.
+   */
   async #confirm(store: UnlockedStore): Promise<void> {
     if (!this.#deps.dataVisible()) return;
-    const waiting = (await store.media.list()).filter((file) => file.state === 'uploaded');
+    const waiting = (await store.media.list()).filter((file) => file.state === 'applied' || file.state === 'uploaded');
     if (waiting.length === 0) return;
     const states = await store.replicaExtras.readMediaServerStates(waiting.map((file) => file.assetId));
     const at = this.#deps.now();
     for (const file of waiting) {
       const server = states.get(file.assetId);
       if (server === undefined) continue;
-      const verdict = await this.#deps.native.completeUpload(file.assetId, server.fileState, server.reasonCode);
-      if (verdict === 'delete') await store.media.setState(file.assetId, 'clean', null, at);
-      else if (verdict === 'keep_and_retry') await store.media.setState(file.assetId, 'failed', 'checksum_mismatch', at);
-      else if (verdict === 'keep_quarantined') await store.media.setState(file.assetId, 'needs_attention', 'quarantined', at);
+      if (server.fileState === 'clean') {
+        const verdict = await this.#deps.native.completeUpload(file.assetId, 'clean', null);
+        if (verdict === 'delete') await store.media.setState(file.assetId, 'clean', null, at);
+      } else if (file.state === 'uploaded' && server.fileState === 'failed' && server.reasonCode === 'checksum_mismatch') {
+        await store.media.setState(file.assetId, 'failed', 'checksum_mismatch', at);
+      } else if (file.state === 'uploaded' && server.fileState === 'quarantined') {
+        await store.media.setState(file.assetId, 'needs_attention', 'quarantined', at);
+      }
     }
   }
 
