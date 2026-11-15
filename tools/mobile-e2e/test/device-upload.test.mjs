@@ -214,7 +214,7 @@ describe('upload device steps: judgements (EVM-130 AC1–AC6)', () => {
     const loud = judgeNotification(
       dump(record(), channel('mImportance=4, mSound=content://x, mVibrationEnabled=true, mLockscreenVisibility=1')),
     );
-    assert.match(loud.detail, /(mLockscreenVisibility=1)/);
+    assert.match(loud.detail, /\(mLockscreenVisibility=1\)/);
     assert.match(loud.detail, /importance of the channel is not LOW; the channel has a sound or a vibration; the channel is not private/);
     // every text of AC6 is accepted
     for (const text of ['Wysłano 12 plików', 'Nie wysłano 2 plików — otwórz aplikację', 'Wysyłanie wstrzymane — zaloguj się w aplikacji'])
