@@ -597,6 +597,8 @@ Propozycja P-5 z EVM-004. Ekrany: W-03, M-02. Wymagania: P1, P2, P6, P7; SR-AUTH
 - **Anatomia — górny pasek (AppBar):** `size.app-bar.height.mobile`, tło `color.bg.brand-strong`, tytuł `text.heading-3` `color.text.on-brand` (8,98:1), wstecz `arrow-left` `color.icon.inverse` (8,98:1), **wskaźnik synchronizacji** po prawej — zawsze jako kapsuła z własnym tłem (§ 5.4), nigdy sama ikona `color.sync.*.icon` bezpośrednio na pasku (1,3–1,8:1).
 - **Stany:** fokus (klawiatura/czytnik) — w dolnej nawigacji `color.focus.ring` (5,17:1 do `bg.surface`), **w górnym pasku `color.focus.ring-inverse`** (8,98:1 do `bg.brand-strong`; `color.focus.ring` daje tam tylko 1,74:1 — zakazane); wciśnięty — dolna nawigacja `color.bg.surface-pressed` (kapsuła aktywna zachowuje 5,35:1), górny pasek `color.bg.brand` pod przyciskiem; licznik (np. 3 w kolejce) jako odznaka z liczbą, nie sama kropka.
 - **Zasady:** cel dotyku każdej pozycji ≥ `size.touch-target.min`; akcje główne w strefie kciuka (§ 5.2); systemowy gest wstecz działa zawsze.
+- **Dolny pasek akcji ekranu (BottomBar)** (EVM-108): stały pasek nad BottomNav na ekranach z jedną główną akcją terenową; tło `color.bg.surface`, `elevation.bottom-bar`, odstęp `space.inset.md`. Szczegóły zlecenia (M-03): główna akcja „Zrób zdjęcie” (Button primary `size.touch-target.field`, pełna szerokość, u góry — w strefie kciuka) i pod nią „Dodaj wpis” (Button **tertiary**, pełna szerokość, `size.touch-target.min` — akcja drugorzędna, wyraźnie słabsza od zdjęcia). W trybie ukrytych danych „Zrób zdjęcie” działa, „Dodaj wpis” jest wyłączony z widocznym powodem tekstem. Pasek jest ukryty w stanach ładowania, błędu i niedostępności zlecenia.
+- **Pozycja „Dodaj” w BottomNav — odstępstwo (EVM-108):** BottomNav **nie ma** pozycji „Dodaj” (ani „Aparat”), mimo przykładu „Aparat/Dodaj” wyżej; wejścia do aparatu to dolny pasek zlecenia i arkusz „Dodaj” otwierany przyciskiem „Dodaj” na liście zleceń (kontynuacja odstępstwa EVM-009; wpis w § 8).
 - **Licznik na pozycji „Kolejka”** (od 1.2.0):
   - liczy elementy jeszcze niewysłane: „W kolejce”, „Wysyłanie”, „Czeka na Wi-Fi”, „Czeka na połączenie”, „Błąd” (§ 5.4);
   - nie liczy elementów „Wymaga uwagi” — ten stan sygnalizuje kapsuła SyncIndicator (§ 4.16);
@@ -682,6 +684,14 @@ Propozycja P-10 z EVM-004. Ekran: M-06. Wymagania: P3, P7 pkt 3; SR-FILE-08, SR-
 - **Tokeny:** `color.bg.brand-strong` (pasek, panel), `color.text.on-brand`, `color.icon.inverse`, `color.border.inverse`, `color.bg.surface` + `color.text.primary` + `color.icon.primary` (wybrany chip, włączona latarka), `color.action.danger.bg` (wnętrze spustu podczas nagrywania), `color.focus.ring-inverse`, `color.bg.brand` (wciśnięty), `size.touch-target.shutter`, `size.touch-target.field`, `size.touch-target.min` (chipy, latarka, „Zamknij”, przyciski powodu), `size.icon.lg` / `size.icon.xl`, `radius.pill`, `border-width.strong` / `border-width.indicator`, `space.inline.sm` / `space.stack.sm` (odstępy między celami), `text.label-lg` (chipy), `text.body`, `text.numeric`.
 - **Dostępność:** spust z nazwą „Zrób zdjęcie” / „Rozpocznij nagrywanie” / „Zatrzymaj nagrywanie”; **stan nagrywania niosą ikona (`circle` → `square`), licznik czasu i nazwa dostępna — nie kolor**; zapis ogłaszany dopiero po trwałym zapisie („Zapisano zdjęcie 3”, § 5.4); chipy jako grupy radio z etykietą („Kategoria”, „Rodzaj”); chip wyłączony z nazwą zawierającą powód („Film, niedostępny — wymaga mikrofonu”), powód także jako widoczny tekst; latarka ze stanem („Latarka, włączona”); cele ≥ `size.touch-target.min`, odstępy ≥ `space.inline.sm`; orientacja pozioma — panel po prawej (§ 5.2); zoom przyciskami (bez gestu jako jedynej drogi); bez błysków poza lampą aparatu. Kontrasty panelu: `border.inverse`, `text.on-brand`, `bg.surface` — 8,98:1 do `bg.brand-strong` (§ 2.1.4).
 - **Mikrocopy:** z M-06: „Zapisano w telefonie” · „Zapisywanie filmu…” · „Uruchamianie aparatu…” · „Film wymaga dostępu do mikrofonu.” · „Za mało miejsca na film. Zwolnij miejsce w telefonie.” · „Zezwól na mikrofon” · „Otwórz ustawienia” · „Gotowe” · „3 zdjęcia” (odmiana § 6.3).
+- **Wersja 1 w aplikacji (EVM-108, 2026-11-15)** — zakres zdjęć; reszta § 3.24 (etap, przełącznik Zdjęcie / Film, latarka, mikrofon, nagrywanie) obowiązuje od EVM-110 albo jest propozycją:
+  - rząd sterowania: licznik serii · spust · „Gotowe” (bez latarki; latarka to propozycja do backlogu); brak wiersza etapu i przełącznika rodzaju;
+  - **podpowiedź kategorii** „Wybierz kategorię przed zdjęciem.” — zwykły tekst `text.body` `color.text.on-brand` nad chipami (nie Banner), widoczny do pierwszego wyboru; ten sam tekst jest opisem dostępności zablokowanego spustu;
+  - **spust wyłączony** (brak kategorii, zapis w toku, aparat się uruchamia): obrys przerywany `color.border.inverse` i ikona `color.icon.disabled`; powód nigdy nie jest niesiony samym obrysem — zawsze też tekst (podpowiedź) albo stan ekranu;
+  - **alerty** (mało miejsca, brak miejsca, błąd zapisu) — InlineAlert § 3.19 (`color.feedback.warning.*` / `color.feedback.error.*`, własne tło z kontrastem) nad chipami wewnątrz panelu;
+  - **ekran zgody na aparat, trwała odmowa i błąd uruchomienia aparatu** — EmptyState § 3.15 / § 3.15.1 na jasnym tle `color.bg.canvas` (AppBar bez podglądu); ciemny panel dotyczy wyłącznie działającego aparatu;
+  - uprawnienia: wyłącznie aparat (zdanie „aparat i mikrofon” w „Prywatność” wyżej dotyczy docelowego zestawu z EVM-110);
+  - górny pasek w trybie ukrytych danych: tytuł „Aparat” zamiast numeru zlecenia.
 - **Web / mobile:** tylko aplikacja mobilna. Panel web nie ma ekranu aparatu (Uploader, § 3.12).
 
 ---
@@ -960,6 +970,8 @@ Propozycja P-13 z EVM-004. Ekrany: M-02, M-03, M-04, M-05, M-06, M-07, M-08, M-1
 | Offline | `wifi-off` | „Czeka na połączenie” | `color.sync.offline.*` | — |
 | Wymaga uwagi (od 1.2.0) | `triangle-alert` | „Wymaga uwagi” | `color.sync.error.*` | wg § 4.16 („Dodaj do innego zlecenia”, „Utwórz ponownie”, „Usuń z telefonu”) |
 
+**Odstępstwo (EVM-108, spójność z Kolejką EVM-009):** w aplikacji mobilnej etykiety tekstowe to „**Oczekuje**” (zamiast „W kolejce”) i „**Wysyła się 45%**” (zamiast „Wysyłanie 45%”); ikony, tokeny i akcje bez zmian. Dotyczy wiersza pliku, nazw dostępnych i przepływów testowych; kapsuła SyncIndicator i panel web zostają przy wartościach z tabel. Wiersz pliku w Kolejce (v1): kategoria, czas wykonania i typ, jedna z etykiet „Oczekuje” / „Wysyła się n%” / „Wysłano” / „Wymaga uwagi”; „Wymaga uwagi” — ikona `triangle-alert` (§ 4.16).
+
 Stany pliku po wysłaniu (sprawdzanie, kwarantanna, plik za duży na skan, plik z innego urządzenia) — § 4.14.
 
 „Czeka na Wi-Fi” różni się od „Offline” ikoną (`wifi` vs przekreślone `wifi-off`), kolorem (amber vs ciemny neutralny) i tekstem — technik z zasięgiem komórkowym widzi, że wysyłka nie utknęła, tylko czeka na jego ustawienie, i może ją wymusić. Stan występuje tylko przy włączonym przełączniku „Wysyłaj tylko przez Wi-Fi” (§ 3.4).
@@ -1093,6 +1105,17 @@ Testy dostępności (narzędzia automatyczne + klawiatura + czytnik ekranu) — 
 ---
 
 ## 8. Changelog
+### Odstępstwa M2 — 2026-11-15 (EVM-108, decyzja Konrada 2026-11-15; wpis `ux-designer`)
+Aplikacja mobilna, zdjęcia z aparatu i pliki w Kolejce; bez nowych tokenów, uzupełnione opisy komponentów w § 3.24, § 3.18 i § 5.4.
+- **Etykiety stanu pliku — „Oczekuje” i „Wysyła się 45%” zamiast „W kolejce” i „Wysyłanie 45%” (§ 5.4, tabela „Stan każdego pliku”).**
+  - *Powód:* spójność z Kolejką wpisów z EVM-009, która od początku używa „Oczekuje” i „Wysyła się”; technik nie powinien widzieć dwóch słów na to samo w jednej liście.
+  - *Zakres:* aplikacja mobilna — wiersz pliku w Kolejce, nazwy dostępne; ikony (`clock`, `cloud-upload`), tokeny `color.sync.*` i akcje bez zmian; panel web i kapsuła SyncIndicator zostają przy brzmieniu z § 5.4.
+  - *Termin:* trwałe — przy konsolidacji 1.3.0 zmienić tabelę § 5.4 na „Oczekuje” / „Wysyła się 45%” także w web (o ile etykiety tam występują), żeby brzmienie było jedno w całym produkcie.
+- **BottomNav bez pozycji „Dodaj” (§ 3.18, przykład „Aparat/Dodaj”).**
+  - *Powód:* kontynuacja odstępstwa EVM-009 (szkielet z pozycjami „Moje zlecenia” i „Kolejka”); aparat ma dwa stałe wejścia, które są bliżej kciuka i krótsze: dolny pasek szczegółów zlecenia („Zrób zdjęcie” — główna, „Dodaj wpis” — tertiary) oraz arkusz „Dodaj” otwierany przyciskiem „Dodaj” na liście zleceń → „Zdjęcie lub film” → wybór zlecenia → aparat.
+  - *Zakres:* makiety, które pokazują „Dodaj” w BottomNav (03, 09), czytaj bez tej pozycji — zastrzeżenie dopisano w [09](flows/09-mobile-zdjecia-filmy-offline.md) i [03](flows/03-szczegoly-zlecenia.md).
+  - *Termin:* do decyzji przy planowaniu M3 (pełny zestaw 3–5 pozycji); do tego czasu bez „Dodaj”.
+- **Opis w § 3.24, § 3.18 i § 5.4** dopasowany do zaimplementowanych komponentów (spust, ciemny wariant chipa, panel aparatu, wiersz pliku, dolny pasek akcji, ekran zgody i błędu na jasnym EmptyState) — bez zmiany tokenów.
 ### Odstępstwo M2 — 2026-11-12 (EVM-103, zgoda Konrada 2026-11-12)
 - **Zakres:** aplikacja mobilna, lista zleceń M-05 — chipy „Wszystkie” i „Niewysłane (n)” zamiast „Wszystkie / Moje / Czekamy na…” z makiety (`ux-designer`: [flow 16](flows/16-m2-uzupelnienia-teren-i-urzadzenia.md), decyzja 3). „Moje” w M2 dublowałoby „Wszystkie” (zakres urządzenia), a „Czekamy na…” wymaga danych procesu.
 - **Wykonanie:** § 3.7 FilterChip jako przełącznik ze stanem, bez nowych tokenów i komponentów; „Niewysłane (n)” = zlecenia z elementami w Kolejce.

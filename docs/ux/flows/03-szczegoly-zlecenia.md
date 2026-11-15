@@ -609,11 +609,13 @@ Wariant **„od EVM-042”** (P2). Przed EVM-042 sekcja „Procesy i etapy” je
 │ Projekt instalacji · wersja 2 ·  │
 │ 12.09.2026                       │
 ├──────────────────────────────────┤
-│ [Dodaj wpis] [[‹camera› Zrób zdjęcie]]│
+│ [[‹camera› Zrób zdjęcie]]        │ stały dolny pasek (EVM-108): główna akcja,
+│ [Dodaj wpis]                     │ pełna szerokość; „Dodaj wpis” — Button tertiary
 ├──────────────────────────────────┤
 │ Zlecenia  Dodaj  Kolejka  Więcej │
 └──────────────────────────────────┘
 ```
+Uwaga (EVM-108, 2026-11-15): w aplikacji pasek ma dwa przyciski jeden pod drugim (cel ≥ 48 dp w rękawicach, główna akcja na górze, w strefie kciuka), a BottomNav nie ma pozycji „Dodaj” (odstępstwo od § 3.18, [styleguide § 8](../styleguide.md#8-changelog)); arkusz „Dodaj” otwiera przycisk „Dodaj” na liście zleceń. Szczegóły i tryb ukrytych danych (aktywne „Zrób zdjęcie”, „Dodaj wpis” wyłączone z powodem) — [09, M-06](09-mobile-zdjecia-filmy-offline.md).
 
 **Co M-03 pokazuje, a czego nie** (projekcja `offline-sync.md`, SR-SYNC-04, SR-AUTHZ-12 — w razie rozbieżności SR-AUTHZ-12 ma pierwszeństwo)
 | Pokazuje | Nie pokazuje |
