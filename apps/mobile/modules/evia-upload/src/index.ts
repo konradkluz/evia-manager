@@ -15,8 +15,16 @@ export const EVIA_UPLOAD_MODULE_NAME = 'EviaUpload';
 
 export type SessionStateName = 'signed_out' | 'signed_in' | 'needs_login' | 'paused_revoked' | 'paused_update' | 'wipe_required';
 
-/** `unavailable`: the build has no valid upload configuration (the module answers this to everything; the upload is off). */
+/** `unavailable`: the build has no usable API address (or there is no module): the module answers this to the session functions. */
 export type Availability = 'unavailable';
+
+/**
+ * The build has the API address (the session works) but no storage hosts (`EVIA_STORAGE_HOSTS`): the functions that SEND files answer this
+ * - `armUpload`, `retryUpload`, every item of `reconcile` - without an exception and without a request; `uploadStatuses` is empty. It is
+ * NOT a missing session: the app treats the files as waiting ("oczekuje") and signs in as usual. Contrast `unavailable`: no API address
+ * at all (or no module), and then nothing works.
+ */
+export type UploadUnavailable = 'upload_unavailable';
 
 export type StageLoginResult = 'ok' | 'invalid' | Availability;
 export type CommitStagedResult = 'ok' | 'storage_failed' | 'nothing_staged' | Availability;

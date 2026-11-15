@@ -367,6 +367,27 @@ describe('adding a file and arming it after applied (EVM-130 AC1; architect 7)',
     expect(r.native.armed.map((item) => item.assetId)).toEqual([asset(3)]);
   });
 
+  it('EVM-130 AC1: a build without storage hosts answers "upload_unavailable": nothing throws, every file stays queued ("oczekuje") and is not a failure', async () => {
+    const r = await rig();
+    for (const n of [1, 2]) {
+      hold(r, n);
+      await r.uploads.add(photo(n));
+      await apply(r, n);
+    }
+    r.native.armResult = 'upload_unavailable';
+    await expect(r.uploads.reconcile()).resolves.toBeUndefined();
+    expect(await states(r)).toEqual(['01:applied', '02:applied']);
+    expect((await r.store.media.list()).map((row) => row.lastCode)).toEqual([null, null]);
+    expect(r.uploads.getSnapshot().files.map((f) => [f.status, f.actions])).toEqual([
+      ['waiting', []],
+      ['waiting', []],
+    ]);
+    // the next start arms them again (nothing was settled)
+    r.native.armed.length = 0;
+    await r.uploads.reconcile();
+    expect(r.native.armed.map((item) => item.assetId)).toEqual([asset(1), asset(2)]);
+  });
+
   it('EVM-130 AC1: without an identity (nothing to arm with) or a session nothing is armed and nothing fails', async () => {
     const r = await rig();
     hold(r, 1);
@@ -446,7 +467,7 @@ describe('the state of a file in the view (EVM-130 AC4)', () => {
     r.uploads.start();
     const fire = async (event: FileStateEvent): Promise<void> => {
       r.native.emit('onFileState', event);
-      await new Promise((resolve) => setTimeout(resolve, 30));
+      await new Promise((resolve) => setTimeout(resolve, 100));
     };
     await fire({ assetId: asset(1), state: 'queued', reason: null });
     expect(await states(r)).toEqual(['01:applied']);
@@ -473,7 +494,9 @@ describe('the state of a file in the view (EVM-130 AC4)', () => {
     const r = await armed();
     r.uploads.start();
     r.native.emit('onFileState', { assetId: asset(1), state: 'needs_attention', reason: 'id_conflict' });
-    await new Promise((resolve) => setTimeout(resolve, 30));
+    // the event is handled asynchronously: wait for the effect (not a fixed time - a loaded machine is slower)
+    for (let waited = 0; waited < 3000 && r.uploads.getSnapshot().files[0]?.status !== 'attention'; waited += 20)
+      await new Promise((resolve) => setTimeout(resolve, 20));
     expect(r.uploads.getSnapshot().files).toMatchObject([{ status: 'attention', code: 'id_conflict', actions: ['retry'] }]);
     await r.store.media.setState(asset(1), 'needs_attention', 'quarantined', 9);
     await r.uploads.refresh();
