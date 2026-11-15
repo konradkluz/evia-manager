@@ -80,6 +80,7 @@ beforeAll(async () => {
     '0062_media_deletion',
     '0063_media_exports',
     '0064_device_invalidation',
+    '0065_media_sync',
   ]);
 });
 afterAll(async () => {

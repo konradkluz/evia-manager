@@ -162,7 +162,6 @@ export function stubPorts(owner: StubOwner = stubOwner(), unsentBeforeSignIn: nu
     },
     unsentBeforeSignIn: () => Promise.resolve(unsentBeforeSignIn),
     openForgotPassword: () => opened.push('forgot'),
-    openHelp: () => opened.push('help'),
     guard: device.guard,
     screenLockOk: () => Promise.resolve(device.facts.secure === true),
     companyWipe: {

@@ -10,7 +10,7 @@ import { EntryTargetPicker } from './EntryTargetPicker';
 import { MoreScreen, useSignOutFlow } from './MoreScreen';
 import { OrderDetailScreen } from './OrderDetailScreen';
 import { OrdersScreen } from './OrdersScreen';
-import { QuickOrderScreen } from './QuickOrderScreen';
+import { QuickOrderScreen, type QuickSavedKind } from './QuickOrderScreen';
 import { QueueScreen } from './QueueScreen';
 import { UpdateRequiredScreen } from './UpdateRequiredScreen';
 import { WipeDialog } from './WipeDialogs';
@@ -22,10 +22,12 @@ type Tab = 'orders' | 'queue' | 'more';
  * The forms opened over the shell: the picker of the order and the entry form (EVM-105; the only datum is the id of the order, never the
  * text) and the quick work order form (EVM-106; no datum at all - the typed data live in the state of the form).
  */
-type Entry = { readonly stage: 'pick' } | { readonly stage: 'form'; readonly orderId: string } | { readonly stage: 'quick' };
+// "Utwórz ponownie" (EVM-128): the id of the rejected command is the only datum; the draft is read by the form and lives in its state
+type QuickEntry = { readonly stage: 'quick' } | { readonly stage: 'recreate'; readonly mutationId: string };
+type Entry = { readonly stage: 'pick' } | { readonly stage: 'form'; readonly orderId: string } | QuickEntry;
 
 /** The text of the toast hosted by the shell (fixed texts; no data of the user): the key of the catalogue. */
-type ToastKey = 'entryForm.saved' | 'quickOrder.saved';
+type ToastKey = 'entryForm.saved' | 'quickOrder.saved' | 'quickOrder.recreate.saved';
 
 /** "Wyczyść dane firmowe" (EVM-101 AC4): the number of unsent items is read when the dialog opens; the wipe runs after the confirmation. */
 function useWipeFlow() {
@@ -110,10 +112,11 @@ export function Shell() {
   // the quick order is saved in the queue: the form closes, the new order opens in its details (the id is the only datum; the number
   // comes after the synchronization); fixed text again - no name, phone or address
   const quickSaved = useCallback(
-    (workOrderId: string) => {
+    (workOrderId: string, kind: QuickSavedKind) => {
+      const key = kind === 'recreated' ? 'quickOrder.recreate.saved' : 'quickOrder.saved';
       setEntry(null);
-      setToast('quickOrder.saved');
-      AccessibilityInfo.announceForAccessibility(t('quickOrder.saved'));
+      setToast(key);
+      AccessibilityInfo.announceForAccessibility(t(key));
       setTab('orders');
       setOpenOrderId(workOrderId);
     },
@@ -200,7 +203,12 @@ export function Shell() {
               ) : null}
             </View>
           ) : tab === 'queue' ? (
-            <QueueScreen onOpenQueue={openQueue} />
+            <QueueScreen
+              onOpenQueue={openQueue}
+              onRecreate={(item) => {
+                setEntry({ stage: 'recreate', mutationId: item.id });
+              }}
+            />
           ) : (
             <MoreScreen onOpenQueue={openQueue} onSignOut={signOut.ask} onWipe={wipe.ask} />
           )}
@@ -211,7 +219,7 @@ export function Shell() {
               <Toast
                 message={t(toast)}
                 onDismiss={dismissSaved}
-                testID={toast === 'quickOrder.saved' ? 'quick-order-toast' : 'entry-toast'}
+                testID={toast === 'entryForm.saved' ? 'entry-toast' : 'quick-order-toast'}
               />
             </View>
           ) : null}
@@ -260,6 +268,16 @@ export function Shell() {
       {shownEntry?.stage === 'quick' ? (
         <View style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}>
           <QuickOrderScreen onClose={closeEntry} onSaved={quickSaved} />
+        </View>
+      ) : null}
+      {shownEntry?.stage === 'recreate' ? (
+        <View style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}>
+          <QuickOrderScreen
+            key={shownEntry.mutationId}
+            onClose={closeEntry}
+            onSaved={quickSaved}
+            recreate={{ mutationId: shownEntry.mutationId }}
+          />
         </View>
       ) : null}
       {shownEntry?.stage === 'pick' ? (

@@ -553,6 +553,10 @@ components:
       $ref: components/media.yaml#/MediaAssetList
     CreateUploadSessionRequest:
       $ref: components/media.yaml#/CreateUploadSessionRequest
+    UploadFileDeclaration:
+      $ref: components/media.yaml#/UploadFileDeclaration
+    CreateDocumentUploadSessionRequest:
+      $ref: components/media.yaml#/CreateDocumentUploadSessionRequest
     UploadSession:
       $ref: components/media.yaml#/UploadSession
     UploadPart:
@@ -727,6 +731,8 @@ components:
       $ref: components/sync.yaml#/SyncNewSite
     CreateQuickWorkOrderPayload:
       $ref: components/sync.yaml#/CreateQuickWorkOrderPayload
+    CreateMediaAssetPayload:
+      $ref: components/sync.yaml#/CreateMediaAssetPayload
     CommandVersion:
       $ref: components/sync.yaml#/CommandVersion
     CreateNoteMutation:
@@ -735,6 +741,8 @@ components:
       $ref: components/sync.yaml#/CreateCommentMutation
     CreateQuickWorkOrderMutation:
       $ref: components/sync.yaml#/CreateQuickWorkOrderMutation
+    CreateMediaAssetMutation:
+      $ref: components/sync.yaml#/CreateMediaAssetMutation
     SyncMutation:
       $ref: components/sync.yaml#/SyncMutation
     SyncMutationsRequest:

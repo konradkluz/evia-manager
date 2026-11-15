@@ -142,6 +142,9 @@ export function MoreScreen({ onOpenQueue, onSignOut, onWipe }: { onOpenQueue: ()
         <View style={{ alignSelf: 'flex-start' }}>
           <Button label={t('more.help')} variant="tertiary" onPress={session.openHelp} testID="more-help" />
         </View>
+        <View style={{ alignSelf: 'flex-start' }}>
+          <Button label={t('more.privacy')} variant="tertiary" onPress={session.openPrivacy} testID="more-privacy" />
+        </View>
         <Text style={{ ...text.bodySm, color: color.text.secondary }}>{t('more.version', { version: session.appVersion })}</Text>
         <Button label={t('more.signOut')} onPress={onSignOut} fullWidth testID="more-sign-out" />
         <View style={{ borderTopWidth: borderWidth.default, borderTopColor: color.border.subtle, paddingTop: space.stack.md }}>

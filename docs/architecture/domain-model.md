@@ -431,6 +431,8 @@ erDiagram
     text description
     text origin "web | mobile"
     timestamptz captured_at
+    int version "blokada optymistyczna (If-Match)"
+    int file_state_revision "licznik zmian stanu pliku (EVM-131); wersja synchronizacji = version + file_state_revision"
   }
   Document {
     uuid id PK

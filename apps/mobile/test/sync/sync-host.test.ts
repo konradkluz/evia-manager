@@ -79,6 +79,8 @@ describe('synchronization host (EVM-107 AC2, AC5; security S2, S3)', () => {
     expect(await host.dependentsOf('x')).toBe(0);
     expect(await host.discard('x')).toEqual({ ok: false, code: 'no_session' });
     expect(await host.recreate('x')).toEqual({ ok: false, code: 'no_session' });
+    expect(await host.recreate('x', { title: 'synthetic' })).toEqual({ ok: false, code: 'no_session' }); // EVM-128 AC3
+    expect(await host.recreateSource('x')).toBeNull(); // EVM-128 AC5: no session, nothing is read
     expect(await host.retarget('x', 'y')).toEqual({ ok: false, code: 'no_session' });
     expect(await host.enqueue({ type: 'CreateNote', commandVersion: 1, payload: notePayload(1) })).toEqual({
       ok: false,
@@ -104,6 +106,7 @@ describe('synchronization host (EVM-107 AC2, AC5; security S2, S3)', () => {
     expect(await host.retargetOptions(null)).toHaveLength(1);
     expect(await host.discard(view.items[0]?.id ?? '')).toEqual({ ok: false, code: 'not_attention' });
     expect(await host.recreate(view.items[0]?.id ?? '')).toEqual({ ok: false, code: 'not_attention' });
+    expect(await host.recreateSource(view.items[0]?.id ?? '')).toBeNull(); // EVM-128 AC1: a note that only waits
     expect(await host.retarget(view.items[0]?.id ?? '', 'z')).toEqual({ ok: false, code: 'not_attention' });
     host.stop();
   });

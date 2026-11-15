@@ -1,0 +1,53 @@
+# EVM-102 AC1, AC2 (M-11 from "Więcej"): a signed-in phone opens "Prywatność" and "Pomoc" - the same screen with the last synchronization
+# of the session and the version of the app; "Wstecz" returns to "Więcej". Synthetic data only.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    clearState: true
+- runFlow: common/sign-in.yaml
+- extendedWaitUntil:
+    visible: 'ZL-E2E-2'
+    timeout: 60000
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- tapOn:
+    id: 'nav-more'
+- scrollUntilVisible:
+    element:
+      id: 'more-privacy'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'more-privacy'
+- extendedWaitUntil:
+    visible: 'Prywatność i pomoc'
+    timeout: 10000
+- scrollUntilVisible:
+    element: 'Ostatnia synchronizacja.*'
+    direction: DOWN
+    centerElement: true
+- assertVisible: 'Wersja .* \(kompilacja .*\)'
+- takeScreenshot: m11-from-more
+- scrollUntilVisible:
+    element:
+      id: 'privacy-help-back'
+    direction: UP
+- tapOn:
+    id: 'privacy-help-back'
+- extendedWaitUntil:
+    visible:
+      id: 'more-help'
+    timeout: 10000
+- tapOn:
+    id: 'more-help'
+- extendedWaitUntil:
+    visible: 'Prywatność i pomoc'
+    timeout: 10000
+- assertVisible: 'Zgubiony telefon'
+- tapOn:
+    id: 'privacy-help-back'
+- extendedWaitUntil:
+    visible:
+      id: 'more-sign-out'
+    timeout: 10000

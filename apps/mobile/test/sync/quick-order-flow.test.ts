@@ -3,8 +3,9 @@ import { createUuidV7 } from '@evia/sync-core';
 import { webcrypto } from 'node:crypto';
 import { buildEntryInput, type EntryDraft } from '../../src/orders/entry-form-model';
 import { buildQuickOrderInput, EMPTY_DRAFT, type QuickOrderDraft } from '../../src/orders/quick-order-model';
+import type { SyncService } from '../../src/sync/sync-service';
 import type { PhoneTemplate } from '../../src/orders/templates';
-import { must, NOW, Phone, ScriptedServer, aggregate, page, settle } from './harness';
+import { must, NOW, Phone, ScriptedServer, aggregate, notePayload, page, settle } from './harness';
 
 // EVM-106 AC2, AC4, AC5 (+ security K5, K8): the flow from the command of the form through the durable queue, the kill of the app, the
 // network that returns, the number and the rejection - on the real SQLCipher adapters (the stand-in server of EVM-107 AC6). Synthetic data only.
@@ -358,6 +359,256 @@ describe('no data in the logs (EVM-106 AC6; security K5)', () => {
     expect(calls.join(' ')).not.toMatch(SYNTHETIC);
     for (const spy of spies) expect(spy).not.toHaveBeenCalled();
     expect(JSON.stringify(phone.diagnostics)).not.toMatch(SYNTHETIC);
+    spies.forEach((spy) => {
+      spy.mockRestore();
+    });
+  });
+});
+
+// EVM-128 AC1, AC3, AC4, AC5 (+ security K1-K6): "Utwórz ponownie" of a rejected quick work order, on the real SQLCipher queue.
+describe('recreate of a rejected quick order (EVM-128)', () => {
+  const OLD = /Anna|Fikcyjna|600 000 009|Testowa|Piaseczno|Oględziny/;
+  const CORRECTED: QuickOrderDraft = {
+    ...DRAFT,
+    firstName: 'Beata',
+    lastName: 'Zmieniona',
+    phone: '500 100 200',
+    street: 'ul. Nowa',
+    city: 'Konstancin',
+    note: 'Nowa notatka',
+  };
+  /** A rejected quick order with two entries behind it (the group of "Wymaga uwagi"). */
+  async function rejectedGroup(code = 'template_unavailable') {
+    const { server, service } = await loaded();
+    phone.online = false;
+    service.setOnline(false);
+    const built = quickCommand();
+    await service.enqueue(built.input);
+    await service.enqueue(await noteFor(service, built.workOrderId));
+    await service.enqueue(await noteFor(service, built.workOrderId, 'Drugi wpis.'));
+    server.pushScript.push(() => rejectionOf(server, code));
+    await networkReturns(service);
+    const item = must((await service.queueView(true)).items[0]);
+    expect(item.state).toBe('attention');
+    return { server, service, built, id: item.id };
+  }
+  const rejectionOf = (server: ScriptedServer, code: string) => {
+    const id = server.pushes[server.pushes.length - 1]?.mutations[0]?.mutationId ?? '';
+    return { kind: 'ok' as const, body: { serverTime: iso(NOW), results: [{ mutationId: id, outcome: 'rejected', code }] } };
+  };
+  /** Everything stored in the queue tables, as text: what a stolen phone would give (the old data must not be in it). */
+  const dump = async (): Promise<string> =>
+    JSON.stringify(
+      await phone.db.read(async (tx) => [await tx.all('SELECT * FROM queue_entries'), await tx.all('SELECT * FROM settled_results')]),
+    );
+  const corrected = (): { workOrderId: string; payload: Record<string, unknown> } => {
+    const built = buildQuickOrderInput(CORRECTED, { customers: [], sites: [] }, [TEMPLATE], newId);
+    if (!built.ok) throw new Error('valid');
+    return { workOrderId: built.workOrderId, payload: built.input.payload as Record<string, unknown> };
+  };
+
+  it('EVM-128 AC1: the source gives the draft of the rejected command, the code and the number of entries that wait behind it', async () => {
+    const { service, id } = await rejectedGroup();
+    const source = must(await service.recreateSource(id));
+    expect(source.code).toBe('template_unavailable');
+    expect(source.dependents).toBe(2);
+    expect(source.draft).toMatchObject({
+      firstName: 'Anna',
+      lastName: 'Fikcyjna',
+      phone: '600 000 009',
+      street: 'ul. Testowa',
+      title: 'Dom — sam montaż',
+    });
+    // the template was reported gone: deselected (AC2); a draft of another rejection keeps it
+    expect(source.draft.templateId).toBeNull();
+    // the raw payload of the old command (with its ids) does not come out of the service
+    expect(JSON.stringify(source)).not.toMatch(/newCustomer|newSite|workOrderId/);
+  });
+
+  it('EVM-128 AC1: an entry that does not exist, and a quick order that only waits, give no source (the form is for a rejected one)', async () => {
+    const { service } = await rejectedGroup();
+    expect(await service.recreateSource('0194c2a0-0000-7000-8000-0000000000ee')).toBeNull();
+    const waiting = quickCommand();
+    await service.enqueue(waiting.input);
+    const pending = must((await service.queueView(true)).items.find((item) => item.state !== 'attention'));
+    expect(await service.recreateSource(pending.id)).toBeNull();
+  });
+
+  it('EVM-128 AC3: new mutation ids, new ids of the order, customer and place, the entries moved under the new order - and none of the old data left in the store', async () => {
+    const { service, built, id } = await rejectedGroup();
+    const before = (await phone.queue.readAll()) as { mutationId: string }[];
+    const oldIds = new Set(before.map((r) => r.mutationId));
+    const next = corrected();
+    expect(await service.recreate(id, next.payload)).toEqual({ ok: true });
+    const records = (await phone.queue.readAll()) as {
+      mutationId: string;
+      type: string;
+      orderingKey: string;
+      parentMutationId?: string;
+      state: string;
+      payload: Record<string, unknown>;
+    }[];
+    expect(records).toHaveLength(3);
+    for (const record of records) {
+      expect(oldIds.has(record.mutationId)).toBe(false);
+      expect(record.state).toBe('pending');
+    }
+    const root = must(records.find((r) => r.type === 'CreateQuickWorkOrder'));
+    const oldPayload = built.payload as { workOrderId: string; newCustomer: { id: string }; newSite: { id: string } };
+    const payload = root.payload as { workOrderId: string; newCustomer: { id: string; displayName: string }; newSite: { id: string } };
+    expect(payload.workOrderId).toBe(next.workOrderId);
+    expect(payload.workOrderId).not.toBe(oldPayload.workOrderId);
+    expect(payload.newCustomer.id).not.toBe(oldPayload.newCustomer.id);
+    expect(payload.newSite.id).not.toBe(oldPayload.newSite.id);
+    expect(payload.newCustomer.displayName).toBe('Beata Zmieniona');
+    const notes = records.filter((r) => r.type === 'CreateNote');
+    expect(notes).toHaveLength(2);
+    for (const entry of notes) {
+      expect(entry.orderingKey).toBe(next.workOrderId);
+      expect(entry.payload['workOrderId']).toBe(next.workOrderId);
+      expect(entry.parentMutationId).toBe(root.mutationId);
+    }
+    // the OLD values (name, phone, address, note) are gone from every record - the form changed them, so the new data cannot hide a leftover
+    const text = await dump();
+    expect(text).not.toMatch(OLD);
+    expect(text).toContain('Beata');
+    expect(text).not.toContain(oldPayload.workOrderId);
+    expect(text).not.toContain(oldPayload.newCustomer.id);
+    expect(text).not.toContain(oldPayload.newSite.id);
+    for (const old of oldIds) expect(text).not.toContain(old);
+    // the old group is gone from "Wymaga uwagi"; the order of the details waits for its number
+    const view = await service.queueView(true);
+    expect(view.items).toHaveLength(1);
+    expect(view.items[0]).toMatchObject({ state: 'pending', dependents: 2 });
+    expect(must(await service.orderDetail(next.workOrderId)).awaitingNumber).toBe(true);
+    expect(service.getSnapshot().counts.attention).toBe(0);
+  });
+
+  it('EVM-128 AC3: after the network returns the new command goes out once, then its entries; the old command never goes out again', async () => {
+    const { server, service, id } = await rejectedGroup();
+    const next = corrected();
+    expect(await service.recreate(id, next.payload)).toEqual({ ok: true });
+    serverCreates(server, next.payload, 'ZL-2026-0100');
+    await networkReturns(service);
+    expect(service.getSnapshot().counts.unsent).toBe(0);
+    const sent = server.pushes.flatMap((push) => push.mutations);
+    expect(sent.filter((m) => m.mutationId === id)).toHaveLength(1);
+    expect(
+      sent
+        .filter((m) => m.mutationId !== id)
+        .slice(-3)
+        .map((m) => m.type),
+    ).toEqual(['CreateQuickWorkOrder', 'CreateNote', 'CreateNote']);
+    for (const push of server.pushes) expect(zSyncMutationsRequest.safeParse(push).success).toBe(true);
+    expect(await phone.queue.readAll()).toEqual([]);
+  });
+
+  it('EVM-128 AC3: the kill of the app right after the save keeps the new command and its entries; after the restart there is no group in "Wymaga uwagi"', async () => {
+    const { server, service, id } = await rejectedGroup('id_conflict');
+    expect(await service.recreate(id, corrected().payload)).toEqual({ ok: true });
+    service.dispose();
+    await phone.restart();
+    const second = phone.service(server);
+    phone.online = false;
+    await second.start();
+    await settle();
+    const view = await second.queueView(true);
+    expect(view.items).toHaveLength(1);
+    expect(view.items[0]).toMatchObject({ type: 'CreateQuickWorkOrder', state: 'pending', dependents: 2 });
+    expect(second.getSnapshot().counts.attention).toBe(0);
+    expect(await dump()).not.toMatch(OLD);
+  });
+
+  it('EVM-128 AC3: a rejected order with no entries behind it is recreated the same way', async () => {
+    const { server, service } = await loaded();
+    phone.online = false;
+    service.setOnline(false);
+    await service.enqueue(quickCommand().input);
+    server.pushScript.push(() => rejectionOf(server, 'template_unavailable'));
+    await networkReturns(service);
+    const id = must((await service.queueView(true)).items[0]).id;
+    expect(must(await service.recreateSource(id)).dependents).toBe(0);
+    expect(await service.recreate(id, corrected().payload)).toEqual({ ok: true });
+    expect(await phone.queue.readAll()).toHaveLength(1);
+    expect(await dump()).not.toMatch(OLD);
+  });
+
+  it('EVM-128 AC4: a failed write rolls the whole operation back - the old group stays untouched in "Wymaga uwagi", with its entries', async () => {
+    const { service, id } = await rejectedGroup();
+    const before = await dump();
+    phone.engine.failNext((sql) => sql.startsWith('INSERT INTO queue_entries'), 'SQLITE_FULL: database or disk is full');
+    expect(await service.recreate(id, corrected().payload)).toEqual({ ok: false, code: 'storage_failure' });
+    expect(await dump()).toBe(before);
+    const view = await service.queueView(true);
+    expect(view.items).toHaveLength(1);
+    expect(view.items[0]).toMatchObject({ id, state: 'attention', dependents: 2 });
+    // the next try (the disk has room again) works
+    expect(await service.recreate(id, corrected().payload)).toEqual({ ok: true });
+  });
+
+  it('EVM-128 AC4: a command over the size limit is refused with its own code and changes nothing', async () => {
+    const { service, id } = await rejectedGroup();
+    const before = await dump();
+    const next = corrected();
+    expect(await service.recreate(id, { ...next.payload, note: 'x'.repeat(300_000) })).toEqual({ ok: false, code: 'payload_too_large' });
+    expect(await dump()).toBe(before);
+  });
+
+  it('EVM-128 AC5: in the hidden-data mode the source is not read and "Utwórz ponownie" with data is refused (nothing written); "Usuń z telefonu" still works', async () => {
+    const { service, id } = await rejectedGroup();
+    const before = await dump();
+    phone.contactVisible = false;
+    expect(await service.recreateSource(id)).toBeNull();
+    expect(await service.recreate(id, corrected().payload)).toEqual({ ok: false, code: 'data_hidden' });
+    expect(await dump()).toBe(before);
+    expect(await service.discard(id)).toEqual({ ok: true, dependents: 2 });
+    expect(await phone.queue.readAll()).toEqual([]);
+  });
+
+  it('EVM-128 AC5: without a session there is no source and no write', async () => {
+    const { id } = await rejectedGroup();
+    const before = await dump();
+    const signedOut: SyncService = phone.service(new ScriptedServer(), {}, null);
+    expect(await signedOut.recreateSource(id)).toBeNull();
+    expect(await signedOut.recreate(id, corrected().payload)).toEqual({ ok: false, code: 'no_session' });
+    expect(await dump()).toBe(before);
+  });
+
+  it('EVM-128 AC3: data for a note that needs attention are refused (only a quick work order takes a payload); without data the note is created again as before', async () => {
+    const { server, service } = await loaded();
+    phone.online = false;
+    service.setOnline(false);
+    await service.enqueue({ type: 'CreateNote', commandVersion: 1, payload: notePayload(1) });
+    server.pushScript.push(() => rejectionOf(server, 'id_conflict'));
+    await networkReturns(service);
+    const id = must((await service.queueView(true)).items[0]).id;
+    const before = await dump();
+    expect(await service.recreateSource(id)).toBeNull();
+    expect(await service.recreate(id, corrected().payload)).toEqual({ ok: false, code: 'invalid_input' });
+    expect(await dump()).toBe(before);
+    expect(await service.recreate(id)).toEqual({ ok: true });
+  });
+
+  it('EVM-128 AC3: an entry of another owner is not read and not rewritten', async () => {
+    const { id } = await rejectedGroup();
+    const before = await dump();
+    const other = phone.service(new ScriptedServer(), {}, 'user-b-synthetic');
+    expect(await other.recreateSource(id)).toBeNull();
+    expect(await other.recreate(id, corrected().payload)).toEqual({ ok: false, code: 'owner_mismatch' });
+    expect(await dump()).toBe(before);
+  });
+
+  it('EVM-128 AC5: neither the read, nor the write, nor a failed write puts anything into the console or the diagnostics', async () => {
+    const spies = (['log', 'info', 'warn', 'error', 'debug'] as const).map((method) =>
+      jest.spyOn(console, method).mockImplementation(() => undefined),
+    );
+    const { service, id } = await rejectedGroup();
+    await service.recreateSource(id);
+    phone.engine.failNext((sql) => sql.startsWith('INSERT INTO queue_entries'), 'SQLITE_FULL: Anna Fikcyjna');
+    await service.recreate(id, corrected().payload);
+    await service.recreate(id, corrected().payload);
+    for (const spy of spies) expect(spy).not.toHaveBeenCalled();
+    expect(JSON.stringify(phone.diagnostics)).not.toMatch(/Anna|Fikcyjna|Beata|Zmieniona|500 100 200/);
     spies.forEach((spy) => {
       spy.mockRestore();
     });

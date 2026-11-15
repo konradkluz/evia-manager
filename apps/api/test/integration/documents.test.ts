@@ -1,7 +1,7 @@
 import { sql } from 'kysely';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { MediaProcessingService, MediaScanService, QuarantineRetentionJob } from '../../src/modules/media/index.ts';
-import { SYNC_SCOPE_SCHEMAS } from '../../src/modules/sync/domain/synced-entities.ts';
+import { SYNC_EXCLUDED_TABLES, SYNC_SCOPE_SCHEMAS, SYNCED_ENTITIES } from '../../src/modules/sync/domain/synced-entities.ts';
 import { PART_SIZE_BYTES } from '../../src/modules/media/domain/upload-plan.ts';
 import type { MetricsRegistry } from '../../src/platform/metrics/metrics.ts';
 import { METRICS } from '../../src/platform/tokens.ts';
@@ -1116,8 +1116,21 @@ describe('EVM-047 AC8 the state of the file and the kind in the list', () => {
 });
 
 describe('EVM-047 documents stay off the phone (P6; the channel is web; domain-model D6)', () => {
-  it('EVM-047 AC7 the schema `media` is outside the scope of the synchronisation and no table of it carries a trigger of the change log', async () => {
-    expect(SYNC_SCOPE_SCHEMAS).not.toContain('media');
+  it('EVM-047 AC7 EVM-131 AC4 of the schema `media` only the media of an order are synchronised (EVM-131): no table of the documents carries a trigger of the change log, and the file of a document never touches a medium', async () => {
+    expect(SYNC_SCOPE_SCHEMAS).toContain('media');
+    expect(SYNCED_ENTITIES.filter((entity) => entity.table.startsWith('media.')).map((entity) => entity.table)).toEqual([
+      'media.media_assets',
+    ]);
+    for (const table of [
+      'media.documents',
+      'media.document_versions',
+      'media.stored_files',
+      'media.file_derivatives',
+      'media.upload_sessions',
+      'media.media_exports',
+    ]) {
+      expect(Object.keys(SYNC_EXCLUDED_TABLES), table).toContain(table);
+    }
     const triggers = (
       await sql<{ table_name: string; function_name: string }>`
         select c.relname as table_name, p.proname as function_name from pg_trigger t
@@ -1125,7 +1138,10 @@ describe('EVM-047 documents stay off the phone (P6; the channel is web; domain-m
         where n.nspname = 'media' and not t.tgisinternal`.execute(admin())
     ).rows;
     expect(triggers.length).toBeGreaterThan(0);
-    expect(triggers.filter((trigger) => /sync/i.test(trigger.function_name))).toEqual([]);
+    expect(triggers.filter((trigger) => trigger.function_name === 'record_change').map((trigger) => trigger.table_name)).toEqual([
+      'media_assets',
+      'media_assets',
+    ]);
     const orderId = await order();
     const editor = await signIn('editor');
     const body = documentBody(pdf());

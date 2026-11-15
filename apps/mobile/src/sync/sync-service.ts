@@ -34,7 +34,7 @@ import {
 } from '@evia/sync-core';
 import { buildOrderDetail, buildPendingOrderDetail, type OrderDetail, type OrderDetailSource } from '../orders/order-detail-model';
 import { buildOrderList, queueFact, type OrderListSource, type OrderRow } from '../orders/order-list-model';
-import { EMPTY_QUICK_SOURCE, type QuickOrderSource } from '../orders/quick-order-model';
+import { draftFromQuickPayload, EMPTY_QUICK_SOURCE, type QuickOrderSource } from '../orders/quick-order-model';
 import { parseStoredTemplates, parseTemplateResponse, type TemplateSet } from '../orders/templates';
 import { classifySqlError } from '../storage/errors';
 import {
@@ -45,6 +45,7 @@ import {
   type QueueCounts,
   type QueueItem,
   type QueueView,
+  type RecreateSource,
   type SentItem,
   type SyncControl,
   type SyncFailureKind,
@@ -657,9 +658,46 @@ export class SyncService implements SyncControl {
     });
   }
 
-  recreate(id: string): Promise<AttentionResult> {
+  /**
+   * The rejected quick work order for the form "Utwórz ponownie" (EVM-128). Fail-closed: nothing is read while the data are hidden (or
+   * without a session); only entries of the owner (`#records`) of the right type and state; the raw payload stays here - the form gets
+   * the draft, the code of the rejection and the number of entries that wait behind it.
+   */
+  async recreateSource(id: string): Promise<RecreateSource | null> {
+    if (!(await this.contactVisible())) return null;
+    const records = await this.#records();
+    const root = records.find((record) => record.mutationId === id);
+    if (root === undefined || root.type !== 'CreateQuickWorkOrder' || root.state !== 'needs_attention') return null;
+    const seen = new Set([id]);
+    for (const record of records)
+      if (record.parentMutationId !== undefined && seen.has(record.parentMutationId)) seen.add(record.mutationId);
+    const code = root.lastCode ?? null;
+    return {
+      draft: draftFromQuickPayload(root.payload, { templateUnavailable: code === 'template_unavailable' }),
+      code,
+      dependents: seen.size - 1,
+    };
+  }
+
+  /**
+   * "Utwórz ponownie". With `payload` (EVM-128; built by the form from the corrected draft, never from the old command) the whole group
+   * is replaced in one transaction of the core: a new command with new ids and a new mutation id, the entries moved under the new order,
+   * the old command with its customer and place data gone. A refusal writes nothing: the data are hidden, there is no session, or the
+   * entry is not a quick work order of this owner (the core answers `owner_mismatch` / `not_found` itself).
+   */
+  async recreate(id: string, payload?: Record<string, unknown>): Promise<AttentionResult> {
+    if (payload === undefined) {
+      return this.#op(async () => {
+        await this.#core.attention.recreate(id);
+        return undefined;
+      });
+    }
+    if ((await this.#deps.owner.currentUserId().catch(() => null)) === null) return { ok: false, code: 'no_session' };
+    if (!(await this.contactVisible())) return { ok: false, code: 'data_hidden' };
     return this.#op(async () => {
-      await this.#core.attention.recreate(id);
+      const root = (await this.#records()).find((record) => record.mutationId === id);
+      if (root !== undefined && root.type !== 'CreateQuickWorkOrder') throw new QueueError('invalid_input');
+      await this.#core.attention.recreate(id, { payload });
       return undefined;
     });
   }

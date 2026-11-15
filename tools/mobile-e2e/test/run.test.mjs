@@ -94,6 +94,11 @@ function fakeMachine({
     '43-quick-order-return.yaml': { unique: 2, duplicates: 0, rejected: 0, received: 2, requests: 3, lastPendingItems: 2 },
     '43-quick-order-rejected-return.yaml': { unique: 0, duplicates: 0, rejected: 1, received: 1, requests: 3, lastPendingItems: 2 },
     '42-entry-rejected.yaml': { unique: 3, duplicates: 0, rejected: 1, received: 5, requests: 3, lastPendingItems: 0 },
+    // EVM-128: the first order rejected (its entry is held back), the order created again (the order and its entry arrive once, the old
+    // command stays counted as rejected) and the rejected order of the discard scenario (nothing is sent by the closing of the form)
+    '72-recreate-rejected.yaml': { unique: 0, duplicates: 0, rejected: 1, received: 1, requests: 3, lastPendingItems: 2 },
+    '75-recreate-return.yaml': { unique: 2, duplicates: 0, rejected: 1, received: 3, requests: 3, lastPendingItems: 2 },
+    '77-recreate-discard.yaml': { unique: 0, duplicates: 0, rejected: 1, received: 1, requests: 3, lastPendingItems: 1 },
   };
   let syncResets = 0;
   let devicePolls = 0;
@@ -509,7 +514,15 @@ describe('smoke test run (EVM-009 AC4; ADR-0015)', () => {
     // EVM-104 adds "order-details-offline": one more offline stretch
     // EVM-105 adds "entries-offline": one more offline stretch
     // EVM-106 adds "quick-order-offline" and "quick-order-rejected": two more offline stretches
+    // EVM-128 adds "quick-order-recreate": two more offline stretches (the order is created offline, the form is saved offline)
+    // EVM-102 adds "privacy-and-help": one more offline stretch (M-11 before the sign-in)
     assert.deepEqual(machine.airplane(), [
+      'enable',
+      'disable',
+      'enable',
+      'disable',
+      'enable',
+      'disable',
       'enable',
       'disable',
       'enable',

@@ -19,7 +19,16 @@ const NOTICE_MS = 4_000;
  * details behind a disclosure; nothing is removed without the user's decision and nothing expires. In the hidden-data mode a row shows
  * its type and state only (the contents are not even requested), and the actions that need the data are not offered.
  */
-export function QueueScreen({ onOpenQueue, now = Date.now }: { onOpenQueue: () => void; now?: () => number }) {
+export function QueueScreen({
+  onOpenQueue,
+  onRecreate,
+  now = Date.now,
+}: {
+  onOpenQueue: () => void;
+  /** Opens the form "Utwórz ponownie" of a rejected quick work order (EVM-128); without it every entry is created again as it is. */
+  onRecreate?: (item: QueueItem) => void;
+  now?: () => number;
+}) {
   const { t } = useTranslation();
   const session = useSession();
   const { hidden, view, reload } = useQueueView();
@@ -119,6 +128,18 @@ export function QueueScreen({ onOpenQueue, now = Date.now }: { onOpenQueue: () =
               },
             };
           case 'recreate':
+            // a quick work order has the form (EVM-128): in the hidden-data mode it is disabled with the reason, never hidden
+            if (onRecreate !== undefined && item.type === 'CreateQuickWorkOrder') {
+              return {
+                key: action,
+                label,
+                onPress: () => {
+                  onRecreate(item);
+                },
+                variant: 'primary' as const,
+                ...(hidden ? { disabled: true, accessibilityLabel: `${label}. ${t('attention.recreateHidden')}` } : {}),
+              };
+            }
             return {
               key: action,
               label,
@@ -162,7 +183,16 @@ export function QueueScreen({ onOpenQueue, now = Date.now }: { onOpenQueue: () =
         details={details}
         accessibilityLabel={t('attention.accessibleName', { type, reason })}
         actions={actions}
-        extra={hidden ? <Text style={{ ...text.bodySm, color: color.text.secondary }}>{t('attention.hiddenActions')}</Text> : undefined}
+        extra={
+          hidden ? (
+            <>
+              <Text style={{ ...text.bodySm, color: color.text.secondary }}>{t('attention.hiddenActions')}</Text>
+              {onRecreate !== undefined && item.type === 'CreateQuickWorkOrder' && item.actions.includes('recreate') ? (
+                <Text style={{ ...text.bodySm, color: color.text.secondary }}>{t('attention.recreateHidden')}</Text>
+              ) : null}
+            </>
+          ) : undefined
+        }
         testID={`attention-${item.id}`}
       />
     );

@@ -12,7 +12,8 @@ import { findDocumentWithFile, type DocumentScope, type DocumentWithFile } from 
 import type { MediaDb, MediaAssetsTable, StoredFilesTable, UploadSessionsTable } from './tables.ts';
 
 export type StoredFileRow = Selectable<StoredFilesTable>;
-export type MediaAssetRow = Selectable<MediaAssetsTable>;
+/** The columns the panel code reads; the counter of the state of the file (migration 0065) is the business of the database and of `sync-version.ts` only. */
+export type MediaAssetRow = Omit<Selectable<MediaAssetsTable>, 'file_state_revision'>;
 export type UploadSessionRow = Selectable<UploadSessionsTable>;
 
 /** The creator of a session: the user and the device (`null` for the web, which has none). */
@@ -29,6 +30,10 @@ export interface NewMediaAsset {
   readonly description: string | null;
   readonly procedureStageId?: string | null;
   readonly createdBy: string;
+  /** `web` (the panel, the default) or `mobile` (the command of the phone, EVM-131). */
+  readonly origin?: 'web' | 'mobile';
+  /** The moment the phone says it took the picture (metadata only); `null`/absent for the panel. */
+  readonly capturedAt?: Date | null;
 }
 
 export interface NewStoredFile {
@@ -53,8 +58,8 @@ export async function insertMediaAsset(db: MediaDb, asset: NewMediaAsset, now: D
       media_type: asset.mediaType,
       category: asset.category,
       description: asset.description,
-      origin: 'web',
-      captured_at: null,
+      origin: asset.origin ?? 'web',
+      captured_at: asset.capturedAt ?? null,
       created_at: now,
       created_by: asset.createdBy,
       updated_at: now,
@@ -65,8 +70,9 @@ export async function insertMediaAsset(db: MediaDb, asset: NewMediaAsset, now: D
   return result !== undefined;
 }
 
-export async function insertStoredFile(db: MediaDb, file: NewStoredFile, now: Date): Promise<void> {
-  await db
+/** @returns the file inserted (`undefined`: the medium has a file already - the unique `media_asset_id`; a parallel declaration of the file by the phone, EVM-131) */
+export async function insertStoredFile(db: MediaDb, file: NewStoredFile, now: Date): Promise<StoredFileRow | undefined> {
+  const inserted = await db
     .insertInto('media.stored_files')
     .values({
       id: file.id,
@@ -91,7 +97,23 @@ export async function insertStoredFile(db: MediaDb, file: NewStoredFile, now: Da
       created_at: now,
       created_by: file.createdBy,
     })
-    .execute();
+    .onConflict((conflict) => conflict.column('media_asset_id').doNothing())
+    .returningAll()
+    .executeTakeFirst();
+  return inserted;
+}
+
+/** The medium of THIS order (live) that has NO file yet - created on the phone, the file is declared in the upload session (EVM-131). Call after {@link lockLiveAsset}. */
+export async function findAssetWithoutFile(db: MediaDb, workOrderId: string, mediaAssetId: string): Promise<MediaAssetRow | undefined> {
+  return db
+    .selectFrom('media.media_assets as a')
+    .leftJoin('media.stored_files as f', 'f.media_asset_id', 'a.id')
+    .where('a.id', '=', mediaAssetId)
+    .where('a.work_order_id', '=', workOrderId)
+    .where('a.deleted_at', 'is', null)
+    .where('f.id', 'is', null)
+    .selectAll('a')
+    .executeTakeFirst();
 }
 
 export interface AssetWithFile {
@@ -118,6 +140,19 @@ export async function findAssetWithFile(
   /** Only the restore and the erasure of a file reach a medium that is soft deleted (EVM-051): every other reader never sees it (SR-AUTHZ-02). */
   includeDeleted = false,
 ): Promise<AssetWithFile | undefined> {
+  if (lock) {
+    // the order of the locks of every path that changes both rows: the medium FIRST, then its file (the erasure takes them so; the trigger of the file raises the counter of
+    // the medium - migration 0065), so two paths never wait for each other. A medium without a file stays locked for the caller (EVM-131: the file is declared in the session).
+    const locked = await db
+      .selectFrom('media.media_assets')
+      .select('id')
+      .where('id', '=', mediaAssetId)
+      .where('work_order_id', '=', workOrderId)
+      .$if(!includeDeleted, (query) => query.where('deleted_at', 'is', null))
+      .forNoKeyUpdate()
+      .executeTakeFirst();
+    if (locked === undefined) return undefined;
+  }
   const visible = db
     .selectFrom('media.media_assets as a')
     .innerJoin('media.stored_files as f', 'f.media_asset_id', 'a.id')
@@ -435,6 +470,8 @@ export async function listAssets(
     .where('a.work_order_id', '=', workOrderId)
     .where('a.deleted_at', 'is', null);
   if (options.unfinishedOnly) {
+    // the banner of the panel ("choose them again from the gallery") counts the batches of the PANEL: a medium of the phone is uploaded by the phone (EVM-131)
+    query = query.where('a.origin', '=', 'web');
     query = query.where((eb) =>
       eb.or([
         eb('s.id', 'is not', null),

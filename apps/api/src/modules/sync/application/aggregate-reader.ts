@@ -13,6 +13,7 @@ import type { Database } from '../../../platform/database/database.ts';
 import type { Principal } from '../../../platform/http/principal.ts';
 import { CUSTOMER_SYNC_SOURCE, type CustomerSyncSource } from '../../customers/system-ports.ts';
 import { USER_SYNC_SOURCE, type UserSyncSource } from '../../identity/system-ports.ts';
+import { MEDIA_ASSET_SYNC_SOURCE, type MediaAssetSyncSource } from '../../media/system-ports.ts';
 import { PARTY_SYNC_SOURCE, type PartySyncSource } from '../../parties/system-ports.ts';
 import { PROCEDURE_STAGE_SYNC_SOURCE, type ProcedureStageSyncSource } from '../../procedures/system-ports.ts';
 import { SITE_SYNC_SOURCE, type SiteSyncSource } from '../../sites/system-ports.ts';
@@ -21,6 +22,7 @@ import { SCOPE_ITEM_SYNC_SOURCE, type ScopeItemSyncSource, type SyncWorkOrderPro
 import {
   customerChange,
   deleteChange,
+  mediaAssetChange,
   partyChange,
   procedureStageChange,
   scopeItemChange,
@@ -43,7 +45,7 @@ export interface GroupItem {
   readonly kind: CountKind;
 }
 
-/** An order with everything it needs, flat and in a FIXED order (the order, its customer, site, parties and users, then scope items, stages and entries). */
+/** An order with everything it needs, flat and in a FIXED order (the order, its customer, site, parties and users, then scope items, stages, entries and media). */
 export interface OrderGroup {
   readonly orderId: string;
   readonly items: readonly GroupItem[];
@@ -74,6 +76,7 @@ export class AggregateReader {
   readonly #items: ScopeItemSyncSource;
   readonly #stages: ProcedureStageSyncSource;
   readonly #entries: TimelineEntrySyncSource;
+  readonly #media: MediaAssetSyncSource;
 
   constructor(
     @Inject(CUSTOMER_SYNC_SOURCE) customers: CustomerSyncSource,
@@ -83,6 +86,7 @@ export class AggregateReader {
     @Inject(SCOPE_ITEM_SYNC_SOURCE) items: ScopeItemSyncSource,
     @Inject(PROCEDURE_STAGE_SYNC_SOURCE) stages: ProcedureStageSyncSource,
     @Inject(TIMELINE_ENTRY_SYNC_SOURCE) entries: TimelineEntrySyncSource,
+    @Inject(MEDIA_ASSET_SYNC_SOURCE) media: MediaAssetSyncSource,
   ) {
     this.#customers = customers;
     this.#sites = sites;
@@ -91,6 +95,7 @@ export class AggregateReader {
     this.#items = items;
     this.#stages = stages;
     this.#entries = entries;
+    this.#media = media;
   }
 
   /** @param orders the orders the caller may read and that are in scope - the reader does not judge them again */
@@ -102,6 +107,7 @@ export class AggregateReader {
     const items = groupBy(await this.#items.ofOrders(tx, orderIds));
     const stages = groupBy(await this.#stages.ofOrders(tx, orderIds));
     const entries = groupBy(await this.#entries.ofOrders(tx, orderIds));
+    const media = groupBy(await this.#media.ofOrders(tx, orderIds));
 
     const siteOf = (order: SyncWorkOrderProjection) => {
       const state = order.siteId === null ? undefined : sites.get(order.siteId);
@@ -151,6 +157,7 @@ export class AggregateReader {
       for (const row of items.get(order.id) ?? []) group.push(item('scope_item', row.id, scopeItemChange(row)));
       for (const row of orderStages) group.push(item('procedure_stage', row.id, procedureStageChange(row)));
       for (const row of orderEntries) group.push(item('timeline_entry', row.id, timelineEntryChange(row)));
+      for (const row of media.get(order.id) ?? []) group.push(item('media_asset', row.id, mediaAssetChange(row)));
       return { orderId: order.id, items: group };
     });
   }

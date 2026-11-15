@@ -1,0 +1,18 @@
+# EVM-128 AC3: the network returns while the app was in the background; the foreground starts the synchronization. The new order is sent
+# once and gets its number (the first order the scenario server creates: ZL-E2E-3), then the entry that moved with it. The counters of
+# the scenario server (2 unique, 0 duplicates, 1 rejected: the old command) are asserted by tools/mobile-e2e after this flow.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- extendedWaitUntil:
+    visible: 'Zsynchr\. .*'
+    timeout: 60000
+- assertNotVisible: 'Offline.*'
+- extendedWaitUntil:
+    visible: 'ZL-E2E-3'
+    timeout: 30000
+- assertNotVisible: 'Oczekuje na numer'
+- tapOn:
+    id: 'nav-queue'
+- assertNotVisible: 'Wymaga uwagi.*'

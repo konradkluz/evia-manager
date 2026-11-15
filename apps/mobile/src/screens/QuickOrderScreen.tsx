@@ -6,6 +6,7 @@ import {
   MAX_NOTE_LENGTH,
   MAX_TITLE_LENGTH,
   buildQuickOrderInput,
+  draftChanged,
   draftSiteType,
   findSimilarCustomers,
   hasInput,
@@ -18,10 +19,11 @@ import {
   type QuickOrderSource,
 } from '../orders/quick-order-model';
 import type { PhoneTemplate, TemplateSet } from '../orders/templates';
+import type { RecreateSource } from '../sync/types';
 import { AlertDialog, AppBar, BottomBar, Button, EmptyState, Inbox, InlineAlert, Lock, Skeleton, TextArea, TextField } from '../ui';
 import { color, space, text } from '../ui/theme';
 import { CustomerSection, SiteSection, SiteTypeDialog, TemplateSection, errorMessages, errorProp, type Patch } from './QuickOrderSections';
-import { SAVE_PROBLEM_KEYS, errorKey } from './quick-order-text';
+import { RECREATE_PROBLEM_KEYS, RECREATE_REASON_KEYS, SAVE_PROBLEM_KEYS, errorKey } from './quick-order-text';
 import { SyncCapsule } from './SyncCapsule';
 import { useGuard, useSession, useSyncSnapshot } from './session-context';
 
@@ -40,6 +42,9 @@ type Load = { readonly kind: 'loading' } | { readonly kind: 'error' } | ({ reado
 /** The keys of the draft that change what "podobny klient" compares: a change withdraws the question asked before saving. */
 const SIMILARITY_KEYS: readonly (keyof QuickOrderDraft)[] = ['customerMode', 'kind', 'firstName', 'lastName', 'companyName', 'phone'];
 
+/** How the form was saved: a new order, or the rejected one created again (EVM-128). */
+export type QuickSavedKind = 'new' | 'recreated';
+
 /**
  * M-10 "Nowe zlecenie", the phone version (EVM-106 AC1-AC3, AC6): a quick work order (customer, place, template, title, note) written
  * into the durable queue of the phone as `CreateQuickWorkOrder`. The rules the screen keeps (security plan of the story):
@@ -50,13 +55,28 @@ const SIMILARITY_KEYS: readonly (keyof QuickOrderDraft)[] = ['customerMode', 'ki
  * - the form closes only after `enqueue` answered `ok` (the command is durable BEFORE the user is told); every failure keeps the data and
  *   says the reason without them; one touch = one command (a flag blocks the next save until the answer; every save takes new ids);
  * - the checks equal the contract (the server stays the source of truth); a similar customer is a local hint, asked once before saving.
+ *
+ * "Utwórz ponownie" (EVM-128): the same form opened with `recreate = { mutationId }` - the id of the rejected command is the ONLY datum of
+ * the navigation. The service gives the draft (`recreateSource`, never in the hidden-data mode; an answer that comes after the mode turned
+ * on or the form closed is dropped); "Zapisz" gives the corrected data to ONE operation of the queue (`recreate`) that replaces the old
+ * group; closing without a save touches nothing in the queue.
  */
-export function QuickOrderScreen({ onClose, onSaved }: { onClose: () => void; onSaved: (workOrderId: string) => void }) {
+export function QuickOrderScreen({
+  onClose,
+  onSaved,
+  recreate,
+}: {
+  onClose: () => void;
+  onSaved: (workOrderId: string, kind: QuickSavedKind) => void;
+  recreate?: { readonly mutationId: string };
+}) {
   const { t } = useTranslation();
   const session = useSession();
   const hidden = useGuard().hidden !== null;
   const snapshot = useSyncSnapshot();
+  const recreateId = recreate?.mutationId ?? null;
   const [load, setLoad] = useState<Load>({ kind: 'loading' });
+  const [origin, setOrigin] = useState<RecreateSource | null>(null);
   const [draft, setDraft] = useState<QuickOrderDraft | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -84,14 +104,31 @@ export function QuickOrderScreen({ onClose, onSaved }: { onClose: () => void; on
     if (hidden) {
       setLoad({ kind: 'loading' });
       setDraft(null);
+      setOrigin(null);
       return undefined;
     }
     let active = true;
-    Promise.all([session.sync.quickOrderSource(), session.sync.templates()]).then(
-      ([source, templates]) => {
+    Promise.all([
+      session.sync.quickOrderSource(),
+      session.sync.templates(),
+      recreateId === null ? Promise.resolve(null) : session.sync.recreateSource(recreateId),
+    ]).then(
+      ([source, templates, from]) => {
         if (!active) return;
+        if (recreateId !== null && from === null) {
+          setLoad({ kind: 'error' });
+          return;
+        }
         setLoad({ kind: 'ready', source, templates });
-        setDraft((current) => current ?? initialDraft(source));
+        if (from === null) setDraft((current) => current ?? initialDraft(source));
+        else {
+          // the title of the command is the technician's: choosing a template does not overwrite it (AC2); `validation_failed` starts
+          // the local validation at once (AC1); the fields are never marked by the server
+          titleEdited.current = true;
+          setOrigin(from);
+          if (from.code === 'validation_failed') setSubmitted(true);
+          setDraft((current) => current ?? from.draft);
+        }
       },
       () => {
         if (active) setLoad({ kind: 'error' });
@@ -100,7 +137,7 @@ export function QuickOrderScreen({ onClose, onSaved }: { onClose: () => void; on
     return () => {
       active = false;
     };
-  }, [hidden, session.sync]);
+  }, [hidden, session.sync, recreateId]);
 
   // templates that arrive while the form is open (the first cycle ends after it was opened) replace the "no templates" notice at once
   useEffect(() => {
@@ -118,9 +155,11 @@ export function QuickOrderScreen({ onClose, onSaved }: { onClose: () => void; on
   }, [hidden, load.kind, session.sync, snapshot.syncing, snapshot.lastSuccessAt]);
 
   const requestClose = useCallback(() => {
-    if (draft !== null && hasInput(draft)) setDiscardAsk(true);
+    // a form of "Utwórz ponownie" starts full: it asks only when something was changed (the old order stays in the queue either way)
+    const dirty = draft !== null && (origin !== null ? draftChanged(draft, origin.draft) : hasInput(draft));
+    if (dirty) setDiscardAsk(true);
     else onClose();
-  }, [draft, onClose]);
+  }, [draft, origin, onClose]);
   // registered after the shell's handler (which leaves the open form to us) and before the dialogs' own handlers, which win while open
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -203,12 +242,14 @@ export function QuickOrderScreen({ onClose, onSaved }: { onClose: () => void; on
     busy.current = true;
     setSaving(true);
     setProblem(null);
-    session.sync.enqueue(built.input).then(
+    // "Utwórz ponownie": ONE operation of the queue replaces the rejected group by the new command (new ids; from the corrected draft only)
+    const write = recreateId === null ? session.sync.enqueue(built.input) : session.sync.recreate(recreateId, built.payload);
+    write.then(
       (result) => {
         busy.current = false;
         if (!alive.current) return;
         setSaving(false);
-        if (result.ok) onSaved(built.workOrderId);
+        if (result.ok) onSaved(built.workOrderId, recreateId === null ? 'new' : 'recreated');
         else setProblem(problemOf(result.code));
       },
       () => {
@@ -241,6 +282,21 @@ export function QuickOrderScreen({ onClose, onSaved }: { onClose: () => void; on
           contentContainerStyle={{ padding: space.inset.md, rowGap: space.stack.lg }}
           testID="quick-order-scroll"
         >
+          {origin === null ? null : (
+            <InlineAlert
+              tone="info"
+              body={t(origin.code === 'id_conflict' ? RECREATE_REASON_KEYS.id_conflict : RECREATE_REASON_KEYS.default)}
+              // a second text node (not a second line of the first): the entries that move with the order
+              action={
+                origin.dependents > 0 ? (
+                  <Text style={{ ...text.body, color: color.text.primary }}>
+                    {t('quickOrder.recreate.dependents', { count: origin.dependents })}
+                  </Text>
+                ) : undefined
+              }
+              testID="quick-order-recreate-alert"
+            />
+          )}
           <View ref={summary} accessible={lines.length > 0 || hasSimilar} testID="quick-order-summary">
             {lines.length > 0 ? (
               <InlineAlert tone="error" title={t('quickOrder.summaryTitle')} body={lines.join('\n')} testID="quick-order-errors" />
@@ -273,6 +329,9 @@ export function QuickOrderScreen({ onClose, onSaved }: { onClose: () => void; on
               set({ templateId: template.id, ...(replace ? { title: template.name.slice(0, MAX_TITLE_LENGTH) } : {}) });
             }}
             error={errorOf('template')}
+            notice={
+              origin?.code === 'template_unavailable' && draft.templateId === null ? t('quickOrder.recreate.templateGone') : undefined
+            }
           />
           <TextField
             label={t('quickOrder.titleLabel')}
@@ -298,7 +357,13 @@ export function QuickOrderScreen({ onClose, onSaved }: { onClose: () => void; on
           />
         </ScrollView>
         <BottomBar>
-          {problem === null ? null : <InlineAlert tone="error" body={t(SAVE_PROBLEM_KEYS[problem])} testID="quick-order-alert" />}
+          {problem === null ? null : (
+            <InlineAlert
+              tone="error"
+              body={t((recreateId === null ? SAVE_PROBLEM_KEYS : RECREATE_PROBLEM_KEYS)[problem])}
+              testID="quick-order-alert"
+            />
+          )}
           <Button
             label={t('quickOrder.save')}
             buttonSize="lg"
@@ -350,7 +415,7 @@ export function QuickOrderScreen({ onClose, onSaved }: { onClose: () => void; on
       ) : null}
       {discardAsk ? (
         <AlertDialog
-          title={t('quickOrder.discardTitle')}
+          title={t(recreateId === null ? 'quickOrder.discardTitle' : 'quickOrder.recreate.discardTitle')}
           onCancel={() => {
             setDiscardAsk(false);
           }}
@@ -375,7 +440,9 @@ export function QuickOrderScreen({ onClose, onSaved }: { onClose: () => void; on
             </>
           }
         >
-          <Text style={{ ...text.body, color: color.text.primary }}>{t('quickOrder.discardBody')}</Text>
+          <Text style={{ ...text.body, color: color.text.primary }}>
+            {t(recreateId === null ? 'quickOrder.discardBody' : 'quickOrder.recreate.discardBody')}
+          </Text>
         </AlertDialog>
       ) : null}
     </KeyboardAvoidingView>

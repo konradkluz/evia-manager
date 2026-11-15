@@ -12,6 +12,8 @@ export interface AttentionAction {
   onPress: () => void;
   variant?: ButtonVariant;
   disabled?: boolean;
+  /** Overrides the accessible name of the button (e.g. the name together with the reason it is disabled). */
+  accessibilityLabel?: string;
 }
 
 export interface AttentionCardProps {
@@ -119,6 +121,7 @@ export function AttentionCard({
             onPress={action.onPress}
             variant={action.variant ?? 'tertiary'}
             disabled={action.disabled === true}
+            {...(action.accessibilityLabel === undefined ? {} : { accessibilityLabel: action.accessibilityLabel })}
             testID={testID === undefined ? undefined : `${testID}-${action.key}`}
           />
         ))}

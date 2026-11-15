@@ -124,7 +124,11 @@ describe('arguments and commands of the APK verification (EVM-009 AC5, AC6)', ()
       /** @type {Record<string, string>} */
       const answers = {
         'manifest print a.apk': read('manifest-print.txt'),
-        'files list a.apk': read('files-list.txt'),
+        'files list a.apk': `${read('files-list.txt')}
+/assets/app.config
+`,
+        'files cat --file assets/app.config a.apk': '{"extra":{"privacyClauses":{"draft":false,"markers":false}}}',
+        'dex packages --defined-only a.apk': 'P d 1 1 100 pl.eviacharge.manager',
         'apk summary a.apk': read('apk-summary.txt'),
         'resources value --config default --type xml --name evia_network_security_config a.apk': 'x/n.xml',
         'resources value --config default --type xml --name evia_backup_rules a.apk': 'x/b.xml',

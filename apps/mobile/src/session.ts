@@ -9,7 +9,8 @@ import { clientHeaders } from './api/health';
 import { systemClock } from './auth/clock';
 import type { AuthClient } from './auth/ports';
 import { MobileSessionOwner } from './auth/session-owner';
-import { readRuntimeConfig, type RuntimeConfig } from './config';
+import { readBuildNumber, readRuntimeConfig, type RuntimeConfig } from './config';
+import { readContact } from './config/contact';
 import { readDeviceInfo } from './device/device-info';
 import { DeviceGuard } from './device-guard/device-guard';
 import {
@@ -156,7 +157,8 @@ export function createSessionPorts(config: RuntimeConfig | null = readRuntimeCon
     openForgotPassword: () => {
       if (config !== null) void Linking.openURL(`${originOf(config.apiBaseUrl)}${PASSWORD_RESET_PATH}`).catch(() => undefined);
     },
-    openHelp: () => undefined,
+    // M-11 (EVM-102): the contact of the office comes from the build; `mailto:` / `tel:` open in the program of the phone, a refusal is shown
+    privacyHelp: { build: readBuildNumber(), contact: readContact(), openUrl: (url) => Linking.openURL(url) },
     appVersion: config?.appVersion ?? 'unknown',
   };
 }
