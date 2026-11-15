@@ -24,6 +24,7 @@ export function mapFailure(input: MappingInput): Outcome {
     if (code === 'invalid_state_transition') return { type: 'needs_attention', reason: 'invalid_state' };
     return { type: 'needs_attention', reason: 'unknown' };
   }
+  if (status === 400 && code === 'validation_failed') return { type: 'needs_attention', reason: 'declaration_rejected' };
   if (status === 422 && code !== undefined && INCOMPLETE_CODES.has(code)) return { type: 'needs_attention', reason: 'upload_incomplete' };
   if (status === 429) return retryHint(input.retryAfterSeconds);
   if (status >= 500) return { type: 'retry_later' };

@@ -3,6 +3,11 @@
   "defaults": {
     "assetId": "asset-1",
     "size": 40,
+    "file": {
+      "fileName": "asset-1.jpg",
+      "contentType": "image/jpeg",
+      "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    },
     "allowedHosts": ["store.example.test"],
     "ids": ["sess-1", "key-1", "sess-2", "key-2"],
     "rng": [0.5],
@@ -1850,6 +1855,49 @@
         { "stopAfterCalls": 2, "expect": { "outcome": { "type": "device_wipe" }, "calls": [], "sleeps": [], "store": "active" } }
       ],
       "final": { "objects": 0, "sessionsCreated": 1, "open": 1, "puts": {}, "store": "active" }
+    },
+    {
+      "id": "R46-declaration-refused-needs-attention",
+      "ac": "AC2",
+      "faults": [{ "op": "createSession", "effect": "http:400:validation_failed", "times": 1 }],
+      "runs": [
+        {
+          "expect": {
+            "outcome": { "type": "needs_attention", "reason": "declaration_rejected" },
+            "calls": ["createSession"],
+            "sleeps": [],
+            "store": "active"
+          }
+        }
+      ],
+      "final": { "objects": 0, "sessionsCreated": 0, "open": 0, "puts": {}, "store": "active" }
+    },
+    {
+      "id": "R47-lost-session-answer-repeats-the-identical-declaration",
+      "ac": "AC1",
+      "faults": [{ "op": "createSession", "effect": "lost_response", "times": 1 }],
+      "runs": [
+        {
+          "expect": {
+            "outcome": { "type": "uploaded" },
+            "calls": [
+              "createSession",
+              "createSession",
+              "listParts",
+              "partUrl:1",
+              "put:1",
+              "partUrl:2",
+              "put:2",
+              "partUrl:3",
+              "put:3",
+              "complete"
+            ],
+            "sleeps": [500],
+            "store": "uploaded"
+          }
+        }
+      ],
+      "final": { "objects": 1, "sessionsCreated": 1, "open": 0, "puts": { "1": 1, "2": 1, "3": 1 }, "store": "uploaded" }
     }
   ]
 }

@@ -4,9 +4,10 @@ function fail(message: string): never {
   throw new Error(message);
 }
 import { readVector, runScenario, type ResumeFile } from '../conformance/upload.ts';
-import { UploadEngine, type EngineDeps, type JobSnapshot, type PartRequest } from '../src/upload/index.ts';
+import { UploadEngine, type EngineDeps, type FileDeclaration, type JobSnapshot, type PartRequest } from '../src/upload/index.ts';
 
 const ASSET = 'asset-1';
+const FILE: FileDeclaration = { fileName: 'asset-1.jpg', declaredSize: 40, contentType: 'image/jpeg', sha256: 'a'.repeat(64) };
 const SNAPSHOT: JobSnapshot = {
   schemaVersion: 1,
   assetId: ASSET,
@@ -64,7 +65,7 @@ function harness(initial: JobSnapshot | null = null) {
 describe('EVM-109 AC3: requests and persisted state of the reference engine', () => {
   it('EVM-109 AC3: a part request carries only Content-Length and never Authorization', async () => {
     const { deps, requests } = harness();
-    expect(await new UploadEngine(deps).run(ASSET, 40)).toEqual({ type: 'uploaded' });
+    expect(await new UploadEngine(deps).run(ASSET, FILE)).toEqual({ type: 'uploaded' });
     expect(requests).toHaveLength(3);
     for (const request of requests) {
       expect(Object.keys(request.headers)).toEqual(['Content-Length']);
@@ -79,7 +80,7 @@ describe('EVM-109 AC3: requests and persisted state of the reference engine', ()
 
   it('EVM-109 AC3: the persisted snapshot holds only allowlisted keys and no address, token or name', async () => {
     const { deps, saved } = harness();
-    await new UploadEngine(deps).run(ASSET, 40);
+    await new UploadEngine(deps).run(ASSET, FILE);
     const allowed = new Set(Object.keys(SNAPSHOT));
     for (const snapshot of saved) {
       expect(Object.keys(snapshot).every((key) => allowed.has(key))).toBe(true);
@@ -91,26 +92,26 @@ describe('EVM-109 AC3: requests and persisted state of the reference engine', ()
 
   it('EVM-109 AC1: a persisted plan that is inconsistent ends in needs_attention instead of sending', async () => {
     const { deps, requests } = harness({ ...SNAPSHOT, partCount: 9 });
-    expect(await new UploadEngine(deps).run(ASSET, 40)).toEqual({ type: 'needs_attention', reason: 'plan_mismatch' });
+    expect(await new UploadEngine(deps).run(ASSET, FILE)).toEqual({ type: 'needs_attention', reason: 'plan_mismatch' });
     expect(requests).toHaveLength(0);
   });
 
   it('EVM-109 AC1: an error that is not an upload failure (a killed process) is never swallowed', async () => {
     const { deps } = harness();
     const broken: EngineDeps = { ...deps, transport: { put: () => Promise.reject(new Error('boom')) } };
-    await expect(new UploadEngine(broken).run(ASSET, 40)).rejects.toThrow('boom');
+    await expect(new UploadEngine(broken).run(ASSET, FILE)).rejects.toThrow('boom');
   });
 
   it('EVM-109 AC1, EVM-130 AC5: a paused_revoked snapshot is resumed as active only by the explicit resume', async () => {
     const { deps, saved } = harness({ ...SNAPSHOT, state: 'paused_revoked' });
-    expect(await new UploadEngine(deps).run(ASSET, 40, { resume: true })).toEqual({ type: 'uploaded' });
+    expect(await new UploadEngine(deps).run(ASSET, FILE, { resume: true })).toEqual({ type: 'uploaded' });
     expect(saved.every((snapshot) => snapshot.state !== 'paused_revoked')).toBe(true);
   });
 
   it('EVM-130 AC5: a paused_revoked snapshot without the explicit resume is refused, nothing is sent and the snapshot stays', async () => {
     const { deps, saved, requests } = harness({ ...SNAPSHOT, state: 'paused_revoked' });
-    expect(await new UploadEngine(deps).run(ASSET, 40)).toEqual({ type: 'paused_revoked' });
-    expect(await new UploadEngine(deps).run(ASSET, 40, { resume: false })).toEqual({ type: 'paused_revoked' });
+    expect(await new UploadEngine(deps).run(ASSET, FILE)).toEqual({ type: 'paused_revoked' });
+    expect(await new UploadEngine(deps).run(ASSET, FILE, { resume: false })).toEqual({ type: 'paused_revoked' });
     expect(requests).toHaveLength(0);
     expect(saved).toHaveLength(0);
   });

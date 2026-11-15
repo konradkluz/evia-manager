@@ -1,5 +1,5 @@
 {
-  "$comment": "EVM-109 AC4 (AC2): mapping of what the server or the network returned onto the outcome of the engine. Three kinds of input: http (status, code), fileState (state and reasonCode after complete) and network. Codes: contract packages/contracts/openapi (session_revoked, device_wipe_required, client_version_unsupported, id_conflict, invalid_state_transition, checksum_mismatch). Unknown code gives needs_attention(unknown).",
+  "$comment": "EVM-109 AC4 (AC2): mapping of what the server or the network returned onto the outcome of the engine. Three kinds of input: http (status, code), fileState (state and reasonCode after complete) and network. Codes: contract packages/contracts/openapi (session_revoked, device_wipe_required, client_version_unsupported, id_conflict, invalid_state_transition, checksum_mismatch, validation_failed on createSession = the declaration of the file was refused: declaration_rejected). Unknown code gives needs_attention(unknown).",
   "cases": [
     {
       "id": "M01-session-revoked",
@@ -73,8 +73,18 @@
     },
     { "id": "M13-network", "input": { "kind": "network" }, "expected": { "type": "retry_later" } },
     {
-      "id": "M14-400",
+      "id": "M14-400-declaration-rejected",
       "input": { "kind": "http", "status": 400, "code": "validation_failed" },
+      "expected": { "type": "needs_attention", "reason": "declaration_rejected" }
+    },
+    {
+      "id": "M14b-400-no-code",
+      "input": { "kind": "http", "status": 400 },
+      "expected": { "type": "needs_attention", "reason": "unknown" }
+    },
+    {
+      "id": "M14c-400-other-code",
+      "input": { "kind": "http", "status": 400, "code": "unknown_field" },
       "expected": { "type": "needs_attention", "reason": "unknown" }
     },
     {

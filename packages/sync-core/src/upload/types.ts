@@ -45,6 +45,8 @@ export type AttentionReason =
   | 'invalid_state'
   | 'url_renewal_exhausted'
   | 'upload_incomplete'
+  /** `400 validation_failed` of the session: the server refused the declaration of the file. */
+  | 'declaration_rejected'
   | 'unknown';
 
 export type Outcome =
@@ -56,6 +58,18 @@ export type Outcome =
   | { readonly type: 'retry_checksum' }
   /** `delayMs` is set by the engine (the delay the schedule should respect); the mapping alone sets it only from a `Retry-After` of `429`. */
   | { readonly type: 'retry_later'; readonly delayMs?: number };
+
+/**
+ * The declaration of the file that the session creation carries (EVM-131 contract `UploadFileDeclaration`). `fileName` is the identifier of
+ * the asset with the extension of the type (never a name from the user), `contentType` is from the allow-list. The same declaration is sent on
+ * every repeat of `createSession`: the server accepts an identical one and refuses another.
+ */
+export interface FileDeclaration {
+  readonly fileName: string;
+  readonly declaredSize: number;
+  readonly contentType: string;
+  readonly sha256: string;
+}
 
 /** Session as returned by the server: the server decides the split (fixed part size, the last part smaller, at most 1000 parts). */
 export interface SessionInfo {
@@ -86,7 +100,7 @@ export interface CompleteResult {
  * failed refresh. Every failure is an `UploadFailure`.
  */
 export interface UploadApi {
-  createSession(assetId: string, sessionId: string, idempotencyKey: string): Promise<SessionInfo>;
+  createSession(assetId: string, sessionId: string, idempotencyKey: string, file: FileDeclaration): Promise<SessionInfo>;
   listParts(sessionId: string): Promise<readonly RemotePart[]>;
   partUrl(sessionId: string, partNumber: number): Promise<PartUrl>;
   complete(sessionId: string): Promise<CompleteResult>;

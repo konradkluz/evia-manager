@@ -8,6 +8,7 @@ Wektory JSON czytają **dwie** implementacje: model referencyjny w TypeScript (`
 | `planning.json` | zakresy bajtów części (serwer decyduje o `partSize` i `partCount`, klient liczy i sprawdza: `partCount = ceil(rozmiar / partSize)`, `1 ≤ partCount ≤ 1000`, inaczej `plan_mismatch`) |
 | `backoff.json`  | stałe limitów silnika i opóźnienia pełnego jitteru (`floor(rng * (sufit + 1))`, `rng` w wektorze)                                                                                    |
 | `mapping.json`  | odpowiedź HTTP (status i `code`), stan pliku po `complete` i błąd sieci → wynik silnika                                                                                              |
+| `declaration.json` | deklaracja pliku w sesji (EVM-131): lista typów kontraktu z aliasami, nazwa `<assetId>.<rozszerzenie>` (nigdy nazwa od użytkownika), kiedy serwer przyjmie deklarację (typ, rozszerzenie, 1 B – 4 GiB, SHA-256 małymi literami); `resume.json` sprawdza po obu stronach, że każde `createSession` niesie TĘ SAMĄ ważną deklarację |
 | `urlcheck.json` | zaufanie do adresu części (https, bez `userinfo`, host z listy, port)                                                                                                                |
 | `resume.json`   | scenariusze pętli wznawiania na deterministycznym fałszywym serwerze (format w polu `$comment` pliku)                                                                                |
 

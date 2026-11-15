@@ -1,0 +1,183 @@
+{
+  "$comment": "EVM-131 (EVM-130 A2): the declaration of the file in the upload session (contract `UploadFileDeclaration`, server `file-rules.ts`). `types`: the allow-list of content types (case and the aliases image/jpg and image/heif of the server), the normalised type and the name made from the asset identifier (`<assetId>.<extension>`; the assetId of these vectors is 0193a000-0000-7000-8000-00000000000a) - never a name from the user. `declarations`: whether a declaration can be accepted by the server (allow-listed type, the name matches the type, 1 byte to 4 GiB, a lower-case hex SHA-256). The TypeScript model and the Kotlin engine read the same table.",
+  "types": [
+    {
+      "id": "T01-jpeg",
+      "input": "image/jpeg",
+      "normalized": "image/jpeg",
+      "fileName": "0193a000-0000-7000-8000-00000000000a.jpg"
+    },
+    {
+      "id": "T02-png",
+      "input": "image/png",
+      "normalized": "image/png",
+      "fileName": "0193a000-0000-7000-8000-00000000000a.png"
+    },
+    {
+      "id": "T03-webp",
+      "input": "image/webp",
+      "normalized": "image/webp",
+      "fileName": "0193a000-0000-7000-8000-00000000000a.webp"
+    },
+    {
+      "id": "T04-heic",
+      "input": "image/heic",
+      "normalized": "image/heic",
+      "fileName": "0193a000-0000-7000-8000-00000000000a.heic"
+    },
+    {
+      "id": "T05-mp4",
+      "input": "video/mp4",
+      "normalized": "video/mp4",
+      "fileName": "0193a000-0000-7000-8000-00000000000a.mp4"
+    },
+    {
+      "id": "T06-quicktime",
+      "input": "video/quicktime",
+      "normalized": "video/quicktime",
+      "fileName": "0193a000-0000-7000-8000-00000000000a.mov"
+    },
+    {
+      "id": "T07-alias-jpg",
+      "input": "image/jpg",
+      "normalized": "image/jpeg"
+    },
+    {
+      "id": "T08-alias-heif",
+      "input": "image/heif",
+      "normalized": "image/heic"
+    },
+    {
+      "id": "T09-case-and-blanks",
+      "input": "  Video/MP4 ",
+      "normalized": "video/mp4"
+    },
+    {
+      "id": "T10-svg",
+      "input": "image/svg+xml",
+      "normalized": null
+    },
+    {
+      "id": "T11-html",
+      "input": "text/html",
+      "normalized": null
+    },
+    {
+      "id": "T12-empty",
+      "input": "",
+      "normalized": null
+    }
+  ],
+  "declarations": [
+    {
+      "id": "D01-photo",
+      "file": {
+        "fileName": "0193a000-0000-7000-8000-00000000000a.jpg",
+        "declaredSize": 40,
+        "contentType": "image/jpeg",
+        "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      },
+      "declarable": true
+    },
+    {
+      "id": "D02-video-4gib",
+      "file": {
+        "fileName": "0193a000-0000-7000-8000-00000000000a.mp4",
+        "declaredSize": 4294967296,
+        "contentType": "video/mp4",
+        "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      },
+      "declarable": true
+    },
+    {
+      "id": "D03-over-4gib",
+      "file": {
+        "fileName": "0193a000-0000-7000-8000-00000000000a.mp4",
+        "declaredSize": 4294967297,
+        "contentType": "video/mp4",
+        "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      },
+      "declarable": false
+    },
+    {
+      "id": "D04-zero-size",
+      "file": {
+        "fileName": "0193a000-0000-7000-8000-00000000000a.jpg",
+        "declaredSize": 0,
+        "contentType": "image/jpeg",
+        "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      },
+      "declarable": false
+    },
+    {
+      "id": "D05-extension-of-another-type",
+      "file": {
+        "fileName": "0193a000-0000-7000-8000-00000000000a.mp4",
+        "declaredSize": 40,
+        "contentType": "image/jpeg",
+        "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      },
+      "declarable": false
+    },
+    {
+      "id": "D06-type-outside-the-list",
+      "file": {
+        "fileName": "0193a000-0000-7000-8000-00000000000a.svg",
+        "declaredSize": 40,
+        "contentType": "image/svg+xml",
+        "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      },
+      "declarable": false
+    },
+    {
+      "id": "D07-upper-case-sha",
+      "file": {
+        "fileName": "0193a000-0000-7000-8000-00000000000a.jpg",
+        "declaredSize": 40,
+        "contentType": "image/jpeg",
+        "sha256": "0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF"
+      },
+      "declarable": false
+    },
+    {
+      "id": "D08-short-sha",
+      "file": {
+        "fileName": "0193a000-0000-7000-8000-00000000000a.jpg",
+        "declaredSize": 40,
+        "contentType": "image/jpeg",
+        "sha256": "abc"
+      },
+      "declarable": false
+    },
+    {
+      "id": "D09-path-in-name",
+      "file": {
+        "fileName": "../x.jpg",
+        "declaredSize": 40,
+        "contentType": "image/jpeg",
+        "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      },
+      "declarable": false
+    },
+    {
+      "id": "D10-no-extension",
+      "file": {
+        "fileName": "0193a000-0000-7000-8000-00000000000a",
+        "declaredSize": 40,
+        "contentType": "image/jpeg",
+        "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      },
+      "declarable": false
+    },
+    {
+      "id": "D11-alias-type-is-not-normalised-here",
+      "file": {
+        "fileName": "0193a000-0000-7000-8000-00000000000a.jpg",
+        "declaredSize": 40,
+        "contentType": "image/jpg",
+        "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      },
+      "declarable": false
+    }
+  ]
+}

@@ -8,6 +8,7 @@ import {
   UploadFailure,
   type AttentionReason,
   type EngineDeps,
+  type FileDeclaration,
   type JobSnapshot,
   type Outcome,
 } from './types.ts';
@@ -38,6 +39,8 @@ interface RunContext {
   regenerated: boolean;
   /** True once this run reconciled again after `422 upload_incomplete`; a second one is `needs_attention`. */
   reconciled: boolean;
+  /** The declaration of the file, sent unchanged by every `createSession` of the run (a repeat is identical, the server compares). */
+  readonly file: FileDeclaration;
 }
 
 /**
@@ -57,14 +60,14 @@ export class UploadEngine {
    * `resume` is the explicit resume of a job paused by `session_revoked`: it is given only after a full sign-in of the same owner
    * (EVM-130, SR-MOB-13). Without it a paused job is refused with `paused_revoked` and nothing is sent.
    */
-  async run(assetId: string, size: number, options: { readonly resume?: boolean } = {}): Promise<Outcome> {
+  async run(assetId: string, file: FileDeclaration, options: { readonly resume?: boolean } = {}): Promise<Outcome> {
     if (this.wiped || this.deps.isStopped?.() === true) {
       this.wiped = true;
       return { type: 'device_wipe' };
     }
     let context: RunContext | undefined;
     try {
-      context = await this.start(assetId, size, options.resume === true);
+      context = await this.start(assetId, file, options.resume === true);
       if (context.snapshot.state === 'uploaded') return { type: 'uploaded' };
       return await this.drive(context);
     } catch (error) {
@@ -82,16 +85,22 @@ export class UploadEngine {
     return outcome;
   }
 
-  private async start(assetId: string, size: number, resume: boolean): Promise<RunContext> {
+  private async start(assetId: string, file: FileDeclaration, resume: boolean): Promise<RunContext> {
+    const size = file.declaredSize;
     const stored = await this.deps.store.load(assetId);
     if (stored?.state === 'paused_revoked' && !resume) throw new Stop({ type: 'paused_revoked' });
     if (stored !== null && stored.schemaVersion === SNAPSHOT_SCHEMA_VERSION && stored.size === size) {
-      return { snapshot: { ...stored, state: stored.state === 'uploaded' ? 'uploaded' : 'active' }, regenerated: false, reconciled: false };
+      return {
+        snapshot: { ...stored, state: stored.state === 'uploaded' ? 'uploaded' : 'active' },
+        regenerated: false,
+        reconciled: false,
+        file,
+      };
     }
     // Nothing stored, an unknown schema version or a changed file: start from the beginning (the server hands back an active session).
     const snapshot = this.freshSnapshot(assetId, size);
     await this.deps.store.save(snapshot);
-    return { snapshot, regenerated: true, reconciled: false };
+    return { snapshot, regenerated: true, reconciled: false, file };
   }
 
   private freshSnapshot(assetId: string, size: number): JobSnapshot {
@@ -154,7 +163,7 @@ export class UploadEngine {
 
   private async openSession(context: RunContext): Promise<void> {
     const { assetId, uploadSessionId, idempotencyKey } = context.snapshot;
-    const session = await this.call(() => this.deps.api.createSession(assetId, uploadSessionId, idempotencyKey));
+    const session = await this.call(() => this.deps.api.createSession(assetId, uploadSessionId, idempotencyKey, context.file));
     if (!SESSION_ID.test(session.id)) throw attention('invalid_server_response');
     this.plan(context.snapshot.size, session.partSize, session.partCount);
     // The server may hand back an already active session of this asset (another id): adopt it.

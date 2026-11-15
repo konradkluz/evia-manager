@@ -1,10 +1,11 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { isDeepStrictEqual } from 'node:util';
-import { UploadEngine } from '../src/upload/index.ts';
+import { isDeclarable, UploadEngine } from '../src/upload/index.ts';
 import {
   UploadFailure,
   type Checkpoint,
   type CompleteResult,
+  type FileDeclaration,
   type JobSnapshot,
   type JobStore,
   type Outcome,
@@ -85,7 +86,15 @@ export interface Scenario {
   final: { objects: number; sessionsCreated: number; open: number; puts: Record<string, number>; store: string | null };
 }
 export interface ResumeFile {
-  defaults: { assetId: string; size: number; allowedHosts: string[]; ids: string[]; rng: number[]; server: ServerSpec };
+  defaults: {
+    assetId: string;
+    size: number;
+    file: Omit<FileDeclaration, 'declaredSize'>;
+    allowedHosts: string[];
+    ids: string[];
+    rng: number[];
+    server: ServerSpec;
+  };
   scenarios: Scenario[];
 }
 
@@ -149,7 +158,11 @@ class FakeServer {
     throw new UploadFailure({ kind: 'http', status: 409, code: 'invalid_state_transition' });
   }
 
-  createSession(_assetId: string, id: string, key: string): SessionInfo {
+  /** Every declaration of a file that `createSession` received, in order (the vectors assert it is present, valid and never changes, EVM-131). */
+  readonly declarations: FileDeclaration[] = [];
+
+  createSession(_assetId: string, id: string, key: string, file: FileDeclaration): SessionInfo {
+    this.declarations.push(file);
     const lost = this.enter('createSession');
     const byKey = this.sessions.find((session) => session.key === key);
     let session = byKey ?? this.sessions.find((item) => item.state === 'active');
@@ -242,6 +255,7 @@ class MemoryStore implements JobStore {
 /** Runs one scenario and returns the list of mismatches (empty = the engine agrees with the vector). */
 export async function runScenario(scenario: Scenario, defaults: ResumeFile['defaults']): Promise<string[]> {
   const size = scenario.size ?? defaults.size;
+  const file: FileDeclaration = { ...defaults.file, declaredSize: size };
   const server = new FakeServer({ ...defaults.server, ...scenario.server }, size, scenario.faults ?? []);
   const store = new MemoryStore(scenario.initialStore);
   const ids = [...(scenario.ids ?? defaults.ids)];
@@ -255,7 +269,7 @@ export async function runScenario(scenario: Scenario, defaults: ResumeFile['defa
   const newEngine = (): UploadEngine =>
     new UploadEngine({
       api: {
-        createSession: (assetId, id, key) => Promise.resolve().then(() => server.createSession(assetId, id, key)),
+        createSession: (assetId, id, key, file) => Promise.resolve().then(() => server.createSession(assetId, id, key, file)),
         listParts: (id) => Promise.resolve().then(() => server.listParts(id)),
         partUrl: (id, part) => Promise.resolve().then(() => server.partUrl(id, part)),
         complete: (id) => Promise.resolve().then(() => server.complete(id)),
@@ -286,7 +300,7 @@ export async function runScenario(scenario: Scenario, defaults: ResumeFile['defa
     runStart = before;
     let outcome: Outcome | 'crashed';
     try {
-      outcome = await engine.run(defaults.assetId, size, { resume: run.resume === true });
+      outcome = await engine.run(defaults.assetId, file, { resume: run.resume === true });
     } catch (error) {
       if (!(error instanceof Crash)) throw error;
       outcome = 'crashed';
@@ -302,6 +316,14 @@ export async function runScenario(scenario: Scenario, defaults: ResumeFile['defa
       problems.push(`${scenario.id} run ${index + 1}: ${JSON.stringify(actual)} != ${JSON.stringify(run.expect)}`);
     }
   }
+  // the declaration of the file: present on every createSession, valid for the contract, and the SAME one every time (a repeat is identical)
+  for (const [index, sent] of server.declarations.entries()) {
+    if (!isDeepStrictEqual(sent, file))
+      problems.push(`${scenario.id} createSession ${index + 1}: declaration ${JSON.stringify(sent)} != ${JSON.stringify(file)}`);
+    if (!isDeclarable(sent)) problems.push(`${scenario.id} createSession ${index + 1}: declaration is not declarable`);
+  }
+  if (server.declarations.length !== server.calls.filter((call) => call === 'createSession').length)
+    problems.push(`${scenario.id}: a createSession without a declaration`);
   const final = {
     objects: server.objects,
     sessionsCreated: server.sessionsCreated,

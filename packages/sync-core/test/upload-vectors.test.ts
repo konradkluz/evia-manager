@@ -3,6 +3,12 @@ import { describe, expect, it } from 'vitest';
 import { filesOnDisk, indexedFiles, readVector, runScenario, type ResumeFile } from '../conformance/upload.ts';
 import {
   backoffDelayMs,
+  declaredFileName,
+  isDeclarable,
+  MAX_DECLARED_BYTES,
+  normalizeUploadType,
+  UPLOAD_TYPE_EXTENSIONS,
+  type FileDeclaration,
   isTrustedPartUrl,
   mapFailure,
   planParts,
@@ -71,6 +77,31 @@ describe('EVM-109 AC2 conformance vectors: mapping', () => {
       expect(mapFailure(item.input)).toEqual(item.expected);
     });
   }
+});
+
+describe('EVM-131 AC1 conformance vectors: the declaration of the file', () => {
+  const file = readVector<{
+    types: { id: string; input: string; normalized: string | null; fileName?: string }[];
+    declarations: { id: string; file: FileDeclaration; declarable: boolean }[];
+  }>('declaration.json');
+  const asset = '0193a000-0000-7000-8000-00000000000a';
+  for (const item of file.types) {
+    it(`EVM-131 AC1: ${item.id}`, () => {
+      expect(normalizeUploadType(item.input) ?? null).toBe(item.normalized);
+      if (item.fileName !== undefined && item.normalized !== null) expect(declaredFileName(asset, item.normalized)).toBe(item.fileName);
+    });
+  }
+  for (const item of file.declarations) {
+    it(`EVM-131 AC1: ${item.id}`, () => {
+      expect(isDeclarable(item.file)).toBe(item.declarable);
+    });
+  }
+  it('EVM-131 AC1: a type outside the list gets the extension bin, and the table has the six types of the contract', () => {
+    expect(declaredFileName(asset, 'image/svg+xml')).toBe(`${asset}.bin`);
+    expect(Object.keys(UPLOAD_TYPE_EXTENSIONS)).toHaveLength(6);
+    expect(isDeclarable({ fileName: `${asset}.jpg`, declaredSize: 1.5, contentType: 'image/jpeg', sha256: 'a'.repeat(64) })).toBe(false);
+    expect(MAX_DECLARED_BYTES).toBe(4_294_967_296);
+  });
 });
 
 describe('EVM-109 AC3 conformance vectors: part address trust', () => {
