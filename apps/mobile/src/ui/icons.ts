@@ -9,6 +9,7 @@ export { default as ClipboardList } from 'lucide-react-native/icons/clipboard-li
 export { default as CircleAlert } from 'lucide-react-native/icons/circle-alert';
 export { default as CloudAlert } from 'lucide-react-native/icons/cloud-alert';
 export { default as CloudCheck } from 'lucide-react-native/icons/cloud-check';
+export { default as CloudUpload } from 'lucide-react-native/icons/cloud-upload';
 export { default as ChevronDown } from 'lucide-react-native/icons/chevron-down';
 export { default as ChevronUp } from 'lucide-react-native/icons/chevron-up';
 export { default as Download } from 'lucide-react-native/icons/download';

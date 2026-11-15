@@ -38,6 +38,13 @@ export class FakeMedia implements MediaControl {
     return Promise.resolve(this.retryResult);
   }
 
+  /** What `discard` answers; the assets it was asked about are recorded in `calls`. */
+  discardResult = true;
+  discard(assetId: string): Promise<boolean> {
+    this.calls.push(`discard:${assetId}`);
+    return Promise.resolve(this.discardResult);
+  }
+
   requestNotifications(): Promise<'granted' | 'denied'> {
     this.calls.push('requestNotifications');
     return Promise.resolve(this.consent);

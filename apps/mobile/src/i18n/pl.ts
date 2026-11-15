@@ -627,17 +627,22 @@ export const pl = {
   },
   // EVM-130: the files of the queue and the notifications of the upload (texts of AC6 and of the mock-up 09)
   upload: {
-    file: 'Plik',
-    summary: 'Wysłano {{sent}} z {{total}} · {{queued}} w kolejce',
+    // EVM-108 AC6: the counter of the files that are still to be sent
+    toSend: '{{count}} do wysłania',
+    types: { photo: 'Zdjęcie', video: 'Film' },
+    noCategory: 'Bez kategorii',
+    fileA11y: '{{category}}, {{type}}, {{time}}, {{state}}',
+    discardBody: 'Usuniemy ten plik z telefonu. Tego nie da się cofnąć.',
+    discardA11y: 'Usuń plik z telefonu',
     sections: { files: 'Pliki', attention: 'Plik wymaga uwagi', sent: 'Wysłane pliki' },
     states: {
       waiting: 'Oczekuje',
-      uploading: 'Wysyłanie {{percent}}%',
+      uploading: 'Wysyła się {{percent}}%',
+      attention: 'Wymaga uwagi',
       sent: 'Wysłano',
       error: 'Nie wysłano — plik uszkodzony w transmisji',
     },
     progressA11y: 'Wysyłanie pliku, {{percent}}%',
-    rowA11y: '{{file}}, {{state}}',
     retry: 'Ponów',
     retryA11y: 'Ponów wysyłanie pliku',
     retryFailed: 'Nie udało się ponowić wysyłania. Spróbuj za chwilę.',

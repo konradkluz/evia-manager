@@ -196,6 +196,7 @@ export class FakeHost {
         list: () => Promise.resolve([]),
         setState: () => Promise.resolve(),
         remove: () => Promise.resolve(),
+        discard: () => Promise.resolve(),
       },
       takeSettled: () => Promise.resolve([]),
       unsentItemCount: async () => {

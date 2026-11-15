@@ -12,7 +12,7 @@ appId: pl.eviacharge.manager
 - tapOn:
     id: 'file-retry-.*'
 - extendedWaitUntil:
-    visible: 'Plik, Wysłano'
+    visible: 'Bez kategorii, Zdjęcie, .*, Wysłano'
     timeout: 120000
-- assertNotVisible: 'Plik, Nie wysłano — plik uszkodzony w transmisji'
+- assertNotVisible: 'Bez kategorii, Zdjęcie, .*, Nie wysłano — plik uszkodzony w transmisji'
 - takeScreenshot: u130-retried

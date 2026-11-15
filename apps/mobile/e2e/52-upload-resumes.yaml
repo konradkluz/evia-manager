@@ -1,5 +1,5 @@
 # EVM-130 AC1: the app is (re)opened - after the return of the network, after a kill -9, after a force-stop, after the network was cut, after the
-# restart of the emulator - and the file is on its way: the Queue shows its progress ("Wysyłanie N%"). The same flow serves every resumption
+# restart of the emulator - and the file is on its way: the Queue shows its progress ("Wysyła się N%"). The same flow serves every resumption
 # of the scenario; tools/mobile-e2e interrupts the app after it (kill -9, force-stop, restart of the emulator) or cuts the network before the
 # next step. After the first return of the network the command is applied (the scenario server answers `applied`) and the job is armed.
 appId: pl.eviacharge.manager
@@ -12,6 +12,6 @@ appId: pl.eviacharge.manager
 - tapOn:
     id: 'nav-queue'
 - extendedWaitUntil:
-    visible: 'Plik, Wysyłanie [0-9]+%'
+    visible: 'Bez kategorii, Zdjęcie, .*, Wysyła się [0-9]+%'
     timeout: 120000
 - takeScreenshot: u130-uploading

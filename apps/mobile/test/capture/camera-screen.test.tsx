@@ -329,7 +329,20 @@ describe('a series of photos and the return to the order (EVM-108 AC2)', () => {
   it('EVM-108 AC2: with notifications off and a file waiting from before, "Gotowe" without a new photo asks too', async () => {
     const { rig } = setup();
     const waiting: MediaUploadsSnapshot = {
-      files: [{ assetId: 'a', status: 'waiting', percent: null, sizeBytes: 1, actions: [], code: null, updatedAt: 1 }],
+      files: [
+        {
+          assetId: 'a',
+          status: 'waiting',
+          percent: null,
+          sizeBytes: 1,
+          actions: [],
+          code: null,
+          updatedAt: 1,
+          category: null,
+          mediaType: 'photo',
+          capturedAt: 1,
+        },
+      ],
       notifications: 'denied',
     };
     rig.media.set(waiting);

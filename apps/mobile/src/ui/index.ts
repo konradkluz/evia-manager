@@ -54,6 +54,7 @@ export {
   CircleQuestionMark,
   CloudAlert,
   CloudCheck,
+  CloudUpload,
   ClipboardList,
   Clock,
   Download,

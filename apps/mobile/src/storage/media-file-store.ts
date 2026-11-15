@@ -51,6 +51,8 @@ export interface MediaFileStore {
   setState(assetId: string, state: MediaFileState, code: string | null, at: number): Promise<void>;
   /** The row of a file that was never created in the queue (a failed enqueue) — never after `applied`. */
   remove(assetId: string): Promise<void>;
+  /** "Usuń z telefonu" (EVM-108 AC6): the row of a file in `needs_attention` — only after the native file is gone (the caller removes it first). */
+  discard(assetId: string): Promise<void>;
 }
 
 const ASSET_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -184,6 +186,15 @@ export class SqlMediaFileStore implements MediaFileStore {
         state,
         code,
         at,
+        assetId,
+        this.#ownerUserId,
+      ]),
+    );
+  }
+
+  async discard(assetId: string): Promise<void> {
+    await this.#db.transaction((tx) =>
+      tx.run("DELETE FROM media_files WHERE asset_id = ? AND owner_user_id = ? AND state = 'needs_attention'", [
         assetId,
         this.#ownerUserId,
       ]),

@@ -11,10 +11,10 @@ appId: pl.eviacharge.manager
 - tapOn:
     id: 'nav-queue'
 - extendedWaitUntil:
-    visible: 'Plik, Wysłano'
+    visible: 'Bez kategorii, Zdjęcie, .*, Wysłano'
     timeout: 240000
 - assertVisible:
     id: 'files-summary'
-    text: 'Wysłano 1 z 1 · 0 w kolejce'
+    text: '0 do wysłania'
 - assertNotVisible: 'Wylogowano ten telefon'
 - takeScreenshot: u130-sent

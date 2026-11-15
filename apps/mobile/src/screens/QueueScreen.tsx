@@ -37,6 +37,8 @@ export function QueueScreen({
   const [notice, setNotice] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<{ item: QueueItem; dependents: number } | null>(null);
   const [targets, setTargets] = useState<{ item: QueueItem; options: readonly TargetOption[] } | null>(null);
+  // "Usuń z telefonu" of a file (EVM-108 AC6): the id of the file that waits for the confirmation (nothing else)
+  const [fileToDiscard, setFileToDiscard] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(
     () => () => {
@@ -248,6 +250,7 @@ export function QueueScreen({
               onRetryFailed={() => {
                 say(t('upload.retryFailed'));
               }}
+              onDiscard={setFileToDiscard}
             />
             <Text style={{ ...text.heading4, color: color.text.primary }} testID={hidden ? 'queue-hidden-count' : 'queue-count'}>
               {hidden
@@ -344,6 +347,41 @@ export function QueueScreen({
                 )
               : t('attention.discard.body')}
           </Text>
+        </AlertDialog>
+      )}
+      {fileToDiscard === null ? null : (
+        <AlertDialog
+          title={t('attention.discard.title')}
+          onCancel={() => {
+            setFileToDiscard(null);
+          }}
+          actions={
+            <>
+              <Button
+                variant="danger"
+                label={t('attention.discard.confirm')}
+                onPress={() => {
+                  const assetId = fileToDiscard;
+                  setFileToDiscard(null);
+                  void session.media.discard(assetId).then((removed) => {
+                    if (!removed) fail();
+                  }, fail);
+                }}
+                testID="file-discard-confirm"
+              />
+              <Button
+                variant="tertiary"
+                label={t('attention.discard.cancel')}
+                onPress={() => {
+                  setFileToDiscard(null);
+                }}
+                testID="file-discard-cancel"
+              />
+            </>
+          }
+          testID="file-discard-dialog"
+        >
+          <Text style={{ ...text.body, color: color.text.primary }}>{t('upload.discardBody')}</Text>
         </AlertDialog>
       )}
       {targets === null ? null : (

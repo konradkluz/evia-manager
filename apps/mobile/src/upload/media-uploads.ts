@@ -58,6 +58,10 @@ export const CLEAN_KEPT = 20;
 export const SWEEP_MIN_AGE_MS = 10 * 60 * 1000;
 const EMPTY: MediaUploadsSnapshot = { files: [], notifications: 'granted' };
 
+/** The codes of "Wymaga uwagi" for which "Usuń z telefonu" is offered (EVM-108 AC6, decision of Konrad 2026-11-15). */
+const DISCARDABLE_CODES: readonly string[] = ['quarantined', 'id_conflict', 'missing_original'];
+const isDiscardable = (code: string | null): boolean => code !== null && DISCARDABLE_CODES.includes(code);
+
 const mimeOf = (mediaType: unknown): string => (mediaType === 'video' ? 'video/mp4' : 'image/jpeg');
 
 export class MediaUploads implements MediaControl {
@@ -403,6 +407,32 @@ export class MediaUploads implements MediaControl {
     return true;
   }
 
+  // ---- "Usuń z telefonu" ------------------------------------------------------------------------------------------------------
+
+  /**
+   * "Usuń z telefonu" (EVM-108 AC6; security 19): only for a file of "Wymaga uwagi" with a code from [DISCARDABLE_CODES]. The native file goes FIRST
+   * (`cancelUpload(assetId, true)`: the job and the original, no row yet); only when the module says it is gone is the row removed - a refusal
+   * leaves the row and the user sees the file again, so nothing is ever left on the disk without a row. A removal of the row that fails after
+   * the file is gone changes nothing for the user: the next try finds no file and ends the job.
+   */
+  async discard(assetId: string): Promise<boolean> {
+    const store = this.#deps.store();
+    if (store === null) return false;
+    const file = (await store.media.list()).find((row) => row.assetId === assetId);
+    if (file === undefined || file.state !== 'needs_attention' || !isDiscardable(file.lastCode)) return false;
+    const removed = await this.#deps.native.cancelUpload(assetId, true).catch(() => false);
+    if (!removed) return false;
+    try {
+      await store.media.discard(assetId);
+    } catch {
+      return false;
+    }
+    this.#progress.delete(assetId);
+    this.#retried.delete(assetId);
+    await this.#rebuild();
+    return true;
+  }
+
   // ---- notifications --------------------------------------------------------------------------------------------------------
 
   /** The system consent (the explaining sheet is shown by the caller first); the view follows the answer. */
@@ -470,7 +500,15 @@ export class MediaUploads implements MediaControl {
 }
 
 function viewOf(row: MediaFileRecord, status: UploadStatus | undefined): MediaFileView {
-  const base = { assetId: row.assetId, sizeBytes: row.sizeBytes, updatedAt: row.updatedAt, code: row.lastCode };
+  const base = {
+    assetId: row.assetId,
+    sizeBytes: row.sizeBytes,
+    updatedAt: row.updatedAt,
+    code: row.lastCode,
+    category: row.category ?? null,
+    mediaType: row.mime === 'video/mp4' ? ('video' as const) : ('photo' as const),
+    capturedAt: row.createdAt,
+  };
   switch (row.state) {
     case 'pending':
       return { ...base, status: 'waiting', percent: null, actions: [] };
@@ -484,6 +522,14 @@ function viewOf(row: MediaFileRecord, status: UploadStatus | undefined): MediaFi
     case 'failed':
       return { ...base, status: 'error', percent: null, actions: ['retry'] };
     case 'needs_attention':
-      return { ...base, status: 'attention', percent: null, actions: row.lastCode === 'quarantined' ? [] : ['retry'] };
+      return {
+        ...base,
+        status: 'attention',
+        percent: null,
+        actions: [
+          ...(row.lastCode === 'quarantined' ? [] : (['retry'] as const)),
+          ...(isDiscardable(row.lastCode) ? (['discard'] as const) : []),
+        ],
+      };
   }
 }

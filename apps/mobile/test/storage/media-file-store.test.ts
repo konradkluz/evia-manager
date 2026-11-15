@@ -186,6 +186,25 @@ describe('the table of files of the queue (EVM-130 AC4; architect 6)', () => {
     expect((await store.list()).map((row) => row.assetId)).toEqual([asset(1)]);
   });
 
+  it('EVM-108 AC6 (security 19): `discard` removes the row of a file that needs attention - only that state, only the own row', async () => {
+    const { db } = await migratedDatabase(disk);
+    const store = new SqlMediaFileStore(db, OWNER);
+    const other = new SqlMediaFileStore(db, OTHER);
+    await store.register(file(1));
+    await store.register(file(2));
+    await other.register(file(3, { ownerUserId: OTHER }));
+    await store.setState(asset(1), 'needs_attention', 'quarantined', 5);
+    await store.setState(asset(2), 'failed', 'checksum_mismatch', 5);
+    await other.setState(asset(3), 'needs_attention', 'quarantined', 5);
+    // a file in another state (a failed one still has "Ponów") and another owner's row are not touched
+    await store.discard(asset(2));
+    await store.discard(asset(3));
+    expect((await store.list()).map((row) => row.assetId)).toEqual([asset(1), asset(2)]);
+    expect((await other.list()).map((row) => row.assetId)).toEqual([asset(3)]);
+    await store.discard(asset(1));
+    expect((await store.list()).map((row) => row.assetId)).toEqual([asset(2)]);
+  });
+
   it('EVM-130 AC4: the state of the file on the server comes from the active generation of the replica; nothing else of the entity leaves', async () => {
     const { db } = await migratedDatabase(disk);
     const replica = new SqlReplicaStore(db);
