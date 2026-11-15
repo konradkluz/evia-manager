@@ -198,7 +198,6 @@ export function createSessionPorts(
     guard,
     companyWipe,
     screenLockOk: () => deviceLock.isDeviceSecure().catch(() => false),
-    openAddTarget: () => undefined,
     // the ids of entries written on the phone: UUIDv7 from the CSPRNG of the storage module, never a non-cryptographic generator (SR-SYNC-03)
     newId,
     camera: new CameraRequests({ orders: () => sync.orderList(false) }),

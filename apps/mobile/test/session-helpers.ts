@@ -196,7 +196,6 @@ export function stubPorts(owner: StubOwner = stubOwner(), unsentBeforeSignIn: nu
         return Promise.resolve(manualWipes.result);
       },
     },
-    openAddTarget: (target) => opened.push(`add:${target}`),
     camera: new CameraRequests({ orders: () => sync.orderList(false) }),
     newId: createUuidV7({ now: Date.now }, { getRandomValues: (bytes) => (randomFillSync(bytes), bytes) }),
     appVersion: '0.4.0',

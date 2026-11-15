@@ -8,6 +8,7 @@ import { AddSheet } from './AddSheet';
 import { CameraScreen } from './CameraScreen';
 import { EntryFormScreen } from './EntryFormScreen';
 import { EntryTargetPicker } from './EntryTargetPicker';
+import { MediaTargetPicker } from './MediaTargetPicker';
 import { MoreScreen, useSignOutFlow } from './MoreScreen';
 import { OrderDetailScreen } from './OrderDetailScreen';
 import { OrdersScreen } from './OrdersScreen';
@@ -18,6 +19,9 @@ import { WipeDialog } from './WipeDialogs';
 import { useGuard, useSession } from './session-context';
 
 type Tab = 'orders' | 'queue' | 'more';
+
+/** "Ostatnio otwierane" of the camera picker keeps this many ids (EVM-108 AC5). */
+const RECENT_ORDERS = 5;
 
 /**
  * The forms opened over the shell: the picker of the order and the entry form (EVM-105; the only datum is the id of the order, never the
@@ -82,6 +86,13 @@ export function Shell() {
   // The order that is open (EVM-104): the id is the only datum of the navigation; it lives in this state only - never stored, never
   // restored after the process dies (security K6). The list stays mounted under the details (its query and position are kept).
   const [openOrderId, setOpenOrderId] = useState<string | null>(null);
+  // The orders opened in THIS process, newest first, for "Ostatnio otwierane" of the camera picker (EVM-108 AC5; security 17): ids only, in this state
+  // only - never stored; they go with the shell when the session ends (sign-out, wipe of the phone, another user: the shell is not drawn without a session)
+  const [recentOrders, setRecentOrders] = useState<readonly string[]>([]);
+  const openOrder = useCallback((id: string) => {
+    setOpenOrderId(id);
+    setRecentOrders((current) => [id, ...current.filter((known) => known !== id)].slice(0, RECENT_ORDERS));
+  }, []);
   const closeOrder = useCallback(() => {
     setOpenOrderId(null);
   }, []);
@@ -106,6 +117,8 @@ export function Shell() {
   const cameraOrderId = useSyncExternalStore(session.camera.subscribe, session.camera.getSnapshot);
   useEffect(() => session.camera.close, [session.camera]);
   const [adding, setAdding] = useState(false);
+  // "Zdjęcie lub film" of the sheet "Dodaj": the choice of the order for the camera (EVM-108 AC5); a flag only, the id goes straight to `openCamera`
+  const [pickingMedia, setPickingMedia] = useState(false);
   // The entry form (EVM-105): the text lives in the state of the form only, so closing this state drops it (no draft, nothing stored)
   const [entry, setEntry] = useState<Entry | null>(null);
   const [toast, setToast] = useState<ToastKey | null>(null);
@@ -131,9 +144,9 @@ export function Shell() {
       setToast(key);
       AccessibilityInfo.announceForAccessibility(t(key));
       setTab('orders');
-      setOpenOrderId(workOrderId);
+      openOrder(workOrderId);
     },
-    [t],
+    [t, openOrder],
   );
   // the hidden-data mode closes the form and the picker and so drops the typed text (AC4); the render below does not draw them in the
   // same pass either (fail-closed)
@@ -173,7 +186,9 @@ export function Shell() {
   }
   const dialog = wipe.dialog ?? signOut.dialog;
   const shownEntry = hidden ? null : entry;
-  const covered = dialog !== null || adding || shownEntry !== null || cameraOrderId !== null;
+  // no new photos while the data of the company are being wiped (the picker is not drawn; the native import refuses as well)
+  const shownPicker = pickingMedia && guard.hidden !== 'wipe_in_progress';
+  const covered = dialog !== null || adding || shownEntry !== null || cameraOrderId !== null || shownPicker;
   const detailOpen = openOrderId !== null;
   return (
     <View style={{ flex: 1, backgroundColor: color.bg.canvas }}>
@@ -196,7 +211,7 @@ export function Shell() {
               >
                 <OrdersScreen
                   onOpenQueue={openQueue}
-                  onOpen={setOpenOrderId}
+                  onOpen={openOrder}
                   onAdd={() => {
                     setAdding(true);
                   }}
@@ -298,6 +313,18 @@ export function Shell() {
           <CameraScreen orderId={cameraOrderId} onClose={session.camera.close} focused={dialog === null && !adding} />
         </View>
       ) : null}
+      {shownPicker ? (
+        <MediaTargetPicker
+          recent={recentOrders}
+          onPick={(orderId) => {
+            setPickingMedia(false);
+            void session.openCamera(orderId);
+          }}
+          onCancel={() => {
+            setPickingMedia(false);
+          }}
+        />
+      ) : null}
       {shownEntry?.stage === 'pick' ? (
         <EntryTargetPicker
           onPick={(orderId) => {
@@ -316,7 +343,7 @@ export function Shell() {
             if (guard.hidden !== null && (target === 'entry' || target === 'newOrder')) return;
             if (target === 'entry') setEntry({ stage: 'pick' });
             else if (target === 'newOrder') setEntry({ stage: 'quick' });
-            else session.openAddTarget(target);
+            else setPickingMedia(true);
           }}
           onClose={() => {
             setAdding(false);

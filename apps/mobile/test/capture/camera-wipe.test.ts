@@ -3,6 +3,7 @@
 // the next start before anything else is deleted. The module of the phone is a stand-in with a camera cache; the real deletion is tested on the JVM
 // (`WipeChain`).
 import type { EviaUploadModule } from '../../modules/evia-upload/src';
+import { CapturePipeline } from '../../src/capture/capture-pipeline';
 import { createSessionPorts } from '../../src/session';
 
 jest.mock('react', () => ({ ...jest.requireActual<typeof import('react')>('react'), useContext: () => null }));
@@ -75,5 +76,36 @@ describe('a picture left in the cache of the camera and the wipe of the phone (E
     fake.wipeUploads.mockImplementationOnce(() => Promise.resolve(false));
     const run = nativeStep(asModule);
     await expect(run()).rejects.toThrow('native wipe unfinished');
+  });
+
+  it('EVM-108 AC5 (EVM-130 AC5): a picture saved by the REAL capture pipeline is gone after the native step of the wipe', async () => {
+    const { asModule, originals, cache } = phone();
+    originals.clear();
+    let n = 0;
+    const pipeline = new CapturePipeline({
+      takePicture: () => Promise.resolve({ uri: 'file:///cache/Camera/synthetic.jpg' }),
+      native: {
+        // the import makes the picture an original of the private folder (and takes it out of the cache), like the module
+        importOriginal: (assetId) => {
+          originals.add(assetId);
+          return Promise.resolve('ok');
+        },
+        digestOriginal: () => Promise.resolve({ sizeBytes: 100, sha256: 'a'.repeat(64) }),
+        cancelUpload: (assetId) => {
+          originals.delete(assetId);
+          return Promise.resolve(true);
+        },
+      },
+      disk: { freeBytes: () => 10 * 1024 ** 3 },
+      registerAndEnqueue: () => Promise.resolve({ ok: true }),
+      now: () => Date.UTC(2026, 10, 15, 8, 0, 0),
+      newId: () => `0194c2a0-0000-7000-8000-${String((n += 1)).padStart(12, '0')}`,
+    });
+    expect((await pipeline.capture({ workOrderId: '10000000-0000-4000-8000-000000000001', category: 'other' })).ok).toBe(true);
+    expect(originals.size).toBe(1);
+    const run = nativeStep(asModule);
+    await expect(run()).resolves.toBeUndefined();
+    expect(originals.size).toBe(0);
+    expect(cache.size).toBe(0);
   });
 });

@@ -11,10 +11,7 @@ appId: pl.eviacharge.manager
     text: 'Rozumiem'
     optional: true
 - runFlow: common/quick-order-create.yaml
-- scrollUntilVisible:
-    element:
-      id: 'order-detail-add-entry'
-    direction: DOWN
+# "Dodaj wpis" sits in the bottom bar of the details (always visible, EVM-108 AC5)
 - tapOn:
     id: 'order-detail-add-entry'
 - extendedWaitUntil:

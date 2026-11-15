@@ -127,6 +127,9 @@ export const pl = {
     attention: 'Wymaga uwagi',
     goToQueue: 'Przejdź do kolejki',
     addEntry: 'Dodaj wpis',
+    // EVM-108 AC5: the main action of the bottom bar
+    takePhoto: 'Zrób zdjęcie',
+    addEntryHidden: 'Dodaj wpis. Dane zleceń są ukryte.',
   },
   entryForm: {
     title: 'Nowy wpis',
@@ -570,6 +573,17 @@ export const pl = {
     body: 'Ta wersja aplikacji jest już nieobsługiwana. Zainstaluj nowszą wersję, aby korzystać z EVia Manager.',
     contact: 'Poproś administratora o nową wersję aplikacji.',
     versions: 'Twoja wersja: {{current}} · Wymagana: {{required}}',
+  },
+  // EVM-108 AC5: the choice of the order for the camera (sheet "Dodaj" -> "Zdjęcie lub film"); in the hidden-data mode numbers only
+  mediaTarget: {
+    title: 'Do którego zlecenia?',
+    searchLabel: 'Szukaj zlecenia',
+    searchPlaceholder: 'Szukaj: numer lub tytuł',
+    searchPlaceholderHidden: 'Szukaj: numer',
+    recent: 'Ostatnio otwierane',
+    all: 'Zlecenia',
+    noMatch: 'Brak zleceń pasujących do wyszukiwania.',
+    cancel: 'Anuluj',
   },
   // EVM-108: the camera (texts of AC2-AC4 and of the mock-up 09 / M-06; no description, no microphone, no film in version 1)
   camera: {

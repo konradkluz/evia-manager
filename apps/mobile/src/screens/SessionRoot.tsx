@@ -17,7 +17,6 @@ import { LoginScreen, useOfflineRecheck } from './LoginScreen';
 import { LockGate } from './LockOverlay';
 import { PrivacyHelpScreen, type HelpSection } from './PrivacyHelpScreen';
 import { SessionContext, type SessionActions } from './session-context';
-import type { AddTarget } from './AddSheet';
 import { SyncGate } from './SyncGate';
 import { OwnerMismatchDialog } from './WipeDialogs';
 
@@ -44,8 +43,6 @@ export interface SessionPorts {
     unsentItemCount(): Promise<number>;
     runManual(): Promise<'done' | 'incomplete'>;
   };
-  /** Destination of a pick in "Dodaj" (EVM-107 / E11 provide the screens). */
-  readonly openAddTarget: (target: AddTarget) => void;
   /** The camera (EVM-108): the shell hosts the screen; the entries open it through `openCamera` of the session. */
   readonly camera: CameraRequests;
   /** A new id (UUIDv7) for an entry created on the phone (EVM-105): the generator of the session, CSPRNG. */
@@ -300,7 +297,6 @@ export function SessionRoot({ ports, children }: { ports: SessionPorts; children
         ((item) => {
           void sync.recreate(item.id);
         }),
-      openAddTarget: ports.openAddTarget,
       newId: ports.newId,
       camera: ports.camera,
       openCamera: (orderId) => ports.camera.open(orderId),

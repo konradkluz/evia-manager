@@ -413,6 +413,20 @@ export class SqlReplicaStore implements ReplicaStore {
   }
 
   /**
+   * The id and the number of the work orders of the active generation and NOTHING else (EVM-108 AC5, security 17): the picker of the order for
+   * the camera in the hidden-data mode. The title is never selected - it does not leave the database - so the list cannot show it by mistake.
+   */
+  async listOrderNumbers(limit = 200): Promise<{ id: string; number: string }[]> {
+    return this.#db.read(async (tx) => {
+      const rows = await tx.all(
+        "SELECT e.id AS id, json_extract(e.fields, '$.number') AS number FROM replica_entities e JOIN replica_generations g ON g.generation = e.generation AND g.role = 'active' WHERE e.type = 'work_order' ORDER BY e.id LIMIT ?",
+        [Math.max(1, Math.min(limit, 500))],
+      );
+      return rows.map((row) => ({ id: String(row['id']), number: typeof row['number'] === 'string' ? row['number'] : '' }));
+    });
+  }
+
+  /**
    * The source of "Moje zlecenia" (EVM-103 AC1, AC5, AC6; security K1): ONE read of the active generation, no N+1, no LIMIT. It never
    * selects the whole `fields` document - only allow-listed keys through `json_extract` - so the free-text fields of the projection
    * (title, description, phone, e-mail, notes, apartment number) never leave the database. Without `withData` (the hidden-data mode)

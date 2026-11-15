@@ -1,8 +1,8 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AccessibilityInfo, FlatList, Text, View } from 'react-native';
 import type { JournalItem, OrderDetail } from '../orders/order-detail-model';
-import { AppBar, Button, Clock, EmptyState, Inbox, InlineAlert, Skeleton, StatusBadge } from '../ui';
+import { AppBar, BottomBar, Button, Clock, EmptyState, Inbox, InlineAlert, Skeleton, StatusBadge } from '../ui';
 import { color, space, text } from '../ui/theme';
 import { ConnectionNotices } from './ConnectionNotices';
 import { HiddenDataNotice } from './DeviceNotices';
@@ -80,7 +80,10 @@ function useNumberAnnouncement(detail: OrderDetail | null): void {
  * M-03 "Szczegóły zlecenia", the phone version (EVM-104 AC1-AC6): read only, built from the local replica and the queue - never
  * from the server. The only datum in the navigation is the id of the order (held in the state of the shell, never stored).
  * - Hidden-data mode and sign-out: the hook returns `hidden` in the same render and nothing personal is rendered (AC6).
- * - "Dodaj wpis" (EVM-105) opens the entry form of this order; the shell holds the id only.
+ * - The fixed bottom bar (EVM-108 AC5): "Zrób zdjęcie" (the main action; `session.openCamera(orderId)`, which refuses an order that is not on the
+ *   phone) and "Dodaj wpis" (EVM-105; opens the entry form of this order, the shell holds the id only). The bar is shown while the details are
+ *   ready and in the hidden-data mode too (the order is known from the navigation): there the camera works, "Dodaj wpis" is disabled with its reason
+ *   and NO number is drawn. Not shown while loading, on an error, when the order is unavailable and while the data are being wiped.
  * - Unavailable (outside the scope, deleted; also while the screen is open): the fixed message and "Wróć do listy"; the queue items
  *   of the order stay where they are (AC5).
  */
@@ -99,6 +102,20 @@ export function OrderDetailScreen({
   const session = useSession();
   const { state, retry } = useOrderDetail(orderId);
   useNumberAnnouncement(state.kind === 'ready' ? state.detail : null);
+  // the camera refused the order (it left the phone in the meantime): said in the bar, nothing opens
+  const [cameraRefused, setCameraRefused] = useState(false);
+  const takePhoto = (): void => {
+    void session.openCamera(orderId).then(
+      (opened) => {
+        setCameraRefused(!opened);
+      },
+      () => {
+        setCameraRefused(true);
+      },
+    );
+  };
+  const hiddenData = state.kind === 'hidden';
+  const showBar = state.kind === 'ready' || (state.kind === 'hidden' && state.reason !== 'wipe_in_progress');
 
   const content = () => {
     switch (state.kind) {
@@ -143,12 +160,7 @@ export function OrderDetailScreen({
             ListHeaderComponent={
               <View style={{ rowGap: space.stack.sm, paddingBottom: space.stack.sm }}>
                 <DetailHeader detail={state.detail} />
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', columnGap: space.inline.md }}>
-                  <View style={{ flexShrink: 1 }}>
-                    <SectionHeading title={t('orderDetail.journal')} testID="order-detail-journal-heading" />
-                  </View>
-                  <Button label={t('orderDetail.addEntry')} onPress={onAddEntry} testID="order-detail-add-entry" />
-                </View>
+                <SectionHeading title={t('orderDetail.journal')} testID="order-detail-journal-heading" />
               </View>
             }
             ListEmptyComponent={
@@ -184,6 +196,26 @@ export function OrderDetailScreen({
       />
       <ConnectionNotices />
       <View style={{ flex: 1 }}>{content()}</View>
+      {showBar ? (
+        <BottomBar>
+          {cameraRefused ? <InlineAlert tone="error" body={t('orderDetail.unavailableBody')} testID="order-detail-camera-refused" /> : null}
+          <Button label={t('orderDetail.takePhoto')} buttonSize="lg" fullWidth onPress={takePhoto} testID="order-detail-take-photo" />
+          {hiddenData ? (
+            <Text style={{ ...text.bodySm, color: color.text.secondary }} testID="order-detail-add-entry-reason">
+              {t('add.hiddenReason')}
+            </Text>
+          ) : null}
+          <Button
+            label={t('orderDetail.addEntry')}
+            variant="tertiary"
+            fullWidth
+            disabled={hiddenData}
+            {...(hiddenData ? { accessibilityLabel: t('orderDetail.addEntryHidden') } : {})}
+            onPress={onAddEntry}
+            testID="order-detail-add-entry"
+          />
+        </BottomBar>
+      ) : null}
     </View>
   );
 }

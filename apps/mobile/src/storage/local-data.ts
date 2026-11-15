@@ -54,6 +54,8 @@ export interface UnlockedStore {
     readLastSuccess(): Promise<number | null>;
     writeLastSuccess(at: number): Promise<void>;
     listWorkOrders(limit?: number): Promise<{ id: string; number: string; title: string }[]>;
+    /** The id and the number only (EVM-108, hidden-data mode): the title is never read. */
+    listOrderNumbers(limit?: number): Promise<{ id: string; number: string }[]>;
     /** The source of "Moje zlecenia" (EVM-103): allow-listed keys only; no customer, place or stage without `withData`. */
     readOrderListSource(withData: boolean): Promise<OrderListSource>;
     /** The source of the work order details (EVM-104): allow-listed keys of one order; null = not in the active generation. */
@@ -397,6 +399,7 @@ export class LocalDataHost {
         readLastSuccess: () => replica.readLastSuccess(),
         writeLastSuccess: (at) => replica.writeLastSuccess(at),
         listWorkOrders: (limit) => replica.listWorkOrders(limit),
+        listOrderNumbers: (limit) => replica.listOrderNumbers(limit),
         readOrderListSource: (withData) => replica.readOrderListSource(withData),
         readOrderDetailSource: (workOrderId) => replica.readOrderDetailSource(workOrderId),
         readTemplates: () => replica.readTemplates(),

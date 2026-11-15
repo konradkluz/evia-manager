@@ -183,6 +183,7 @@ export class FakeHost {
         readLastSuccess: () => Promise.resolve(null),
         writeLastSuccess: () => Promise.resolve(),
         listWorkOrders: () => Promise.resolve([]),
+        listOrderNumbers: () => Promise.resolve([]),
         readOrderListSource: () => Promise.resolve({ orders: [], customers: [], sites: [], stages: [] }),
         readOrderDetailSource: () => Promise.resolve(null),
         readTemplates: () => Promise.resolve(null),
