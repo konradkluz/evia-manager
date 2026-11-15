@@ -34,6 +34,11 @@ export function checkpoint(serverTime: number, clock: SessionClock): ContactReco
   };
 }
 
+/** A checkpoint of a contact that happened at a known time of the phone (the contact of the native side, EVM-130). */
+export function contactAt(serverTime: number, wall: number, mono: number, bootId: string): ContactRecord {
+  return { v: 1, serverTime, offset: serverTime - wall, bootId, mono, wall, carried: 0, maxObservedWall: wall };
+}
+
 export function parseSessionMeta(text: string | null): SessionMeta | null {
   if (text === null) return null;
   let raw: unknown;

@@ -1,22 +1,22 @@
 /**
- * The owner of the session of the phone (EVM-100 AC1, AC4, AC5, AC7; decision 17 — ADR-0020 option (a), JavaScript until EVM-109
- * moves it to the native side behind the same surface). It is the ONLY place that knows the refresh token and the pending revocation;
- * the screens get the user, an access token, the sign-in steps and the sign-out. Rules (architect 1, 3, 4; security W1, W2, W11):
- * - one lock serialises the refresh, the commit of a sign-in, the sign-out, the revocation and the HTTP calls of the sign-in steps;
- *   one refresh at a time is shared by every caller (single-flight, also with `SessionGate` of sync-core);
- * - a rotated refresh token is stored BEFORE the new access token is used; the access token lives in memory only;
- * - after step 2 nothing is stored until the owner's store is unlocked: identity → refresh token → session record (commit marker);
- *   at start a session exists only with both the record and the refresh token, any partial state is removed;
- * - a sign-out stores the refresh token as a pending revocation first, ends the session locally, then asks the server; the pending
- *   token only ever goes `refresh → logout` (the rotated token is stored before the logout) and never becomes a session.
+ * The session of the phone as the app sees it (EVM-100 AC1, AC4, AC5, AC7; EVM-130 AC2, AC3; decision 17 — ADR-0020a). A THIN ADAPTER
+ * over the native owner of the tokens (module `EviaUpload`): the refresh token goes to the native method once, at the sign-in, and is
+ * kept nowhere in JavaScript — no state, no log, no error with its content; only the access token comes back and lives in memory.
+ * The refresh (single-flight, a rotated token stored before it is used), the sign-out with its pending revocations and the end of a
+ * session abandoned in step 2 are native; JavaScript asks for a valid access token and reacts to the state the module reports.
+ * What stays here (the story EVM-100): the identity of the installation, the session record (user, name, role, clock checkpoints), the
+ * device check, the 7-day contact rule and the screens' end-of-session events.
+ * - one lock serialises the sign-in commit, the sign-out, the end of a session and the HTTP calls of the sign-in steps;
+ * - after step 2 the tokens are STAGED natively (memory only) and committed only when the store of this user is unlocked: identity →
+ *   native commit → session record (commit marker); at start a session exists only when the record and the native session both exist.
  */
-import { ContactClock, parseClientConfig } from '@evia/sync-core';
+import { ContactClock, parseClientConfig, parseContactRecord } from '@evia/sync-core';
 import type { ContactStatus, RefreshResult, SessionOwner } from '@evia/sync-core';
+import type { SessionStateName } from '../../modules/evia-upload/src';
 import type { OpenResult, UnlockedStore } from '../storage';
-import { revealSession, type IssuedSession, type SessionData } from './opaque';
+import { takeSession, type IssuedSession, type SessionData } from './opaque';
 import type {
-  AuthClient,
-  AuthFailure,
+  NativeSession,
   QueueEntryRow,
   SessionClock,
   SessionEnded,
@@ -25,7 +25,7 @@ import type {
   TokenStore,
   WipeSignal,
 } from './ports';
-import { checkpoint, parseSessionMeta, sessionEndVariant, type SessionMeta } from './session-meta';
+import { checkpoint, contactAt, parseSessionMeta, sessionEndVariant, type SessionMeta } from './session-meta';
 
 export type DeviceCheck = Exclude<OpenResult, { readonly kind: 'unlocked' }>;
 
@@ -38,8 +38,12 @@ export type SessionStep =
   | { readonly kind: 'device_check'; readonly result: DeviceCheck };
 
 export interface SessionOwnerDeps {
-  readonly client: AuthClient;
+  /** The two sign-in steps only; the refresh and the logout are native. */
+  readonly client: SignInClient;
+  /** The session record (the only slot). */
   readonly tokens: TokenStore;
+  /** The native owner of the tokens (`nativeSessionOf(loadEviaUpload())`). */
+  readonly native: NativeSession;
   readonly host: { openForUser(userId: string): Promise<OpenResult> };
   readonly wipe: WipeSignal;
   readonly clock: SessionClock;
@@ -51,10 +55,16 @@ export interface SessionOwnerDeps {
 
 /** An access token is renewed this long before its end (clock skew, a request on the way). */
 export const ACCESS_SKEW_MS = 30_000;
-/** At most this many pending revocations are kept (a fifth one drops the oldest; the server ends it after 14 idle days anyway). */
-export const MAX_PENDING_REVOCATIONS = 4;
 
-const isAuthEnd = (failure: AuthFailure): boolean => failure.kind === 'problem' && (failure.status === 401 || failure.status === 403);
+/** What a sign-in leaves in JavaScript: no token of any kind. */
+interface LoginFacts {
+  readonly deviceId: string;
+  readonly installationSecret: string | undefined;
+  readonly serverTime: number;
+  readonly user: SessionData['user'];
+}
+
+const sane = (value: number): boolean => Number.isFinite(value) && value >= 0;
 
 export class MobileSessionOwner implements SessionOwner {
   readonly #deps: SessionOwnerDeps;
@@ -65,13 +75,18 @@ export class MobileSessionOwner implements SessionOwner {
   #store: UnlockedStore | null = null;
   #meta: SessionMeta | null = null;
   #access: { readonly token: string; readonly until: number } | null = null;
-  /** A session of step 2 held in memory while the device check of EVM-101/EVM-107 runs (nothing of it is stored yet). */
-  #pending: SessionData | null = null;
+  /** A session of step 2 staged natively while the device check of EVM-101/EVM-107 runs; JavaScript keeps its facts, never a token. */
+  #pending: LoginFacts | null = null;
   readonly #listeners = new Set<(ended: SessionEnded) => void>();
   readonly #beforeEnd = new Set<() => void>();
+  readonly #updateListeners = new Set<() => void>();
 
   constructor(deps: SessionOwnerDeps) {
     this.#deps = deps;
+    // the module tells about a session that stopped working (the job met 401 / 426 / a wipe order while the app was alive)
+    deps.native.addListener('onSessionState', ({ state }) => {
+      this.#exclusive(() => this.#blocked(state)).catch(() => undefined);
+    });
   }
 
   #exclusive<T>(task: () => Promise<T>): Promise<T> {
@@ -80,11 +95,28 @@ export class MobileSessionOwner implements SessionOwner {
     return run;
   }
 
+  /** A call of the native module that never throws: a failure is the fallback value (the module answers codes, never texts). */
+  async #call<T>(task: () => Promise<T>, fallback: T): Promise<T> {
+    try {
+      return await task();
+    } catch {
+      return fallback;
+    }
+  }
+
   /** Listens to the end of a session (M-02 variants); returns the unsubscribe. */
   onSessionEnded(listener: (ended: SessionEnded) => void): () => void {
     this.#listeners.add(listener);
     return () => {
       this.#listeners.delete(listener);
+    };
+  }
+
+  /** The module paused the upload and the session on `426` (`paused_update`): the screen of the update (nothing is removed). */
+  onUpdateRequired(listener: () => void): () => void {
+    this.#updateListeners.add(listener);
+    return () => {
+      this.#updateListeners.delete(listener);
     };
   }
 
@@ -138,7 +170,7 @@ export class MobileSessionOwner implements SessionOwner {
     return (await this.#store?.unsentItemCount().catch(() => 0)) ?? 0;
   }
 
-  /** The two sign-in steps, serialised with the refresh and the revocation (security W1d). */
+  /** The two sign-in steps, serialised with the end of a session (security W1d). */
   signInClient(): SignInClient {
     return {
       login: (credentials) => this.#exclusive(() => this.#deps.client.login(credentials)),
@@ -147,74 +179,105 @@ export class MobileSessionOwner implements SessionOwner {
   }
 
   /**
-   * Start of the app (AC6: no request here — a signed-in user works offline at once). Removes partial states and finishes a sign-out
-   * that was interrupted between storing the pending revocation and ending the session.
+   * Start of the app (AC6: no request here — a signed-in user works offline at once). A session exists only with the record AND the
+   * native session of the same user; an orphan on either side is removed (a native session without a record is ended, the way a
+   * sign-out interrupted half-way is finished). After an update from a version with JavaScript tokens the native side is empty: the
+   * record goes, the user signs in once more, the queue and the local data stay (EVM-130 AC3).
    */
   restore(): Promise<SessionStep> {
     return this.#exclusive(async () => {
-      const { tokens } = this.#deps;
-      const [metaText, refreshToken, pending] = await Promise.all([
-        tokens.get('sessionMeta').catch(() => null),
-        tokens.get('refreshToken').catch(() => null),
-        this.#readPending(),
+      const [metaText, state] = await Promise.all([
+        this.#deps.tokens.get('sessionMeta').catch(() => null),
+        this.#call(() => this.#deps.native.sessionState(), { state: 'unavailable', ownerId: null } as const),
       ]);
       const meta = parseSessionMeta(metaText);
-      if (refreshToken !== null && pending.includes(refreshToken)) {
-        // the user confirmed the sign-out before the process died: finish it, the token stays pending
-        if (meta !== null) {
-          const opened = await this.#deps.host.openForUser(meta.userId).catch(() => null);
-          if (opened?.kind === 'unlocked') await opened.store.endSession().catch(() => undefined);
-        }
+      const live = state.state === 'signed_in' || state.state === 'paused_revoked' || state.state === 'paused_update';
+      if (state.state === 'wipe_required') {
+        // the module met the wipe order while the app was dead: the wipe runs now (the record, when there is one, goes with it)
         await this.#clearSession();
+        this.#deps.wipe.wipeRequired();
         return { kind: 'signed_out' };
       }
-      if (meta === null || refreshToken === null) {
+      if (meta === null || !live || (state.ownerId !== null && !state.ownerId.startsWith(`${meta.userId}:`))) {
+        if (state.state === 'signed_in' || state.state === 'paused_revoked' || state.state === 'paused_update') {
+          await this.#endOrphan(state.ownerId);
+        }
         await this.#clearSession();
         return { kind: 'signed_out' };
       }
       const opened = await this.#deps.host.openForUser(meta.userId).catch((): OpenResult => ({ kind: 'unavailable', code: 'closed' }));
       if (opened.kind !== 'unlocked') return { kind: 'device_check', result: opened };
       this.#adopt(opened.store, meta);
+      await this.#mergeContact();
       return { kind: 'signed_in' };
     });
   }
 
+  /** A native session without a matching record: ended natively (a pending revocation when offline) and its replica removed. */
+  async #endOrphan(ownerId: string | null): Promise<void> {
+    await this.#call(() => this.#deps.native.signOut(false), false);
+    const userId = ownerId?.split(':')[0] ?? '';
+    if (userId === '') return;
+    const opened = await this.#deps.host.openForUser(userId).catch(() => null);
+    if (opened?.kind === 'unlocked') await opened.store.endSession().catch(() => undefined);
+  }
+
   /**
-   * After step 2 (AC1): stores the session only when the store of this user is unlocked. Every other result goes to the device check
-   * with the session in memory only (the old installation secret keeps working on the server, two-phase rotation).
+   * After step 2 (AC1): the tokens go to the native module AT ONCE (staged, memory only; the carrier gives them up only once) and
+   * the session is stored only when the store of this user is unlocked. Every other result goes to the device check with the session
+   * staged natively (the old installation secret keeps working on the server, two-phase rotation).
    */
   completeSignIn(session: IssuedSession): Promise<SessionStep> {
     return this.#exclusive(async () => {
-      const data = revealSession(session);
+      const data = takeSession(session);
       if (data === null) return { kind: 'failed' };
-      const opened = await this.#deps.host.openForUser(data.user.id).catch((): OpenResult => ({ kind: 'unavailable', code: 'closed' }));
+      const staged = await this.#call(
+        () =>
+          this.#deps.native.stageLogin(
+            data.user.id,
+            data.deviceId,
+            data.refreshToken,
+            data.accessToken,
+            data.accessTokenTtlMs,
+            data.serverTime,
+          ),
+        'unavailable' as const,
+      );
+      if (staged !== 'ok') return { kind: 'failed' };
+      const facts: LoginFacts = {
+        deviceId: data.deviceId,
+        installationSecret: data.installationSecret,
+        serverTime: data.serverTime,
+        user: data.user,
+      };
+      const opened = await this.#deps.host.openForUser(facts.user.id).catch((): OpenResult => ({ kind: 'unavailable', code: 'closed' }));
       if (opened.kind !== 'unlocked') {
-        this.#pending = data;
+        this.#pending = facts;
         return { kind: 'device_check', result: opened };
       }
-      return this.#commit(opened.store, data);
+      return this.#commit(opened.store, facts);
     });
   }
 
   /**
-   * The device check went on (e.g. "Rozumiem" after `data_lost` opened a new database): the session held in memory is stored into
+   * The device check went on (e.g. "Rozumiem" after `data_lost` opened a new database): the session staged natively is stored into
    * that store; after a start (`restore`) the stored session is adopted.
    */
   continueDeviceCheck(result: OpenResult): Promise<SessionStep> {
     return this.#exclusive(async () => {
-      const data = this.#pending;
+      const facts = this.#pending;
       if (result.kind !== 'unlocked') return { kind: 'device_check', result };
-      if (data !== null) {
+      if (facts !== null) {
         this.#pending = null;
-        if (result.store.userId !== data.user.id) {
-          await this.#discard(data);
+        if (result.store.userId !== facts.user.id) {
+          await this.#call(() => this.#deps.native.abandonStaged(), 'unavailable' as const);
           return { kind: 'failed' };
         }
-        return this.#commit(result.store, data);
+        return this.#commit(result.store, facts);
       }
       const meta = parseSessionMeta(await this.#deps.tokens.get('sessionMeta').catch(() => null));
-      const refreshToken = await this.#deps.tokens.get('refreshToken').catch(() => null);
-      if (meta === null || refreshToken === null || meta.userId !== result.store.userId) {
+      const state = await this.#call(() => this.#deps.native.sessionState(), { state: 'unavailable', ownerId: null } as const);
+      if (meta === null || state.state !== 'signed_in' || meta.userId !== result.store.userId) {
         result.store.lock();
         return { kind: 'signed_out' };
       }
@@ -224,63 +287,60 @@ export class MobileSessionOwner implements SessionOwner {
   }
 
   /**
-   * The device check was cancelled: the session of step 2 is dropped from memory (nothing was stored) and ended on the server, so it
-   * neither stays valid for 14 idle days nor counts towards the device limit of the user (code review, RR-72). Never rejects.
+   * The device check was cancelled: the session staged natively is ended on the server (a pending revocation when the server cannot
+   * be asked — native), so it neither stays valid for 14 idle days nor counts towards the device limit (code review, RR-72).
+   * Nothing was stored. Never rejects.
    */
   abandonSignIn(): Promise<void> {
     return this.#exclusive(async () => {
-      const data = this.#pending;
+      const had = this.#pending !== null;
       this.#pending = null;
-      if (data !== null) await this.#discard(data);
+      if (had) await this.#call(() => this.#deps.native.abandonStaged(), 'unavailable' as const);
     });
   }
 
-  /**
-   * Ends a session of step 2 that is not kept (abandoned, refused or not stored): a best-effort logout with its access token; when the
-   * server cannot be asked (network, 5xx, 429, 426) its refresh token becomes a pending revocation, sent at the next connection.
-   * Runs inside the lock of the caller.
-   */
-  async #discard(data: SessionData): Promise<void> {
-    const outcome = await this.#deps.client.logout(data.accessToken).catch((): AuthFailure => ({ kind: 'unavailable' }));
-    if (outcome.kind === 'ok' || isAuthEnd(outcome)) return;
-    await this.#writePending([...(await this.#readPending()), data.refreshToken]).catch(() => undefined);
-  }
-
-  async #commit(store: UnlockedStore, data: SessionData): Promise<SessionStep> {
-    const { tokens, clock } = this.#deps;
+  async #commit(store: UnlockedStore, facts: LoginFacts): Promise<SessionStep> {
+    const { tokens, clock, native } = this.#deps;
     const previous = await store.identity.read().catch(() => null);
     try {
-      if (data.installationSecret !== undefined) await store.identity.write({ deviceId: data.deviceId, secret: data.installationSecret });
+      if (facts.installationSecret !== undefined)
+        await store.identity.write({ deviceId: facts.deviceId, secret: facts.installationSecret });
     } catch {
       // the old secret stays valid on the server (RR-69): the sign-in fails, nothing else is stored, the new session is ended
       store.lock();
-      await this.#discard(data);
+      await this.#call(() => native.abandonStaged(), 'unavailable' as const);
       return { kind: 'failed' };
     }
-    const mark = checkpoint(data.serverTime, clock);
+    // the same installation was recognised: the server already ended its earlier sessions ('rotated') — the pending revocations of
+    // them are dropped by the module WITHOUT a request (a refresh of one could look like reuse and end the new session; security W1d)
+    const sameInstallation = previous !== null && previous.deviceId === facts.deviceId;
+    const committed = await this.#call(() => native.commitStaged(sameInstallation), 'unavailable' as const);
+    if (committed !== 'ok') {
+      // the module ended the staged session itself when it could not store it
+      store.lock();
+      return { kind: 'failed' };
+    }
+    const mark = checkpoint(facts.serverTime, clock);
     const meta: SessionMeta = {
       v: 1,
-      userId: data.user.id,
-      displayName: data.user.displayName,
-      role: data.user.role,
+      userId: facts.user.id,
+      displayName: facts.user.displayName,
+      role: facts.user.role,
       started: mark,
       lastContact: mark,
     };
     try {
-      await tokens.set('refreshToken', data.refreshToken);
       await tokens.set('sessionMeta', JSON.stringify(meta));
     } catch {
-      await tokens.delete('refreshToken').catch(() => undefined);
+      // no record = no session: the committed native session is ended again (online when it can, else a pending revocation)
+      await this.#call(() => native.signOut(true), false);
       store.lock();
-      await this.#discard(data);
       return { kind: 'failed' };
     }
-    // the same installation was recognised: the server already ended its earlier sessions ('rotated') — a pending revocation of
-    // them is dropped WITHOUT a request (a refresh of it now could look like reuse and end the new session; security W1d)
-    if (previous !== null && previous.deviceId === data.deviceId) await tokens.delete('revocationToken').catch(() => undefined);
     this.#adopt(store, meta);
-    this.#access = { token: data.accessToken, until: clock.now() + data.accessTokenTtlMs };
-    await this.#recordContact(data.serverTime);
+    // a full sign-in lifts the wipe marker of an earlier wipe (the module keeps it while a wipe is unfinished)
+    await this.#call(() => native.clearWipeMarkerAfterLogin(), false);
+    await this.#recordContact(facts.serverTime);
     return { kind: 'signed_in' };
   }
 
@@ -288,14 +348,49 @@ export class MobileSessionOwner implements SessionOwner {
    * A contact with the server (an authenticated 2xx with a valid `serverTime`): the checkpoint of the 7-day rule (EVM-101 AC2,
    * sync-core `ContactClock`, EVM-092 AC7). A failing write never fails the session — the data then stay hidden (no record).
    */
-  async #recordContact(serverTime: number, { onlyIfVisible = false }: { readonly onlyIfVisible?: boolean } = {}): Promise<void> {
+  async #recordContact(serverTime: number): Promise<void> {
     const store = this.#store;
     if (store === null) return;
-    // a refresh never brings back data that were already hidden (window elapsed, clock anomaly, no record): only a full sign-in does
-    if (onlyIfVisible && (await this.contactStatus().catch(() => null))?.status.visible !== true) return;
     await new ContactClock(store.replica, this.#deps.clock, this.#deps.contactClock ?? this.#deps.clock)
       .record(serverTime)
       .catch(() => undefined);
+  }
+
+  /**
+   * The last contact of the NATIVE side (a refresh made by the job while no JavaScript ran, EVM-130 / architect 9, security 3):
+   * the rule of 7 days takes the later of the two checkpoints, and so does the record of the session (the 14-day variant). It is a
+   * contact like any other — it never brings back data that are already hidden (window elapsed, a clock anomaly, no record): only a
+   * full sign-in does, exactly like a refresh of the app (SR-MOB-05/06).
+   */
+  async #mergeContact(): Promise<void> {
+    const store = this.#store;
+    if (store === null) return;
+    const last = await this.#call(() => this.#deps.native.lastContact(), null);
+    if (last === null || last.serverTimeMs === null) return;
+    const { serverTimeMs: serverTime, wallMs, monoMs, bootId } = last;
+    if (!sane(serverTime) || !sane(wallMs) || !sane(monoMs) || typeof bootId !== 'string' || bootId.length < 1 || bootId.length > 128)
+      return;
+    try {
+      const state = await store.replica.loadState();
+      const own = parseContactRecord(state.contact);
+      if (own !== null && own.serverTime >= serverTime) return;
+      if ((await this.contactStatus())?.status.visible !== true) return;
+      const record = contactAt(serverTime, wallMs, monoMs, bootId);
+      await store.replica.saveContact(record);
+      const meta = this.#meta;
+      if (meta !== null && meta.lastContact.serverTime < serverTime) {
+        const next: SessionMeta = { ...meta, lastContact: record };
+        await this.#deps.tokens.set('sessionMeta', JSON.stringify(next));
+        this.#meta = next;
+      }
+    } catch {
+      // a failing write never fails the session — the data then stay as they were
+    }
+  }
+
+  /** Called at start, on return to the foreground and after an event of the module. */
+  mergeNativeContact(): Promise<void> {
+    return this.#exclusive(() => this.#mergeContact());
   }
 
   /**
@@ -335,19 +430,18 @@ export class MobileSessionOwner implements SessionOwner {
   }
 
   /**
-   * "Wyczyść dane firmowe" / "Usuń i zaloguj" (EVM-101 AC4, AC5): ends the session on the phone before the wipe — the server is asked to
-   * end it first when the network is there (the tokens are about to be removed), the store is locked, the tokens go. No pending
-   * revocation is kept (the wipe removes the secure store; the server ends an idle session after 14 days anyway). Emits no
-   * `SessionEnded`: the screen that asked for the wipe decides what comes next once the wipe has a result.
+   * "Wyczyść dane firmowe" / "Usuń i zaloguj" (EVM-101 AC4, AC5): ends the session on the phone before the wipe — the module is asked
+   * to sign out first (online it asks the server; offline it keeps a pending revocation that the wipe of the native store removes
+   * with everything else), the store is locked. Emits no `SessionEnded`: the screen that asked for the wipe decides what comes next
+   * once the wipe has a result.
    */
   endSessionForWipe({ online }: { readonly online: boolean }): Promise<void> {
     return this.#exclusive(async () => {
       this.#stopListeners();
-      const access = this.#access !== null && this.#deps.clock.now() < this.#access.until - ACCESS_SKEW_MS ? this.#access.token : null;
       const store = this.#store;
       store?.lock();
       await this.#clearSession();
-      if (online && access !== null) await this.#deps.client.logout(access).catch(() => undefined);
+      await this.#call(() => this.#deps.native.signOut(online), false);
       // no `SessionEnded` event: the caller shows the result of the wipe (done / unfinished) itself - an event here would put
       // "Wylogowano" (and a sentence about unsent items that the wipe is about to remove) over the running wipe
     });
@@ -361,7 +455,7 @@ export class MobileSessionOwner implements SessionOwner {
     this.#access = null;
   }
 
-  /** A valid access token (renewed through the shared refresh when needed), or `null` without a session. */
+  /** A valid access token (asked from the module when needed), or `null` without a session. */
   async accessToken(): Promise<string | null> {
     const access = this.#access;
     if (access !== null && this.#deps.clock.now() < access.until - ACCESS_SKEW_MS) return access.token;
@@ -369,7 +463,7 @@ export class MobileSessionOwner implements SessionOwner {
     return (await this.refresh()) === 'refreshed' ? (this.#access?.token ?? null) : null;
   }
 
-  /** One refresh for every caller (AC5). */
+  /** One request to the module for every caller (AC5); the module itself refreshes once for the app and the job. */
   refresh(): Promise<RefreshResult> {
     this.#refreshing ??= this.#exclusive(() => this.#refresh())
       .catch((): RefreshResult => 'unavailable')
@@ -380,56 +474,53 @@ export class MobileSessionOwner implements SessionOwner {
   }
 
   async #refresh(): Promise<RefreshResult> {
-    const { tokens, client, clock } = this.#deps;
     if (this.#userId === null) return 'session_revoked';
-    let refreshToken: string | null;
-    try {
-      refreshToken = await tokens.get('refreshToken');
-    } catch {
-      return 'unavailable';
-    }
-    if (refreshToken === null) {
-      await this.#end('session_revoked');
-      return 'session_revoked';
-    }
-    const outcome = await client.refresh(refreshToken);
-    if (outcome.kind === 'ok') {
-      const data = revealSession(outcome.value);
-      if (data === null) return 'unavailable';
-      try {
-        await tokens.set('refreshToken', data.refreshToken);
-      } catch {
-        // not stored = not used (security W2): the next request tries again
-        return 'unavailable';
-      }
-      const meta = this.#meta;
-      if (meta !== null) {
-        const next: SessionMeta = { ...meta, lastContact: checkpoint(data.serverTime, clock) };
-        if (
-          await tokens.set('sessionMeta', JSON.stringify(next)).then(
-            () => true,
-            () => false,
-          )
-        )
-          this.#meta = next;
-      }
-      this.#access = { token: data.accessToken, until: clock.now() + data.accessTokenTtlMs };
-      await this.#recordContact(data.serverTime, { onlyIfVisible: true });
+    // the token the server rejected (when there is one) makes the module renew even a token that still looks valid
+    const answer = await this.#call(() => this.#deps.native.accessToken(this.#access?.token ?? null), { status: 'unavailable' } as const);
+    if (answer.status === 'ready') {
+      this.#access = { token: answer.accessToken, until: this.#deps.clock.now() + answer.validForMs };
+      await this.#mergeContact();
       return 'refreshed';
     }
-    if (outcome.kind === 'problem' && outcome.status === 401) {
-      if (outcome.code === 'device_wipe_required') {
-        await this.#endWipe();
-        return 'device_wipe_required';
-      }
-      await this.#end(sessionEndVariant(this.#meta, clock));
-      return 'session_revoked';
-    }
-    // network, 5xx, 429, 426, 403: nothing ends, the next request retries (AC5)
+    if (answer.status === 'blocked') return this.#blocked(answer.state);
     return 'unavailable';
   }
 
-  /** `session_revoked` / expiry (AC4): N is read first, then the replica and the refresh token go; the queue stays encrypted. */
+  /**
+   * The module cannot serve the session any more (`session_revoked` → `paused_revoked`, no token, the wipe order, `426`): the
+   * existing states of the app. No session in JavaScript = nothing to end (the answer only).
+   */
+  async #blocked(state: SessionStateName): Promise<RefreshResult> {
+    if (state === 'paused_update') {
+      if (this.#userId !== null) for (const listener of [...this.#updateListeners]) listener();
+      return 'unavailable';
+    }
+    if (state === 'signed_in') return 'unavailable';
+    if (state === 'wipe_required') {
+      if (this.#userId !== null) await this.#endWipe();
+      return 'device_wipe_required';
+    }
+    if (this.#userId !== null) {
+      if (state === 'paused_revoked') {
+        await this.#mergeContact();
+        await this.#end(sessionEndVariant(this.#meta, this.#deps.clock));
+      } else {
+        await this.#end('session_revoked');
+      }
+    }
+    return 'session_revoked';
+  }
+
+  /** Compares the state of the module with the session of the app (start, return to the foreground): a stopped session ends here. */
+  reconcileNative(): Promise<void> {
+    return this.#exclusive(async () => {
+      if (this.#userId === null) return;
+      const state = await this.#call(() => this.#deps.native.sessionState(), { state: 'unavailable', ownerId: null } as const);
+      if (state.state !== 'signed_in' && state.state !== 'unavailable') await this.#blocked(state.state);
+    });
+  }
+
+  /** `session_revoked` / expiry (AC4): N is read first, then the replica and the record go; the queue stays encrypted. */
   async #end(reason: Extract<SessionEndReason, 'session_revoked' | 'session_expired'>): Promise<void> {
     this.#stopListeners();
     const store = this.#store;
@@ -439,7 +530,7 @@ export class MobileSessionOwner implements SessionOwner {
     this.#emit({ reason, unsentItems });
   }
 
-  /** `device_wipe_required` (AC4): tokens and record go, the data become unreachable, the wipe is signalled to EVM-101. */
+  /** `device_wipe_required` (AC4): the record goes, the data become unreachable, the wipe is signalled to EVM-101. */
   async #endWipe(): Promise<void> {
     this.#stopListeners();
     this.#store?.lock();
@@ -454,93 +545,41 @@ export class MobileSessionOwner implements SessionOwner {
     this.#userId = null;
     this.#displayName = '';
     this.#access = null;
-    await this.#deps.tokens.delete('refreshToken').catch(() => undefined);
     await this.#deps.tokens.delete('sessionMeta').catch(() => undefined);
   }
 
   /**
-   * "Wyloguj" (AC7). Waits for a running refresh (the same lock), stores the refresh token as a pending revocation, ends the session on
-   * the phone (replica and tokens removed, queue and identity stay encrypted) and — online — ends it on the server.
+   * "Wyloguj" (AC7). The module signs out FIRST (its call starts at once: the tokens are removed in one atomic write, a pending
+   * revocation kept when offline), while the session on the phone ends (replica and record removed, queue and identity stay
+   * encrypted); the answer of the server is awaited after the screens were told.
    */
   signOut({ online }: { readonly online: boolean }): Promise<SessionEnded> {
     return this.#exclusive(async () => {
       this.#stopListeners();
-      const { tokens, clock } = this.#deps;
-      const refreshToken = await tokens.get('refreshToken').catch(() => null);
-      if (refreshToken !== null) await this.#writePending([...(await this.#readPending()), refreshToken]).catch(() => undefined);
-      const access = this.#access !== null && clock.now() < this.#access.until - ACCESS_SKEW_MS ? this.#access.token : null;
+      // without a session there is nothing to sign out of (and nothing is asked)
+      const nativeDone = this.#userId === null ? Promise.resolve(false) : this.#call(() => this.#deps.native.signOut(online), false);
       const store = this.#store;
       const unsentItems = store === null ? 0 : await store.unsentItemCount().catch(() => 0);
       if (store !== null) await store.endSession().catch(() => undefined);
       await this.#clearSession();
       const ended: SessionEnded = { reason: 'signed_out', unsentItems };
       this.#emit(ended);
-      if (online && refreshToken !== null) {
-        if (access === null) {
-          await this.#flush();
-        } else {
-          const outcome = await this.#deps.client.logout(access);
-          if (outcome.kind === 'ok' || isAuthEnd(outcome)) await this.#removePending(refreshToken);
-        }
-      }
+      await nativeDone;
       return ended;
     });
   }
 
   /** Sends the pending revocations (after a sign-in, at start and whenever the network returns); never during a sign-in commit. */
   flushPendingRevocation(): Promise<void> {
-    return this.#exclusive(() => (this.#pending === null ? this.#flush() : Promise.resolve()));
-  }
-
-  async #flush(): Promise<void> {
-    const { client } = this.#deps;
-    for (const token of await this.#readPending()) {
-      const refreshed = await client.refresh(token);
-      if (refreshed.kind !== 'ok') {
-        if (isAuthEnd(refreshed)) {
-          await this.#removePending(token);
-          continue;
-        }
-        return; // no network (or 429/5xx/426): everything stays for the next connection
-      }
-      const data = revealSession(refreshed.value);
-      if (data === null) return;
-      // the rotated token replaces the used one BEFORE the logout: a retry later never reuses a spent token (SR-SESS-09)
-      await this.#replacePending(token, data.refreshToken).catch(() => undefined);
-      const outcome = await client.logout(data.accessToken);
-      if (outcome.kind === 'ok' || isAuthEnd(outcome)) await this.#removePending(data.refreshToken);
-      else return;
-    }
-  }
-
-  async #readPending(): Promise<string[]> {
-    const text = await this.#deps.tokens.get('revocationToken').catch(() => null);
-    if (text === null) return [];
-    try {
-      const value: unknown = JSON.parse(text);
-      return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && item.length > 0) : [];
-    } catch {
-      return [];
-    }
-  }
-
-  async #writePending(list: readonly string[]): Promise<void> {
-    const kept = [...new Set(list)].slice(-MAX_PENDING_REVOCATIONS);
-    if (kept.length === 0) await this.#deps.tokens.delete('revocationToken');
-    else await this.#deps.tokens.set('revocationToken', JSON.stringify(kept));
-  }
-
-  async #replacePending(used: string, next: string): Promise<void> {
-    await this.#writePending((await this.#readPending()).map((item) => (item === used ? next : item)));
-  }
-
-  async #removePending(token: string): Promise<void> {
-    await this.#writePending((await this.#readPending()).filter((item) => item !== token)).catch(() => undefined);
+    return this.#exclusive(async () => {
+      if (this.#pending === null) await this.#call(() => this.#deps.native.flushPendingRevocations(), false);
+    });
   }
 
   /**
-   * `fetch` with the access token for the calls of the app (AC5): a plain `401` refreshes once (shared) and retries once;
-   * `401 session_revoked` / `device_wipe_required` end the session. `null` without a session (nothing is sent).
+   * `fetch` with the access token for the calls of the app (AC5): a plain `401` renews the token through the module once and retries
+   * once; `401 session_revoked` / `device_wipe_required` and `426` are reported to the module (the job stops too) and end the
+   * session / the wipe. `null` without a session (nothing is sent).
    */
   async authorizedFetch(url: string, init: RequestInit = {}): Promise<Response | null> {
     const send = (accessToken: string): Promise<Response> => {
@@ -552,6 +591,10 @@ export class MobileSessionOwner implements SessionOwner {
     const first = await this.accessToken();
     if (first === null) return null;
     const response = await send(first);
+    if (response.status === 426) {
+      await this.#call(() => this.#deps.native.reportUpdateRequired(), false);
+      return response;
+    }
     if (response.status !== 401) return response;
     const code = await response
       .clone()
@@ -559,16 +602,18 @@ export class MobileSessionOwner implements SessionOwner {
       .then((body: unknown) => (typeof body === 'object' && body !== null ? (body as { code?: unknown }).code : undefined))
       .catch(() => undefined);
     if (code === 'device_wipe_required') {
+      await this.#call(() => this.#deps.native.reportDeviceWipeRequired(), false);
       await this.#exclusive(() => (this.#userId === null ? Promise.resolve() : this.#endWipe()));
       return response;
     }
     if (code === 'session_revoked') {
+      await this.#call(() => this.#deps.native.reportApiRevoked(), false);
       await this.#exclusive(() => (this.#userId === null ? Promise.resolve() : this.#end('session_revoked')));
       return response;
     }
     if ((await this.refresh()) !== 'refreshed') return response;
     const second = this.#access?.token;
-    return second === undefined ? response : send(second);
+    return second === undefined || second === first ? response : send(second);
   }
 }
 
@@ -582,6 +627,7 @@ export type SessionControl = Pick<
   | 'signOut'
   | 'flushPendingRevocation'
   | 'onSessionEnded'
+  | 'onUpdateRequired'
   | 'displayName'
   | 'refresh'
   | 'signInClient'
@@ -591,4 +637,6 @@ export type SessionControl = Pick<
   | 'endSessionForWipe'
   | 'onBeforeSessionEnd'
   | 'syncStore'
+  | 'reconcileNative'
+  | 'mergeNativeContact'
 >;

@@ -4,6 +4,7 @@
  * EVM-109 replaces the owner with a native one without touching the screens). Real adapters: `src/api/auth-client.ts` (contract EVM-090)
  * and the secure store (`src/secure-store`); tests use fakes that follow the order of errors of EVM-094.
  */
+import type { EviaUploadModule } from '../../modules/evia-upload/src';
 import type { Challenge, IssuedSession } from './opaque';
 
 export type { UserRole } from './opaque';
@@ -26,15 +27,42 @@ export interface SignInClient {
   loginTotp(challenge: Challenge, code: string): Promise<AuthOutcome<IssuedSession>>;
 }
 
-/** The whole client; `refresh` and `logout` are for the session owner only. */
+/**
+ * The whole client. `refresh` and `logout` are used by the NATIVE owner of the tokens only (its own HTTP client, EVM-130); the adapter
+ * keeps them for the contract and its tests, the JavaScript session owner never calls them.
+ */
 export interface AuthClient extends SignInClient {
   refresh(refreshToken: string): Promise<AuthOutcome<IssuedSession>>;
   /** `mobileLogout` with the access token as Bearer; `ok` = 204. */
   logout(accessToken: string): Promise<AuthOutcome<null>>;
 }
 
-/** Slots of the secure store the owner uses (Keystore, SR-MOB-03); the production store is `tokenStore` of `src/secure-store`. */
-export type SessionSlot = 'refreshToken' | 'revocationToken' | 'sessionMeta';
+/**
+ * The only slot of the secure store the owner uses (Keystore, SR-MOB-03); the production store is `tokenStore` of `src/secure-store`.
+ * The refresh token and the pending revocation have no slot: they are native (EVM-130 AC3, ADR-0020a).
+ */
+export type SessionSlot = 'sessionMeta';
+
+/**
+ * What the session owner uses of the native module (ADR-0020a): the tokens go in once, the access token and the state come out. No
+ * function returns a refresh token (a test reads the Kotlin side for it).
+ */
+export type NativeSession = Pick<
+  EviaUploadModule,
+  | 'stageLogin'
+  | 'commitStaged'
+  | 'abandonStaged'
+  | 'accessToken'
+  | 'reportApiRevoked'
+  | 'reportDeviceWipeRequired'
+  | 'reportUpdateRequired'
+  | 'signOut'
+  | 'flushPendingRevocations'
+  | 'sessionState'
+  | 'clearWipeMarkerAfterLogin'
+  | 'lastContact'
+  | 'addListener'
+>;
 
 export interface TokenStore {
   get(slot: SessionSlot): Promise<string | null>;

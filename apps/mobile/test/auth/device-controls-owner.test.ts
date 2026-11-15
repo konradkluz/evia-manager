@@ -1,6 +1,6 @@
 import { LoginMachine } from '../../src/auth/login-machine';
 import { FakeAuthServer } from './fake-auth-server';
-import { FakeClock, FakeWipe, issued, newPhone, ok, signedIn, start, type Phone } from './fakes';
+import { FakeClock, FakeWipe, issued, newPhone, signedIn, start, type FakeClock as Clock, type Phone } from './fakes';
 import { T0, USER_A } from './fixtures';
 
 const DAY = 86_400_000;
@@ -37,11 +37,16 @@ describe('session owner: the 7-day rule and the queue list (EVM-101 AC2, AC8)', 
     expect(result?.status).toMatchObject({ visible: false, reason: 'clock_anomaly' });
   });
 
-  it('EVM-101 AC2: a refresh is a contact; a failing write of the checkpoint never fails the sign-in; no session -> null', async () => {
+  /** The last contact of the native side (a refresh of the module), as the module reports it. */
+  const nativeContact = (clock: Clock, serverTimeMs: number) => {
+    phone.native.contact = { wallMs: clock.wall, monoMs: clock.mono, bootId: clock.boot, serverTimeMs };
+  };
+
+  it('EVM-101 AC2, EVM-130: a refresh of the module is a contact; no session -> null', async () => {
     const rig = await signedIn(phone);
     rig.clock.mono += 6 * DAY;
     rig.clock.wall += 6 * DAY;
-    rig.client.refreshScript.push(ok(issued({ n: 2, serverTime: T0 + 6 * DAY })));
+    nativeContact(rig.clock, T0 + 6 * DAY);
     expect(await rig.owner.refresh()).toBe('refreshed');
     expect(phone.contact).toMatchObject({ serverTime: T0 + 6 * DAY, carried: 0 });
     const fresh = start(newPhone());
@@ -53,7 +58,7 @@ describe('session owner: the 7-day rule and the queue list (EVM-101 AC2, AC8)', 
     rig.clock.mono += 8 * DAY;
     rig.clock.wall += 8 * DAY;
     expect((await rig.owner.contactStatus())?.status).toMatchObject({ visible: false, reason: 'window_elapsed' });
-    rig.client.refreshScript.push(ok(issued({ n: 2, serverTime: T0 + 8 * DAY })));
+    nativeContact(rig.clock, T0 + 8 * DAY);
     expect(await rig.owner.refresh()).toBe('refreshed');
     expect((await rig.owner.contactStatus())?.status.visible).toBe(false);
     expect(phone.contact).toMatchObject({ serverTime: T0 });
@@ -66,7 +71,7 @@ describe('session owner: the 7-day rule and the queue list (EVM-101 AC2, AC8)', 
     const rig = await signedIn(phone);
     rig.clock.mono -= 1;
     expect((await rig.owner.contactStatus())?.status).toMatchObject({ visible: false, reason: 'clock_anomaly' });
-    rig.client.refreshScript.push(ok(issued({ n: 2, serverTime: T0 })));
+    nativeContact(rig.clock, T0 + 1);
     await rig.owner.refresh();
     expect((await rig.owner.contactStatus())?.status.visible).toBe(false);
   });
@@ -111,24 +116,23 @@ describe('session owner: the 7-day rule and the queue list (EVM-101 AC2, AC8)', 
 });
 
 describe('session owner: ending the session for a wipe (EVM-101 AC4, AC5)', () => {
-  it('EVM-101 AC4: online the server is asked to end the session first; the tokens and the store go; nothing is kept as a pending revocation', async () => {
+  it('EVM-101 AC4: online the module is asked to end the session first; the record and the store go (the native store is removed by the wipe)', async () => {
     const rig = await signedIn(phone);
     const events: unknown[] = [];
     rig.owner.onSessionEnded((e) => events.push(e));
     await rig.owner.endSessionForWipe({ online: true });
-    expect(rig.client.calls.some((call) => call.startsWith('logout'))).toBe(true);
-    expect(phone.slots.has('refreshToken')).toBe(false);
+    expect(phone.native.calls).toContain('signOut:online');
     expect(phone.slots.has('sessionMeta')).toBe(false);
-    expect(phone.slots.has('revocationToken')).toBe(false);
     expect(await rig.owner.currentUserId()).toBeNull();
     // no `SessionEnded`: "Wylogowano" with a count of unsent items would be shown over the running wipe
     expect(events).toEqual([]);
   });
 
-  it('EVM-101 AC4: offline no request is made', async () => {
+  it('EVM-101 AC4: offline the module is told so (no request is made by the app)', async () => {
     const rig = await signedIn(phone);
     await rig.owner.endSessionForWipe({ online: false });
-    expect(rig.client.calls.some((call) => call.startsWith('logout'))).toBe(false);
+    expect(phone.native.calls).toContain('signOut:offline');
+    expect(rig.client.calls).toEqual([]);
     expect(await rig.owner.currentUserId()).toBeNull();
   });
 });
@@ -212,8 +216,9 @@ describe('owner of the queue (EVM-101 AC5, SR-MOB-13)', () => {
     expect(phone.identity).toBeNull();
     const before = phone.log.length;
     await rig.owner.abandonSignIn();
-    expect(rig.client.calls.some((call) => call.startsWith('logout'))).toBe(true);
-    expect(phone.log.slice(before)).toEqual([]);
+    expect(phone.native.calls).toContain('abandonStaged');
+    // only the module is told: nothing of the store and nothing of JavaScript changed
+    expect(phone.log.slice(before)).toEqual(['native.abandonStaged']);
     expect(phone.queue).toBe(4);
     expect(phone.owner).toBe(USER_A);
   });

@@ -75,3 +75,13 @@ export class IssuedSession {
 export function revealSession(session: IssuedSession): SessionData | null {
   return sessions.get(session) ?? null;
 }
+
+/**
+ * One-shot reveal for the hand-over to the native owner of the tokens (EVM-130 AC3): the session is removed from the carrier, so the
+ * refresh token is reachable from JavaScript exactly once — for the single call that gives it to the native module.
+ */
+export function takeSession(session: IssuedSession): SessionData | null {
+  const data = sessions.get(session) ?? null;
+  sessions.delete(session);
+  return data;
+}

@@ -1,11 +1,47 @@
-// Fakes of the ports of the sign-in (EVM-100). The "phone" (secure store, identity, queue, replica) survives a restart: a restart is a
-// new MobileSessionOwner on the same phone. Failure injection: a named operation fails once (or "crashes" after it ran).
+// Fakes of the ports of the sign-in (EVM-100, EVM-130). The "phone" (secure store, identity, queue, replica, the state of the native
+// module) survives a restart: a restart is a new MobileSessionOwner on the same phone. Failure injection: a named operation fails
+// once (or "crashes" after it ran).
+import type { AccessTokenResult, LastContact, SessionStateName } from '../../modules/evia-upload/src';
 import { Challenge, IssuedSession } from '../../src/auth/opaque';
-import type { AuthClient, AuthOutcome, SessionClock, SessionSlot, TokenStore, WipeSignal } from '../../src/auth/ports';
+import type { AuthClient, AuthOutcome, NativeSession, SessionClock, SessionSlot, TokenStore, WipeSignal } from '../../src/auth/ports';
 import { MobileSessionOwner, type SessionOwnerDeps } from '../../src/auth/session-owner';
 import type { OpenResult, UnlockedStore } from '../../src/storage';
 import type { InstallationIdentity } from '../../src/storage/ports';
 import { DEVICE_1, T0, USER_A, secret, token } from './fixtures';
+
+export interface NativeState {
+  /** What the module keeps across restarts of the process (its own token store). */
+  session: { state: SessionStateName | 'unavailable'; ownerId: string | null };
+  staged: { userId: string; deviceId: string; accessToken: string; ttlMs: number } | null;
+  /** Every call by name, in order (`stageLogin`, `commitStaged:same`, `signOut:online`, ...). Never a token. */
+  readonly calls: string[];
+  /** What the module received as tokens (test only: the proof that they are handed over once). */
+  readonly received: { refreshToken: string; accessToken: string }[];
+  /** The `rejected` argument of every `accessToken` call. */
+  readonly rejected: (string | null)[];
+  accessScript: (AccessTokenResult | Promise<AccessTokenResult>)[];
+  stageResult: 'ok' | 'invalid' | 'unavailable';
+  commitResult: 'ok' | 'storage_failed' | 'nothing_staged' | 'unavailable';
+  accessToken: string;
+  contact: LastContact | null;
+  signOutHangs: Promise<void> | null;
+}
+
+export function newNativeState(): NativeState {
+  return {
+    session: { state: 'signed_out', ownerId: null },
+    staged: null,
+    calls: [],
+    received: [],
+    rejected: [],
+    accessScript: [],
+    stageResult: 'ok',
+    commitResult: 'ok',
+    accessToken: token('access-1'),
+    contact: null,
+    signOutHangs: null,
+  };
+}
 
 export interface Phone {
   readonly slots: Map<SessionSlot, string>;
@@ -14,7 +50,7 @@ export interface Phone {
   owner: string | null;
   queue: number;
   replica: boolean;
-  /** Every write/delete in order: "set:refreshToken", "identity.write", "endSession", … */
+  /** Every write/delete in order: "set:sessionMeta", "identity.write", "endSession", "native.signOut:offline", … */
   readonly log: string[];
   /** Failure injection: `fail` throws before the effect, `crash` after it (and the process is "dead": every later call throws). */
   readonly faults: Map<string, 'fail' | 'crash'>;
@@ -26,6 +62,8 @@ export interface Phone {
   /** Records of the queue as `queue.readAll` returns them. */
   queueRecords: unknown[];
   openAs: OpenResult['kind'] | null;
+  /** The native module's side of the phone (survives a restart of the app process). */
+  native: NativeState;
 }
 
 export function newPhone(): Phone {
@@ -43,6 +81,7 @@ export function newPhone(): Phone {
     hasData: false,
     queueRecords: [],
     openAs: null,
+    native: newNativeState(),
   };
 }
 
@@ -126,6 +165,7 @@ export class FakeHost {
         loadState: () => Promise.resolve({ contact: phone.contact, config: phone.config, hasData: phone.hasData }),
         saveContact: (record: unknown) => {
           phone.contact = JSON.parse(JSON.stringify(record));
+          phone.log.push('saveContact');
           return Promise.resolve();
         },
       } as unknown as UnlockedStore['replica'],
@@ -148,6 +188,13 @@ export class FakeHost {
         readTemplates: () => Promise.resolve(null),
         writeTemplates: () => Promise.resolve(),
         readQuickOrderSource: () => Promise.resolve({ customers: [], sites: [] }),
+        readMediaServerStates: () => Promise.resolve(new Map()),
+      },
+      media: {
+        register: () => Promise.resolve(),
+        list: () => Promise.resolve([]),
+        setState: () => Promise.resolve(),
+        remove: () => Promise.resolve(),
       },
       takeSettled: () => Promise.resolve([]),
       unsentItemCount: async () => {
@@ -158,7 +205,6 @@ export class FakeHost {
         await guard();
         await effect(phone, 'endSession', () => {
           phone.replica = false;
-          phone.slots.delete('refreshToken');
         });
         locked = true;
       },
@@ -172,13 +218,11 @@ export class FakeHost {
 
 type Script<T> = (AuthOutcome<T> | Promise<AuthOutcome<T>>)[];
 
-/** Scripted client; every call is recorded (tokens included — the fake never leaves the test). */
+/** Scripted client of the two sign-in steps; every call is recorded (the fake never leaves the test). */
 export class FakeAuthClient implements AuthClient {
   readonly calls: string[] = [];
   readonly loginScript: Script<Challenge> = [];
   readonly totpScript: Script<IssuedSession> = [];
-  readonly refreshScript: Script<IssuedSession> = [];
-  readonly logoutScript: Script<null> = [];
 
   login(credentials: { email: string; password: string }): Promise<AuthOutcome<Challenge>> {
     this.calls.push(`login:${credentials.email}`);
@@ -188,14 +232,14 @@ export class FakeAuthClient implements AuthClient {
     this.calls.push(`totp:${code}`);
     return Promise.resolve(this.totpScript.shift() ?? { kind: 'ok', value: issued() });
   }
-  refresh(refreshToken: string): Promise<AuthOutcome<IssuedSession>> {
-    this.calls.push(`refresh:${refreshToken}`);
-    const next = this.refreshScript.shift();
-    return Promise.resolve(next ?? { kind: 'unavailable' });
+  /** Not used by the JavaScript owner any more (the refresh is native): a call is a failure of the test. */
+  refresh(): Promise<AuthOutcome<IssuedSession>> {
+    this.calls.push('refresh');
+    return Promise.resolve({ kind: 'unavailable' });
   }
-  logout(accessToken: string): Promise<AuthOutcome<null>> {
-    this.calls.push(`logout:${accessToken}`);
-    return Promise.resolve(this.logoutScript.shift() ?? { kind: 'ok', value: null });
+  logout(): Promise<AuthOutcome<null>> {
+    this.calls.push('logout');
+    return Promise.resolve({ kind: 'ok', value: null });
   }
 }
 
@@ -244,8 +288,115 @@ export class FakeWipe implements WipeSignal {
   }
 }
 
+/** One process of the native module over the state of the phone: the listeners die with the process, the session does not. */
+export class FakeNative implements NativeSession {
+  readonly state: NativeState;
+  readonly phone: Phone;
+  readonly #listeners = new Map<string, Set<(event: never) => void>>();
+  constructor(phone: Phone) {
+    this.phone = phone;
+    this.state = phone.native;
+    // the module lives in the process of the app: a killed process answers nothing
+    for (const key of Object.keys(this)) {
+      const member: unknown = Reflect.get(this, key);
+      if (typeof member !== 'function' || key === 'emit' || key === 'addListener') continue;
+      Reflect.set(this, key, (...args: unknown[]) =>
+        phone.dead ? Promise.reject(new Error('process is dead (synthetic)')) : (Reflect.apply(member, this, args) as unknown),
+      );
+    }
+  }
+  #log(name: string): void {
+    this.state.calls.push(name);
+    this.phone.log.push(`native.${name}`);
+  }
+  emit(name: string, event: unknown): void {
+    for (const listener of this.#listeners.get(name) ?? []) (listener as (e: unknown) => void)(event);
+  }
+  stageLogin: NativeSession['stageLogin'] = (userId, deviceId, refreshToken, accessToken, ttlMs) => {
+    this.#log('stageLogin');
+    this.state.received.push({ refreshToken, accessToken });
+    if (this.state.stageResult !== 'ok') return Promise.resolve(this.state.stageResult);
+    this.state.staged = { userId, deviceId, accessToken, ttlMs };
+    return Promise.resolve('ok');
+  };
+  commitStaged: NativeSession['commitStaged'] = (same) => {
+    this.#log(`commitStaged:${same ? 'same' : 'other'}`);
+    const staged = this.state.staged;
+    if (staged === null) return Promise.resolve('nothing_staged');
+    this.state.staged = null;
+    if (this.state.commitResult !== 'ok') return Promise.resolve(this.state.commitResult);
+    this.state.session = { state: 'signed_in', ownerId: `${staged.userId}:${staged.deviceId}` };
+    this.state.accessToken = staged.accessToken;
+    return Promise.resolve('ok');
+  };
+  abandonStaged: NativeSession['abandonStaged'] = () => {
+    this.#log('abandonStaged');
+    this.state.staged = null;
+    return Promise.resolve('ok');
+  };
+  accessToken: NativeSession['accessToken'] = (rejected) => {
+    this.#log('accessToken');
+    this.state.rejected.push(rejected);
+    const next = this.state.accessScript.shift();
+    if (next !== undefined) return Promise.resolve(next);
+    const { state, ownerId } = this.state.session;
+    if (state !== 'signed_in') {
+      return Promise.resolve(state === 'unavailable' ? { status: 'unavailable' } : { status: 'blocked', state });
+    }
+    return Promise.resolve({ status: 'ready', accessToken: this.state.accessToken, ownerId: ownerId ?? '', validForMs: 15 * 60_000 });
+  };
+  reportApiRevoked: NativeSession['reportApiRevoked'] = () => {
+    this.#log('reportApiRevoked');
+    this.state.session = { state: 'paused_revoked', ownerId: this.state.session.ownerId };
+    return Promise.resolve(true);
+  };
+  reportDeviceWipeRequired: NativeSession['reportDeviceWipeRequired'] = () => {
+    this.#log('reportDeviceWipeRequired');
+    this.state.session = { state: 'wipe_required', ownerId: null };
+    return Promise.resolve(true);
+  };
+  reportUpdateRequired: NativeSession['reportUpdateRequired'] = () => {
+    this.#log('reportUpdateRequired');
+    this.state.session = { state: 'paused_update', ownerId: this.state.session.ownerId };
+    return Promise.resolve(true);
+  };
+  signOut: NativeSession['signOut'] = async (online) => {
+    this.#log(`signOut:${online ? 'online' : 'offline'}`);
+    this.state.session = { state: 'signed_out', ownerId: null };
+    await this.state.signOutHangs;
+    return true;
+  };
+  flushPendingRevocations: NativeSession['flushPendingRevocations'] = () => {
+    this.#log('flushPendingRevocations');
+    return Promise.resolve(true);
+  };
+  sessionState: NativeSession['sessionState'] = () => {
+    this.#log('sessionState');
+    return Promise.resolve({ state: this.state.session.state, ownerId: this.state.session.ownerId });
+  };
+  clearWipeMarkerAfterLogin: NativeSession['clearWipeMarkerAfterLogin'] = () => {
+    this.#log('clearWipeMarkerAfterLogin');
+    return Promise.resolve(true);
+  };
+  lastContact: NativeSession['lastContact'] = () => {
+    this.#log('lastContact');
+    return Promise.resolve(this.state.contact);
+  };
+  addListener: NativeSession['addListener'] = (name, listener) => {
+    const set = this.#listeners.get(name) ?? new Set<(event: never) => void>();
+    set.add(listener);
+    this.#listeners.set(name, set);
+    return {
+      remove: () => {
+        set.delete(listener);
+      },
+    };
+  };
+}
+
 export interface Rig {
   readonly owner: MobileSessionOwner;
+  readonly native: FakeNative;
   readonly client: FakeAuthClient;
   readonly tokens: FakeTokens;
   readonly host: FakeHost;
@@ -260,8 +411,9 @@ export function start(phone: Phone, overrides: Partial<SessionOwnerDeps> & { clo
   const host = new FakeHost(phone);
   const clock = overrides.clock ?? new FakeClock();
   const wipe = new FakeWipe();
-  const owner = new MobileSessionOwner({ client, tokens, host, wipe, clock, ...overrides });
-  return { owner, client, tokens, host, clock, wipe };
+  const native = new FakeNative(phone);
+  const owner = new MobileSessionOwner({ client, tokens, native, host, wipe, clock, ...overrides });
+  return { owner, native, client, tokens, host, clock, wipe };
 }
 
 /** A signed-in phone: identity of DEVICE_1, the session of `issued(n)` stored. */
