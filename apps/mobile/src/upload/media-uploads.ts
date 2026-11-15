@@ -14,10 +14,10 @@
  * The view carries no order, name, address or path: it is the same in the hidden-data mode (the upload goes on there, SR-MOB-05).
  */
 import type { EnqueueInput } from '@evia/sync-core';
-import type { FileStateEvent, UploadProgressEvent, UploadStatus } from '../../modules/evia-upload/src';
+import type { FileStateEvent, OriginalDigest, UploadProgressEvent, UploadStatus } from '../../modules/evia-upload/src';
 import type { MediaFileRecord, MediaFileState } from '../storage/media-file-store';
 import type { UnlockedStore } from '../storage';
-import { createMediaAssetInput, type NewMediaAsset } from './create-media-asset';
+import { createCapturedPhotoInput, createMediaAssetInput, type CapturedPhoto, type NewMediaAsset } from './create-media-asset';
 import type { NativeUpload } from './native-upload';
 import type { MediaControl, MediaFileView, MediaUploadsSnapshot } from './types';
 
@@ -43,6 +43,10 @@ export interface MediaUploadsDeps {
 
 /** Files confirmed by the server stay in the view as "Wysłano" this many (newest first). */
 export const CLEAN_KEPT = 20;
+/**
+ * The sweep of the module removes only files older than this (EVM-108): a picture that is being saved right now has no row yet and is never touched.
+ */
+export const SWEEP_MIN_AGE_MS = 10 * 60 * 1000;
 const EMPTY: MediaUploadsSnapshot = { files: [], notifications: 'granted' };
 
 const mimeOf = (mediaType: unknown): string => (mediaType === 'video' ? 'video/mp4' : 'image/jpeg');
@@ -172,6 +176,42 @@ export class MediaUploads implements MediaControl {
     return { ok: true };
   }
 
+  /**
+   * A picture the native import made the durable original (EVM-108 AC1): the command `CreateMediaAsset` and the row of the file are written in
+   * ONE transaction of the encrypted database (`registerPendingMedia` + `enqueue`; the row takes the mutation id of the command, its time is the
+   * time of the capture). The file was made durable BEFORE this call; the caller removes it when this answers a failure. Nothing is uploaded
+   * yet — the job is armed after `applied`.
+   */
+  async addCaptured(photo: CapturedPhoto, digest: OriginalDigest): Promise<AddMediaResult> {
+    const input = createCapturedPhotoInput(photo);
+    if (input === null) return { ok: false, code: 'invalid' };
+    const store = this.#deps.store();
+    if (store === null) return { ok: false, code: 'no_session' };
+    store.queue.registerPendingMedia({
+      assetId: photo.assetId,
+      workOrderId: photo.workOrderId,
+      ownerUserId: store.userId,
+      fileName: photo.assetId,
+      sizeBytes: digest.sizeBytes,
+      sha256: digest.sha256,
+      mime: mimeOf('photo'),
+      createdAt: Date.parse(photo.capturedAt),
+      category: photo.category,
+    });
+    let queued: { readonly ok: boolean; readonly mutationId?: string };
+    try {
+      queued = await this.#deps.enqueue(input);
+    } catch {
+      queued = { ok: false };
+    } finally {
+      // a registration that was not used up (the command was refused before the store) must not wait for another command
+      store.queue.clearPendingMedia(photo.assetId);
+    }
+    if (!queued.ok || queued.mutationId === undefined) return { ok: false, code: 'enqueue_failed' };
+    void this.reconcile();
+    return { ok: true };
+  }
+
   // ---- reconciliation -------------------------------------------------------------------------------------------------------
 
   /** Start, return to the foreground, after a synchronization, after an event: single-flight, one more run when asked meanwhile. */
@@ -198,6 +238,7 @@ export class MediaUploads implements MediaControl {
     }
     try {
       await this.#repairOrphans(store);
+      await this.#sweep(store);
       await this.#arm(store);
       await this.#syncStatuses(store);
       await this.#confirm(store);
@@ -235,6 +276,15 @@ export class MediaUploads implements MediaControl {
         })
         .catch(() => undefined);
     }
+  }
+
+  /**
+   * The native sweep (EVM-108): originals nobody knows and leftovers of imports go; every file of a row that is not `clean` is kept, whatever its
+   * state. Only files older than [SWEEP_MIN_AGE_MS] — a picture saved right now has no row yet.
+   */
+  async #sweep(store: UnlockedStore): Promise<void> {
+    const keep = (await store.media.list()).filter((file) => file.state !== 'clean').map((file) => file.assetId);
+    await this.#deps.native.sweepOriginals(keep, SWEEP_MIN_AGE_MS).catch(() => 0);
   }
 
   /** Every `applied` file gets its job (idempotent); a file that is gone or refused goes to "Wymaga uwagi" (nothing is deleted). */

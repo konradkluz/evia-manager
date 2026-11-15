@@ -1,4 +1,10 @@
-import { createMediaAssetInput, DESCRIPTION_MAX, MEDIA_CATEGORIES, MEDIA_COMMAND_VERSION } from '../../src/upload/create-media-asset';
+import {
+  createCapturedPhotoInput,
+  createMediaAssetInput,
+  DESCRIPTION_MAX,
+  MEDIA_CATEGORIES,
+  MEDIA_COMMAND_VERSION,
+} from '../../src/upload/create-media-asset';
 
 const ASSET = '0194c2a0-0000-7000-8000-000000000001';
 const WO = '10000000-0000-4000-8000-000000000001';
@@ -49,5 +55,39 @@ describe('the command CreateMediaAsset (EVM-130 AC1; contract of EVM-131)', () =
     ['a time that is not a time', { capturedAt: 'yesterday' }],
   ])('EVM-130 AC1: %s is refused before it reaches the queue', (_name, patch) => {
     expect(createMediaAssetInput({ ...base, ...patch })).toBeNull();
+  });
+});
+
+describe('the command of a captured photo (EVM-108 AC1; security 15)', () => {
+  const photo = { assetId: ASSET, workOrderId: WO, category: 'defect' as const, capturedAt: '2026-11-15T08:00:00.000Z' };
+
+  it('EVM-108 AC1: the payload is built explicitly with EXACTLY the keys id, workOrderId, mediaType, category, capturedAt', () => {
+    const input = createCapturedPhotoInput(photo);
+    expect(input).toEqual({
+      type: 'CreateMediaAsset',
+      commandVersion: MEDIA_COMMAND_VERSION,
+      payload: { id: ASSET, workOrderId: WO, mediaType: 'photo', category: 'defect', capturedAt: '2026-11-15T08:00:00.000Z' },
+    });
+    expect(Object.keys(input?.payload ?? {}).sort()).toEqual(['capturedAt', 'category', 'id', 'mediaType', 'workOrderId']);
+  });
+
+  it('EVM-108 AC1: extra fields of the argument (a description, a stage, a customer) never reach the payload', () => {
+    const input = createCapturedPhotoInput({
+      ...photo,
+      description: 'SYNTHETIC-DESCRIPTION',
+      procedureStageId: WO,
+      customerName: 'SYNTHETIC-CUSTOMER',
+    } as never);
+    expect(Object.keys(input?.payload ?? {}).sort()).toEqual(['capturedAt', 'category', 'id', 'mediaType', 'workOrderId']);
+    expect(JSON.stringify(input)).not.toContain('SYNTHETIC');
+  });
+
+  it('EVM-108 AC1: a bad id, a category outside the list or a time that is not an ISO instant is refused', () => {
+    expect(createCapturedPhotoInput({ ...photo, assetId: '10000000-0000-4000-8000-000000000001' })).toBeNull();
+    expect(createCapturedPhotoInput({ ...photo, workOrderId: 'x' })).toBeNull();
+    expect(createCapturedPhotoInput({ ...photo, category: 'holiday' as never })).toBeNull();
+    for (const capturedAt of ['yesterday', '2026-11-15', '2026-11-15T08:00:00+01:00', '2026-13-45T08:00:00.000Z', '']) {
+      expect(createCapturedPhotoInput({ ...photo, capturedAt })).toBeNull();
+    }
   });
 });
