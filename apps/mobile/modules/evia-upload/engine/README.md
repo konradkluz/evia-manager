@@ -74,7 +74,7 @@ Zmiana wersji dowolnej zależności (też wymuszonej w `resolutionStrategy`) prz
 3. Przejrzyj diff `gradle/verification-metadata.xml`: zmieniają się tylko sumy zmienionych komponentów, zero `<trust>` i wersji dynamicznych. Dla nowych artefaktów porównaj SHA-256 z `.sha256` opublikowanym w Maven Central (gdy brak: `.sha512` albo `.sha1` policzone z pobranego pliku).
 4. Wrapper: nowa wersja Gradle wymaga sum z gradle.org/release-checksums w `OFFICIAL_GRADLE_CHECKSUMS` (`tools/repo-policy/src/kotlin.ts`), `distributionSha256Sum` i `gradle-wrapper.jar` zgodnych z oficjalnymi; `tools/repo-policy` czerwieni się przy rozbieżności.
 5. Sprawdź w OSV wszystkie komponenty z nowego pliku sum (POST `https://api.osv.dev/v1/querybatch`, ekosystem `Maven`, nazwa `group:artifact`, wersja; wysyłamy wyłącznie nazwy i wersje) i zaktualizuj kolumny „Data wydania” oraz „Znane CVE” w tabeli powyżej z datą sprawdzenia.
-6. `pnpm run gate:kotlin` i testy `tools/repo-policy` muszą być zielone.
+6. `pnpm run gate:kotlin` i testy `tools/repo-policy` muszą być zielone. Ostatni przebieg `gate:kotlin` zrób na pustym katalogu domowym Gradle (`GRADLE_USER_HOME` na nowy katalog w `.scratch/`) i po usunięciu `engine/build` oraz `engine/.gradle`: rozgrzany katalog i aktualne wyniki zadań ukrywają brakujące sumy (np. plików `.pom`), a CI zaczyna od zera. Do wykrycia braków służy `--write-verification-metadata sha256 --dry-run` (zapisuje `verification-metadata.dryrun.xml`; plik usuń).
 
 ## Porty dla kleju Androida (etap A2)
 Klej Androida nie ma logiki decyzyjnej: tworzy obiekty z tych portów i wywołuje `UploadJobRunner`, `WipeChain`, `SchedulePolicy`. Wszystkie interfejsy są w silniku (pakiet bazowy `pl.eviacharge.upload`).
