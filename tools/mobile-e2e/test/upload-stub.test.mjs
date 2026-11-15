@@ -503,6 +503,21 @@ describe('upload scenario server: the run of the app (EVM-130 stage C, AC1, AC4,
         400,
       );
       assert.equal((await create({ file: 'text' })).status, 400);
+      // the contract's allow-list: the type, a name that matches it and is no path, the size range, the digest
+      const ok = sha(Buffer.alloc(1500));
+      for (const [file, pointer] of /** @type {const} */ ([
+        [{ fileName: 'a.jpg', declaredSize: 1500, contentType: 'image/svg+xml', sha256: ok }, '/file/contentType'],
+        [{ fileName: 'a.mp4', declaredSize: 1500, contentType: 'image/jpeg', sha256: ok }, '/file/fileName'],
+        [{ fileName: '../a.jpg', declaredSize: 1500, contentType: 'image/jpeg', sha256: ok }, '/file/fileName'],
+        [{ fileName: 'Jan Kowalski.jpg', declaredSize: 1500, contentType: 'image/jpeg', sha256: ok }, '/file/fileName'],
+        [{ fileName: 'a.jpg', declaredSize: 0, contentType: 'image/jpeg', sha256: ok }, '/file/declaredSize'],
+        [{ fileName: 'a.jpg', declaredSize: 4_294_967_297, contentType: 'image/jpeg', sha256: ok }, '/file/declaredSize'],
+        [{ fileName: 'a.jpg', declaredSize: 1500, contentType: 'image/jpeg', sha256: ok.toUpperCase() }, '/file/sha256'],
+      ])) {
+        const answer = await create({ file });
+        assert.equal(answer.status, 400);
+        assert.equal(answer.json.errors[0].pointer, pointer);
+      }
       const created = await create(declaration(2500));
       assert.equal(created.status, 201);
       assert.equal(created.json.partCount, 3);
@@ -524,18 +539,21 @@ describe('upload scenario server: the run of the app (EVM-130 stage C, AC1, AC4,
     }
   });
 
-  it('EVM-130 AC1: an app that does not declare the file gets the default size of the scenario (control port), and the checkpoint shows the parts of the open session', async () => {
+  it('EVM-131 AC1: a medium WITHOUT a file needs the declaration `file` (400 without it, like the contract); with it the session opens, and the checkpoint shows the parts of the open session', async () => {
     const { stub, control, create, put, checkpoint } = await bare();
     try {
-      assert.equal((await control('/control/default-size', { bytes: 2200 })).json.defaultSize, 2200);
-      assert.equal((await create()).json.partCount, 3);
+      const refused = await create();
+      assert.equal(refused.status, 400);
+      assert.deepEqual(refused.json.errors, [{ pointer: '/file', code: 'required' }]);
+      assert.equal((await create({})).status, 400);
+      // the default size of the scenario no longer exists: the phone declares the size itself
+      assert.equal((await control('/control/default-size', { bytes: 2200 })).status, 404);
+      assert.equal((await create(declaration(2200))).json.partCount, 3);
       assert.equal((await put(1, Buffer.alloc(1000))).status, 200);
       const point = await checkpoint();
       assert.equal(point.assets[ASSET].activeParts, 1);
       assert.equal(point.assets[ASSET].objects, 0);
-      assert.equal(point.settings.defaultSize, 2200);
-      assert.equal((await control('/control/default-size', { bytes: 0 })).status, 400);
-      assert.equal((await control('/control/default-size', { bytes: 'x' })).status, 400);
+      assert.equal('defaultSize' in point.settings, false);
     } finally {
       await stub.close();
     }
@@ -544,8 +562,7 @@ describe('upload scenario server: the run of the app (EVM-130 stage C, AC1, AC4,
   it('EVM-130 AC1: a part sent again after an interruption is counted as replaced; the delay holds the answer, not the part', async () => {
     const { stub, control, create, put, checkpoint, api } = await bare();
     try {
-      await control('/control/default-size', { bytes: 1500 });
-      await create();
+      await create(declaration(1500));
       assert.equal((await control('/control/part-delay', { ms: 120 })).json.partDelayMs, 120);
       const started = Date.now();
       assert.equal((await put(1, Buffer.alloc(1000))).status, 200);
@@ -585,9 +602,8 @@ describe('upload scenario server: the run of the app (EVM-130 stage C, AC1, AC4,
     ]) {
       const { stub, control, create, put, api, states } = await bare();
       try {
-        await control('/control/default-size', { bytes: 1000 });
         assert.equal((await control('/control/verdict', { verdict })).json.verdict, verdict);
-        await create();
+        await create(declaration(1000));
         await put(1, Buffer.alloc(1000));
         const done = await api('/complete', 'POST');
         assert.equal(done.json.fileState, state);
@@ -605,10 +621,9 @@ describe('upload scenario server: the run of the app (EVM-130 stage C, AC1, AC4,
   it('EVM-130 AC4: a state set by the host reaches the replica; reset brings back the defaults of the scenario', async () => {
     const { stub, control, create, put, api, states, checkpoint } = await bare();
     try {
-      await control('/control/default-size', { bytes: 1000 });
       await control('/control/part-delay', { ms: 5 });
       await control('/control/verdict', { verdict: 'clean' });
-      await create();
+      await create(declaration(1000));
       await put(1, Buffer.alloc(1000));
       await api('/complete', 'POST');
       await control('/control/file-state', { assetId: ASSET, state: 'failed' });
@@ -617,7 +632,7 @@ describe('upload scenario server: the run of the app (EVM-130 stage C, AC1, AC4,
         ['clean', 'failed'],
       );
       await control('/control/reset', {});
-      assert.deepEqual((await checkpoint()).settings, { active: false, defaultSize: 8 * 1024 * 1024, partDelayMs: 0, verdict: null });
+      assert.deepEqual((await checkpoint()).settings, { active: false, partDelayMs: 0, verdict: null });
     } finally {
       await stub.close();
     }

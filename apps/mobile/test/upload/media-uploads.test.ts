@@ -248,7 +248,8 @@ describe('adding a file and arming it after applied (EVM-130 AC1; architect 7)',
     r.native.armed.length = 0;
     await apply(r, 1);
     await r.uploads.reconcile();
-    expect(r.native.armed).toEqual([{ assetId: asset(1), workOrderId: WO, userId: USER, deviceId: DEVICE }]);
+    // EVM-131: the MIME type of the row goes to the module, which declares it in the upload session
+    expect(r.native.armed).toEqual([{ assetId: asset(1), workOrderId: WO, userId: USER, deviceId: DEVICE, contentType: 'image/jpeg' }]);
     expect(r.native.wifi).toEqual([false]);
     // the process was killed and starts again: a new service over the same database arms the same file again
     const restarted = r.setup();

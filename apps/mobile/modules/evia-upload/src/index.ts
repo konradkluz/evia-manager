@@ -44,7 +44,15 @@ export interface SessionStateResult {
 
 /** The answer of arming a file; `armed_user_initiated` and `armed` are both "the system has the job". */
 export type ArmResultName =
-  'armed_user_initiated' | 'armed' | 'already_armed' | 'missing_original' | 'invalid' | 'wipe_active' | 'failed' | Availability;
+  | 'armed_user_initiated'
+  | 'armed'
+  | 'already_armed'
+  | 'missing_original'
+  | 'invalid'
+  | 'wipe_active'
+  | 'failed'
+  | UploadUnavailable
+  | Availability;
 
 /** What the app shows for a file on the native side. */
 export type UploadFileState = 'queued' | 'uploading' | 'uploaded' | 'paused_revoked';
@@ -59,12 +67,17 @@ export interface UploadStatus {
   readonly sizeBytes: number;
 }
 
-/** One file of the queue of the app that must have a job (`reconcile`). All values are identifiers (UUIDs). */
+/**
+ * One file of the queue of the app that must have a job (`reconcile`). The ids are UUIDs. `contentType` is the MIME type of the file
+ * (`image/jpeg`, `video/mp4`, ...; the allow-list of the contract): the module declares it - with the size and the SHA-256 it computes
+ * itself - when it opens the upload session (EVM-131), and refuses (`invalid`) a type outside the list.
+ */
 export interface UploadItem {
   readonly assetId: string;
   readonly workOrderId: string;
   readonly userId: string;
   readonly deviceId: string;
+  readonly contentType: string;
 }
 
 export interface OriginalDigest {
@@ -159,7 +172,14 @@ export interface EviaUploadModule {
   // files and jobs
   originalPath(assetId: string): Promise<string | null>;
   digestOriginal(assetId: string): Promise<OriginalDigest | null>;
-  armUpload(assetId: string, workOrderId: string, userId: string, deviceId: string, wifiOnly: boolean): Promise<ArmResultName>;
+  armUpload(
+    assetId: string,
+    workOrderId: string,
+    userId: string,
+    deviceId: string,
+    wifiOnly: boolean,
+    contentType: string | null,
+  ): Promise<ArmResultName>;
   reconcile(items: readonly UploadItem[], wifiOnly: boolean): Promise<Readonly<Record<string, ArmResultName>>>;
   retryUpload(assetId: string, wifiOnly: boolean): Promise<ArmResultName>;
   cancelUpload(assetId: string, deleteOriginal: boolean): Promise<boolean>;

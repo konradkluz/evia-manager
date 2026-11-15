@@ -241,7 +241,14 @@ export class MediaUploads implements MediaControl {
     const applied = (await store.media.list()).filter((file) => file.state === 'applied');
     if (applied.length === 0) return;
     const results = await this.#deps.native.reconcile(
-      applied.map((file) => ({ assetId: file.assetId, workOrderId: file.workOrderId, userId: store.userId, deviceId: identity.deviceId })),
+      applied.map((file) => ({
+        assetId: file.assetId,
+        workOrderId: file.workOrderId,
+        userId: store.userId,
+        deviceId: identity.deviceId,
+        // the module declares the type in the upload session (EVM-131); the size and the SHA-256 it computes itself
+        contentType: file.mime,
+      })),
       this.#deps.wifiOnly?.() ?? false,
     );
     const at = this.#deps.now();

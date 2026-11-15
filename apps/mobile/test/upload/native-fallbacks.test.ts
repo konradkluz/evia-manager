@@ -70,7 +70,7 @@ describe('without the native module (EVM-130 AC3; fail closed)', () => {
     expect(await session.accessToken(null)).toMatchObject({ status: 'ready' });
     expect(await session.sessionState()).toEqual({ state: 'signed_in', ownerId: 'u:d' });
     const upload = nativeUploadOf(module);
-    const item = { assetId: 'a', workOrderId: 'w', userId: 'u', deviceId: 'd' };
+    const item = { assetId: 'a', workOrderId: 'w', userId: 'u', deviceId: 'd', contentType: 'image/jpeg' };
     expect(await upload.reconcile([item], false)).toEqual({ a: 'upload_unavailable' });
     expect(await upload.retryUpload('a', false)).toBe('upload_unavailable');
     expect(await upload.uploadStatuses()).toEqual([]);

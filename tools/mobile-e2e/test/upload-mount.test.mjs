@@ -86,7 +86,11 @@ describe('upload part mounted on the scenario server (EVM-130 stage C, AC1, AC4,
       const created = await call(stub.port, sessions, {
         method: 'POST',
         headers: { ...auth, 'Idempotency-Key': KEY },
-        body: { id: SESSION },
+        // EVM-131: the medium of the command has no file yet, so the session declares it (the contract refuses a session without `file`)
+        body: {
+          id: SESSION,
+          file: { fileName: `${ASSET}.jpg`, declaredSize: 18 * 1024 * 1024, contentType: 'image/jpeg', sha256: 'ab'.repeat(32) },
+        },
       });
       assert.equal(created.status, 201);
       assert.equal(created.json.partCount, 5);

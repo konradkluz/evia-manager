@@ -12,8 +12,8 @@
  *
  * EVM-130 stage C: the same instance is MOUNTED on the scenario server of the run (stub-api.mjs): the part addresses then carry the port of the
  * scenario server, the sign-in of the run is served here while `active` is on (the tokens the upload operations check are the ones issued here),
- * and the asset is registered by the `applied` of the command `CreateMediaAsset` (the size comes from the declaration `file` of the session, or
- * from `defaultSize` while the app does not declare it). The host steers the run through the control port: a delay of the answer to every part
+ * and the asset is registered by the `applied` of the command `CreateMediaAsset` (the size comes from the declaration `file` of the session: like the
+ * contract, a medium WITHOUT a file needs it - `400 validation_failed` without it - and a medium with a file takes only the identical one). The host steers the run through the control port: a delay of the answer to every part
  * (a window to interrupt the app), a verdict of `complete` (`clean`, `quarantined`, `checksum_mismatch`), faults, the expiry of the access token.
  */
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
@@ -57,8 +57,16 @@ export const DEFAULT_PART_SIZE = 8 * 1024 * 1024;
 export const TOLERANCE_MS = 30_000;
 export const SIGNED_URL_TTL_S = 3600;
 export const MAX_PART_SESSIONS = 1000;
-/** The size of a file that the app did not declare (the flows inject exactly this much unless the scenario sets another). */
-export const DEFAULT_DECLARED_SIZE = 8 * 1024 * 1024;
+/** The types of the allow-list of the contract and the extension of the name that belongs to each (`UploadFileDeclaration`, server `file-rules.ts`). */
+const TYPE_EXTENSIONS = new Map([
+  ['image/jpeg', ['jpg', 'jpeg']],
+  ['image/png', ['png']],
+  ['image/webp', ['webp']],
+  ['image/heic', ['heic', 'heif']],
+  ['video/mp4', ['mp4']],
+  ['video/quicktime', ['mov']],
+]);
+const MAX_DECLARED_BYTES = 4_294_967_296;
 const MAX_DELAY_MS = 60_000;
 const VERDICTS = new Set(['clean', 'quarantined', 'checksum_mismatch']);
 const AUTH_PATHS = new Set([
@@ -77,6 +85,26 @@ const SESSIONS_PATH =
   /^\/api\/v1\/work-orders\/([^/]+)\/media-assets\/([^/]+)\/upload-sessions(?:\/([^/]+)(?:\/(parts|complete|abort)(?:\/(\d+)\/url)?)?)?$/;
 const PART_PATH = /^\/storage\/([^/]+)\/(\d+)$/;
 const SHA256 = /^[a-f0-9]{64}$/;
+
+/**
+ * The first field of the declaration `file` that the contract would refuse, or `null` (type from the allow-list, a name whose extension matches the type
+ * and that is not a path, 1 byte to 4 GiB, a lower-case hex SHA-256).
+ * @param {unknown} value
+ * @returns {string | null}
+ */
+function declarationIssue(value) {
+  if (typeof value !== 'object' || value === null) return 'fileName';
+  const { fileName, declaredSize, contentType, sha256 } = /** @type {Record<string, unknown>} */ (value);
+  const extensions = typeof contentType === 'string' ? TYPE_EXTENSIONS.get(contentType) : undefined;
+  if (extensions === undefined) return 'contentType';
+  const extension =
+    typeof fileName === 'string' && /^[A-Za-z0-9-]{1,64}\.[a-z0-9]{1,5}$/.test(fileName) ? fileName.split('.').pop() : undefined;
+  if (extension === undefined || !extensions.includes(extension)) return 'fileName';
+  if (typeof declaredSize !== 'number' || !Number.isInteger(declaredSize) || declaredSize < 1 || declaredSize > MAX_DECLARED_BYTES)
+    return 'declaredSize';
+  if (typeof sha256 !== 'string' || !SHA256.test(sha256)) return 'sha256';
+  return null;
+}
 
 /**
  * @param {number} status
@@ -133,8 +161,7 @@ export function createUploadStub({
     unauthorized: 0,
   };
   let issued = 0;
-  /** the size of a file the app did not declare, the delay of the answer to a part, the verdict of `complete`, the sign-in of the run */
-  let defaultSize = DEFAULT_DECLARED_SIZE;
+  /** the delay of the answer to a part, the verdict of `complete`, the sign-in of the run */
   let partDelayMs = 0;
   /** @type {Verdict | null} */
   let verdict = null;
@@ -363,20 +390,21 @@ export function createUploadStub({
       if (existing.assetId === assetId && existing.state === 'active') return json(200, sessionBody(existing));
     }
     if (asset.state !== 'pending_upload' && asset.state !== 'failed') return problem(409, 'invalid_state_transition');
-    // EVM-131: the file is declared in the session (size, digest); an app that does not declare it gets the size of the scenario
+    // EVM-131 (contract `CreateUploadSessionRequest`): a medium WITHOUT a file declares it here (required, `400` without it); a medium that has one takes
+    // only the identical declaration (a repeat after a lost answer) - another one never replaces it
     const declaration = fields['file'];
-    if (declaration !== undefined) {
-      if (typeof declaration !== 'object' || declaration === null) return problem(400, 'validation_failed');
-      const { declaredSize, sha256 } = /** @type {Record<string, unknown>} */ (declaration);
-      if (typeof declaredSize !== 'number' || !Number.isInteger(declaredSize) || declaredSize < 1) return problem(400, 'validation_failed');
-      if (typeof sha256 !== 'string' || !SHA256.test(sha256)) return problem(400, 'validation_failed');
+    if (declaration === undefined) {
+      if (asset.declaredSize === null) return problem(400, 'validation_failed', undefined, [{ pointer: '/file', code: 'required' }]);
+    } else {
+      const issue = declarationIssue(declaration);
+      if (issue !== null) return problem(400, 'validation_failed', undefined, [{ pointer: `/file/${issue}`, code: 'invalid' }]);
+      const { declaredSize, sha256 } = /** @type {{ declaredSize: number, sha256: string }} */ (declaration);
       if (asset.declaredSize !== null && (asset.declaredSize !== declaredSize || (asset.declaredSha256 ?? sha256) !== sha256))
-        return problem(400, 'validation_failed');
+        return problem(400, 'validation_failed', undefined, [{ pointer: '/file', code: 'not_allowed' }]);
       asset.declaredSize = declaredSize;
       asset.declaredSha256 = sha256;
     }
-    asset.declaredSize ??= defaultSize;
-    const partCount = Math.max(1, Math.ceil(asset.declaredSize / partSize));
+    const partCount = Math.max(1, Math.ceil(/** @type {number} */ (asset.declaredSize) / partSize));
     if (partCount > MAX_PART_SESSIONS) return problem(400, 'validation_failed');
     /** @type {Session} */
     const session = {
@@ -605,7 +633,7 @@ export function createUploadStub({
       orphanedMultiparts,
       openMultiparts,
       counters: { ...counters },
-      settings: { active, defaultSize, partDelayMs, verdict },
+      settings: { active, partDelayMs, verdict },
     };
   }
 
@@ -652,12 +680,6 @@ export function createUploadStub({
       active = fields['active'];
       return json(200, { active });
     }
-    if (path === '/control/default-size') {
-      const { bytes } = fields;
-      if (typeof bytes !== 'number' || !Number.isInteger(bytes) || bytes < 1) return problem(400, 'validation_failed');
-      defaultSize = bytes;
-      return json(200, { defaultSize });
-    }
     if (path === '/control/part-delay') {
       const { ms } = fields;
       if (typeof ms !== 'number' || !Number.isInteger(ms) || ms < 0 || ms > MAX_DELAY_MS) return problem(400, 'validation_failed');
@@ -699,7 +721,6 @@ export function createUploadStub({
       faults.clear();
       family = null;
       issued = 0;
-      defaultSize = DEFAULT_DECLARED_SIZE;
       partDelayMs = 0;
       verdict = null;
       for (const key of /** @type {(keyof typeof counters)[]} */ (Object.keys(counters))) counters[key] = 0;
