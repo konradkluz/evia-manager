@@ -50,18 +50,21 @@ export async function startStubInWorker(port, workerUrl = new URL('./stub-worker
     drain();
     port1.close();
   });
-  /** @type {Promise<number>} */
+  /** @type {Promise<{ port: number, uploadControlPort?: number }>} */
   const listening = new Promise((resolve, reject) => {
-    worker.once('message', (/** @type {{ port: number }} */ message) => {
-      resolve(message.port);
+    worker.once('message', (/** @type {{ port: number, uploadControlPort?: number }} */ message) => {
+      resolve(message);
     });
     worker.once('error', reject);
     worker.once('exit', () => {
       reject(new Error('stub worker exited'));
     });
   });
+  const { port: listeningPort, uploadControlPort } = await listening;
   return {
-    port: await listening,
+    port: listeningPort,
+    // EVM-130: the control port of the upload part of the server (host only, loopback); absent when the worker has none
+    ...(uploadControlPort === undefined ? {} : { uploadControlPort }),
     setMode: (mode, auth = 'ok') => {
       worker.postMessage({ mode, auth });
     },

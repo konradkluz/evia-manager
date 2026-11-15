@@ -205,3 +205,29 @@ describe('wiring of the smoke test to the machine (EVM-009 AC4)', () => {
     }
   });
 });
+
+describe('control port of the upload part through the worker (EVM-130 AC8)', () => {
+  it('EVM-130 AC8: the worker reports the control port of the upload part, the host reads the checkpoint over HTTP while the runner thread is free', async () => {
+    const stub = await startStubInWorker(0);
+    try {
+      assert.ok((stub.uploadControlPort ?? 0) > 0);
+      const answer = await fetch(`http://127.0.0.1:${String(stub.uploadControlPort)}/control/checkpoint`);
+      assert.equal(answer.status, 200);
+      assert.deepEqual(Object.keys(/** @type {object} */ (await answer.json())).sort(), [
+        'assets',
+        'counters',
+        'openMultiparts',
+        'orphanedMultiparts',
+        'settings',
+      ]);
+    } finally {
+      await stub.close();
+    }
+  });
+
+  it('EVM-130 AC8: a worker that reports only a port (older fixture) has no control port', async () => {
+    const stub = await startStubInWorker(0, new URL('./fixtures/exit-after-port.mjs', import.meta.url));
+    assert.equal(stub.uploadControlPort, undefined);
+    await stub.close();
+  });
+});

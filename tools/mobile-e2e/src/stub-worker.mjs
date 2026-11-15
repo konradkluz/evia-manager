@@ -42,4 +42,4 @@ parent.on(
     }
   },
 );
-parent.postMessage({ port: stub.port });
+parent.postMessage({ port: stub.port, uploadControlPort: stub.uploadControlPort });

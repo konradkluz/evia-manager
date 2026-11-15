@@ -8,7 +8,9 @@
  * (api-guidelines → "Minimalna wersja aplikacji"), no addresses and no bodies; the tokens it hands out are fixed test words (gitleaks).
  */
 import { createServer } from 'node:http';
+import { createMediaGlue } from './media-replica.mjs';
 import { createSyncStub } from './sync-stub.mjs';
+import { closeServers, createControlServer, createUploadStub, listenOnLoopback, portOf } from './upload-stub.mjs';
 
 /** @typedef {'ok' | 'update' | 'down' | 'hang'} StubMode */
 /**
@@ -115,19 +117,34 @@ const AUTH_PATHS = [
 ];
 
 /**
- * @param {{ port?: number, onRequest?: (request: RecordedRequest) => void, onSync?: (report: import('./sync-stub.mjs').SyncReport) => void }} [options] port 0 = a free port; onRequest sees every recorded request
- * @returns {Promise<{ port: number, setMode: (mode: StubMode, auth?: AuthMode) => void, setSyncModes: (modes: Partial<import('./sync-stub.mjs').SyncModes>) => void, requests: () => RecordedRequest[], syncReport: () => import('./sync-stub.mjs').SyncReport, syncReset: () => void, close: () => Promise<void> }>}
+ * @param {{ port?: number, uploadControlPort?: number, onRequest?: (request: RecordedRequest) => void, onSync?: (report: import('./sync-stub.mjs').SyncReport) => void }} [options] port 0 = a free port; uploadControlPort 0 = a free port of the control listener of the upload part; onRequest sees every recorded request
+ * @returns {Promise<{ port: number, uploadControlPort?: number, setMode: (mode: StubMode, auth?: AuthMode) => void, setSyncModes: (modes: Partial<import('./sync-stub.mjs').SyncModes>) => void, requests: () => RecordedRequest[], syncReport: () => import('./sync-stub.mjs').SyncReport, syncReset: () => void, close: () => Promise<void> }>}
  */
-export async function startStubApi({ port = 0, onRequest, onSync } = {}) {
+export async function startStubApi({ port = 0, uploadControlPort = 0, onRequest, onSync } = {}) {
+  // EVM-130: the upload part (the five operations of the session, the parts, the sign-in while the host has it on) is served on the same port,
+  // because the app knows one address; the host steers it through its own control port (loopback only). The glue lets `applied` of the command
+  // `CreateMediaAsset` register the asset there and every change of its file state reach the replica of the phone.
+  /** @type {ReturnType<typeof createMediaGlue> | undefined} */
+  let media;
+  const upload = createUploadStub({
+    onAssetState: (assetId, state, reason) => {
+      media?.fileStateChanged(assetId, state, reason);
+    },
+  });
   /** @type {StubMode} */
   let mode = 'ok';
   /** @type {AuthMode} */
   let auth = 'ok';
   let issued = 0;
   const sync = createSyncStub();
+  media = createMediaGlue(upload, sync);
   /** @type {RecordedRequest[]} */
   const recorded = [];
   const server = createServer((request, response) => {
+    if (upload.claims(request.method, new URL(request.url ?? '/', 'http://stub.local').pathname)) {
+      upload.handleApp(request, response);
+      return;
+    }
     const isHealth = request.method === 'GET' && request.url === '/api/health';
     const isAuth = request.method === 'POST' && AUTH_PATHS.includes(request.url ?? '');
     const target = new URL(request.url ?? '/', 'http://stub.local');
@@ -158,6 +175,7 @@ export async function startStubApi({ port = 0, onRequest, onSync } = {}) {
             : bytes > MAX_SYNC_BODY
               ? problem(413, 'payload_too_large')
               : (sync.handle(request.method ?? 'GET', target.pathname, target.searchParams, parsed, bearer) ?? problem(404, 'not_found'));
+        if (target.pathname === '/api/v1/sync/mutations') media.mutationsAnswered(parsed, answer.body);
         response.writeHead(answer.status, { 'Content-Type': answer.type, 'Cache-Control': 'no-store' });
         response.end(JSON.stringify(answer.body));
         onSync?.(sync.report());
@@ -211,8 +229,12 @@ export async function startStubApi({ port = 0, onRequest, onSync } = {}) {
   });
   const address = server.address();
   if (address === null || typeof address === 'string') throw new Error('the scenario server has no TCP address');
+  upload.setPort(address.port);
+  const controlServer = createControlServer(upload);
+  await listenOnLoopback(controlServer, uploadControlPort);
   return {
     port: address.port,
+    uploadControlPort: portOf(controlServer),
     setMode: (next, nextAuth = 'ok') => {
       mode = next;
       auth = nextAuth;
@@ -227,12 +249,14 @@ export async function startStubApi({ port = 0, onRequest, onSync } = {}) {
     syncReset: () => {
       sync.reset();
     },
-    close: () =>
-      new Promise((resolve) => {
+    close: async () => {
+      await closeServers([controlServer]);
+      await new Promise((resolve) => {
         server.close(() => {
-          resolve();
+          resolve(undefined);
         });
         server.closeAllConnections();
-      }),
+      });
+    },
   };
 }
