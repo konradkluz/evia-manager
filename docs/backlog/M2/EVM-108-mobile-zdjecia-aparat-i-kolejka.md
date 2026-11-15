@@ -148,3 +148,4 @@ EVM-108 pokazuje w Kolejce **minimum**: wiersz pliku, 4 etykiety stanu, licznik,
 - 2026-11-15 — etap 2b (ekran aparatu, zgoda, błędy i brak miejsca) zrealizowany (mobile-developer)
 - 2026-11-15 — etap 3 (AC5–AC6: wejścia do aparatu, tryb ukrytych danych, pliki w Kolejce) zrealizowany (mobile-developer)
 - 2026-11-15 — makieta 09 i changelog styleguide'u poprawione (ux-designer)
+- 2026-11-15 — etap 4 (AC7, hak e2e przez ścieżkę aparatu, przepływy Maestro 80–89, dokumenty) zrealizowany (mobile-developer)
