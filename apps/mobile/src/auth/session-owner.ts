@@ -198,6 +198,12 @@ export class MobileSessionOwner implements SessionOwner {
         this.#deps.wipe.wipeRequired();
         return { kind: 'signed_out' };
       }
+      if (meta?.ending === true) {
+        // the user confirmed the sign-out before the process died: finish it (native side, replica, record)
+        await this.#endOrphan(`${meta.userId}:`);
+        await this.#clearSession();
+        return { kind: 'signed_out' };
+      }
       if (meta === null || !live || (state.ownerId !== null && !state.ownerId.startsWith(`${meta.userId}:`))) {
         if (state.state === 'signed_in' || state.state === 'paused_revoked' || state.state === 'paused_update') {
           await this.#endOrphan(state.ownerId);
@@ -556,6 +562,10 @@ export class MobileSessionOwner implements SessionOwner {
   signOut({ online }: { readonly online: boolean }): Promise<SessionEnded> {
     return this.#exclusive(async () => {
       this.#stopListeners();
+      // the confirmation is stored first: a death after the module signed out must still end with the replica removed
+      if (this.#meta !== null) {
+        await this.#deps.tokens.set('sessionMeta', JSON.stringify({ ...this.#meta, ending: true })).catch(() => undefined);
+      }
       // without a session there is nothing to sign out of (and nothing is asked)
       const nativeDone = this.#userId === null ? Promise.resolve(false) : this.#call(() => this.#deps.native.signOut(online), false);
       const store = this.#store;

@@ -222,6 +222,36 @@ describe('sign-in commit (EVM-100 AC1; EVM-130 AC3; architect 1, security A2)', 
     expect(natives()).toContain('signOut:offline');
     expect(phone.replica).toBe(false);
   });
+
+  it('EVM-130 AC3: the process died after the native sign-out, before the replica was removed — the next start finishes the sign-out (replica removed)', async () => {
+    await signedIn(phone);
+    const rig = start(phone);
+    await rig.owner.restore();
+    phone.replica = true;
+    // the sign-out was confirmed (the marker is stored first), the module signed out, the process died before `endSession`
+    const stored = JSON.parse(phone.slots.get('sessionMeta') ?? '{}') as Record<string, unknown>;
+    phone.slots.set('sessionMeta', JSON.stringify({ ...stored, ending: true }));
+    phone.native.session = { state: 'signed_out', ownerId: null };
+    expect(await start(phone).owner.restore()).toEqual({ kind: 'signed_out' });
+    expect(phone.replica).toBe(false);
+    expect(phone.slots.has('sessionMeta')).toBe(false);
+  });
+
+  it('EVM-130 AC3: the sign-out stores its confirmation before the module is asked', async () => {
+    await signedIn(phone);
+    const rig = start(phone);
+    await rig.owner.restore();
+    phone.native.calls.length = 0;
+    let markerAtSignOut: unknown;
+    const original = rig.native.signOut.bind(rig.native);
+    rig.native.signOut = (online) => {
+      markerAtSignOut = (JSON.parse(phone.slots.get('sessionMeta') ?? '{}') as Record<string, unknown>)['ending'];
+      return original(online);
+    };
+    await rig.owner.signOut({ online: false });
+    expect(markerAtSignOut).toBe(true);
+    expect(phone.slots.has('sessionMeta')).toBe(false);
+  });
 });
 
 describe('a session of step 2 that is not kept is ended (EVM-100 AC1; code review: device limit, RR-72)', () => {
@@ -700,7 +730,7 @@ describe('sign-out through the module (EVM-100 AC7; EVM-130 AC2, AC5)', () => {
     const events = ended(rig);
     const before = phone.log.length;
     expect(await rig.owner.signOut({ online: true })).toEqual({ reason: 'signed_out', unsentItems: 2 });
-    expect(phone.log.slice(before)).toEqual(['native.signOut:online', 'endSession', 'delete:sessionMeta']);
+    expect(phone.log.slice(before)).toEqual(['set:sessionMeta', 'native.signOut:online', 'endSession', 'delete:sessionMeta']);
     expect(events).toEqual([{ reason: 'signed_out', unsentItems: 2 }]);
     expect(phone.replica).toBe(false);
     expect(phone.queue).toBe(2);
