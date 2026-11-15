@@ -3,7 +3,8 @@
  * a photo or a video is a queue entry like a note; the FILE is declared later, in the upload session, after the server applied the
  * command. Only the payload is built here (minimal; the camera and the forms are EVM-108/110) — the description may hold personal data,
  * so it never goes to a log, a notification or a diagnostic. Ids are UUIDv7 made on the phone (the `assetId` is also the name of the file
- * in the private directory of the native module).
+ * in the private directory of the native module). The queue of the sync core accepts the type `CreateMediaAsset` together with its schema of
+ * the contract (the EVM-131 branch adds both); until then `enqueue` answers `invalid_input` and the file simply is not registered.
  */
 import type { EnqueueInput } from '@evia/sync-core';
 
