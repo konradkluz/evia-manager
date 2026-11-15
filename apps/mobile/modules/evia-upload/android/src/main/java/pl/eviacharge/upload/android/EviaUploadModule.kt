@@ -71,6 +71,9 @@ class EviaUploadModule : Module() {
       "sizeBytes" to sizeBytes.toDouble(),
     )
 
+  /** The target of the notification that arrived with `onNewIntent` (read once by `launchTarget`). */
+  @Volatile private var newIntentTarget: String? = null
+
   override fun definition() = ModuleDefinition {
     Name("EviaUpload")
 
@@ -94,6 +97,18 @@ class EviaUploadModule : Module() {
 
     OnActivityEntersBackground {
       runtime()?.appVisible = false
+    }
+
+    // a touch of the notification while the app runs (warm start, `singleTask`): the activity gets `onNewIntent`, its `getIntent()`
+    // keeps the intent of the first start; the allowed value is kept here until `launchTarget` reads it once
+    OnNewIntent { intent ->
+      try {
+        val target = intent.getStringExtra(UploadNotifications.EXTRA_TARGET)
+        intent.removeExtra(UploadNotifications.EXTRA_TARGET)
+        newIntentTarget = target?.takeIf { it in UploadNotifications.TARGETS }
+      } catch (error: Throwable) {
+        newIntentTarget = null
+      }
     }
 
     // ---- session: the tokens go in, only the access token comes out ----
@@ -370,10 +385,12 @@ class EviaUploadModule : Module() {
      */
     Function("launchTarget") {
       try {
+        val fromNewIntent = newIntentTarget
+        newIntentTarget = null
         val intent = appContext.currentActivity?.intent
         val target = intent?.getStringExtra(UploadNotifications.EXTRA_TARGET)
         intent?.removeExtra(UploadNotifications.EXTRA_TARGET)
-        target?.takeIf { it in UploadNotifications.TARGETS }
+        (fromNewIntent ?: target)?.takeIf { it in UploadNotifications.TARGETS }
       } catch (error: Throwable) {
         null
       }

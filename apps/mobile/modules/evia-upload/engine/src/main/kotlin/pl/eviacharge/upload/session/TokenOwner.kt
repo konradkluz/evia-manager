@@ -20,7 +20,16 @@ data class StoredSession(
 data class TokenRecord(
     val session: StoredSession?,
     val pendingRevocations: List<String>,
+    /** How the last session ended without a sign-out of the user (no tokens): the state survives the death of the process. */
+    val ended: EndedBy? = null,
 )
+
+/**
+ * A session that the server ended: `REVOKED` (`session_revoked`: the replica is removed by the app) or `WIPE` (`device_wipe_required`: the
+ * company data are wiped). Kept until a new sign-in or the finished wipe, so a job that met the order in a process without JavaScript
+ * does not lose it (EVM-130 AC5, SR-MOB-04).
+ */
+enum class EndedBy { REVOKED, WIPE }
 
 sealed interface VaultRead {
     /** No file: the app was never signed in (or the wipe removed everything). */
@@ -182,6 +191,7 @@ class TokenOwner(
     private var access: String? = null
     private var accessUntil = 0L
     private var pending = mutableListOf<String>()
+    private var ended: EndedBy? = null
 
     /** Step 2 of a sign-in that waits for the device check: nothing of it is stored yet. */
     private var staged: Staged? = null
@@ -211,7 +221,14 @@ class TokenOwner(
                     val session = read.record.session
                     ownerId = session?.ownerId
                     refreshToken = session?.refreshToken
-                    state = if (session == null) SessionState.SIGNED_OUT else SessionState.SIGNED_IN
+                    ended = if (session == null) read.record.ended else null
+                    state =
+                        when {
+                            session != null -> SessionState.SIGNED_IN
+                            ended == EndedBy.WIPE -> SessionState.WIPE_REQUIRED
+                            ended == EndedBy.REVOKED -> SessionState.PAUSED_REVOKED
+                            else -> SessionState.SIGNED_OUT
+                        }
                 }
             }
             state
@@ -302,6 +319,7 @@ class TokenOwner(
             throw error
         }
         staged = null
+        ended = null
         pending = kept.toMutableList()
         ownerId = ready.ownerId
         refreshToken = ready.refreshToken
@@ -387,6 +405,7 @@ class TokenOwner(
         lock.withLock {
             clearMemory()
             pending = mutableListOf()
+            ended = null
             staged = null
             state = SessionState.WIPE_REQUIRED
             try {
@@ -486,6 +505,12 @@ class TokenOwner(
     private fun endSessionLocked(next: SessionState) {
         clearMemory()
         state = next
+        ended =
+            when (next) {
+                SessionState.PAUSED_REVOKED -> EndedBy.REVOKED
+                SessionState.WIPE_REQUIRED -> EndedBy.WIPE
+                else -> null
+            }
         try {
             storeRecord()
         } catch (error: IOException) {
@@ -501,13 +526,13 @@ class TokenOwner(
     /** An empty record (no session, nothing pending) is not kept: the file goes. */
     private fun storeRecord() {
         val record = currentRecord()
-        if (record.session == null && record.pendingRevocations.isEmpty()) vault.clear() else vault.write(record)
+        if (record.session == null && record.pendingRevocations.isEmpty() && record.ended == null) vault.clear() else vault.write(record)
     }
 
     private fun currentRecord(): TokenRecord {
         val owner = ownerId
         val token = refreshToken
-        return TokenRecord(if (owner != null && token != null) StoredSession(owner, token) else null, pending.toList())
+        return TokenRecord(if (owner != null && token != null) StoredSession(owner, token) else null, pending.toList(), ended)
     }
 
     private fun addPendingLocked(

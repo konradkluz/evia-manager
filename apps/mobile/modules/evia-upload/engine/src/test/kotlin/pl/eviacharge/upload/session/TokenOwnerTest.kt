@@ -387,7 +387,7 @@ class TokenOwnerTest {
         val (tokenOwner, _) = signedIn(RefreshAnswer.Revoked)
         clock.now += 900_000L
         assertEquals(TokenResult.Blocked(SessionState.PAUSED_REVOKED), tokenOwner.accessToken())
-        assertEquals(VaultRead.Empty, vault.content)
+        assertEquals(TokenRecord(null, emptyList(), EndedBy.REVOKED), vault.record)
         assertFalse(tokenOwner.mayWork(OWNER))
         assertEquals(TokenResult.Blocked(SessionState.PAUSED_REVOKED), tokenOwner.accessTokenRejected("access-0"))
         // another person signing in does not resume the paused work of the first owner
@@ -405,7 +405,7 @@ class TokenOwnerTest {
         val oldAccess = (tokenOwner.accessToken() as TokenResult.Ready).accessToken
         tokenOwner.onApiRevoked()
         assertEquals(SessionState.PAUSED_REVOKED, tokenOwner.state())
-        assertEquals(VaultRead.Empty, vault.content)
+        assertEquals(TokenRecord(null, emptyList(), EndedBy.REVOKED), vault.record)
         assertEquals(TokenResult.Blocked(SessionState.PAUSED_REVOKED), tokenOwner.accessToken())
         assertTrue(oldAccess !in (tokenOwner.accessToken() as TokenResult.Blocked).toString())
         assertTrue(api.tokens.isEmpty())
@@ -424,7 +424,7 @@ class TokenOwnerTest {
         val (second, _) = owner()
         second.load()
         second.onApiRevoked()
-        assertEquals(TokenRecord(null, listOf("old-1")), vault.record)
+        assertEquals(TokenRecord(null, listOf("old-1"), EndedBy.REVOKED), vault.record)
         vault.failWrites = 1
         vault.failClears = 1
         second.onApiWipeRequired()
@@ -432,11 +432,65 @@ class TokenOwnerTest {
     }
 
     @Test
+    fun `EVM-130 AC5 a session ended by the server stays ended after the death of the process - revoked, wipe order from the API and from the refresh`() {
+        val cases =
+            listOf<Pair<(TokenOwner) -> Unit, SessionState>>(
+                { o: TokenOwner -> o.onApiRevoked() } to SessionState.PAUSED_REVOKED,
+                { o: TokenOwner -> o.onApiWipeRequired() } to SessionState.WIPE_REQUIRED,
+            )
+        for ((end, expected) in cases) {
+            val (first, _) = signedIn()
+            end(first)
+            val (restarted, api) = owner()
+            assertEquals(expected, restarted.load())
+            assertEquals(TokenResult.Blocked(expected), restarted.accessToken())
+            assertNull(restarted.currentOwnerId())
+            assertFalse(restarted.mayWork(OWNER))
+            assertTrue(api.tokens.isEmpty())
+        }
+        for ((answer, expected) in listOf(RefreshAnswer.Revoked to SessionState.PAUSED_REVOKED, RefreshAnswer.WipeRequired to SessionState.WIPE_REQUIRED)) {
+            val (first, _) = signedIn(answer)
+            clock.now += 900_000L
+            assertEquals(TokenResult.Blocked(expected), first.accessToken())
+            val (restarted, api) = owner()
+            assertEquals(expected, restarted.load())
+            assertEquals(TokenResult.Blocked(expected), restarted.accessToken())
+            assertTrue(api.tokens.isEmpty())
+        }
+    }
+
+    @Test
+    fun `EVM-130 AC5 the ended state goes with a new sign-in, the sign-out and the finished wipe, never earlier`() {
+        val (first, _) = signedIn()
+        first.onApiRevoked()
+        val (second, _) = owner()
+        assertEquals(SessionState.PAUSED_REVOKED, second.load())
+        second.commitLogin(OWNER, "refresh-5", "access-5", 900_000L)
+        assertEquals(TokenRecord(StoredSession(OWNER, "refresh-5"), emptyList()), vault.record)
+        assertEquals(SessionState.SIGNED_IN, owner().first.load())
+
+        val (third, _) = signedIn()
+        third.onApiWipeRequired()
+        val (fourth, _) = owner()
+        assertEquals(SessionState.WIPE_REQUIRED, fourth.load())
+        fourth.wipe()
+        assertEquals(VaultRead.Empty, vault.content)
+        assertEquals(SessionState.SIGNED_OUT, owner().first.load())
+
+        val (fifth, _) = signedIn()
+        fifth.onApiRevoked()
+        val (sixth, _) = owner()
+        sixth.load()
+        sixth.signOut(online = false)
+        assertEquals(SessionState.SIGNED_OUT, owner().first.load())
+    }
+
+    @Test
     fun `EVM-130 AC5 device_wipe_required and 426 stop the work, the wipe and the sign-out remove the tokens`() {
         val (wiped, _) = signedIn(RefreshAnswer.WipeRequired)
         clock.now += 900_000L
         assertEquals(TokenResult.Blocked(SessionState.WIPE_REQUIRED), wiped.accessToken())
-        assertEquals(VaultRead.Empty, vault.content)
+        assertEquals(TokenRecord(null, emptyList(), EndedBy.WIPE), vault.record)
 
         val (outdated, _) = signedIn(RefreshAnswer.UpdateRequired)
         clock.now += 900_000L

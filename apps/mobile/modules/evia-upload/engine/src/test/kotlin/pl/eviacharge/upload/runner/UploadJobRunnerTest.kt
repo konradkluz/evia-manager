@@ -426,6 +426,9 @@ class UploadJobOverHttpTest {
         assertEquals(JobResult.PausedForSignIn, runner.run(ASSET))
         assertEquals(JobResult.PausedForSignIn, runner.run(ASSET))
         assertEquals(sent, api.requests.size)
-        assertEquals(pl.eviacharge.upload.session.VaultRead.Empty, vault.content)
+        assertEquals(
+            pl.eviacharge.upload.session.TokenRecord(null, emptyList(), pl.eviacharge.upload.session.EndedBy.REVOKED),
+            vault.record,
+        )
     }
 }

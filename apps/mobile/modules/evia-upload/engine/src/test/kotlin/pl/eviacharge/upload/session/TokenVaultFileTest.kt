@@ -26,7 +26,7 @@ class TokenVaultFileTest {
 
     private val key = newKey()
     private val cipher = JceRecordCipher { key }
-    private val aad = "evia-token-record/1".toByteArray(Charsets.US_ASCII)
+    private val aad = "evia-token-record/2".toByteArray(Charsets.US_ASCII)
 
     private fun vault(
         c: RecordCipher = cipher,
@@ -37,7 +37,7 @@ class TokenVaultFileTest {
     private fun fileWith(plain: String): File {
         val sealed = cipher.encrypt(plain.toByteArray(Charsets.UTF_8), aad)
         val file = File(directory, "crafted.bin")
-        file.writeBytes(byteArrayOf(69, 86, 84, 75, 1, sealed.iv.size.toByte()) + sealed.iv + sealed.cipherText)
+        file.writeBytes(byteArrayOf(69, 86, 84, 75, 2, sealed.iv.size.toByte()) + sealed.iv + sealed.cipherText)
         return file
     }
 
@@ -49,6 +49,10 @@ class TokenVaultFileTest {
         assertEquals(VaultRead.Found(RECORD), vault.read())
         vault.write(TokenRecord(null, emptyList()))
         assertEquals(VaultRead.Found(TokenRecord(null, emptyList())), vault.read())
+        for (ended in EndedBy.entries) {
+            vault.write(TokenRecord(null, listOf("pending-secret"), ended))
+            assertEquals(VaultRead.Found(TokenRecord(null, listOf("pending-secret"), ended)), vault.read())
+        }
     }
 
     @Test
@@ -59,7 +63,7 @@ class TokenVaultFileTest {
         val text = String(bytes, Charsets.ISO_8859_1)
         assertFalse(text.contains("refresh-secret-1") || text.contains("pending-secret") || text.contains("user-1"))
         assertEquals("EVTK", text.substring(0, 4))
-        assertEquals(1, bytes[4].toInt())
+        assertEquals(2, bytes[4].toInt())
         assertEquals(12, bytes[5].toInt())
         vault.write(RECORD)
         assertNotEquals(bytes.toList(), File(directory, "token.bin").readBytes().toList())
@@ -68,7 +72,7 @@ class TokenVaultFileTest {
     @Test
     fun `EVM-130 AC3 a record cannot be passed off under another name or version - the AAD is bound`() {
         val sealed = cipher.encrypt("x".toByteArray(), aad)
-        assertThrows(CipherException::class.java) { cipher.decrypt(sealed.iv, sealed.cipherText, "evia-token-record/2".toByteArray()) }
+        assertThrows(CipherException::class.java) { cipher.decrypt(sealed.iv, sealed.cipherText, "evia-token-record/1".toByteArray()) }
         assertArrayEquals("x".toByteArray(), cipher.decrypt(sealed.iv, sealed.cipherText, aad))
     }
 
@@ -84,7 +88,7 @@ class TokenVaultFileTest {
                 "header only" to good.copyOf(4),
                 "empty" to ByteArray(0),
                 "magic" to good.copyOf().also { it[0] = 0 },
-                "version" to good.copyOf().also { it[4] = 2 },
+                "version" to good.copyOf().also { it[4] = 1 },
                 "iv length" to good.copyOf().also { it[5] = 3 },
                 "iv too long" to good.copyOf().also { it[5] = 100 },
                 "short body" to good.copyOf(6 + 12 + 10),
@@ -143,23 +147,26 @@ class TokenVaultFileTest {
                 "not json",
                 "[]",
                 """{"session":null}""",
-                """{"session":null,"pending":[],"extra":1}""",
-                """{"session":5,"pending":[]}""",
-                """{"session":{"ownerId":"a"},"pending":[]}""",
-                """{"session":{"ownerId":5,"refreshToken":"b"},"pending":[]}""",
-                """{"session":{"ownerId":"a","refreshToken":5},"pending":[]}""",
-                """{"session":{"ownerId":"a","refreshToken":""},"pending":[]}""",
-                """{"session":{"ownerId":"a","refreshToken":"b","x":1},"pending":[]}""",
-                """{"session":null,"pending":"x"}""",
-                """{"session":null,"pending":[1]}""",
-                """{"session":null,"pending":["a","b","c","d","e"]}""",
-                """{"session":{"ownerId":"a","refreshToken":"${"x".repeat(5000)}"},"pending":[]}""",
+                """{"session":null,"pending":[],"ended":null,"extra":1}""",
+                """{"session":null,"pending":[]}""",
+                """{"session":null,"pending":[],"ended":"other"}""",
+                """{"session":null,"pending":[],"ended":5}""",
+                """{"session":5,"pending":[],"ended":null}""",
+                """{"session":{"ownerId":"a"},"pending":[],"ended":null}""",
+                """{"session":{"ownerId":5,"refreshToken":"b"},"pending":[],"ended":null}""",
+                """{"session":{"ownerId":"a","refreshToken":5},"pending":[],"ended":null}""",
+                """{"session":{"ownerId":"a","refreshToken":""},"pending":[],"ended":null}""",
+                """{"session":{"ownerId":"a","refreshToken":"b","x":1},"pending":[],"ended":null}""",
+                """{"session":null,"pending":"x","ended":null}""",
+                """{"session":null,"pending":[1],"ended":null}""",
+                """{"session":null,"pending":["a","b","c","d","e"],"ended":null}""",
+                """{"session":{"ownerId":"a","refreshToken":"${"x".repeat(5000)}"},"pending":[],"ended":null}""",
             )
         for (plain in bad) {
             val file = fileWith(plain)
             assertEquals(VaultRead.Unreadable, FileTokenVault(file, cipher).read(), plain.take(40))
         }
-        val good = fileWith("""{"session":{"ownerId":"a","refreshToken":"b"},"pending":["c"]}""")
+        val good = fileWith("""{"session":{"ownerId":"a","refreshToken":"b"},"pending":["c"],"ended":null}""")
         assertEquals(VaultRead.Found(TokenRecord(StoredSession("a", "b"), listOf("c"))), FileTokenVault(good, cipher).read())
     }
 
@@ -167,6 +174,6 @@ class TokenVaultFileTest {
     fun `EVM-130 AC3 an oversized file is unreadable, and the plain record has the documented shape`() {
         File(directory, "token.bin").writeBytes(ByteArray(70_000))
         assertEquals(VaultRead.Unreadable, vault().read())
-        assertEquals(setOf("session", "pending"), Json.obj(Json.parse("""{"session":null,"pending":[]}""")).keys)
+        assertEquals(setOf("session", "pending", "ended"), Json.obj(Json.parse("""{"session":null,"pending":[],"ended":null}""")).keys)
     }
 }

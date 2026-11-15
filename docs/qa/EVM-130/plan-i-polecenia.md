@@ -58,6 +58,8 @@ Zasada przepływów: dane syntetyczne; plik generuje hak e2e (losowa zawartość
 | AC7 | `node:test` `tools/mobile-apk` (testy pozytywne i negatywne) | `tools/mobile-apk verify` w przebiegu (release i e2e) | — |
 | AC8 | `node:test` `upload-stub.mjs`, `media-replica.mjs`, `stub-api.mjs` (montaż), `device-upload.mjs`, `run.mjs`; pokrycie pliku ≥ 90% | cały przebieg (serwer jest częścią przebiegu) | — |
 
+Ręcznie (emulator lub telefon, raz przed wydaniem): AC6 — dotknięcie powiadomienia przy aplikacji DZIAŁAJĄCEJ w tle (ciepły start, `onNewIntent` modułu) otwiera Kolejkę, a nie tylko przy zimnym starcie; kontrola: wyślij duży plik, przejdź na ekran główny, dotknij powiadomienia (przy zablokowanej aplikacji najpierw odblokowanie).
+
 ## 5. Miejsca, które najpewniej wymagają poprawek po pierwszym przebiegu na emulatorze
 
 Narzędzia są sprawdzone na atrapach; poniższe zależą od zachowania systemu i aplikacji, którego atrapy nie odtwarzają.

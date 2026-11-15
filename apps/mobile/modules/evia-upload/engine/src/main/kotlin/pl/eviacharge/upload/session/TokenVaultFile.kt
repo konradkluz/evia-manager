@@ -88,7 +88,7 @@ class JceRecordCipher(
 }
 
 private val MAGIC = byteArrayOf('E'.code.toByte(), 'V'.code.toByte(), 'T'.code.toByte(), 'K'.code.toByte())
-private const val FORMAT_VERSION = 1
+private const val FORMAT_VERSION = 2
 private const val HEADER_BYTES = 6
 private const val MIN_IV_BYTES = 12
 private const val MAX_IV_BYTES = 16
@@ -159,6 +159,7 @@ class FileTokenVault(
         mapOf(
             "session" to record.session?.let { mapOf("ownerId" to it.ownerId, "refreshToken" to it.refreshToken) },
             "pending" to record.pendingRevocations,
+            "ended" to record.ended?.name?.lowercase(),
         )
 
     private fun decode(plain: ByteArray): TokenRecord? {
@@ -168,7 +169,7 @@ class FileTokenVault(
             } catch (error: JsonException) {
                 null
             } ?: return null
-        if (fields.keys != setOf("session", "pending")) return null
+        if (fields.keys != setOf("session", "pending", "ended")) return null
         val session =
             when (val raw = fields["session"]) {
                 null -> null
@@ -176,7 +177,14 @@ class FileTokenVault(
                 else -> return null
             }
         val pending = (fields["pending"] as? List<*>)?.map { token(it) ?: return null } ?: return null
-        return if (pending.size > MAX_ENTRIES) null else TokenRecord(session, pending)
+        val ended =
+            when (fields["ended"]) {
+                null -> null
+                "revoked" -> EndedBy.REVOKED
+                "wipe" -> EndedBy.WIPE
+                else -> return null
+            }
+        return if (pending.size > MAX_ENTRIES) null else TokenRecord(session, pending, ended)
     }
 
     private fun decodeSession(raw: Map<*, *>): StoredSession? {
