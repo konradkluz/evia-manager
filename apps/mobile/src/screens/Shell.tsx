@@ -90,6 +90,15 @@ export function Shell() {
   const signOut = useSignOutFlow(openQueue, wipe.ask);
   const session = useSession();
   const guard = useGuard();
+  // EVM-130 AC6: a touch of the notification of the upload opens the Queue. The target is a value of a fixed set, navigation only; the
+  // shell sits under the lock of the app (`LockGate`), so a locked app shows the lock first and the Queue only after the unlock (P7).
+  useEffect(() => {
+    const open = (): void => {
+      if (session.media.consumeLaunchTarget() === 'queue') openQueue();
+    };
+    open();
+    return session.guard.onForeground(open);
+  }, [session, openQueue]);
   const [adding, setAdding] = useState(false);
   // The entry form (EVM-105): the text lives in the state of the form only, so closing this state drops it (no draft, nothing stored)
   const [entry, setEntry] = useState<Entry | null>(null);

@@ -556,4 +556,36 @@ export const pl = {
     contact: 'Poproś administratora o nową wersję aplikacji.',
     versions: 'Twoja wersja: {{current}} · Wymagana: {{required}}',
   },
+  // EVM-130: the files of the queue and the notifications of the upload (texts of AC6 and of the mock-up 09)
+  upload: {
+    file: 'Plik',
+    summary: 'Wysłano {{sent}} z {{total}} · {{queued}} w kolejce',
+    sections: { files: 'Pliki', attention: 'Plik wymaga uwagi', sent: 'Wysłane pliki' },
+    states: {
+      waiting: 'Oczekuje',
+      uploading: 'Wysyłanie {{percent}}%',
+      sent: 'Wysłano',
+      error: 'Nie wysłano — plik uszkodzony w transmisji',
+    },
+    progressA11y: 'Wysyłanie pliku, {{percent}}%',
+    rowA11y: '{{file}}, {{state}}',
+    retry: 'Ponów',
+    retryA11y: 'Ponów wysyłanie pliku',
+    retryFailed: 'Nie udało się ponowić wysyłania. Spróbuj za chwilę.',
+    allSent: 'Wszystko wysłane.',
+    reasons: {
+      quarantined: 'Plik został zatrzymany po sprawdzeniu. Skontaktuj się z biurem.',
+      id_conflict: 'Plik o tym identyfikatorze jest już w biurze.',
+      missing_original: 'Pliku nie ma już na telefonie.',
+      unknown: 'Nie udało się wysłać pliku. Spróbuj ponownie.',
+    },
+    notifications: {
+      banner: 'Powiadomienia wyłączone — nie zobaczysz, że wysyłanie się zatrzymało.',
+      enable: 'Włącz powiadomienia',
+      consentTitle: 'Powiadomienia o wysyłaniu',
+      consentBody:
+        'Pokażemy postęp wysyłania i damy znać, gdy wysyłanie się zatrzyma i trzeba otworzyć aplikację. Bez nazwisk, adresów i numerów zleceń.',
+      consentLater: 'Nie teraz',
+    },
+  },
 } as const;

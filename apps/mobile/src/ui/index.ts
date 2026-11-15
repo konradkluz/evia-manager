@@ -33,6 +33,7 @@ export type { SearchOptions, SecureToggle, TextFieldProps } from './TextField';
 export type { SyncIndicatorProps, SyncState } from './SyncIndicator';
 export {
   Ban,
+  BellOff,
   Banknote,
   Calculator,
   Camera,
