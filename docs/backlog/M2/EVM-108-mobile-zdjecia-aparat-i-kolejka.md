@@ -4,11 +4,11 @@ title: "Aplikacja: zdjęcia — aparat, kategoria, opis, kolejka plików"
 type: story
 milestone: M2
 epic: E11 Zdjęcia i filmy
-status: draft
+status: ready
 priority: P1
 path: pelna             # pliki, dane osobowe na urządzeniu
 owner: mobile-developer
-contributors: []
+contributors: [ux-designer]
 reviewers: [code-reviewer, security-engineer, ux-designer]
 model: sonnet
 depends_on: [EVM-107, EVM-130, EVM-131]
@@ -16,45 +16,102 @@ depends_on: [EVM-107, EVM-130, EVM-131]
 
 # EVM-108: Aplikacja — zdjęcia: aparat, kategoria, opis, kolejka plików
 
-> **Szkic ramowy** — AC do doprecyzowania po EVM-044/109.
-
 ## Cel
-Jako **technik** chcę **zrobić zdjęcie z poziomu zlecenia, nadać mu kategorię i opis i mieć pewność, że trafi do archiwum**, aby **dokumentacja z oględzin i montażu powstawała na miejscu**. Makiety M-06, M-07.
+Jako **technik** chcę **zrobić zdjęcie z poziomu zlecenia, nadać mu kategorię i mieć pewność, że trafi do archiwum**, aby **dokumentacja z oględzin i montażu powstawała na miejscu, także bez zasięgu**. Makiety [09](../../ux/flows/09-mobile-zdjecia-filmy-offline.md) (M-06, M-07) — z poprawkami z „Decyzji i ograniczeń”. Opis zdjęcia jest poza wersją 1 (decyzja do potwierdzenia, niżej), choć tytuł historyjki go wymienia.
 
-## Kryteria akceptacji (ramowe)
+## Kontekst
+Gotowe i zaakceptowane (`main`): silnik i wysyłanie w tle z kolejką plików (schemat v2) — [EVM-109](EVM-109-mobile-upload-w-tle-android.md), [EVM-130](EVM-130-mobile-usluga-wysylania-i-tokeny.md); komenda `CreateMediaAsset`, sesje wysyłania dla kanału mobile i stany mediów w replice — [EVM-131](EVM-131-api-media-z-telefonu.md). EVM-130 dostarczył: zadanie natywne uzbrajane po `applied` komendy `CreateMediaAsset`, powiadomienie prywatne, komponent prośby „Powiadomienia o wysyłaniu” (wywołanie należy do tej historyjki), usuwanie oryginału po potwierdzeniu serwera, czyszczenie plików przy wylogowaniu i w trybie ukrytych danych, hak e2e z plikiem syntetycznym i serwer scenariuszy. Ta historyjka dodaje **aparat, wejścia i zapis pliku z komendą** oraz minimalny widok plików w Kolejce.
 
-**AC1 — Zdjęcie do zlecenia**
-- Zakładając otwarte zlecenie (lub arkusz wyboru zlecenia) i zgodę na aparat
-- Gdy robię zdjęcie i wybieram kategorię oraz opcjonalny opis
-- Wtedy powstaje `MediaAsset` (`CreateMediaAsset`) i plik w pamięci wewnętrznej aplikacji pod nazwą UUID (bez zapisu do galerii, SR-MOB-02; bez lokalizacji w EXIF, bo aplikacja nie ma tego uprawnienia), a zdjęcie czeka w kolejce.
+## Kryteria akceptacji
 
-**AC2 — Status każdego pliku**
-- Zakładając pliki w różnych stanach
+**AC1 — Zdjęcie z kategorią zapisane trwale**
+- Zakładając zalogowanego Administratora lub Edytora, otwarte zlecenie i zgodę na aparat
+- Gdy wybieram jedną z 7 kategorii mediów (`MediaCategory`) i robię zdjęcie
+- Wtedy w jednej transakcji powstają: plik w katalogu kolejki aplikacji pod nazwą UUID i wpis w kolejce z komendą `CreateMediaAsset` (`id` UUIDv7, `workOrderId`, `mediaType = photo`, `category`, `capturedAt`; bez `description` i `procedureStageId`) — albo żadne z nich; zdjęcie nie trafia do galerii ani do pamięci zewnętrznej, a w pliku nie ma lokalizacji (EXIF bez GPS; aplikacja nie ma uprawnień lokalizacji); wpis nie zawiera nazwy klienta ani adresu.
+
+**AC2 — Seria i powrót do zlecenia**
+- Zakładając otwarty aparat dla zlecenia
+- Gdy robię kolejne zdjęcia jedno po drugim
+- Wtedy kategoria pierwszego ujęcia w zleceniu jest obowiązkowa (spust zablokowany z podpowiedzią „Wybierz kategorię przed zdjęciem.”), kolejne ujęcia używają ostatnio wybranej; spust zapisuje od razu; licznik „n zdjęć” rośnie dopiero po trwałym zapisie, z toastem „Zapisano w telefonie” i ogłoszeniem dla czytnika ekranu; „Gotowe” wraca do zlecenia (nie do Kolejki), a po pierwszym „Gotowe” z elementem w kolejce aplikacja pokazuje prośbę „Powiadomienia o wysyłaniu” (komponent z EVM-130; odmowa nie blokuje pracy).
+
+**AC3 — Zgoda na aparat**
+- Zakładając brak zgody na aparat
+- Gdy otwieram aparat po raz pierwszy, odmawiam, odmawiam trwale i wracam z ustawień systemu
+- Wtedy widzę ekran wyjaśniający „Aparat do zdjęć z prac” (z informacją „bez zapisu w galerii, bez lokalizacji”) z [Zezwól na dostęp do aparatu] i [Nie teraz] (powrót do zlecenia, bez zmian w kolejce); po odmowie ten sam ekran; po odmowie trwałej „Brak dostępu do aparatu. Zezwól aplikacji na używanie aparatu w ustawieniach telefonu.” z [Otwórz ustawienia]; po powrocie z przyznaną zgodą aparat uruchamia się sam. Aplikacja nie prosi o żadne inne uprawnienie (mikrofon, lokalizacja, pamięć).
+
+**AC4 — Brak miejsca i błędy aparatu**
+- Zakładając brak miejsca w telefonie, błąd zapisu albo błąd uruchomienia aparatu
+- Gdy robię zdjęcie lub otwieram aparat
+- Wtedy: przy małej ilości miejsca widzę ostrzeżenie „Mało miejsca w telefonie: 1,2 GB.” (wartość rzeczywista), przy braku miejsca Banner „Brak miejsca — zdjęcie nie zostało zapisane. Zwolnij miejsce w telefonie.”, przy nieudanym zapisie „Nie udało się zapisać zdjęcia. Zrób je ponownie.”, przy błędzie aparatu „Nie udało się uruchomić aparatu.” z [Spróbuj ponownie] (ładowanie: „Uruchamianie aparatu…”, bez spinnera); w każdym z tych przypadków kolejka i licznik są nietknięte, nie zostaje niepełny plik ani wpis bez pliku.
+
+**AC5 — Wejścia, role, offline i tryb ukrytych danych**
+- Zakładając szczegóły zlecenia, arkusz „Dodaj” i różne role oraz stany aplikacji
+- Gdy chcę zrobić zdjęcie
+- Wtedy w szczegółach zlecenia jest stały dolny pasek z główną akcją „Zrób zdjęcie” i drugorzędną „Dodaj wpis”; pozycja „Zdjęcie lub film” w arkuszu „Dodaj” prowadzi do wyboru zlecenia (ostatnio otwierane + wyszukiwanie), a potem do aparatu (przełącznika „Zdjęcie / Film” nie ma do EVM-110); Administrator i Edytor robią zdjęcia, Tylko odczyt nie loguje się do aplikacji, niezalogowany widzi ekran logowania; offline aparat działa bez banera offline (kapsuła „Offline · n”); w trybie ukrytych danych aparat działa, a wybór zlecenia pokazuje wyłącznie numery zleceń (bez klienta, adresu i opisów), pasek w znanym zleceniu — bez numeru; blokada aplikacji i wymuszone czyszczenie danych firmowych działają jak dla reszty aplikacji (pliki z kolejki są usuwane wg EVM-130 AC5).
+
+**AC6 — Pliki w Kolejce (minimum)**
+- Zakładając pliki zdjęć w różnych stanach
 - Gdy otwieram „Kolejka”
-- Wtedy widzę dla każdego: oczekuje, wysyła się (%), wysłano, wymaga uwagi.
+- Wtedy każdy plik jest wierszem wspólnego komponentu listy plików (kategoria, czas wykonania, typ) z jedną z etykiet: „Oczekuje”, „Wysyła się 45%”, „Wysłano”, „Wymaga uwagi”; nagłówek ma licznik plików do wysłania; stan pusty pokazuje istniejący komunikat Kolejki; dla „Wymaga uwagi” jest jedna akcja „Usuń z telefonu” (z potwierdzeniem); wiersze nie pokazują nazwy klienta ani adresu, a w trybie ukrytych danych — numeru zlecenia.
 
-**AC3 — Brak duplikatów po przerwach**
-- Zakładając 30 zdjęć zrobionych bez zasięgu i wymuszone zamknięcie aplikacji w trakcie wysyłki
-- Gdy wraca zasięg
-- Wtedy wszystkie 30 jest na serwerze w właściwym zleceniu, 0 duplikatów.
+**AC7 — 30 zdjęć bez duplikatów po przerwach**
+- Zakładając 30 zdjęć zapisanych bez zasięgu tą samą ścieżką zapisu co aparat (aparat emulatora i hak testowy z plikiem syntetycznym) oraz wymuszone zamknięcie aplikacji w trakcie wysyłki
+- Gdy wraca zasięg (serwer scenariuszy z sesjami wysyłania)
+- Wtedy punkt kontrolny serwera pokazuje 30 obiektów w właściwym zleceniu, po jednym na `assetId`, zgodne sumy SHA-256 i 0 duplikatów, a wiersze w Kolejce mają stan „Wysłano”.
 
-**AC4 — Brak telemetrii w bibliotece aparatu**
-- Zakładając paczkę z aparatem
-- Gdy analizuję ruch sieciowy aplikacji w całej sesji testu i uruchamiam `tools/mobile-apk verify`
-- Wtedy nie ma ruchu do usług analitycznych, ML Kit ani Firebase, a komponenty telemetrii są usunięte albo biblioteka aparatu jest zastąpiona.
+**AC8 — Biblioteka aparatu bez telemetrii i uprawnienia (`tools/mobile-apk verify`)**
+- Zakładając paczkę z aparatem zbudowaną z `expo-camera` z wyłączonym skanerem kodów
+- Gdy uruchamiam `verify`, lint i przegląd zależności
+- Wtedy paczka nie zawiera pakietów ani komponentów `com.google.mlkit`, `com.google.firebase`, `com.google.android.gms`, `com.google.android.datatransport` (manifest, DEX, drzewo zależności Gradle), allowlista uprawnień rośnie jawnie tylko o `CAMERA` (bez `RECORD_AUDIO`, lokalizacji, odczytu/zapisu pamięci), a paczka z dodatkowym uprawnieniem albo zakazaną grupą jest odrzucana (test negatywny); ESLint blokuje `expo-image-picker` i intencje systemowego aparatu (`ACTION_IMAGE_CAPTURE`); zależność ma uzasadnienie SR-SUPPLY-06 (licencja, utrzymanie, wersja dokładna).
 
 ## Poza zakresem
-Filmy (EVM-110), galeria zlecenia (EVM-111), edycja zdjęć.
+Filmy, mikrofon i przełącznik „Zdjęcie / Film” (EVM-110); ustawienie „tylko Wi-Fi” (EVM-110); ekran „Pliki zlecenia”, miniatury, przyczyny błędów i „Ponów”, wskaźnik „wysłano n z m”, retencja rekordów wysłanych plików (EVM-111); opis zdjęcia i etap (`procedureStageId`) w telefonie; podgląd przed zapisem i odrzucanie ujęcia; usuwanie niewysłanego pliku (poza „Usuń z telefonu” dla „Wymaga uwagi”); edycja i kompresja zdjęć; galeria; iOS; analiza ruchu sieciowego całej sesji i pomiary na fizycznym telefonie (EVM-112).
 
 ## Decyzje i ograniczenia
-- Bezpieczeństwo i prywatność: **telemetria `expo-camera` (ML Kit/Firebase) rozstrzygnięta przed `ready`** (usunięcie dostawcy albo inna biblioteka aparatu); powiadomienia i podglądy bez danych klienta.
-- **Zależności (zmiana 2026-11-14):** EVM-109 (silnik) wchodzi pośrednio przez EVM-130 (zadanie systemowe i kolejka plików); EVM-131 dostarcza kontrakt mediów z telefonu (kanał mobile, `CreateMediaAsset`, `media_asset` w dzienniku zmian).
-- **Zakaz dystrybucji:** paczka z aparatem nie trafia do techników ani na środowisko z danymi realnymi przed dowodami EVM-084 i sign-offem EVM-112.
-- **Wymagania security (do doprecyzowania w `/refine`):** aparat wbudowany (CameraX; rekomendacja architekta: `expo-camera` z wyłączonym skanerem kodów), zapis tylko w katalogu kolejki, bez `setLocation`; zakaz intencji systemowego aparatu (`ACTION_IMAGE_CAPTURE`, `expo-image-picker` blokowany ESLintem); uprawnienie `CAMERA` w allowliście `verify`; AC4 dzielone: w nocy statyczna kontrola `verify` (brak pakietów `com.google.mlkit`, `com.google.firebase`, `com.google.android.datatransport`, `com.google.android.gms`; drzewo zależności Gradle bez tych grup), ruch sieciowy całej sesji → EVM-112 (`manual`); sesje wysyłania tworzone leniwie (limit 100 aktywnych, `429`).
-- **Decyzje projektowe UX do potwierdzenia przy doprecyzowaniu:** (1) opis zdjęcia poza wersją 1 (`CreateMediaAsset.description` niezmienny; kategoria jednym dotknięciem); (2) stały dolny pasek „Zrób zdjęcie” w szczegółach zlecenia + „Dodaj wpis”, a AddSheet „Zdjęcie lub film” prowadzi do wyboru zlecenia; (3) brak usuwania i odrzucania niewysłanego pliku w v1 (jest tylko „Usuń z telefonu” dla „Wymaga uwagi”); (4) wybór zlecenia w trybie ukrytych danych po numerach (ocena security w 108; do tego czasu nie rozszerzać numerów w Kolejce); (5) retencja rekordów wysłanych plików na telefonie 7 dni (dla „wysłano n z m”); (6) jeden komponent listy plików (Kolejka + „Pliki zlecenia”). Etap (`procedureStageId`) i podgląd przed zapisem — poza v1. Poprawka makiety 09 (wejście, brak opisu) — zadanie ux-designera.
-- Kryteria `manual` (EVM-112): 30 zdjęć z prawdziwym aparatem, kontrast w słońcu, spust w rękawicy, układ 360 dp, odmowa trwała i powrót z ustawień.
+
+### UX / UI
+- **Ekrany:** (a) dolny pasek szczegółów zlecenia (BottomBar: „Zrób zdjęcie” `size.touch-target.field` + „Dodaj wpis”; `order-detail-add-entry` zostaje); (b) arkusz „Dodaj” → wybór zlecenia (reużycie EntryTargetPicker) → aparat; (c) ekran zgody; (d) aparat (M-06 bez mikrofonu i bez opisu): 7 chipów kategorii, spust `size.touch-target.shutter`, licznik serii, „Gotowe”; (e) wiersze plików w Kolejce (wspólny komponent, który EVM-111 użyje ponownie w „Pliki zlecenia”).
+- **Stany:** pusty (Kolejka bez plików), ładowanie („Uruchamianie aparatu…”), błąd (aparat, zapis), offline (normalna praca), brak zgody (AC3), brak miejsca (AC4), tryb ukrytych danych (AC5). Mikrocopy: jak w AC; reszta z makiety 09.
+- **Komponenty/tokeny:** tylko biblioteka i tokeny (`color.sync.*`, `size.touch-target.*`); nowe ikony (wifi, cloud-upload, scan-search, cloud-check, cloud-alert, triangle-alert) do `ui/icons.ts` z istniejących pakietów. Etykiety „Oczekuje” / „Wysyła się 45%” zamiast „W kolejce” / „Wysyłanie 45%” z § 5.4 (spójność z Kolejką EVM-009) i brak pozycji „Dodaj” w BottomNav (kontynuacja odstępstwa EVM-009) — ux-designer wpisuje oba odstępstwa do changelogu styleguide'u.
+- **Poprawka makiety 09 / M-06** (wejście z paska i arkusza, brak opisu, brak mikrofonu, brak przełącznika „Film” w v1) jest **częścią realizacji** (zadanie ux-designera w tej samej gałęzi), nie warunkiem startu: wszystkie teksty i stany są w AC i tej sekcji, więc developer nie czeka na makietę.
+- Nietrafione zdjęcie usuwa biuro w panelu.
+
+### Bezpieczeństwo i prywatność
+- **Role → dostęp:** Administrator i Edytor — aparat i kolejka plików; Tylko odczyt nie loguje się do aplikacji (token telefonu → `403 channel_not_allowed`, EVM-131); niezalogowany — ekran logowania.
+- **Dane na urządzeniu:** zdjęcie w pamięci wewnętrznej aplikacji (katalog kolejki z EVM-130, nazwa UUID, nigdy galeria, MediaStore ani pamięć zewnętrzna); plik zadania bez kategorii i numeru zlecenia; powiadomienia i podglądy bez danych klienta; w logach brak nazw, adresów i tokenów (SR-MOB).
+- **Aparat wbudowany** (CameraX przez `expo-camera`, skaner kodów wyłączony), bez `setLocation`; zakaz intencji systemowego aparatu (obca aplikacja mogłaby dopisać GPS lub skopiować plik do galerii/chmury).
+- **Telemetria biblioteki aparatu:** usuwana na etapie budowania (zależność nieobecna), nie wyłączana w działaniu. **Warunek zatrzymania:** jeśli `verify` lub drzewo Gradle wskaże którąkolwiek zakazaną grupę po wyłączeniu skanera i wykluczeniach zależności, wykonawca zatrzymuje się i zgłasza to w raporcie (bez przechodzenia na inną bibliotekę i bez poluzowania kontroli); decyzję o wymianie biblioteki podejmuje Konrad na wniosek architekta.
+- **Sesje wysyłania** tworzone leniwie (limit 100 aktywnych, `429` → ponowienie z backoffem w silniku EVM-130).
+- **Opis zdjęcia (RR-96):** medium z telefonu nie ma jak być poprawione ani usunięte z panelu, a opis mógłby zawierać dane osobowe — dlatego opis w v1 pominięty (decyzja Konrada 2026-11-15).
+- **Dystrybucja (decyzja Konrada 2026-11-15):** technicy dostają paczkę z aparatem i wysyłaniem na test terenowy EVM-112 bez czekania na EVM-084 (kopie zapasowe nie blokują funkcji ani testów); w testach automatycznych tej historyjki aplikacja łączy się wyłącznie z serwerem scenariuszy `tools/mobile-e2e` (RR-93). Dane testowe: pliki syntetyczne.
+
+### Granica z EVM-111
+EVM-108 pokazuje w Kolejce **minimum**: wiersz pliku, 4 etykiety stanu, licznik, „Usuń z telefonu” dla „Wymaga uwagi”. EVM-111 dodaje ekran „Pliki zlecenia”, miniatury, przyczyny i „Ponów”, „wysłano n z m” oraz retencję rekordów (7 dni). Decyzja (6) „jeden komponent listy plików” — komponent powstaje tu, EVM-111 go reużywa.
+
+### Decyzje projektowe UX z szkicu (stan)
+1. **Opis zdjęcia poza v1** (`CreateMediaAsset.description` niezmienny, seria; RR-96) — **potwierdzone przez Konrada 2026-11-15**.
+2. **Stały dolny pasek + arkusz z wyborem zlecenia** — rekomendacja konsultacji, do przeglądu (AC5).
+3. **Brak usuwania i odrzucania niewysłanego pliku w v1** (tylko „Usuń z telefonu” dla „Wymaga uwagi”; usuwanie wymaga przerwania sesji i dwóch dialogów) — **potwierdzone przez Konrada 2026-11-15**.
+4. **Wybór zlecenia w trybie ukrytych danych po numerach** (zgodnie z § 4.18; ocena security-engineer w recenzji; do czasu recenzji nie rozszerzać numerów w Kolejce poza AC6) — **potwierdzone przez Konrada 2026-11-15**.
+5. **Retencja rekordów wysłanych plików 7 dni** — rekomendacja konsultacji, do przeglądu; **przeniesione do EVM-111** (tam powstaje „wysłano n z m”).
+6. **Jeden komponent listy plików** — rekomendacja konsultacji, do przeglądu (granica wyżej).
+
+### Kryteria `manual` przekazane do EVM-112 (bez zmian w pliku EVM-112)
+30 zdjęć prawdziwym aparatem; kontrast panelu aparatu w słońcu; spust w rękawicy; układ 360 dp i poziomy; monity systemowe aparatu i powiadomień; odmowa trwała i powrót z ustawień; analiza ruchu sieciowego całej sesji (brak usług analitycznych, ML Kit, Firebase); brak zdjęć w galerii telefonu i brak GPS w EXIF zdjęcia z prawdziwego aparatu; TalkBack (ogłoszenie „Zapisano zdjęcie n”), 200% czcionki.
+
+## Notatki techniczne
+- Pliki wspólne z innymi historyjkami: `apps/mobile/src/i18n/pl.ts` (nowe klucze w osobnym bloku), `screens/QueueScreen.tsx`, `tools/mobile-apk/src/manifest.mjs` i `verify.mjs`, `tools/mobile-e2e`, numeracja przepływów Maestro (kolejny wolny zakres po 68; 70–79 zajmuje EVM-128).
+- „Utwórz ponownie” (EVM-128) przenosi `CreateMediaAsset` generycznie — test EVM-128 należy dopisać po scaleniu tej historyjki.
+- Stan pliku w kolejce zapisuje wyłącznie JS (SQLCipher); worker natywny tylko swój plik zadania (EVM-130).
+
+## Definition of Done
+- [ ] AC1–AC8 pokryte testami oznaczonymi `EVM-108 AC#` (Jest, Maestro na emulatorze z aparatem emulatora, `node:test` dla `verify` i serwera scenariuszy); `pnpm run gate` i `npm run docs:check` zielone.
+- [ ] Recenzje: code-reviewer, security-engineer (uprawnienia, biblioteka aparatu, telemetria), ux-designer (statycznie: teksty, tokeny, nazwy dostępne, stany) — approve.
+- [ ] Makieta 09 / M-06 poprawiona; odstępstwa wpisane do changelogu styleguide'u; kryteria `manual` widoczne w EVM-112; `CHANGELOG.md`.
 
 ## Dziennik
 - 2026-10-27 — utworzono (product-owner)
 - 2026-10-27 — naniesiono konsultację security (product-owner)
 - 2026-11-14 — `depends_on`: EVM-109 → EVM-130 i EVM-131 po podziale i konsultacjach; dopisano decyzje i wymagania; status `draft`, doprecyzowanie w kolejnej nocy (product-owner)
+- 2026-11-15 — doprecyzowanie `/refine`: 8 AC (aparat, zgoda, brak miejsca, wejścia i role, Kolejka — minimum, 30 zdjęć, kontrola paczki), granica z EVM-111, ustalenia konsultacji 2026-11-14, warunek zatrzymania dla telemetrii; pytania do Konrada: opis (RR-96), usuwanie niewysłanego, numery w trybie ukrytym; status `draft` (product-owner)
+- 2026-11-15 — akceptacja Konrada (DoR, wg rekomendacji): bez opisu zdjęcia w wersji 1, bez usuwania niewysłanego zdjęcia, w trybie ukrytych danych wybór zlecenia po numerach; pozostałe decyzje wg rekomendacji konsultacji; dystrybucja bez warunku EVM-084; ścieżka `pelna`; **status `ready`** (Tech Lead)

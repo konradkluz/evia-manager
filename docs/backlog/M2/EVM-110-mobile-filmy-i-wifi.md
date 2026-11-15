@@ -40,7 +40,7 @@ Jako **technik** chcę **nagrać film z oględzin lub montażu i wysyłać go ty
 
 ## Decyzje i ograniczenia
 - **Decyzja 6 (Konrad, 2026-11-14): filmy bez dźwięku, aplikacja nie prosi o mikrofon** i nie ma `RECORD_AUDIO` (`expo-camera`: `recordAudioAndroid: false`); zgoda na mikrofon usunięta z AC1. **Uwaga dla ux-designera przy tej historyjce:** poprawić makietę 09 (usunąć „Mikrofon do filmów”, stany mikrofonu i „Nagrywamy dźwięk razem z obrazem”; zostaje chip „Film wyłączony” dla braku miejsca).
-- Zależności po podziale EVM-109: EVM-130 (zadanie systemowe) i EVM-131 (kontrakt mediów); **zakaz dystrybucji** paczki z aparatem/wysyłaniem przed dowodami EVM-084 i sign-offem EVM-112.
+- Zależności po podziale EVM-109: EVM-130 (zadanie systemowe) i EVM-131 (kontrakt mediów); **zakaz dystrybucji** paczki z aparatem/wysyłaniem przed sign-offem EVM-112 poza testem terenowym (zmiana 2026-11-15 (decyzja Konrada): bez warunku EVM-084 — technicy dostają paczkę na test terenowy EVM-112 wcześniej).
 - Do doprecyzowania (konsultacje 2026-11-14): „tylko Wi-Fi” = ograniczenie zadania do sieci bez opłat za transfer (`NETWORK_TYPE_UNMETERED`, bez `ACCESS_WIFI_STATE` i lokalizacji), ustawienie lokalne w „Więcej → Wysyłanie” domyślnie włączone; zdjęcia nie czekają na Wi-Fi, a „Czeka na Wi-Fi” nie jest błędem; ryzyko `abandoned` po 7 dniach czekania („Ponów” z nowym `assetId`); trwałość nagrania po zabiciu procesu; AC3 ≥ 500 MB → `manual` w EVM-112 (na emulatorze ≤ 128 MiB).
 
 ## Poza zakresem
@@ -49,3 +49,4 @@ Edycja i kompresja wideo poza ustaleniami EVM-046.
 ## Dziennik
 - 2026-10-27 — utworzono (product-owner)
 - 2026-11-14 — decyzja 6 (bez dźwięku, bez mikrofonu) wpisana, `depends_on` + EVM-130, EVM-131; status `draft`, doprecyzowanie w kolejnej nocy (product-owner)
+- 2026-11-15 — z doprecyzowania EVM-108: lista plików reużywa wspólnego komponentu z EVM-108, makieta 09 bez mikrofonu; dystrybucja bez warunku EVM-084 (Tech Lead)
