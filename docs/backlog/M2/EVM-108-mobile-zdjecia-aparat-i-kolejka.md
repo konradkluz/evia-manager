@@ -103,6 +103,21 @@ EVM-108 pokazuje w Kolejce **minimum**: wiersz pliku, 4 etykiety stanu, licznik,
 - Pliki wspólne z innymi historyjkami: `apps/mobile/src/i18n/pl.ts` (nowe klucze w osobnym bloku), `screens/QueueScreen.tsx`, `tools/mobile-apk/src/manifest.mjs` i `verify.mjs`, `tools/mobile-e2e`, numeracja przepływów Maestro (kolejny wolny zakres po 68; 70–79 zajmuje EVM-128).
 - „Utwórz ponownie” (EVM-128) przenosi `CreateMediaAsset` generycznie — test EVM-128 należy dopisać po scaleniu tej historyjki.
 - Stan pliku w kolejce zapisuje wyłącznie JS (SQLCipher); worker natywny tylko swój plik zadania (EVM-130).
+- **Telemetria Google w bibliotece aparatu (AC8, etap 1):** `expo-camera` ma dwa skanery Google (kodów i dokumentów), a właściwości Gradle `expo.camera.*-scanner-enabled=false` (własna wtyczka `plugins/with-camera.ts`) działają tylko przy budowie biblioteki ze źródeł — Expo SDK 58 domyślnie linkuje gotowy artefakt z `local-maven-repo` pakietu z ML Kit i usługami Google w POM-ie. Dlatego `apps/mobile/package.json` wymusza budowę ze źródeł (`expo.autolinking.android.buildFromSource: ["expo-camera"]`). Dowód: drzewo `releaseRuntimeClasspath` bez i z tym ustawieniem (`.scratch/EVM-108/`), kontrola `tools/mobile-apk deps` (drzewo Gradle), `mapping` (R8) i `verify` (manifest, DEX, `META-INF`).
+
+**Uzasadnienie zależności `expo-camera` (SR-SUPPLY-06):**
+
+| Pole | Wartość |
+| --- | --- |
+| Pakiet i wersja | `expo-camera` **58.0.14** (dokładna, bez zakresu; `bundledNativeModules` SDK 58: `~58.0.11`) |
+| Licencja | MIT (bramka licencji CI; zależności npm: `barcode-detector` 3.2.3 i `zxing-wasm` 3.1.6 — MIT, wyłącznie ścieżka web; test w `verify`: brak ich w pakiecie JS) |
+| Opiekunowie | Expo (650 Industries), te same konta npm co pozostałe `expo-*` (13 opiekunów, w tym `expo-bot`) |
+| Ostatnie wydanie | 2026-10-28 (58.0.14; wydania co 1–2 tygodnie, zgodne z SDK; aktualizacja razem z SDK przez Renovate) |
+| Znane CVE | OSV (npm): 0 dla `expo-camera` 58.0.14, `barcode-detector` 3.2.3, `zxing-wasm` 3.1.6 (zapytanie 2026-11-15); `pnpm run scan` (OSV-Scanner) uruchamia orkiestrator |
+| Zależności Gradle (z CameraX) | `androidx.camera:*` 1.6.0, `androidx.exifinterface:exifinterface` 1.4.2, `androidx.appcompat:appcompat` 1.7.1 — Google Maven; OSV (Maven): brak wpisów dla `camera-core` 1.6.0 i `exifinterface` 1.4.2 (pokrycie OSV dla Google Maven jest ograniczone — do potwierdzenia przez GitHub Advisory przy przeglądzie) |
+| Skrypty instalacyjne | brak; bez nowych wpisów `onlyBuiltDependencies` |
+| Wykluczone | ML Kit, Google Play services, Firebase, datatransport, ODML i `androidx.camera:camera-mlkit-vision` (drzewo Gradle, mapping R8, DEX, manifest i `META-INF` — `tools/mobile-apk`) |
+| Alternatywa odrzucona | `react-native-vision-camera` (więcej kodu natywnego i worklets; YAGNI), `expo-image-picker` / intencja aparatu systemowego (obca aplikacja dopisuje GPS i kopiuje do galerii) |
 
 ## Definition of Done
 - [ ] AC1–AC8 pokryte testami oznaczonymi `EVM-108 AC#` (Jest, Maestro na emulatorze z aparatem emulatora, `node:test` dla `verify` i serwera scenariuszy); `pnpm run gate` i `npm run docs:check` zielone.
@@ -117,3 +132,4 @@ EVM-108 pokazuje w Kolejce **minimum**: wiersz pliku, 4 etykiety stanu, licznik,
 - 2026-11-15 — akceptacja Konrada (DoR, wg rekomendacji): bez opisu zdjęcia w wersji 1, bez usuwania niewysłanego zdjęcia, w trybie ukrytych danych wybór zlecenia po numerach; pozostałe decyzje wg rekomendacji konsultacji; dystrybucja bez warunku EVM-084; ścieżka `pelna`; **status `ready`** (Tech Lead)
 - 2026-11-15 — start realizacji (`/deliver`, ścieżka `pelna`, etapami: AC8 → AC1–AC4 → AC5–AC6 → AC7; gałąź `feature/EVM-108-zdjecia-aparat-i-kolejka`); z tytułu usunięto „opis” (poza wersją 1); **status `in-progress`** (Tech Lead)
 - 2026-11-15 — plan gotowy, cztery etapy (mobile-developer)
+- 2026-11-15 — etap 1 (AC8) zrealizowany (mobile-developer)
