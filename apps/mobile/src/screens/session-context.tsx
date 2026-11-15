@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState, useSyncExternalStore } from 'react';
+import type { CameraRequests } from '../capture/camera-requests';
 import type { QueueEntryRow } from '../auth/ports';
 import type { DeviceGuard, GuardSnapshot } from '../device-guard/device-guard';
 import type { QueueItem, QueueView, SyncControl, SyncSnapshot } from '../sync/types';
@@ -33,6 +34,10 @@ export interface SessionActions {
   readonly openRecreate: (item: QueueItem) => void;
   /** The destination of a pick in "Dodaj" (entries and quick work orders: EVM-107; the camera: E11). */
   readonly openAddTarget: (target: AddTarget) => void;
+  /** The camera that is open (EVM-108): the shell hosts the screen and reads the id from here. */
+  readonly camera: CameraRequests;
+  /** Opens the camera for a work order that is on the phone (`false` = it is not; nothing opens). The entries of EVM-108 stage 3 call it. */
+  readonly openCamera: (orderId: string) => Promise<boolean>;
   /** A new id (UUIDv7) for an entry created on the phone (EVM-105). */
   readonly newId: () => string;
   /** "Pomoc" and "Prywatność" (M-11, EVM-102): the same overlay, started at the section of the entry. */

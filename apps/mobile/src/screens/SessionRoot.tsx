@@ -6,6 +6,7 @@ import { color } from '../ui/theme';
 import { LoginMachine, type BlockedVariant } from '../auth/login-machine';
 import type { WipeSignal } from '../auth/ports';
 import type { DeviceCheck, SessionControl, SessionStep } from '../auth/session-owner';
+import type { CameraRequests } from '../capture/camera-requests';
 import type { DeviceGuard } from '../device-guard/device-guard';
 import { useStartup } from '../startup';
 import type { QueueItem, SyncRuntime } from '../sync/types';
@@ -45,6 +46,8 @@ export interface SessionPorts {
   };
   /** Destination of a pick in "Dodaj" (EVM-107 / E11 provide the screens). */
   readonly openAddTarget: (target: AddTarget) => void;
+  /** The camera (EVM-108): the shell hosts the screen; the entries open it through `openCamera` of the session. */
+  readonly camera: CameraRequests;
   /** A new id (UUIDv7) for an entry created on the phone (EVM-105): the generator of the session, CSPRNG. */
   readonly newId: () => string;
   /** The synchronization of the session (EVM-107): the service is started here after the sign-in and stopped when it ends. */
@@ -299,6 +302,8 @@ export function SessionRoot({ ports, children }: { ports: SessionPorts; children
         }),
       openAddTarget: ports.openAddTarget,
       newId: ports.newId,
+      camera: ports.camera,
+      openCamera: (orderId) => ports.camera.open(orderId),
       openHelp,
       openPrivacy,
     }),

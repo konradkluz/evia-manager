@@ -34,3 +34,15 @@ export function sameDay(a: number, b: number): boolean {
   const pb = parts(b, { day: '2-digit', month: '2-digit', year: 'numeric' });
   return pa['day'] === pb['day'] && pa['month'] === pb['month'] && pa['year'] === pb['year'];
 }
+
+const MB = 1024 * 1024;
+const GB = 1024 * MB;
+
+/**
+ * Free space for the camera warning (EVM-108 AC4): "1,2 GB" from the real value (Polish decimal comma, rounded DOWN to one place so the text
+ * never claims more than there is), below a gigabyte whole megabytes ("640 MB").
+ */
+export function formatFreeSpace(bytes: number): string {
+  if (bytes < GB) return `${String(Math.max(0, Math.floor(bytes / MB)))} MB`;
+  return `${(Math.floor((bytes / GB) * 10) / 10).toFixed(1).replace('.', ',')} GB`;
+}

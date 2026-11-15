@@ -18,6 +18,8 @@ import type { FileStateEvent, OriginalDigest, UploadProgressEvent, UploadStatus 
 import type { MediaFileRecord, MediaFileState } from '../storage/media-file-store';
 import type { UnlockedStore } from '../storage';
 import { createCapturedPhotoInput, createMediaAssetInput, type CapturedPhoto, type NewMediaAsset } from './create-media-asset';
+import { CapturePipeline, type CapturePorts } from '../capture/capture-pipeline';
+import type { DiskSpace } from '../capture/disk-space';
 import type { NativeUpload } from './native-upload';
 import type { MediaControl, MediaFileView, MediaUploadsSnapshot } from './types';
 
@@ -39,6 +41,8 @@ export interface MediaUploadsDeps {
   readonly dataVisible: () => boolean;
   /** After an event of the module (the contact of a refresh made in the background is merged, EVM-130 architect 9). */
   readonly onNativeEvent?: () => void;
+  /** The camera (EVM-108): the free space and the id generator of the session; without them a picture cannot be taken (`camera_failed`). */
+  readonly capture?: { readonly disk: DiskSpace; readonly newId: () => string };
 }
 
 /** Files confirmed by the server stay in the view as "Wysłano" this many (newest first). */
@@ -210,6 +214,22 @@ export class MediaUploads implements MediaControl {
     if (!queued.ok || queued.mutationId === undefined) return { ok: false, code: 'enqueue_failed' };
     void this.reconcile();
     return { ok: true };
+  }
+
+  capturePipeline(takePicture: CapturePorts['takePicture']): CapturePipeline {
+    const capture = this.#deps.capture;
+    return new CapturePipeline({
+      takePicture: capture === undefined ? () => Promise.resolve(null) : takePicture,
+      native: this.#deps.native,
+      disk: capture?.disk ?? { freeBytes: () => null },
+      registerAndEnqueue: (photo, digest) => this.addCaptured(photo, digest),
+      now: this.#deps.now,
+      newId: capture?.newId ?? (() => ''),
+    });
+  }
+
+  freeDiskBytes(): number | null {
+    return this.#deps.capture?.disk.freeBytes() ?? null;
   }
 
   // ---- reconciliation -------------------------------------------------------------------------------------------------------

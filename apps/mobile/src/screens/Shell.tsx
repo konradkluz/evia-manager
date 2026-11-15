@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AccessibilityInfo, BackHandler, View } from 'react-native';
 import { useStartup } from '../startup';
 import { BottomNav, ClipboardList, Ellipsis, ListChecks, Toast } from '../ui';
 import { color } from '../ui/theme';
 import { AddSheet } from './AddSheet';
+import { CameraScreen } from './CameraScreen';
 import { EntryFormScreen } from './EntryFormScreen';
 import { EntryTargetPicker } from './EntryTargetPicker';
 import { MoreScreen, useSignOutFlow } from './MoreScreen';
@@ -101,6 +102,9 @@ export function Shell() {
     open();
     return session.guard.onForeground(open);
   }, [session, openQueue]);
+  // The camera (EVM-108): an overlay over the shell, opened by `session.openCamera(orderId)`; the id is the only datum and the state is dropped with the shell
+  const cameraOrderId = useSyncExternalStore(session.camera.subscribe, session.camera.getSnapshot);
+  useEffect(() => session.camera.close, [session.camera]);
   const [adding, setAdding] = useState(false);
   // The entry form (EVM-105): the text lives in the state of the form only, so closing this state drops it (no draft, nothing stored)
   const [entry, setEntry] = useState<Entry | null>(null);
@@ -169,7 +173,7 @@ export function Shell() {
   }
   const dialog = wipe.dialog ?? signOut.dialog;
   const shownEntry = hidden ? null : entry;
-  const covered = dialog !== null || adding || shownEntry !== null;
+  const covered = dialog !== null || adding || shownEntry !== null || cameraOrderId !== null;
   const detailOpen = openOrderId !== null;
   return (
     <View style={{ flex: 1, backgroundColor: color.bg.canvas }}>
@@ -287,6 +291,11 @@ export function Shell() {
             onSaved={quickSaved}
             recreate={{ mutationId: shownEntry.mutationId }}
           />
+        </View>
+      ) : null}
+      {cameraOrderId !== null ? (
+        <View style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}>
+          <CameraScreen orderId={cameraOrderId} onClose={session.camera.close} focused={dialog === null && !adding} />
         </View>
       ) : null}
       {shownEntry?.stage === 'pick' ? (

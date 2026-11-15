@@ -24,6 +24,7 @@ export { default as RefreshCw } from 'lucide-react-native/icons/refresh-cw';
 export { default as WifiOff } from 'lucide-react-native/icons/wifi-off';
 export { default as Banknote } from 'lucide-react-native/icons/banknote';
 export { default as Calculator } from 'lucide-react-native/icons/calculator';
+export { default as Circle } from 'lucide-react-native/icons/circle';
 export { default as Check } from 'lucide-react-native/icons/check';
 export { default as CircleCheck } from 'lucide-react-native/icons/circle-check';
 export { default as CirclePause } from 'lucide-react-native/icons/circle-pause';

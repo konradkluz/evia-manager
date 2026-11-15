@@ -2,6 +2,7 @@
 // test/auth/session-owner.test.ts; here the screens and the session gate are exercised.
 import { randomFillSync } from 'node:crypto';
 import { createUuidV7 } from '@evia/sync-core';
+import { CameraRequests } from '../src/capture/camera-requests';
 import { Challenge, IssuedSession } from '../src/auth/opaque';
 import type { AuthOutcome, QueueEntryRow, SessionEnded, SignInClient } from '../src/auth/ports';
 import type { SessionControl, SessionStep } from '../src/auth/session-owner';
@@ -196,6 +197,7 @@ export function stubPorts(owner: StubOwner = stubOwner(), unsentBeforeSignIn: nu
       },
     },
     openAddTarget: (target) => opened.push(`add:${target}`),
+    camera: new CameraRequests({ orders: () => sync.orderList(false) }),
     newId: createUuidV7({ now: Date.now }, { getRandomValues: (bytes) => (randomFillSync(bytes), bytes) }),
     appVersion: '0.4.0',
   };

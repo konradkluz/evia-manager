@@ -2,6 +2,8 @@
  * Types of the files of the queue that screens may import (EVM-130): no runtime dependency on the service, the store or the module
  * (dependency-cruiser `mobile-screens-without-adapters`). The screens read `MediaUploadsSnapshot` and call `MediaControl`.
  */
+import type { CapturePipeline, CapturePorts } from '../capture/capture-pipeline';
+
 export type MediaFileStatus = 'waiting' | 'uploading' | 'sent' | 'error' | 'attention';
 export type MediaFileAction = 'retry';
 
@@ -35,6 +37,10 @@ export interface MediaControl {
   openNotificationSettings(): Promise<boolean>;
   /** Where the touch of the notification sent the user; one read; a value of a fixed set. */
   consumeLaunchTarget(): 'queue' | null;
+  /** The save of the pictures of ONE opening of the camera (EVM-108): `takePicture` is the source of the picture, the rest is the durable save of the session. */
+  capturePipeline(takePicture: CapturePorts['takePicture']): CapturePipeline;
+  /** Free bytes of the storage of the app (`null` = unknown) for the warning of the camera. */
+  freeDiskBytes(): number | null;
   /** Return to the foreground: the permission and the view are read again, the files are reconciled. */
   refresh(): Promise<void>;
 }
