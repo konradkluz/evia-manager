@@ -19,6 +19,8 @@ import { SCENARIOS } from './scenarios.mjs';
 
 /** The answer to every part is held this long (ms): ten parts of the big file take about a minute. */
 const SLOW = 5000;
+/** The interruptions scenario: ten parts of 20 s, so that the file is still on its way at the last resumption before the restart of the emulator (a first run with 5 s per part ended before it). */
+const SLOWER = 20_000;
 
 /**
  * The first step of every scenario: the server forgets the earlier scenario, the log is empty, the answer to every part is held `delay` ms.
@@ -50,7 +52,7 @@ export const UPLOAD_SCENARIOS = [
     name: 'upload-interruptions',
     ac: 'EVM-130 AC1 AC3 AC5 AC6',
     steps: [
-      signIn(SLOW),
+      signIn(SLOWER),
       { flow: '51-upload-offline-inject.yaml', server: 'ok', airplane: true, upload: true, after: ['jobs-none', 'upload-none-yet'] },
       {
         flow: '52-upload-resumes.yaml',
