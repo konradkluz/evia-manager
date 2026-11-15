@@ -18,5 +18,11 @@ appId: pl.eviacharge.manager
       id: 'e2e-status'
       text: 'media_added=1;asset=[0-9a-f-]+;bytes=${BYTES}'
     timeout: 60000
+# the panel is a scroll view and the close button lies below the fold
+- scrollUntilVisible:
+    element:
+      id: 'e2e-close'
+    direction: DOWN
+    centerElement: true
 - tapOn:
     id: 'e2e-close'

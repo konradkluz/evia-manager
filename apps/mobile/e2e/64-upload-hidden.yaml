@@ -7,13 +7,28 @@ appId: pl.eviacharge.manager
     stopApp: false
 - tapOn:
     id: 'evia-e2e-hooks-panel'
+# the hook lies below the fold of the panel (a scroll view), its status line at the top
+- scrollUntilVisible:
+    element:
+      id: 'e2e-contact-8'
+    direction: DOWN
+    centerElement: true
 - tapOn:
     id: 'e2e-contact-8'
+- scrollUntilVisible:
+    element:
+      id: 'e2e-status'
+    direction: UP
 - extendedWaitUntil:
     visible:
       id: 'e2e-status'
       text: 'device=contact_8d'
     timeout: 10000
+- scrollUntilVisible:
+    element:
+      id: 'e2e-close'
+    direction: DOWN
+    centerElement: true
 - tapOn:
     id: 'e2e-close'
 - pressKey: home
