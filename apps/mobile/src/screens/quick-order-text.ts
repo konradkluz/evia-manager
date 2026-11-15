@@ -57,3 +57,14 @@ export const PLURAL_KEYS = {
     many: 'quickOrder.templateMilestones_many',
   },
 } as const;
+
+/** "Utwórz ponownie" (EVM-128): the problem of the save (the old order stays as it was) and the reason shown on top, chosen by the code. */
+export const RECREATE_PROBLEM_KEYS = {
+  storage: 'quickOrder.recreate.failed',
+  too_large: 'quickOrder.errors.too_large',
+  failed: 'quickOrder.recreate.failed',
+} as const;
+export const RECREATE_REASON_KEYS = {
+  default: 'quickOrder.recreate.reasonDefault',
+  id_conflict: 'quickOrder.recreate.reasonIdConflict',
+} as const;

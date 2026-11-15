@@ -95,7 +95,7 @@ describe('first download gate (EVM-107 AC1)', () => {
     });
     expect(screen.getByTestId('first-pull-error')).toHaveTextContent(contains(pl.firstPull.errors.network));
     await fireEvent.press(screen.getByTestId('first-pull-help'));
-    expect(rig.opened).toContain('help');
+    expect(screen.getByTestId('privacy-help')).toBeOnTheScreen();
   });
 
   it('EVM-107 AC1: every failure kind has its own copy', async () => {
@@ -460,10 +460,11 @@ describe('Kolejka and "Wymaga uwagi" (EVM-107 AC3, AC4)', () => {
     const handled: string[] = [];
     const second = stubPorts();
     second.sync.items = [
+      // a quick work order has its own form since EVM-128 (its own test file); a note or a comment goes through the injected handler
       item({
-        code: 'template_unavailable',
-        reason: 'template_unavailable',
-        type: 'CreateQuickWorkOrder',
+        code: 'id_conflict',
+        reason: 'id_conflict',
+        type: 'CreateComment',
         actions: ['recreate', 'discard'],
       }),
     ];

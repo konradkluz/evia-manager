@@ -12,6 +12,8 @@
 import type { ExpoConfig } from 'expo/config';
 import { parseApiBaseUrl, resolveBuildVariant } from '../src/config/api-base-url.ts';
 import { parseStorageHosts } from './with-upload.ts';
+import { parseContactEmail, parseContactPhone } from '../src/config/contact-values.ts';
+import { ADMINISTRATOR, CLAUSES, DRAFT } from '../src/privacy/content.ts';
 
 export const APP_VERSION = '0.1.0';
 /** Permanent application id: changing it creates a different app on the phones (confirmed by Konrad before the first sideload). */
@@ -40,6 +42,27 @@ export function resolveVersionCode(value: string | undefined): number {
   const code = Number(value.trim());
   if (code > 2_100_000_000) throw new Error('EVIA_ANDROID_VERSION_CODE exceeds the Android limit');
   return code;
+}
+
+/**
+ * The state of the privacy clauses built into the package (EVM-102 AC6), declared in `extra` so that `tools/mobile-apk sign` can refuse a
+ * package with a draft or with markers of data still to be filled in. A flat object of plain JSON (tools/mobile-apk/src/telemetry.mjs).
+ */
+export function privacyClausesState(): { draft: boolean; markers: boolean; versions: string } {
+  const text = JSON.stringify([ADMINISTRATOR, CLAUSES]);
+  return {
+    draft: DRAFT,
+    markers: text.includes('[DO UZUPEŁNIENIA]') || text.includes('[PRAWNIK/IOD]'),
+    versions: [...new Set(CLAUSES.map((clause) => clause.version))].join(', '),
+  };
+}
+
+/** A contact of the office from the build (EVM-102 AC3): absent is fine, a malformed value fails the build instead of being shown wrongly. */
+function contactFrom(name: string, parse: (raw: unknown) => string | null | undefined, raw: string | undefined): string | null {
+  const value = parse(raw);
+  if (value === undefined)
+    throw new Error(`${name} is not a valid value (an address like office@example.com or a number like +48 123 456 789)`);
+  return value;
 }
 
 export function buildExpoConfig(env: Readonly<Record<string, string | undefined>>): ExpoConfig {
@@ -85,6 +108,13 @@ export function buildExpoConfig(env: Readonly<Record<string, string | undefined>
       ['./plugins/with-hardening.ts', { variant }],
       ['./plugins/with-upload.ts', { variant, apiBaseUrl: url.url, storageHosts }],
     ],
-    extra: { buildVariant: variant },
+    extra: {
+      buildVariant: variant,
+      // EVM-102: contact of the office (not in the repository: the build variables EVIA_CONTACT_EMAIL / EVIA_CONTACT_PHONE; visible in the CI artifact and in the APK, so only a functional
+      // address and number of the office, never of a person)
+      contactEmail: contactFrom('EVIA_CONTACT_EMAIL', parseContactEmail, env['EVIA_CONTACT_EMAIL']),
+      contactPhone: contactFrom('EVIA_CONTACT_PHONE', parseContactPhone, env['EVIA_CONTACT_PHONE']),
+      privacyClauses: privacyClausesState(),
+    },
   };
 }

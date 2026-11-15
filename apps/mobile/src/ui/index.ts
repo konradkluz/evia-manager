@@ -9,6 +9,8 @@ export { BottomNav } from './BottomNav';
 export type { BottomNavItem } from './BottomNav';
 export { Button } from './Button';
 export type { ButtonProps, ButtonVariant } from './Button';
+export { Disclosure } from './Disclosure';
+export type { DisclosureProps } from './Disclosure';
 export { EmptyState } from './EmptyState';
 export { Icon } from './Icon';
 export type { EmptyStateProps } from './EmptyState';
@@ -40,7 +42,9 @@ export {
   Check,
   CircleAlert,
   CircleCheck,
+  ChevronDown,
   ChevronRight,
+  ChevronUp,
   CirclePause,
   CircleQuestionMark,
   CloudAlert,

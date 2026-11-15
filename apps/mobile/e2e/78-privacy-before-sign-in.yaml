@@ -1,0 +1,60 @@
+# EVM-102 AC2, AC3, AC4 (M-11 before the sign-in and without a network): a fresh install in airplane mode opens "Prywatność" from M-01 -
+# the contact of the build (this build has none: "zapytaj przełożonego"), no "Ostatnia synchronizacja", the statement about the crash
+# reports, the licences as a disclosure of the same screen; "Wstecz" returns to M-01 with nothing lost. Synthetic data only.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: 'login-email'
+    timeout: 30000
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- scrollUntilVisible:
+    element:
+      id: 'login-privacy'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'login-privacy'
+- extendedWaitUntil:
+    visible: 'Prywatność i pomoc'
+    timeout: 10000
+# the entry "Prywatność" opens the screen at its privacy section: the help section with the contact lies above it
+- scrollUntilVisible:
+    element:
+      id: 'privacy-no-contact'
+    direction: UP
+    centerElement: true
+- assertVisible: 'Kontakt z administratorem: zapytaj przełożonego\.'
+- assertNotVisible: 'Ostatnia synchronizacja.*'
+- takeScreenshot: m11-before-sign-in
+- scrollUntilVisible:
+    element: 'Aplikacja nie wysyła raportów awarii.*'
+    direction: DOWN
+    centerElement: true
+- assertNotVisible: 'Raporty awarii: włączone.*'
+- scrollUntilVisible:
+    element:
+      id: 'privacy-licenses'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'privacy-licenses'
+- scrollUntilVisible:
+    element: 'SQLCipher.*'
+    direction: DOWN
+    centerElement: true
+- takeScreenshot: m11-licenses
+- scrollUntilVisible:
+    element:
+      id: 'privacy-help-back'
+    direction: UP
+- tapOn:
+    id: 'privacy-help-back'
+- extendedWaitUntil:
+    visible:
+      id: 'login-email'
+    timeout: 10000

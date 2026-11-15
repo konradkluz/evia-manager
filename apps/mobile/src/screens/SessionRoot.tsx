@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
-import { View as Box } from 'react-native';
+import { BackHandler, Linking, View as Box } from 'react-native';
+import { NO_CONTACT, type ContactConfig } from '../config/contact-values';
 import { color } from '../ui/theme';
 import { LoginMachine, type BlockedVariant } from '../auth/login-machine';
 import type { WipeSignal } from '../auth/ports';
@@ -13,6 +14,7 @@ import { DeviceStateScreen, QueuePreviewScreen, type DeviceStateVariant } from '
 import { LocalDataLostScreen } from './LocalDataScreens';
 import { LoginScreen, useOfflineRecheck } from './LoginScreen';
 import { LockGate } from './LockOverlay';
+import { PrivacyHelpScreen, type HelpSection } from './PrivacyHelpScreen';
 import { SessionContext, type SessionActions } from './session-context';
 import type { AddTarget } from './AddSheet';
 import { SyncGate } from './SyncGate';
@@ -26,8 +28,12 @@ export interface SessionPorts {
   readonly unsentBeforeSignIn: () => Promise<number | null>;
   /** "Nie pamiętasz hasła?": the panel in the browser (a fixed address). */
   readonly openForgotPassword: () => void;
-  /** "Pomoc" (M-11, EVM-102). */
-  readonly openHelp: () => void;
+  /** M-11 "Prywatność i pomoc" (EVM-102): the contact and the build of the package, and how a `mailto:` / `tel:` is opened. All optional. */
+  readonly privacyHelp?: {
+    readonly build: string | null;
+    readonly contact: ContactConfig;
+    readonly openUrl: (url: string) => Promise<void>;
+  };
   /** Whether the phone has a screen lock; asked before the password is sent (EVM-101 AC1). */
   readonly screenLockOk: () => Promise<boolean>;
   /** The device controls of EVM-101 (screen lock, 7 days, app lock, patch level); one store, one `AppState` listener. */
@@ -78,8 +84,29 @@ export function SessionRoot({ ports, children }: { ports: SessionPorts; children
   const [view, setView] = useState<View>({ kind: 'starting' });
   const [attempt, setAttempt] = useState(0);
   const refreshedAtStart = useRef(false);
-
+  // M-11 is an overlay of the whole window (no router): it keeps what is under it (a typed e-mail, the tab) and "back" closes it (EVM-102 AC2)
+  const [help, setHelp] = useState<HelpSection | null>(null);
   const guardState = useSyncExternalStore(guard.subscribe, guard.getSnapshot);
+  // the lock covers the signed-in app only (M-01 before the sign-in is never behind the cover, although the guard starts locked)
+  const locked = guardState.locked && view.kind === 'signedIn';
+  // while the app is locked "back" must not close the overlay hidden under the cover: the handler is not registered (EVM-102 AC2)
+  useEffect(() => {
+    if (help === null || locked) return undefined;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      setHelp(null);
+      return true;
+    });
+    return () => {
+      subscription.remove();
+    };
+  }, [help, locked]);
+  const openHelp = useCallback(() => {
+    setHelp('help');
+  }, []);
+  const openPrivacy = useCallback(() => {
+    setHelp('privacy');
+  }, []);
+
   useEffect(() => guard.start(), [guard]);
   const { sync } = ports;
   const syncSnapshot = useSyncExternalStore(sync.subscribe, sync.getSnapshot);
@@ -272,97 +299,132 @@ export function SessionRoot({ ports, children }: { ports: SessionPorts; children
         }),
       openAddTarget: ports.openAddTarget,
       newId: ports.newId,
-      openHelp: ports.openHelp,
+      openHelp,
+      openPrivacy,
     }),
     // the name is read again whenever the view changes (a new sign-in)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `view` refreshes the display name
-    [owner, ports, online, view, guard, sync],
+    [owner, ports, online, view, guard, sync, openHelp, openPrivacy],
   );
 
-  switch (view.kind) {
-    case 'starting':
-      return null;
-    case 'signedIn':
-      return (
-        <SessionContext.Provider value={actions}>
-          <LockGate
-            locked={guardState.locked}
-            prompting={guardState.prompting}
-            onUnlock={() => {
-              void guard.unlock();
+  const privacyHelp = ports.privacyHelp ?? { build: null, contact: NO_CONTACT, openUrl: (url: string) => Linking.openURL(url) };
+  const withHelp = (content: ReactNode): ReactNode => (
+    <Box style={{ flex: 1 }}>
+      {/* while M-11 is open the screen under it is hidden from the screen reader and cannot be touched */}
+      <Box
+        style={{ flex: 1 }}
+        accessibilityElementsHidden={help !== null}
+        importantForAccessibility={help === null ? 'auto' : 'no-hide-descendants'}
+      >
+        {content}
+      </Box>
+      {help === null ? null : (
+        <Box style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+          <PrivacyHelpScreen
+            section={help}
+            contact={privacyHelp.contact}
+            version={ports.appVersion}
+            build={privacyHelp.build}
+            lastSyncAt={view.kind === 'signedIn' ? syncSnapshot.lastSuccessAt : undefined}
+            onBack={() => {
+              setHelp(null);
             }}
-          >
-            <SyncGate
-              snapshot={syncSnapshot}
-              onRetry={() => {
-                sync.trigger();
-              }}
-              onHelp={ports.openHelp}
-            >
-              {children}
-            </SyncGate>
-          </LockGate>
-        </SessionContext.Provider>
-      );
-    case 'ownerMismatch':
-      return (
-        <Box style={{ flex: 1, backgroundColor: color.bg.canvas }}>
-          <OwnerMismatchDialog
-            unsentItems={view.unsent}
-            onCancel={() => {
-              // nothing is removed; the session of step 2 was only in memory and is ended on the server
-              void owner.abandonSignIn();
-              toSignIn();
-            }}
-            onConfirm={async () => {
-              await owner.abandonSignIn();
-              if ((await ports.companyWipe.runManual()) === 'done') toSignIn();
-            }}
+            openUrl={privacyHelp.openUrl}
+            copy={ports.copyToClipboard}
           />
         </Box>
-      );
-    case 'dataLost':
-      return (
-        <LocalDataLostScreen
-          onAcknowledge={() => {
-            void view.check
-              .acknowledge()
-              .then((result) => owner.continueDeviceCheck(result))
-              .then(afterStep);
-          }}
-        />
-      );
-    case 'queuePreview':
-      return (
-        <QueuePreviewScreen
-          unsentItems={view.unsent}
-          onBack={() => {
-            setView({ kind: 'state', variant: 'client_version_unsupported', unsent: view.unsent, fromSignIn: true });
-          }}
-        />
-      );
-    case 'state':
-      return (
-        <DeviceStateScreen
-          variant={view.variant}
-          unsentItems={view.unsent}
-          onHelp={ports.openHelp}
-          onPrimary={() => {
-            if (view.variant === 'client_version_unsupported') {
-              setView({ kind: 'queuePreview', unsent: view.unsent });
-            } else if (view.fromSignIn) {
-              machine.backToSignIn();
-              setView({ kind: 'signIn' });
-            } else if (view.variant === 'channel_not_allowed') {
-              // read-only account in the mobile channel (decision of the owner): the session ends on the phone, the queue stays encrypted
-              void owner.signOut({ online });
-            } else {
-              toSignIn();
-            }
-          }}
-        />
-      );
-    case 'signIn':
-      return <LoginScreen machine={machine} onForgotPassword={ports.openForgotPassword} now={now} />;
-  }
+      )}
+    </Box>
+  );
+  const body = (): ReactNode => {
+    switch (view.kind) {
+      case 'starting':
+        return null;
+      case 'signedIn':
+        return (
+          <SessionContext.Provider value={actions}>
+            <LockGate
+              locked={guardState.locked}
+              prompting={guardState.prompting}
+              onUnlock={() => {
+                void guard.unlock();
+              }}
+            >
+              {withHelp(
+                <SyncGate
+                  snapshot={syncSnapshot}
+                  onRetry={() => {
+                    sync.trigger();
+                  }}
+                  onHelp={openHelp}
+                >
+                  {children}
+                </SyncGate>,
+              )}
+            </LockGate>
+          </SessionContext.Provider>
+        );
+      case 'ownerMismatch':
+        return (
+          <Box style={{ flex: 1, backgroundColor: color.bg.canvas }}>
+            <OwnerMismatchDialog
+              unsentItems={view.unsent}
+              onCancel={() => {
+                // nothing is removed; the session of step 2 was only in memory and is ended on the server
+                void owner.abandonSignIn();
+                toSignIn();
+              }}
+              onConfirm={async () => {
+                await owner.abandonSignIn();
+                if ((await ports.companyWipe.runManual()) === 'done') toSignIn();
+              }}
+            />
+          </Box>
+        );
+      case 'dataLost':
+        return (
+          <LocalDataLostScreen
+            onAcknowledge={() => {
+              void view.check
+                .acknowledge()
+                .then((result) => owner.continueDeviceCheck(result))
+                .then(afterStep);
+            }}
+          />
+        );
+      case 'queuePreview':
+        return (
+          <QueuePreviewScreen
+            unsentItems={view.unsent}
+            onBack={() => {
+              setView({ kind: 'state', variant: 'client_version_unsupported', unsent: view.unsent, fromSignIn: true });
+            }}
+          />
+        );
+      case 'state':
+        return (
+          <DeviceStateScreen
+            variant={view.variant}
+            unsentItems={view.unsent}
+            onHelp={openHelp}
+            onPrimary={() => {
+              if (view.variant === 'client_version_unsupported') {
+                setView({ kind: 'queuePreview', unsent: view.unsent });
+              } else if (view.fromSignIn) {
+                machine.backToSignIn();
+                setView({ kind: 'signIn' });
+              } else if (view.variant === 'channel_not_allowed') {
+                // read-only account in the mobile channel (decision of the owner): the session ends on the phone, the queue stays encrypted
+                void owner.signOut({ online });
+              } else {
+                toSignIn();
+              }
+            }}
+          />
+        );
+      case 'signIn':
+        return <LoginScreen machine={machine} onForgotPassword={ports.openForgotPassword} onPrivacy={openPrivacy} now={now} />;
+    }
+  };
+  return view.kind === 'signedIn' ? body() : withHelp(body());
 }

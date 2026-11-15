@@ -16,6 +16,7 @@ import type { Principal } from '../../../platform/http/principal.ts';
 import type { OrderChildSyncSource } from '../../../platform/sync/sync-row-state.ts';
 import { CUSTOMER_SYNC_SOURCE, type CustomerSyncSource } from '../../customers/system-ports.ts';
 import { USER_SYNC_SOURCE, type UserSyncSource } from '../../identity/system-ports.ts';
+import { MEDIA_ASSET_SYNC_SOURCE, type MediaAssetSyncSource } from '../../media/system-ports.ts';
 import { PARTY_SYNC_SOURCE, type PartySyncSource } from '../../parties/system-ports.ts';
 import { PROCEDURE_STAGE_SYNC_SOURCE, type ProcedureStageSyncSource } from '../../procedures/system-ports.ts';
 import { SITE_SYNC_SOURCE, type SiteSyncSource } from '../../sites/system-ports.ts';
@@ -33,6 +34,7 @@ import {
   deleteChange,
   partyChange,
   procedureStageChange,
+  mediaAssetChange,
   scopeItemChange,
   siteChange,
   timelineEntryChange,
@@ -54,6 +56,7 @@ export class CurrentStateReader {
   readonly #items: ScopeItemSyncSource;
   readonly #stages: ProcedureStageSyncSource;
   readonly #entries: TimelineEntrySyncSource;
+  readonly #media: MediaAssetSyncSource;
 
   constructor(
     @Inject(WORK_ORDER_SYNC_SOURCE) orders: WorkOrderSyncSource,
@@ -64,6 +67,7 @@ export class CurrentStateReader {
     @Inject(SCOPE_ITEM_SYNC_SOURCE) items: ScopeItemSyncSource,
     @Inject(PROCEDURE_STAGE_SYNC_SOURCE) stages: ProcedureStageSyncSource,
     @Inject(TIMELINE_ENTRY_SYNC_SOURCE) entries: TimelineEntrySyncSource,
+    @Inject(MEDIA_ASSET_SYNC_SOURCE) media: MediaAssetSyncSource,
   ) {
     this.#orders = orders;
     this.#customers = customers;
@@ -73,6 +77,7 @@ export class CurrentStateReader {
     this.#items = items;
     this.#stages = stages;
     this.#entries = entries;
+    this.#media = media;
   }
 
   async changesFor(
@@ -158,6 +163,7 @@ export class CurrentStateReader {
     await this.#anchored(tx, principal, scope, 'scope_item', idsOf('scope_item'), this.#items, scopeItemChange, put, mark);
     await this.#anchored(tx, principal, scope, 'procedure_stage', idsOf('procedure_stage'), this.#stages, procedureStageChange, put, mark);
     await this.#anchored(tx, principal, scope, 'timeline_entry', idsOf('timeline_entry'), this.#entries, timelineEntryChange, put, mark);
+    await this.#anchored(tx, principal, scope, 'media_asset', idsOf('media_asset'), this.#media, mediaAssetChange, put, mark);
     return due;
   }
 

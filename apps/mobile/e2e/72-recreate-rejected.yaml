@@ -1,0 +1,18 @@
+# EVM-128 AC1: the network returns; the server rejects the order with `template_unavailable`. The order and its entry are ONE group of
+# "Wymaga uwagi" with the plain reason, the number of dependents and the action "Utwórz ponownie". The counters of the scenario server
+# (0 unique, 0 duplicates, 1 rejected: the entry is held back) are asserted by tools/mobile-e2e after this flow.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- extendedWaitUntil:
+    visible: 'Wymaga uwagi.*'
+    timeout: 90000
+- tapOn:
+    id: 'nav-queue'
+- extendedWaitUntil:
+    visible: 'Wybrany szablon nie jest już dostępny\.'
+    timeout: 30000
+- assertVisible: 'Czeka z nim 1 element\.'
+- assertVisible: 'Utwórz ponownie'
+- takeScreenshot: m07-quick-order-recreate-rejected

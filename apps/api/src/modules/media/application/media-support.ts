@@ -6,7 +6,7 @@
 import type { DocumentUploadSession, MediaAsset, UploadSession } from '@evia/contracts';
 import { zCreateMediaAssetsHeaders } from '@evia/contracts/zod';
 import { ProblemException } from '../../../platform/http/problem.ts';
-import type { Principal } from '../../../platform/http/principal.ts';
+import { sessionCreatorOf, type Principal } from '../../../platform/http/principal.ts';
 import { ObjectStorageError, type ObjectStorage } from '../../../platform/object-storage/object-storage.ts';
 import { quarantineOf, quarantineReasonOf } from '../domain/quarantine.ts';
 import type { AssetWithFile, Creator, ListedAsset, UploadSessionRow } from '../infrastructure/media-store.ts';
@@ -44,8 +44,8 @@ export function idempotencyKeyOf(rawKey: string | undefined): string {
   return parsed.data;
 }
 
-/** The creator of a session: the user and the device — the web has no device (`null`). */
-export const creatorOf = (principal: Principal): Creator => ({ userId: principal.userId, deviceId: null });
+/** The creator of a session: the user and the device of the session of the phone, none for the panel (SR-SYNC-08; see `sessionCreatorOf`). */
+export const creatorOf = (principal: Principal): Creator => sessionCreatorOf(principal);
 
 interface Representation {
   /** The list with `uploadState=unfinished`: the only place the file name and the session are returned. */

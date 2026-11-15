@@ -4,6 +4,7 @@ import {
   BLOCKED_ANDROID_PERMISSIONS,
   IOS_BUNDLE_IDENTIFIER,
   buildExpoConfig,
+  privacyClausesState,
   resolveVersionCode,
 } from '../plugins/expo-config';
 
@@ -96,5 +97,36 @@ describe('Expo configuration of the build (EVM-009 AC3, AC5, AC6)', () => {
     expect(e2e.plugins).toContainEqual(['./plugins/with-hardening.ts', { variant: 'e2e' }]);
     expect(() => buildExpoConfig({ EXPO_PUBLIC_API_BASE_URL: 'http://api.example.test', EVIA_BUILD_VARIANT: 'e2e' })).toThrow(/e2e build/);
     expect(buildExpoConfig(releaseEnv).extra).toMatchObject({ buildVariant: 'release' });
+  });
+});
+
+describe('contact and the state of the clauses in the build (EVM-102 AC3, AC6)', () => {
+  it('EVM-102 AC3: the contact of the office comes from the build variables; without them there is none (nothing in the repository)', () => {
+    expect(buildExpoConfig(releaseEnv).extra).toMatchObject({ contactEmail: null, contactPhone: null });
+    expect(
+      buildExpoConfig({ ...releaseEnv, EVIA_CONTACT_EMAIL: ' office@example.com ', EVIA_CONTACT_PHONE: '+48 123 456 789' }).extra,
+    ).toMatchObject({ contactEmail: 'office@example.com', contactPhone: '+48 123 456 789' });
+    expect(buildExpoConfig({ ...releaseEnv, EVIA_CONTACT_EMAIL: '', EVIA_CONTACT_PHONE: '' }).extra).toMatchObject({
+      contactEmail: null,
+      contactPhone: null,
+    });
+  });
+
+  it('EVM-102 AC3: a malformed address or number fails the build instead of being shown wrongly (the value is not echoed)', () => {
+    expect(() => buildExpoConfig({ ...releaseEnv, EVIA_CONTACT_EMAIL: 'not an address' })).toThrow(
+      /EVIA_CONTACT_EMAIL is not a valid value/,
+    );
+    expect(() => buildExpoConfig({ ...releaseEnv, EVIA_CONTACT_PHONE: 'call me' })).toThrow(/EVIA_CONTACT_PHONE is not a valid value/);
+    expect(() => buildExpoConfig({ ...releaseEnv, EVIA_CONTACT_EMAIL: 'not an address' })).not.toThrow(/not an address/);
+  });
+
+  it('EVM-102 AC6: the build declares the state of the clauses for tools/mobile-apk sign (a draft and markers are visible while they are there)', () => {
+    const state = privacyClausesState();
+    expect(typeof state.draft).toBe('boolean');
+    expect(typeof state.markers).toBe('boolean');
+    expect(state.versions).not.toBe('');
+    expect(buildExpoConfig(releaseEnv).extra).toMatchObject({ privacyClauses: state });
+    // plain flat JSON, as tools/mobile-apk/src/telemetry.mjs reads it from the assets of the package
+    expect(JSON.stringify({ privacyClauses: state })).toMatch(/"privacyClauses":{[^{}]*}/);
   });
 });

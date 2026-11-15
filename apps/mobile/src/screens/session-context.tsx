@@ -35,8 +35,9 @@ export interface SessionActions {
   readonly openAddTarget: (target: AddTarget) => void;
   /** A new id (UUIDv7) for an entry created on the phone (EVM-105). */
   readonly newId: () => string;
-  /** "Pomoc" (M-11, EVM-102). */
+  /** "Pomoc" and "Prywatność" (M-11, EVM-102): the same overlay, started at the section of the entry. */
   readonly openHelp: () => void;
+  readonly openPrivacy: () => void;
 }
 
 export const SessionContext = createContext<SessionActions | null>(null);

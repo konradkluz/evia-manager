@@ -3,6 +3,7 @@ import { USER_SYNC_SOURCE, type UserSyncSource } from '../../src/modules/identit
 import { PARTY_SYNC_SOURCE, type PartySyncSource } from '../../src/modules/parties/system-ports.ts';
 import { PROCEDURE_STAGE_SYNC_SOURCE, type ProcedureStageSyncSource } from '../../src/modules/procedures/system-ports.ts';
 import { SITE_SYNC_SOURCE, type SiteSyncSource } from '../../src/modules/sites/system-ports.ts';
+import { MEDIA_ASSET_SYNC_SOURCE, type MediaAssetSyncSource } from '../../src/modules/media/system-ports.ts';
 import { TIMELINE_ENTRY_SYNC_SOURCE, type TimelineEntrySyncSource } from '../../src/modules/timeline/system-ports.ts';
 import {
   SCOPE_ITEM_SYNC_SOURCE,
@@ -585,6 +586,10 @@ describe('the ports of the entities answer an empty question with an empty answe
     expect(await stages.ofOrders(tx, [])).toEqual([]);
     expect(await stages.waitingOnParties(tx, [])).toEqual([]);
     expect(await stages.responsibleUsers(tx, [])).toEqual([]);
+    const media = app().app.get<MediaAssetSyncSource>(MEDIA_ASSET_SYNC_SOURCE, { strict: false });
+    expect((await media.anchorsOf(tx, [])).size).toBe(0);
+    expect((await media.liveOf(tx, [], [])).size).toBe(0);
+    expect(await media.ofOrders(tx, [])).toEqual([]);
     const entries = app().app.get<TimelineEntrySyncSource>(TIMELINE_ENTRY_SYNC_SOURCE, { strict: false });
     expect((await entries.anchorsOf(tx, [])).size).toBe(0);
     expect((await entries.liveOf(tx, [], [])).size).toBe(0);

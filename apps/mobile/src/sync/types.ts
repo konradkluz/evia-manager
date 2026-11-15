@@ -5,7 +5,7 @@
 import type { OrderDetail } from '../orders/order-detail-model';
 import type { OrderRow } from '../orders/order-list-model';
 import type { AttentionAction, AttentionReason, EnqueueInput, MutationType, TransportResponse } from '@evia/sync-core';
-import type { QuickOrderSource } from '../orders/quick-order-model';
+import type { QuickOrderDraft, QuickOrderSource } from '../orders/quick-order-model';
 import type { TemplateSet } from '../orders/templates';
 
 export type { AttentionAction, AttentionReason };
@@ -98,6 +98,17 @@ export type AttentionResult =
   /** `mutationId`: the id of the entry `enqueue` created (the table of files of EVM-130 links its row to it). */
   { readonly ok: true; readonly dependents?: number; readonly mutationId?: string } | { readonly ok: false; readonly code: string };
 
+/**
+ * What the form "Utwórz ponownie" starts from (EVM-128): the draft rebuilt from the rejected quick work order, the code of the
+ * rejection (for the reason shown on top; a fixed code, never a message) and the number of entries that wait behind it. The raw
+ * payload of the old command never leaves the service. Held in memory only for as long as the form is open.
+ */
+export interface RecreateSource {
+  readonly draft: QuickOrderDraft;
+  readonly code: string | null;
+  readonly dependents: number;
+}
+
 export interface TargetOption {
   readonly id: string;
   readonly number: string;
@@ -136,7 +147,19 @@ export interface SyncControl {
   /** Entries that depend on this one, for the confirmation dialog. */
   dependentsOf(id: string): Promise<number>;
   discard(id: string): Promise<AttentionResult>;
-  recreate(id: string): Promise<AttentionResult>;
+  /**
+   * The rejected quick work order for the form "Utwórz ponownie" (EVM-128; the queue of the owner only). `null` = not available: no
+   * such entry, not a quick work order, not in "needs attention", another owner, no session - and always in the hidden-data mode,
+   * where nothing is read at all (fail-closed).
+   */
+  recreateSource(id: string): Promise<RecreateSource | null>;
+  /**
+   * "Utwórz ponownie". Without `payload` the entry is created again as it is (a note or comment after `id_conflict`). With `payload`
+   * (built by the form from the corrected draft - new ids) the rejected quick work order is replaced in ONE transaction: the new
+   * command with a new mutation id, its entries moved under the new order, the old command and its customer and place data gone.
+   * Refused (nothing written) when the data are hidden, there is no session or the entry is not a quick work order.
+   */
+  recreate(id: string, payload?: Record<string, unknown>): Promise<AttentionResult>;
   retarget(id: string, workOrderId: string): Promise<AttentionResult>;
   /** The text to copy for an entry (not available in the hidden-data mode - the caller checks); `null` when unknown. */
   copyText(id: string): Promise<string | null>;

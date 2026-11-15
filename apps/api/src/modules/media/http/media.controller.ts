@@ -18,7 +18,7 @@ import { Body, Controller, Delete, Get, Headers, HttpCode, Inject, Param, Patch,
 import type { Request, Response } from 'express';
 import { entityTag } from '../../../platform/http/if-match.ts';
 import { OperationId } from '../../../platform/http/operation-id.ts';
-import { principalOf, type Principal } from '../../../platform/http/principal.ts';
+import { dualChannelPrincipalOf, principalOf, type Principal } from '../../../platform/http/principal.ts';
 import { ProblemException } from '../../../platform/http/problem.ts';
 import { webEventContext } from '../../../platform/http/request-context.ts';
 import { CreateMediaAssetsService } from '../application/create-media-assets.service.ts';
@@ -33,6 +33,13 @@ import { UploadPartsService } from '../application/upload-parts.service.ts';
 
 function requirePrincipal(request: Request): Principal {
   const principal = principalOf(request);
+  if (principal === null) throw new ProblemException('unauthenticated');
+  return principal;
+}
+
+/** The five operations of the upload session are open to the panel AND the phone (EVM-131): the principal is the one of the credential the guard accepted. */
+function requireSessionPrincipal(request: Request): Principal {
+  const principal = dualChannelPrincipalOf(request);
   if (principal === null) throw new ProblemException('unauthenticated');
   return principal;
 }
@@ -150,7 +157,7 @@ export class MediaController {
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ): Promise<UploadSession> {
-    const { session, status, replayed } = await this.#sessions.create(requirePrincipal(request), params, body, idempotencyKey);
+    const { session, status, replayed } = await this.#sessions.create(requireSessionPrincipal(request), params, body, idempotencyKey);
     response.status(status);
     if (replayed) response.set('Idempotent-Replayed', 'true');
     return session as UploadSession;
@@ -159,20 +166,20 @@ export class MediaController {
   @Get(`${SESSION}/parts`)
   @OperationId('listUploadParts')
   listUploadParts(@Param() params: unknown, @Req() request: Request): Promise<UploadPartList> {
-    return this.#parts.list(requirePrincipal(request), params);
+    return this.#parts.list(requireSessionPrincipal(request), params);
   }
 
   @Get(`${SESSION}/parts/:partNumber/url`)
   @OperationId('getUploadPartUrl')
   getUploadPartUrl(@Param() params: unknown, @Req() request: Request): Promise<UploadPartUrl> {
-    return this.#parts.url(requirePrincipal(request), params);
+    return this.#parts.url(requireSessionPrincipal(request), params);
   }
 
   @Post(`${SESSION}/complete`)
   @OperationId('completeUploadSession')
   @HttpCode(200)
   completeUploadSession(@Param() params: unknown, @Req() request: Request): Promise<MediaAsset> {
-    return this.#finish.completeMedia(requirePrincipal(request), params);
+    return this.#finish.completeMedia(requireSessionPrincipal(request), params);
   }
 
   @Post(`${BASE}/:mediaAssetId/rescan`)
@@ -210,6 +217,6 @@ export class MediaController {
   @OperationId('abortUploadSession')
   @HttpCode(204)
   abortUploadSession(@Param() params: unknown, @Req() request: Request): Promise<void> {
-    return this.#finish.abort(requirePrincipal(request), params);
+    return this.#finish.abort(requireSessionPrincipal(request), params);
   }
 }

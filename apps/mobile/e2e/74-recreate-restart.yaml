@@ -1,0 +1,28 @@
+# EVM-128 AC3: after the kill right after the save the new order and its entry are still in the queue ("Offline · 2"), the list shows
+# the order as "Oczekuje na numer" with its entry waiting, and "Wymaga uwagi" has no group any more (the old one was replaced).
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible: 'Offline · 2'
+    timeout: 45000
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- tapOn:
+    id: 'nav-queue'
+- assertNotVisible: 'Wymaga uwagi.*'
+- assertNotVisible: 'Wybrany szablon nie jest już dostępny.*'
+- tapOn:
+    id: 'nav-orders'
+- extendedWaitUntil:
+    visible: 'Oczekuje na numer'
+    timeout: 10000
+- tapOn: 'Oczekuje na numer'
+- scrollUntilVisible:
+    element: 'Wyślemy po utworzeniu zlecenia'
+    direction: DOWN
+- scrollUntilVisible:
+    element: 'Wpis do odrzuconego zlecenia'
+    direction: DOWN

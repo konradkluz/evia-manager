@@ -279,17 +279,23 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
         { kind: 'session', role: 'administrator', channel: 'web', state: 'active', passkey: 'fresh' },
       ]);
     }
+    // EVM-131: the five operations of the upload session are open to the phone too - their IDOR cells are the entitled roles on the web (cookie) AND on the phone (Bearer token; the phone has no enrolment state)
+    const dualObjects = ['createUploadSession', 'listUploadParts', 'getUploadPartUrl', 'completeUploadSession', 'abortUploadSession'];
     for (const operationId of all) {
-      expect(
-        idor
-          .filter((cell) => cell.operationId === operationId)
-          .map((cell) => JSON.stringify(cell.caller))
-          .sort(),
-      ).toEqual(
-        rolesOf(operationId)
-          .map((role) => JSON.stringify({ kind: 'session', role, channel: 'web', state: 'active' }))
-          .sort(),
-      );
+      const callers = rolesOf(operationId).flatMap((role) => [
+        JSON.stringify({ kind: 'session', role, channel: 'web', state: 'active' }),
+        ...(dualObjects.includes(operationId)
+          ? [
+              JSON.stringify({ kind: 'session', role, channel: 'mobile', state: 'active' }),
+              JSON.stringify({ kind: 'session', role, channel: 'mobile', state: 'mfa_enrollment' }),
+            ]
+          : []),
+      ]);
+      const cells = idor.filter((cell) => cell.operationId === operationId);
+      expect(cells.map((cell) => JSON.stringify(cell.caller)).sort(), operationId).toEqual(callers.sort());
+      for (const cell of cells) {
+        expect(cell.credential, operationId).toBe(cell.caller.kind === 'session' && cell.caller.channel === 'mobile' ? 'bearer' : 'cookie');
+      }
     }
     for (const cell of idor) expect(cell.expectation).toEqual({ outcome: 'not_found' });
   });

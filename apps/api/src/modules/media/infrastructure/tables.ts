@@ -28,6 +28,8 @@ export interface MediaAssetsTable {
   deleted_by: Generated<string | null>;
   /** When the file was erased on purpose (write-once): the record stays with the marker, the description is gone. */
   file_purged_at: Generated<Date | null>;
+  /** Counts the changes of the state of the file (migration 0065; EVM-131): the version the phone sees is `version + file_state_revision`. Not part of the API. */
+  file_state_revision: Generated<number>;
 }
 
 export interface StoredFilesTable {

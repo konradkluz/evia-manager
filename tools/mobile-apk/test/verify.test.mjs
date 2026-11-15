@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { describe, it } from 'node:test';
 import { E2E_HOOKS_MARKER, PLACEHOLDER_API_HOST } from '../src/contents.mjs';
 import { apkanalyzerCommand, verifyApk } from '../src/verify.mjs';
+import { DEX_PACKAGES, FINAL_CLAUSES } from './helpers.mjs';
 
 /** @param {string} name */
 const read = (name) => readFileSync(join(import.meta.dirname, 'fixtures', name), 'utf8');
@@ -30,7 +31,9 @@ function analyzer(overrides = {}) {
     'resources xml --file res/xml/evia_network_security_config.xml app.apk': read('evia_network_security_config.xml.txt'),
     'resources xml --file res/xml/evia_backup_rules.xml app.apk': read('evia_backup_rules.xml.txt'),
     'resources xml --file res/xml/evia_data_extraction_rules.xml app.apk': read('evia_data_extraction_rules.xml.txt'),
-    'files list app.apk': `${read('files-list.txt')}\n/assets/index.android.bundle\n/assets/fonts/Inter.ttf\n`,
+    'files list app.apk': `${read('files-list.txt')}\n/assets/index.android.bundle\n/assets/app.config\n/assets/fonts/Inter.ttf\n`,
+    'files cat --file assets/app.config app.apk': FINAL_CLAUSES,
+    'dex packages --defined-only app.apk': DEX_PACKAGES,
     'files cat --file assets/index.android.bundle app.apk': 'var url="https://api.example.test"',
     'apk summary app.apk': read('apk-summary.txt'),
     ...overrides,
@@ -69,6 +72,21 @@ describe('verification of the built APK (EVM-009 AC5, AC6)', () => {
       'the bundle is read as binary',
     );
     assert.ok(!calls.some((call) => call.some((part) => part.includes('Inter.ttf'))), 'fonts are not read');
+  });
+
+  it('EVM-102 AC5: a foreign address in extra of assets/app.config is a finding of verify; the stand-in API host of the bundle is not', () => {
+    const config =
+      '{"extra":{"privacyClauses":{"draft":false,"markers":false},"u":"https://stats.example.test/x","api":"https://api.example.invalid"}}';
+    const withBundle = analyzer({
+      'files cat --file assets/app.config app.apk': config,
+      'files cat --file assets/index.android.bundle app.apk': 'https://api.example.invalid',
+    });
+    assert.deepEqual(verifyApk(OPTIONS, withBundle.host).problems, [
+      'telemetry: extra.u holds an address of the host stats.example.test; only the API and the object storage are allowed',
+    ]);
+    const bare = config.replace('"api":"https://api.example.invalid"', '"api":"https://other.example.test"');
+    const withoutBundle = analyzer({ 'files cat --file assets/app.config app.apk': bare });
+    assert.equal(verifyApk(OPTIONS, withoutBundle.host).problems.length, 2);
   });
 
   it('EVM-009 AC6: a failing apkanalyzer is a finding for that step, not a silent pass', () => {

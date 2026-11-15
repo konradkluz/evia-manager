@@ -48,6 +48,7 @@ import type { SyncMutationAuditEvent, SyncQuotaAuditEvent } from '../../../platf
 import { CLOCK, DATABASE, EVENT_BUS, METRICS } from '../../../platform/tokens.ts';
 import { CUSTOMER_QUICK_CREATION, type CustomerQuickCreation } from '../../customers/system-ports.ts';
 import { DEVICE_PENDING_ITEMS, type DevicePendingItems } from '../../identity/system-ports.ts';
+import { MOBILE_MEDIA_COMMANDS, type MobileMediaCommands } from '../../media/system-ports.ts';
 import { SITE_DIRECTORY, type SiteDirectory } from '../../sites/index.ts';
 import { SITE_QUICK_CREATION, type SiteQuickCreation } from '../../sites/system-ports.ts';
 import { MOBILE_ENTRY_COMMANDS, type MobileAuthor, type MobileEntryCommands } from '../../timeline/system-ports.ts';
@@ -68,6 +69,7 @@ import {
   SYNC_MUTATIONS_SCOPE,
   typeLabel,
   type EntryCommand,
+  type MediaCommand,
   type MutationResult,
   type MutationVerdict,
   type QuickCommand,
@@ -105,6 +107,7 @@ export class PushMutationsService {
   readonly #newCustomers: CustomerQuickCreation;
   readonly #newSites: SiteQuickCreation;
   readonly #quickOrders: WorkOrderQuickCreation;
+  readonly #media: MobileMediaCommands;
 
   constructor(
     @Inject(DATABASE) db: Kysely<Database>,
@@ -119,6 +122,7 @@ export class PushMutationsService {
     @Inject(CUSTOMER_QUICK_CREATION) newCustomers: CustomerQuickCreation,
     @Inject(SITE_QUICK_CREATION) newSites: SiteQuickCreation,
     @Inject(WORK_ORDER_QUICK_CREATION) quickOrders: WorkOrderQuickCreation,
+    @Inject(MOBILE_MEDIA_COMMANDS) media: MobileMediaCommands,
   ) {
     this.#db = db;
     this.#clock = clock;
@@ -133,6 +137,7 @@ export class PushMutationsService {
     this.#newCustomers = newCustomers;
     this.#newSites = newSites;
     this.#quickOrders = quickOrders;
+    this.#media = media;
   }
 
   /** @param deviceId the device of the SESSION (never of the request) */
@@ -166,6 +171,10 @@ export class PushMutationsService {
           tx,
           { userId: author.userId, deviceId: author.deviceId, key: mutationId, scope: SYNC_MUTATIONS_SCOPE, bodyHash: decoded.hash },
           async () => {
+            if (decoded.type === 'CreateMediaAsset') {
+              await this.#performMedia(tx, principal, author, decoded.media, context);
+              return { value: undefined, result: { status: 201, code: 'applied', resourceId: decoded.media.id } };
+            }
             await this.#perform(tx, principal, author, decoded.type, decoded.command, context);
             return { value: undefined, result: { status: 201, code: 'applied', resourceId: decoded.command.id } };
           },
@@ -216,6 +225,37 @@ export class PushMutationsService {
       deviceId: author.deviceId,
       workOrderId: command.workOrderId,
       commandType: type,
+    };
+    await this.#events.publish(tx, event, context);
+  }
+
+  /**
+   * `CreateMediaAsset` (EVM-131 AC3), in the transaction of the mutation: the target order under the CURRENT policy (`forbidden`, `target_unavailable` - the same codes as a note),
+   * then the INSERT of the medium with the rules of the panel (`media`): `validation_failed` for a rule of the content or a stage that is not a live stage of the order,
+   * `conflict id_conflict` for an existing identifier (never an upsert), and the audit event `sync.mutation_applied` (the object is the medium; never its description).
+   * @throws MutationVerdictSignal for every result but `applied`
+   */
+  async #performMedia(
+    tx: Kysely<Database>,
+    principal: Principal,
+    author: MobileAuthor,
+    command: MediaCommand,
+    context: EventContext,
+  ): Promise<void> {
+    const target = await this.#targets.stateOf(tx, principal, command.workOrderId);
+    if (target !== 'available') throw verdict({ outcome: 'rejected', code: target });
+    const created = await this.#media.create(tx, author, command, context);
+    if (created === 'invalid') throw verdict({ outcome: 'rejected', code: 'validation_failed' });
+    if (created === 'id_conflict') throw verdict({ outcome: 'conflict', code: 'id_conflict' });
+    const event: SyncMutationAuditEvent = {
+      type: 'sync.mutation_applied',
+      actor: { type: 'user', userId: author.userId },
+      outcome: 'success',
+      objectType: 'media_asset',
+      objectId: command.id,
+      deviceId: author.deviceId,
+      workOrderId: command.workOrderId,
+      commandType: 'CreateMediaAsset',
     };
     await this.#events.publish(tx, event, context);
   }

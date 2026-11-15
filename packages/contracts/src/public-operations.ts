@@ -59,4 +59,9 @@ export const MOBILE_OPERATIONS: readonly string[] = Object.freeze([
   'getSyncWorkOrder',
   'pushSyncMutations',
   'listWorkOrderTemplates',
+  'createUploadSession',
+  'listUploadParts',
+  'getUploadPartUrl',
+  'completeUploadSession',
+  'abortUploadSession',
 ]);

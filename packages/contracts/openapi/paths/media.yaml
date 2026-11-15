@@ -1,6 +1,7 @@
-# Module `media` — photos of a work order: the batch of media, the list, and the multipart upload session (EVM-044; W-09). Web channel only
-# in this story (the mobile channel is added by EVM-109). Every operation is authorised on the work order of the path AND on the
-# object (the media asset belongs to the order; the session belongs to its creator): a stranger gets `404`, never `403`.
+# Module `media` — photos of a work order: the batch of media, the list, and the multipart upload session (EVM-044; W-09). The five upload-session
+# operations are open to the web AND the mobile channel (EVM-131; the media asset is created by the CreateMediaAsset command).
+# Every operation is authorised on the work order of the path AND on the object (the media asset belongs to the order; the session
+# belongs to its creator: user and device): a stranger gets `404`, never `403`.
 MediaAssetIdParameter:
   name: mediaAssetId
   in: path
@@ -181,7 +182,7 @@ mediaAssetUploadSessions:
     summary: Sesja uploadu medium (wieloczęściowy upload do prywatnego storage'u)
     description: >-
       Sesja uploadu medium (EVM-044 AC1, AC4, AC5, AC6, AC7; SR-FILE-02, SR-AUTHZ-02, SR-AUTHZ-05, SR-API-05). Role Administrator
-      i Edytor (Tylko odczyt — `403`), kanał `web`. Łańcuch zlecenie → medium → plik sprawdzany jednym zapytaniem (`404` dla
+      i Edytor (Tylko odczyt — `403`), kanały `web` i `mobile` (token telefonu: Tylko odczyt — `403 channel_not_allowed`). Łańcuch zlecenie → medium → plik sprawdzany jednym zapytaniem (`404` dla
       medium innego zlecenia). Sesję otwiera wyłącznie twórca medium albo Administrator (inny Edytor — `404`, jak dla medium
       innego zlecenia). Dozwolone tylko dla pliku w `pending_upload` (nowa sesja) albo `failed` z przyczyną
       `checksum_mismatch` („Ponów” — plik wraca do `pending_upload`, klucz obiektu ten sam, poprzednia wersja obiektu zostaje w
@@ -189,11 +190,17 @@ mediaAssetUploadSessions:
       zwracana ponownie (wznowienie po ponownym wyborze pliku, `200`); aktywna sesja innego użytkownika (Administrator na medium z cudzą sesją) — `409 id_conflict` bez
       szczegółów. Powtórka tego samego żądania (ten sam `Idempotency-Key`), gdy utworzona wtedy sesja została przerwana albo wygasła —
       `409 invalid_state_transition` (klient otwiera nową sesję z nowym kluczem i identyfikatorem), nigdy `201` z sesją nieużyteczną. Serwer dzieli plik na części (stały rozmiar 16 MiB, ostatnia mniejsza, najwyżej 1000), wystawia `CreateMultipartUpload`
-      z typem z listy dozwolonych i zapisuje sesję ważną 7 dni. Limit aktywnych sesji użytkownika — `429` z `Retry-After`. Brak
-      konfiguracji magazynu — `503 media_storage_unavailable`.
+      z typem z listy dozwolonych i zapisuje sesję ważną 7 dni. Limit aktywnych sesji użytkownika (wspólny dla panelu i telefonu) — `429` z `Retry-After`. Brak
+      konfiguracji magazynu — `503 media_storage_unavailable`. Telefon (EVM-131): medium utworzone komendą `CreateMediaAsset` nie ma jeszcze pliku, więc `file`
+      (`fileName`, `declaredSize`, `contentType`, `sha256`) jest WYMAGANE (brak — `400 validation_failed` `/file` `required`) i sprawdzane jak partia mediów w panelu
+      (typ i rozszerzenie z listy, 50 MB zdjęcie / 4 GiB film, rodzaj pliku zgodny z rodzajem medium); deklarację dla medium bez pliku składa wyłącznie jego twórca
+      z telefonu (inny użytkownik, także Administrator — `404`), klucz obiektu nadaje serwer. Medium z plikiem przyjmuje wyłącznie identyczną deklarację (powtórka
+      po utracie odpowiedzi); inna — `400 validation_failed` `/file` `not_allowed`. Sesja jest związana z użytkownikiem i urządzeniem sesji telefonu (nigdy z
+      nagłówka ani treści): inny telefon tego samego użytkownika i panel dostają `404`, a aktywna sesja innego urządzenia to `409 id_conflict`. `file` wchodzi do
+      skrótu żądania idempotencji (ten sam klucz bez `file` — `422 idempotency_mismatch`). Telefon wysyła `X-Client-Platform` i `X-Client-Version` (`426` tylko dla tokenu Bearer).
     x-evia-authz:
       roles: [administrator, editor]
-      channels: [web]
+      channels: [web, mobile]
     parameters:
       - $ref: ./work-orders.yaml#/WorkOrderIdParameter
       - $ref: '#/MediaAssetIdParameter'
@@ -233,6 +240,8 @@ mediaAssetUploadSessions:
         $ref: ../components/responses.yaml#/UnsupportedMediaType
       '422':
         $ref: ../components/media-responses.yaml#/MediaUnprocessable
+      '426':
+        $ref: ../components/responses.yaml#/MobileClientVersionUnsupported
       '429':
         $ref: ../components/responses.yaml#/RateLimited
       '503':
@@ -244,12 +253,12 @@ uploadSessionParts:
     summary: Części sesji uploadu potwierdzone w storage'u
     description: >-
       Części już wysłane (`ListParts` po stronie serwera) — wysyłanie wznawia się od pierwszej brakującej (EVM-044 AC4, AC6, AC7;
-      SR-AUTHZ-02, SR-AUTHZ-05). Role Administrator i Edytor, kanał `web`; sesję widzi wyłącznie jej twórca (inny użytkownik, sesja
+      SR-AUTHZ-02, SR-AUTHZ-05). Role Administrator i Edytor, kanały `web` i `mobile` (token telefonu: Tylko odczyt — `403 channel_not_allowed`); sesję widzi wyłącznie jej twórca — użytkownik i urządzenie (inny użytkownik, inny telefon, panel, sesja
       innego medium lub zlecenia, nieistniejąca — jedna odpowiedź `404`). Sesja zakończona lub wygasła — `409 invalid_state_transition`.
       `Cache-Control: no-store`.
     x-evia-authz:
       roles: [administrator, editor]
-      channels: [web]
+      channels: [web, mobile]
     parameters:
       - $ref: ./work-orders.yaml#/WorkOrderIdParameter
       - $ref: '#/MediaAssetIdParameter'
@@ -271,6 +280,8 @@ uploadSessionParts:
         $ref: ../components/responses.yaml#/NotFound
       '409':
         $ref: ../components/media-responses.yaml#/MediaConflict
+      '426':
+        $ref: ../components/responses.yaml#/MobileClientVersionUnsupported
       '429':
         $ref: ../components/responses.yaml#/RateLimited
       '503':
@@ -282,13 +293,13 @@ uploadSessionPartUrl:
     summary: Podpisany adres wysłania jednej części
     description: >-
       Podpisany `PUT` jednej części (EVM-044 AC6, AC7; SR-FILE-02, SR-WEB-04). Role Administrator i Edytor (Tylko odczyt — `403`),
-      kanał `web`; tylko twórca sesji (`404` dla pozostałych). Adres jest związany z kluczem obiektu, identyfikatorem uploadu,
+      kanały `web` i `mobile` (token telefonu: Tylko odczyt — `403 channel_not_allowed`); tylko twórca sesji (`404` dla pozostałych). Adres jest związany z kluczem obiektu, identyfikatorem uploadu,
       numerem części i dokładnym `Content-Length` części obliczonym przez serwer z planu sesji, ważny 60 minut. Numer spoza
       `1 … partCount` — `400`. Odpowiedź ma `Cache-Control: no-store`; adres nie jest logowany. Panel wysyła `PUT` z `credentials:
       'omit'` i zapamiętuje `ETag` tylko informacyjnie (`complete` czyta części ze storage'u).
     x-evia-authz:
       roles: [administrator, editor]
-      channels: [web]
+      channels: [web, mobile]
     parameters:
       - $ref: ./work-orders.yaml#/WorkOrderIdParameter
       - $ref: '#/MediaAssetIdParameter'
@@ -317,6 +328,8 @@ uploadSessionPartUrl:
         $ref: ../components/responses.yaml#/NotFound
       '409':
         $ref: ../components/media-responses.yaml#/MediaConflict
+      '426':
+        $ref: ../components/responses.yaml#/MobileClientVersionUnsupported
       '429':
         $ref: ../components/responses.yaml#/RateLimited
       '503':
@@ -328,14 +341,14 @@ uploadSessionComplete:
     summary: Zakończenie wysyłania — złożenie obiektu i weryfikacja rozmiaru
     description: >-
       Zakończenie sesji (EVM-044 AC1, AC5, AC6, AC7; SR-FILE-02, SR-CRYPTO-05). Role Administrator i Edytor (Tylko odczyt — `403`),
-      kanał `web`; tylko twórca sesji (`404` dla pozostałych). Serwer czyta części ze storage'u (nie ufa ETagom klienta): liczba =
+      kanały `web` i `mobile` (token telefonu: Tylko odczyt — `403 channel_not_allowed`); tylko twórca sesji (`404` dla pozostałych). Serwer czyta części ze storage'u (nie ufa ETagom klienta): liczba =
       `partCount`, każda poza ostatnią = `partSize`, suma = `declaredSize` (inaczej `422 upload_incomplete`, `size_mismatch` albo
       `parts_missing`), składa obiekt i sprawdza `HEAD` (rozmiar = `declaredSize`). Plik przechodzi do `uploaded` (panel: „Sprawdzanie
       pliku”) i czeka na skan; skan, SHA-256 i typ z zawartości wykonuje worker. Powtórka po złożeniu obiektu jest idempotentna
       (`200` z bieżącym stanem). Odpowiedź — medium z aktualnym stanem pliku.
     x-evia-authz:
       roles: [administrator, editor]
-      channels: [web]
+      channels: [web, mobile]
     parameters:
       - $ref: ./work-orders.yaml#/WorkOrderIdParameter
       - $ref: '#/MediaAssetIdParameter'
@@ -359,6 +372,8 @@ uploadSessionComplete:
         $ref: ../components/media-responses.yaml#/MediaConflict
       '422':
         $ref: ../components/media-responses.yaml#/MediaUnprocessable
+      '426':
+        $ref: ../components/responses.yaml#/MobileClientVersionUnsupported
       '429':
         $ref: ../components/responses.yaml#/RateLimited
       '503':
@@ -369,13 +384,13 @@ uploadSessionAbort:
     tags: [media]
     summary: Przerwanie sesji uploadu (porzucenie niewysłanego pliku)
     description: >-
-      Przerwanie aktywnej sesji (EVM-044 AC6, AC7). Role Administrator i Edytor (Tylko odczyt — `403`), kanał `web`; tylko twórca
+      Przerwanie aktywnej sesji (EVM-044 AC6, AC7). Role Administrator i Edytor (Tylko odczyt — `403`), kanały `web` i `mobile` (token telefonu: Tylko odczyt — `403 channel_not_allowed`); tylko twórca
       sesji (`404` dla pozostałych). „Wstrzymaj” w panelu NIE wywołuje tej operacji (wstrzymanie zachowuje potwierdzone części).
       Idempotentne: przerwana sesja daje `204`; zakończona (`completed`) — `409 invalid_state_transition`. Niezłożony upload w
       storage'u jest przerywany; plik pozostaje w `pending_upload` i może dostać nową sesję.
     x-evia-authz:
       roles: [administrator, editor]
-      channels: [web]
+      channels: [web, mobile]
     parameters:
       - $ref: ./work-orders.yaml#/WorkOrderIdParameter
       - $ref: '#/MediaAssetIdParameter'
@@ -393,6 +408,8 @@ uploadSessionAbort:
         $ref: ../components/responses.yaml#/NotFound
       '409':
         $ref: ../components/media-responses.yaml#/MediaConflict
+      '426':
+        $ref: ../components/responses.yaml#/MobileClientVersionUnsupported
       '429':
         $ref: ../components/responses.yaml#/RateLimited
       '503':

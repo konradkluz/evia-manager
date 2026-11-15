@@ -10,6 +10,7 @@
 import type { Channel, UserRole } from '@evia/contracts';
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import type { Logger } from '../logging/logger.ts';
+import { ProblemException } from './problem.ts';
 
 export type SessionState = 'mfa_enrollment' | 'active';
 
@@ -65,6 +66,27 @@ export const principalOf = (request: Request): Principal | null => authenticatio
 /** The session of the Bearer token of the request (the mobile channel); handlers of mobile operations read it, handlers of the panel never do. */
 export const bearerAuthenticationOf = (request: Request): Authentication => resolvedBearer.get(request) ?? ANONYMOUS;
 export const bearerPrincipalOf = (request: Request): Principal | null => bearerAuthenticationOf(request).principal;
+
+/**
+ * The principal of an operation open to BOTH channels (EVM-131; the guard has decided which credential counts, `authenticationFor`): the session of the panel when the cookie holds one
+ * (only a `web` session is a credential of the panel), else the session of the Bearer token. A handler of such an operation reads THIS - never `principalOf` alone, which does not
+ * see the token. Its `channel` and `deviceId` say where the caller came from; a handler never takes either from the request.
+ */
+export function dualChannelPrincipalOf(request: Request): Principal | null {
+  const cookie = principalOf(request);
+  return cookie !== null && cookie.channel === 'web' ? cookie : bearerPrincipalOf(request);
+}
+
+/**
+ * The creator of an upload session (EVM-131; SR-SYNC-08, SR-API-05, CWE-639): the user and the device. The device is ONLY the one of the session of the phone (`principal.deviceId`, set by
+ * the resolver from the Bearer token) - never a header or a field of the body; the panel has none (`null`, whatever a session of the panel carries). A session of the phone without a device
+ * is not a case that exists: it fails closed (`403`) rather than becoming the creator of the panel.
+ */
+export function sessionCreatorOf(principal: Principal): { readonly userId: string; readonly deviceId: string | null } {
+  if (principal.channel !== 'mobile') return { userId: principal.userId, deviceId: null };
+  if (principal.deviceId === undefined) throw new ProblemException('forbidden');
+  return { userId: principal.userId, deviceId: principal.deviceId };
+}
 
 export function resolveAuthentication(resolver: SessionResolver, logger: Logger): RequestHandler {
   return (request: Request, _response: Response, next: NextFunction): void => {

@@ -215,7 +215,7 @@ mutations:
     summary: Wysłanie partii mutacji z kolejki telefonu
     description: >-
       Administrator i Edytor, kanał `mobile`. Partia 1–50 mutacji w kolejności kolejki (`CreateNote`, `CreateComment`,
-      `CreateQuickWorkOrder`); każda: `mutationId` (UUIDv7 — klucz idempotencji), `type`, `commandVersion`, `payload`, najwyżej 64 KB
+      `CreateQuickWorkOrder`, `CreateMediaAsset` — EVM-131); każda: `mutationId` (UUIDv7 — klucz idempotencji), `type`, `commandVersion`, `payload`, najwyżej 64 KB
       (egzekwuje serwer, EVM-098; treść partii najwyżej 1 MB → `413 payload_too_large`). Wynik per mutacja: `applied`, `duplicate`
       (ta sama mutacja już zastosowana), `conflict` (`id_conflict`) albo `rejected` z kodem (`forbidden`, `target_unavailable`,
       `validation_failed`, `idempotency_mismatch`, `idempotency_in_progress`, `template_unavailable`) i ostrzeżeniami

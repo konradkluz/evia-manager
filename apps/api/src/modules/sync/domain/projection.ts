@@ -4,6 +4,7 @@
  */
 import type { SyncCustomerProjection } from '../../customers/system-ports.ts';
 import type { SyncUserProjection } from '../../identity/system-ports.ts';
+import type { SyncMediaAssetProjection } from '../../media/system-ports.ts';
 import type { SyncPartyProjection } from '../../parties/system-ports.ts';
 import type { SyncProcedureStageProjection } from '../../procedures/system-ports.ts';
 import type { SyncSiteProjection } from '../../sites/system-ports.ts';
@@ -18,6 +19,7 @@ export const SYNC_ENTITY_TYPES = [
   'scope_item',
   'procedure_stage',
   'timeline_entry',
+  'media_asset',
   'user',
 ] as const;
 export type SyncEntityType = (typeof SYNC_ENTITY_TYPES)[number];
@@ -153,6 +155,31 @@ export const timelineEntryChange = (row: SyncTimelineEntryProjection): SyncUpser
     supersedesEntryId: row.supersedesEntryId,
     supersededByEntryId: row.supersededByEntryId,
     redactedAt: row.redactedAt === null ? null : row.redactedAt.toISOString(),
+  },
+});
+
+/**
+ * The medium for the phone (EVM-131 AC4; SR-MOB-10): the identifiers, the type, the category, the stage, the state of the file and its reason. The fields of the contract that are
+ * not part of the minimal payload (`description`, `capturedAt`, the sizes) are sent as `null` - the phone keeps its own values; never a name, a key, an address or a detail of a quarantine.
+ */
+export const mediaAssetChange = (row: SyncMediaAssetProjection): SyncUpsertChange => ({
+  op: 'upsert',
+  entity: {
+    type: 'media_asset',
+    id: row.id,
+    version: row.version,
+    workOrderId: row.workOrderId,
+    mediaType: row.mediaType,
+    category: row.category,
+    description: null,
+    procedureStageId: row.procedureStageId,
+    capturedAt: null,
+    fileState: row.fileState,
+    fileStateReasonCode: row.fileStateReasonCode,
+    sizeBytes: null,
+    durationSeconds: null,
+    widthPx: null,
+    heightPx: null,
   },
 });
 

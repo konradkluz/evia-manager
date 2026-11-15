@@ -80,10 +80,13 @@ const ERROR_TEXT = {
 export function LoginScreen({
   machine,
   onForgotPassword,
+  onPrivacy,
   now = Date.now,
 }: {
   machine: LoginMachine;
   onForgotPassword: () => void;
+  /** "Prywatność" (M-11, EVM-102): readable before the sign-in. */
+  onPrivacy: () => void;
   now?: () => number;
 }) {
   const { t } = useTranslation();
@@ -228,6 +231,9 @@ export function LoginScreen({
             </View>
           </>
         )}
+        <View style={{ alignSelf: 'flex-start' }}>
+          <Button label={t('login.privacy')} variant="tertiary" inverse onPress={onPrivacy} testID="login-privacy" />
+        </View>
       </ScrollView>
       <BottomBar>
         <Button
