@@ -432,7 +432,7 @@ class TokenOwnerTest {
     }
 
     @Test
-    fun `EVM-130 AC5 a session ended by the server stays ended after the death of the process - revoked, wipe order from the API and from the refresh`() {
+    fun `EVM-130 AC5 a session ended by the server stays ended after process death - revoked, wipe order from API or refresh`() {
         val cases =
             listOf<Pair<(TokenOwner) -> Unit, SessionState>>(
                 { o: TokenOwner -> o.onApiRevoked() } to SessionState.PAUSED_REVOKED,
@@ -448,7 +448,10 @@ class TokenOwnerTest {
             assertFalse(restarted.mayWork(OWNER))
             assertTrue(api.tokens.isEmpty())
         }
-        for ((answer, expected) in listOf(RefreshAnswer.Revoked to SessionState.PAUSED_REVOKED, RefreshAnswer.WipeRequired to SessionState.WIPE_REQUIRED)) {
+        for ((answer, expected) in listOf(
+            RefreshAnswer.Revoked to SessionState.PAUSED_REVOKED,
+            RefreshAnswer.WipeRequired to SessionState.WIPE_REQUIRED,
+        )) {
             val (first, _) = signedIn(answer)
             clock.now += 900_000L
             assertEquals(TokenResult.Blocked(expected), first.accessToken())
