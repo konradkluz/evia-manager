@@ -33,7 +33,6 @@ export const KEY_FIELDS: Readonly<Record<MutationType, { readonly objectId: stri
   CreateNote: { objectId: 'id', orderingKey: 'workOrderId' },
   CreateComment: { objectId: 'id', orderingKey: 'workOrderId' },
   CreateQuickWorkOrder: { objectId: 'workOrderId', orderingKey: 'workOrderId' },
-  CreateMediaAsset: { objectId: 'id', orderingKey: 'workOrderId' },
 };
 
 /** The object id and FIFO key the payload carries, or `null` when a field is missing or is not a UUID. */
