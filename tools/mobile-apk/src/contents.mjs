@@ -22,6 +22,17 @@ export const ALLOWED_PUBLIC_VARIABLES = Object.freeze(['EXPO_PUBLIC_API_BASE_URL
 const FORBIDDEN_FILE =
   /(?:\.(?:keystore|jks|p12|pfx|pem|key|crt|cer|der|map|env)|(?:^|\/)\.env[^/]*|(?:^|\/)google-services\.json|(?:^|\/)credentials[^/]*\.json)$/i;
 
+/**
+ * Traces of the libraries of Google in the list of files (EVM-108 AC8; SR-MOB-12): the version markers that Gradle libraries leave in
+ * META-INF (ML Kit, Play services, Firebase, datatransport, ODML and the ML Kit artifact of CameraX), the assets of ML Kit and TFLite
+ * models. They show what DEX names cannot after R8 renamed the packages.
+ */
+const GOOGLE_LIBRARY_TRACE =
+  /(?:^|\/)(?:META-INF\/(?:com\.google\.(?:mlkit|firebase|android\.gms|android\.datatransport|android\.odml)|androidx\.camera_camera-mlkit)[^/]*\.version|assets\/mlkit[^/]*(?:\/.*)?|.*\.tflite)$/i;
+
+/** The libraries of the web barcode reader of expo-camera (`zxing-wasm`, `barcode-detector`): web only, never in the bundle of the app. */
+const WEB_BARCODE_LIBRARY = /zxing-wasm|barcode-detector/;
+
 /** High-confidence credential shapes. */
 const SECRET_PATTERNS = /** @type {const} */ ([
   ['private-key-block', /-----BEGIN (?:RSA |EC |DSA |OPENSSH |ENCRYPTED )?PRIVATE KEY-----/],
@@ -40,7 +51,7 @@ const SECRET_PATTERNS = /** @type {const} */ ([
  * @returns {string[]} problems
  */
 export function checkFileList(paths) {
-  return paths.filter((path) => FORBIDDEN_FILE.test(path)).map((path) => `forbidden file ${path}`);
+  return paths.filter((path) => FORBIDDEN_FILE.test(path) || GOOGLE_LIBRARY_TRACE.test(path)).map((path) => `forbidden file ${path}`);
 }
 
 /**
@@ -52,6 +63,7 @@ export function scanText(path, text) {
   /** @type {string[]} */
   const problems = SECRET_PATTERNS.filter(([, pattern]) => pattern.test(text)).map(([rule]) => `${rule} in ${path}`);
   if (text.includes(E2E_HOOKS_MARKER)) problems.push(`e2e hooks marker in ${path}`);
+  if (WEB_BARCODE_LIBRARY.test(text)) problems.push(`web barcode library in ${path}`);
   const variables = new Set(text.match(/EXPO_PUBLIC_[A-Z0-9_]+/g) ?? []);
   for (const variable of variables) {
     if (!ALLOWED_PUBLIC_VARIABLES.includes(variable)) problems.push(`public variable ${variable} in ${path}`);

@@ -263,3 +263,43 @@ describe('state of the privacy clauses in the package (EVM-102 AC6)', () => {
     assert.ok(result.problems.every((problem) => !/clauses/.test(problem)));
   });
 });
+
+describe('libraries of Google in the package (EVM-108 AC8; SR-MOB-12, SR-SUPPLY-06)', () => {
+  it('EVM-108 AC8: the ML Kit meta-data of the camera library is a finding (it was a gap: only gms.* and firebase_* were caught)', () => {
+    const problems = checkTelemetry({
+      manifest: manifestWith(meta('com.google.mlkit.vision.DEPENDENCIES', 'barcode_ui')),
+      dexPackages: DEX_PACKAGES,
+    });
+    assert.deepEqual(problems, ['meta-data com.google.mlkit.vision.DEPENDENCIES configures a telemetry, analytics or advertising SDK']);
+  });
+
+  it('EVM-108 AC8: DEX packages of all six forbidden groups are found, one finding per group (and the camera itself is not)', () => {
+    const dex = [
+      'P d 1 1 10 com.google.mlkit.vision.barcode',
+      'P d 1 1 10 com.google.firebase.installations',
+      'P d 1 1 10 com.google.android.gms.common',
+      'P d 1 1 10 com.google.android.datatransport.runtime',
+      'P d 1 1 10 com.google.android.odml.image',
+      'P d 1 1 10 androidx.camera.mlkit.vision',
+      'P d 1 1 10 androidx.camera.core',
+      'P d 1 1 10 androidx.camera.camera2',
+      'P d 1 1 10 expo.modules.camera',
+    ].join('\n');
+    assert.deepEqual(checkTelemetry({ manifest: MANIFEST, dexPackages: dex }), [
+      'DEX contains the package androidx.camera.mlkit of a telemetry, analytics or advertising SDK',
+      'DEX contains the package com.google.android.datatransport of a telemetry, analytics or advertising SDK',
+      'DEX contains the package com.google.android.gms of a telemetry, analytics or advertising SDK',
+      'DEX contains the package com.google.android.odml of a telemetry, analytics or advertising SDK',
+      'DEX contains the package com.google.firebase of a telemetry, analytics or advertising SDK',
+      'DEX contains the package com.google.mlkit of a telemetry, analytics or advertising SDK',
+    ]);
+  });
+
+  it('EVM-108 AC8: a component of the new groups is found in the manifest', () => {
+    for (const name of ['com.google.android.odml.image.X', 'androidx.camera.mlkit.vision.Y']) {
+      const problems = checkTelemetry({ manifest: manifestWith(`<service android:name="${name}" />`), dexPackages: DEX_PACKAGES });
+      assert.equal(problems.length, 1, name);
+      assert.match(problems[0] ?? '', /belongs to a telemetry, analytics or advertising SDK/);
+    }
+  });
+});

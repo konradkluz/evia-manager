@@ -49,8 +49,8 @@ describe('manifest of the built APK (EVM-009 AC6; SR-MOB-02, SR-MOB-07, SR-MOB-0
   });
 
   it('EVM-009 AC6: a permission outside the white list is reported, the missing INTERNET too', () => {
-    const extra = changed('</manifest>', '<uses-permission android:name="android.permission.CAMERA" /></manifest>');
-    assert.deepEqual(checkManifest(extra, { applicationId: ID }), ['unexpected permission android.permission.CAMERA']);
+    const extra = changed('</manifest>', '<uses-permission android:name="android.permission.READ_PHONE_STATE" /></manifest>');
+    assert.deepEqual(checkManifest(extra, { applicationId: ID }), ['unexpected permission android.permission.READ_PHONE_STATE']);
     const noInternet = changed('android.permission.INTERNET', 'android.permission.ACCESS_WIFI_STATE');
     assert.deepEqual(checkManifest(noInternet, { applicationId: ID }), [
       'unexpected permission android.permission.ACCESS_WIFI_STATE',
@@ -179,7 +179,7 @@ describe('manifest of the package with the background upload (EVM-130 AC7; SR-MO
   });
 
   it('EVM-130 AC7: a package with an additional permission is rejected (each of them separately)', () => {
-    for (const name of ['CAMERA', 'RECORD_AUDIO', 'READ_PHONE_STATE', 'WAKE_LOCK', 'REQUEST_INSTALL_PACKAGES', 'SYSTEM_ALERT_WINDOW']) {
+    for (const name of ['READ_PHONE_STATE', 'WAKE_LOCK', 'REQUEST_INSTALL_PACKAGES', 'SYSTEM_ALERT_WINDOW']) {
       const extra = `${UPLOAD_PERMISSIONS}<uses-permission android:name="android.permission.${name}" />`;
       assert.deepEqual(verdict(extra, UPLOAD_SERVICE + UPLOAD_META), [`unexpected permission android.permission.${name}`], name);
     }
@@ -299,8 +299,100 @@ describe('manifest of the package with the background upload (EVM-130 AC7; SR-MO
   });
 
   it('EVM-130 AC7: the upload permissions without the job service are still only the allowed ones (no service is not a way to add others)', () => {
-    assert.deepEqual(verdict('<uses-permission android:name="android.permission.CAMERA" />', ''), [
-      'unexpected permission android.permission.CAMERA',
+    assert.deepEqual(verdict('<uses-permission android:name="android.permission.READ_PHONE_STATE" />', ''), [
+      'unexpected permission android.permission.READ_PHONE_STATE',
     ]);
+  });
+});
+
+describe('camera permission and libraries of Google in the manifest (EVM-108 AC8; SR-MOB-02, SR-MOB-12, MASVS-PRIVACY-1)', () => {
+  /** @param {string} inside @param {string} [where] */
+  const withElement = (inside, where = '</manifest>') => changed(where, `${inside}${where}`);
+  const camera = '<uses-permission android:name="android.permission.CAMERA" />';
+
+  it('EVM-108 AC8: CAMERA is the one permission added to the white list: the manifest with it passes', () => {
+    assert.deepEqual(checkManifest(withElement(camera), { applicationId: ID }), []);
+  });
+
+  it('EVM-108 AC8: the microphone, location, gallery and storage stay forbidden next to CAMERA (own message for the microphone)', () => {
+    assert.deepEqual(
+      checkManifest(withElement(`${camera}<uses-permission android:name="android.permission.RECORD_AUDIO" />`), { applicationId: ID }),
+      ['forbidden permission android.permission.RECORD_AUDIO (the microphone is requested from EVM-110 only)'],
+    );
+    for (const name of [
+      'ACCESS_FINE_LOCATION',
+      'ACCESS_COARSE_LOCATION',
+      'ACCESS_MEDIA_LOCATION',
+      'READ_MEDIA_IMAGES',
+      'READ_MEDIA_VISUAL_USER_SELECTED',
+      'WRITE_EXTERNAL_STORAGE',
+      'READ_EXTERNAL_STORAGE',
+    ]) {
+      assert.deepEqual(
+        checkManifest(withElement(`${camera}<uses-permission android:name="android.permission.${name}" />`), { applicationId: ID }),
+        [`forbidden permission android.permission.${name} (gallery, storage, contacts or location)`],
+      );
+    }
+    assert.deepEqual(checkManifest(withElement(`${camera}<uses-permission android:name="com.example.OTHER" />`), { applicationId: ID }), [
+      'unexpected permission com.example.OTHER',
+    ]);
+  });
+
+  it('EVM-108 AC8: CAMERA declared by uses-permission-sdk-23 is refused (the library declares it with uses-permission)', () => {
+    assert.deepEqual(
+      checkManifest(withElement('<uses-permission-sdk-23 android:name="android.permission.CAMERA" />'), { applicationId: ID }),
+      ['permission android.permission.CAMERA must be declared by uses-permission, not uses-permission-sdk-23'],
+    );
+  });
+
+  it('EVM-108 AC8: a package, a library or an authority of a forbidden group in queries, uses-library or a provider is found', () => {
+    const cases = /** @type {[string, string, string][]} */ ([
+      [
+        '<queries><package android:name="com.google.android.gms" /></queries>',
+        '</manifest>',
+        'queries package com.google.android.gms belongs to a forbidden library group (com.google.android.gms)',
+      ],
+      [
+        '<queries><package android:name="com.google.mlkit.vision" /></queries>',
+        '</manifest>',
+        'queries package com.google.mlkit.vision belongs to a forbidden library group (com.google.mlkit)',
+      ],
+      [
+        '<queries><provider android:authorities="com.google.android.odml.x;com.example.ok" /></queries>',
+        '</manifest>',
+        'queries provider authority com.google.android.odml.x belongs to a forbidden library group (com.google.android.odml)',
+      ],
+      [
+        '<uses-library android:name="com.google.android.gms.something" android:required="false" />',
+        '</application>',
+        'uses-library com.google.android.gms.something belongs to a forbidden library group (com.google.android.gms)',
+      ],
+      [
+        '<uses-library android:name="androidx.camera.mlkit.vision" />',
+        '</application>',
+        'uses-library androidx.camera.mlkit.vision belongs to a forbidden library group (androidx.camera.mlkit)',
+      ],
+      [
+        '<provider android:name="x.Y" android:exported="false" android:authorities="com.example.ok;com.google.firebase.provider" />',
+        '</application>',
+        'provider authority com.google.firebase.provider belongs to a forbidden library group (com.google.firebase)',
+      ],
+      [
+        '<provider android:name="x.Y" android:exported="false" android:authorities="com.google.android.datatransport.x" />',
+        '</application>',
+        'provider authority com.google.android.datatransport.x belongs to a forbidden library group (com.google.android.datatransport)',
+      ],
+    ]);
+    for (const [element, where, expected] of cases) {
+      assert.deepEqual(checkManifest(withElement(element, where), { applicationId: ID }), [expected], element);
+    }
+  });
+
+  it('EVM-108 AC8: names that only look like a forbidden prefix, and the own authorities of the app, are not findings', () => {
+    const ok = withElement('<queries><package android:name="com.google.androidx.other" /></queries>').replace(
+      '</application>',
+      '<uses-library android:name="com.google.mlkitfake" /></application>',
+    );
+    assert.deepEqual(checkManifest(ok, { applicationId: ID }), []);
   });
 });

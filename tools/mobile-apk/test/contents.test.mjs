@@ -98,3 +98,37 @@ describe('contents of the built APK (EVM-009 AC6; SR-MOB-11 secrets in the packa
     assert.equal(isScannable('/res/xml/a.xml'), false);
   });
 });
+
+describe('traces of libraries of Google in the package (EVM-108 AC8; SR-MOB-12, SR-SUPPLY-06)', () => {
+  it('EVM-108 AC8: the version markers of every forbidden group, ML Kit assets and TFLite models are findings, CameraX markers are not', () => {
+    const forbidden = [
+      '/META-INF/com.google.android.gms_play-services-base.version',
+      '/META-INF/com.google.mlkit_barcode-scanning.version',
+      '/META-INF/com.google.firebase_firebase-common.version',
+      '/META-INF/com.google.android.datatransport_transport-api.version',
+      '/META-INF/com.google.android.odml_image.version',
+      '/META-INF/androidx.camera_camera-mlkit-vision.version',
+      '/assets/mlkit_barcode_models/barcode_ssd_mobilenet_v1_dmp25_quantized_300_900_abs.tflite',
+      '/assets/mlkit-google-ocr-models/x.bin',
+      '/assets/model.tflite',
+    ];
+    assert.deepEqual(
+      checkFileList([
+        ...forbidden,
+        '/META-INF/androidx.camera_camera-core.version',
+        '/META-INF/androidx.core_core.version',
+        '/assets/fine.png',
+      ]),
+      forbidden.map((path) => `forbidden file ${path}`),
+    );
+  });
+
+  it('EVM-108 AC8: the libraries of the web barcode reader are not in the JavaScript bundle (the rule names the path only)', () => {
+    for (const name of ['zxing-wasm', 'barcode-detector']) {
+      assert.deepEqual(scanText('/assets/index.android.bundle', `require("${name}/reader")`), [
+        `web barcode library in /assets/index.android.bundle`,
+      ]);
+    }
+    assert.deepEqual(scanText('/assets/index.android.bundle', 'expo-camera CameraView'), []);
+  });
+});
