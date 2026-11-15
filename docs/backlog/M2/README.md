@@ -47,7 +47,7 @@ Technik dokumentuje zlecenie zdjęciami, filmami i wpisami także bez zasięgu; 
 | [EVM-131](EVM-131-api-media-z-telefonu.md) | API: media z telefonu (kanał mobile sesji wysyłania, `CreateMediaAsset`, `media_asset` w dzienniku zmian) — **nowa 2026-11-14** | E11 | story | P1 | pelna | EVM-044, EVM-096, EVM-098, EVM-127 | 4 (noc 14.11, tor B) |
 | [EVM-109](EVM-109-mobile-upload-w-tle-android.md) | Aplikacja: silnik wysyłania plików (Kotlin), model referencyjny i bramki Kotlin (po podziale 2026-11-14) | E11 | story | P1 | pelna | EVM-009, EVM-093, EVM-044 | 4 (noc 14.11, tor A) |
 | [EVM-130](EVM-130-mobile-usluga-wysylania-i-tokeny.md) | Aplikacja: wysyłanie w tle na Androidzie — zadanie systemowe, natywny właściciel tokenów, kolejka plików — **nowa 2026-11-14** | E11 | story | P1 | pelna | EVM-109, EVM-100, EVM-101, EVM-107 | 4 (noc 14.11, tor A) |
-| [EVM-108](EVM-108-mobile-zdjecia-aparat-i-kolejka.md) | Aplikacja: zdjęcia — aparat, kategoria, opis, kolejka plików | E11 | story | P1 | pelna | EVM-107, EVM-130, EVM-131 | 4 |
+| [EVM-108](EVM-108-mobile-zdjecia-aparat-i-kolejka.md) | Aplikacja: zdjęcia — aparat, kategoria, kolejka plików | E11 | story | P1 | pelna | EVM-107, EVM-130, EVM-131 | 4 |
 | [EVM-110](EVM-110-mobile-filmy-i-wifi.md) | Aplikacja: filmy i „filmy tylko przez Wi-Fi” | E11 | story | P1 | pelna | EVM-108, EVM-046, EVM-130, EVM-131 | 4 |
 | [EVM-111](EVM-111-mobile-media-zlecenia.md) | Aplikacja: status każdego pliku w kolejce telefonu | E11 | story | P2 | lekka (zawężona 2026-11-12) | EVM-108, EVM-131 | 4 |
 | [EVM-112](EVM-112-test-terenowy-i-masvs.md) | Test terenowy w garażu i checklista MASVS L1 | E11/E14 | story | P1 | pelna | EVM-105, EVM-106, EVM-110, EVM-084, EVM-130, EVM-131 | 5 |

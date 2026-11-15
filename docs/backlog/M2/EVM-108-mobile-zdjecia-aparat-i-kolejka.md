@@ -1,10 +1,10 @@
 ---
 id: EVM-108
-title: "Aplikacja: zdjęcia — aparat, kategoria, opis, kolejka plików"
+title: "Aplikacja: zdjęcia — aparat, kategoria, kolejka plików"
 type: story
 milestone: M2
 epic: E11 Zdjęcia i filmy
-status: ready
+status: in-progress
 priority: P1
 path: pelna             # pliki, dane osobowe na urządzeniu
 owner: mobile-developer
@@ -14,10 +14,10 @@ model: sonnet
 depends_on: [EVM-107, EVM-130, EVM-131]
 ---
 
-# EVM-108: Aplikacja — zdjęcia: aparat, kategoria, opis, kolejka plików
+# EVM-108: Aplikacja — zdjęcia: aparat, kategoria, kolejka plików
 
 ## Cel
-Jako **technik** chcę **zrobić zdjęcie z poziomu zlecenia, nadać mu kategorię i mieć pewność, że trafi do archiwum**, aby **dokumentacja z oględzin i montażu powstawała na miejscu, także bez zasięgu**. Makiety [09](../../ux/flows/09-mobile-zdjecia-filmy-offline.md) (M-06, M-07) — z poprawkami z „Decyzji i ograniczeń”. Opis zdjęcia jest poza wersją 1 (decyzja do potwierdzenia, niżej), choć tytuł historyjki go wymienia.
+Jako **technik** chcę **zrobić zdjęcie z poziomu zlecenia, nadać mu kategorię i mieć pewność, że trafi do archiwum**, aby **dokumentacja z oględzin i montażu powstawała na miejscu, także bez zasięgu**. Makiety [09](../../ux/flows/09-mobile-zdjecia-filmy-offline.md) (M-06, M-07) — z poprawkami z „Decyzji i ograniczeń”. Opis zdjęcia jest poza wersją 1 (decyzja Konrada 2026-11-15, niżej).
 
 ## Kontekst
 Gotowe i zaakceptowane (`main`): silnik i wysyłanie w tle z kolejką plików (schemat v2) — [EVM-109](EVM-109-mobile-upload-w-tle-android.md), [EVM-130](EVM-130-mobile-usluga-wysylania-i-tokeny.md); komenda `CreateMediaAsset`, sesje wysyłania dla kanału mobile i stany mediów w replice — [EVM-131](EVM-131-api-media-z-telefonu.md). EVM-130 dostarczył: zadanie natywne uzbrajane po `applied` komendy `CreateMediaAsset`, powiadomienie prywatne, komponent prośby „Powiadomienia o wysyłaniu” (wywołanie należy do tej historyjki), usuwanie oryginału po potwierdzeniu serwera, czyszczenie plików przy wylogowaniu i w trybie ukrytych danych, hak e2e z plikiem syntetycznym i serwer scenariuszy. Ta historyjka dodaje **aparat, wejścia i zapis pliku z komendą** oraz minimalny widok plików w Kolejce.
@@ -115,3 +115,5 @@ EVM-108 pokazuje w Kolejce **minimum**: wiersz pliku, 4 etykiety stanu, licznik,
 - 2026-11-14 — `depends_on`: EVM-109 → EVM-130 i EVM-131 po podziale i konsultacjach; dopisano decyzje i wymagania; status `draft`, doprecyzowanie w kolejnej nocy (product-owner)
 - 2026-11-15 — doprecyzowanie `/refine`: 8 AC (aparat, zgoda, brak miejsca, wejścia i role, Kolejka — minimum, 30 zdjęć, kontrola paczki), granica z EVM-111, ustalenia konsultacji 2026-11-14, warunek zatrzymania dla telemetrii; pytania do Konrada: opis (RR-96), usuwanie niewysłanego, numery w trybie ukrytym; status `draft` (product-owner)
 - 2026-11-15 — akceptacja Konrada (DoR, wg rekomendacji): bez opisu zdjęcia w wersji 1, bez usuwania niewysłanego zdjęcia, w trybie ukrytych danych wybór zlecenia po numerach; pozostałe decyzje wg rekomendacji konsultacji; dystrybucja bez warunku EVM-084; ścieżka `pelna`; **status `ready`** (Tech Lead)
+- 2026-11-15 — start realizacji (`/deliver`, ścieżka `pelna`, etapami: AC8 → AC1–AC4 → AC5–AC6 → AC7; gałąź `feature/EVM-108-zdjecia-aparat-i-kolejka`); z tytułu usunięto „opis” (poza wersją 1); **status `in-progress`** (Tech Lead)
+- 2026-11-15 — plan gotowy, cztery etapy (mobile-developer)
