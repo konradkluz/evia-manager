@@ -73,6 +73,7 @@ export class MediaUploads implements MediaControl {
   #snapshot: MediaUploadsSnapshot = EMPTY;
   #running: Promise<void> | undefined;
   #again = false;
+  #againSweep = false;
   #subscriptions: { remove(): void }[] = [];
 
   constructor(deps: MediaUploadsDeps) {
@@ -185,7 +186,8 @@ export class MediaUploads implements MediaControl {
     } catch {
       // repaired by the next reconcile from the command in the queue
     }
-    void this.reconcile();
+    // no sweep here: a series of 30 shots would sweep 30 times; the start, the return to the foreground and the end of a cycle sweep
+    void this.reconcile({ sweep: false });
     return { ok: true };
   }
 
@@ -221,7 +223,7 @@ export class MediaUploads implements MediaControl {
       store.queue.clearPendingMedia(photo.assetId);
     }
     if (!queued.ok || queued.mutationId === undefined) return { ok: false, code: 'enqueue_failed' };
-    void this.reconcile();
+    void this.reconcile({ sweep: false });
     return { ok: true };
   }
 
@@ -244,22 +246,25 @@ export class MediaUploads implements MediaControl {
   // ---- reconciliation -------------------------------------------------------------------------------------------------------
 
   /** Start, return to the foreground, after a synchronization, after an event: single-flight, one more run when asked meanwhile. */
-  reconcile(): Promise<void> {
+  reconcile({ sweep = true }: { readonly sweep?: boolean } = {}): Promise<void> {
     if (this.#running !== undefined) {
       this.#again = true;
+      this.#againSweep ||= sweep;
       return this.#running;
     }
-    this.#running = this.#run().finally(() => {
+    this.#running = this.#run(sweep).finally(() => {
       this.#running = undefined;
       if (this.#again) {
+        const sweepAgain = this.#againSweep;
         this.#again = false;
-        void this.reconcile();
+        this.#againSweep = false;
+        void this.reconcile({ sweep: sweepAgain });
       }
     });
     return this.#running;
   }
 
-  async #run(): Promise<void> {
+  async #run(sweep: boolean): Promise<void> {
     const store = this.#deps.store();
     if (store === null) {
       this.#publish(EMPTY);
@@ -267,7 +272,7 @@ export class MediaUploads implements MediaControl {
     }
     try {
       await this.#repairOrphans(store);
-      await this.#sweep(store);
+      if (sweep) await this.#sweep(store);
       await this.#arm(store);
       await this.#syncStatuses(store);
       await this.#confirm(store);

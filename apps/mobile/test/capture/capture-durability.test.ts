@@ -401,6 +401,26 @@ describe('space and a series (EVM-108 AC4, AC7)', () => {
     expect(w.enqueued).toEqual([]);
   });
 
+  it('EVM-108 AC7: a shot starts a run of the files WITHOUT the sweep - 5 shots, no sweep; the start or the return to the foreground sweeps once, and a request of a sweep that comes while a run is on is not lost', async () => {
+    const w = await world();
+    const { pipeline, uploads } = w.boot();
+    for (let i = 0; i < 5; i += 1) expect((await pipeline.capture(request)).ok).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(w.phone.sweeps).toEqual([]);
+    expect(await rows(w)).toHaveLength(5);
+    await uploads.reconcile();
+    expect(w.phone.sweeps).toHaveLength(1);
+    // a run without the sweep is on, a run with it is asked for meanwhile: it follows
+    const quiet = uploads.reconcile({ sweep: false });
+    const asked = uploads.reconcile();
+    await Promise.all([quiet, asked]);
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(w.phone.sweeps).toHaveLength(2);
+    // and a plain run after a plain run is not asked for again by itself
+    await uploads.reconcile({ sweep: false });
+    expect(w.phone.sweeps).toHaveLength(2);
+  });
+
   it('EVM-108 AC7: a series of 30 pictures - 30 files, 30 commands, 30 rows, no duplicate asset id - and all of it survives a restart', async () => {
     const w = await world();
     const { pipeline } = w.boot();
