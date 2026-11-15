@@ -4,7 +4,7 @@ title: "Aplikacja: ekran prywatności i pomocy (bez raportowania błędów do do
 type: story
 milestone: M2
 epic: E14 Dystrybucja i utrzymanie
-status: in-progress
+status: in-review
 priority: P2
 path: lekka             # statyczny ekran prywatności i pomocy (M-11) bez telemetrii; klauzule RODO sprawdza security-engineer (2026-11-12, Tech Lead z delegacji)
 owner: mobile-developer
@@ -84,3 +84,6 @@ Raportowanie błędów do dostawcy (Sentry i podobni), biblioteka telemetrii, ma
 - 2026-11-14 — start realizacji w kolejce nocnej `/noc-2026-11-14` (Tech Lead): status `in-progress`, gałąź `feature/queue-2026-11-14-api-media-i-drobne`
 - 2026-11-15 — implementacja (mobile-developer): M-11 z kopią klauzul W-19 i testem równości, kontakt ze zmiennych budowania, wejścia M-01/M-02/M-12/„Więcej”, kontrola telemetrii w `verify` i odmowa `sign` przy klauzulach w stanie projektu, przepływy Maestro 78–79 (E2E czeka na orkiestratora)
 - 2026-11-15 — poprawki po przeglądzie security (mobile-developer): AC5 — kontrola hostów obejmuje każdą meta-data i `extra`; opis kontaktu biura zgodny z prawdą; „wstecz” nie zamyka M-11 pod blokadą
+- 2026-11-15 — workflow `deliver-story` passed (ścieżka lekka, 1 runda; security-engineer approve, 4 minor + 1 nit); weryfikacja Tech Leada: AC1–AC6 mają testy `EVM-102 AC#` (Jest: `privacy-help`, `expo-config`, `session-screens`; `node:test`: `telemetry`, `verify`, `sign`); luka względem brzmienia AC5 (kontrola hostów tylko dla meta-data `pl.eviacharge.*`) poprawiona w jedynej rundzie poprawek (`6f8a5716`); warunek S8 w `docs/security/checklista-wydania.md`; bramka `pnpm run gate` zielona; przepływy Maestro 78–79 uruchamia orkiestrator na końcu toru; status `in-review` (Tech Lead)
+- 2026-11-15 — do decyzji Konrada: zmienne `EVIA_CONTACT_EMAIL` / `EVIA_CONTACT_PHONE` w CI; doprecyzowanie tekstu AC4 o magazyn plików; treść klauzuli pracowników (S8)
+- 2026-11-15 — Koszt: 3 agenty, ok. 0,43 mln tokenów subagentów (workflow 0,34 mln + poprawka 0,09 mln), ok. 30 min pracy agentów
