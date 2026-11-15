@@ -67,8 +67,9 @@ describe('Maestro flows 50-69 and the upload scenarios agree (EVM-130 stage C)',
       const first = /** @type {NonNullable<(typeof scenario.steps)[number]>} */ (scenario.steps[0]);
       assert.equal(first.flow, '50-upload-sign-in.yaml', scenario.name);
       assert.equal(first.before?.[0], 'upload-reset', scenario.name);
-      assert.ok(
-        first.before.some((action) => action.startsWith('upload-size:')),
+      assert.equal(
+        first.before.some((action) => action.startsWith('upload-size')),
+        false,
         scenario.name,
       );
       assert.ok(
@@ -154,23 +155,28 @@ describe('Maestro flows 50-69 and the upload scenarios agree (EVM-130 stage C)',
     }
   });
 
-  it('EVM-130 AC1: the sizes of the flows are the sizes the scenarios tell the server (the app does not declare the size at this stage)', () => {
+  it('EVM-130 AC1: the sizes of the flows decide the parts (the app declares the file in the session): 40 MiB = 10 parts, 24 = 6, 1 = 1 of 4 MiB', () => {
     const size = { '51-upload-offline-inject.yaml': 40, '55-upload-inject-small.yaml': 1, '56-upload-inject-uploading.yaml': 24 };
     for (const [flow, mib] of Object.entries(size)) {
       const text = flowText(flow);
       assert.match(text, new RegExp(`MIB: '${String(mib)}'`), flow);
       assert.match(text, new RegExp(`BYTES: '${String(mib * 1024 * 1024)}'`), flow);
     }
-    const declared = {
-      'upload-interruptions': 40,
-      'upload-original-until-clean': 1,
-      'upload-file-verdicts': 1,
-      'upload-token-refresh': 24,
-      'upload-session-revoked': 24,
+    // the scenarios that interrupt the transfer inject a file of at least 6 parts (the part size of the run is 4 MiB), so there is a part to interrupt
+    const injects = {
+      'upload-interruptions': '51-upload-offline-inject.yaml',
+      'upload-token-refresh': '56-upload-inject-uploading.yaml',
+      'upload-session-revoked': '56-upload-inject-uploading.yaml',
+      'upload-original-until-clean': '55-upload-inject-small.yaml',
+      'upload-file-verdicts': '55-upload-inject-small.yaml',
     };
-    for (const [name, mib] of Object.entries(declared)) {
-      const first = UPLOAD_SCENARIOS.find((entry) => entry.name === name)?.steps[0];
-      assert.ok(first?.before?.includes(`upload-size:${String(mib * 1024 * 1024)}`), name);
+    for (const [name, flow] of Object.entries(injects)) {
+      assert.ok(
+        UPLOAD_SCENARIOS.find((entry) => entry.name === name)?.steps.some((step) => step.flow === flow),
+        `${name} ${flow}`,
+      );
+      const parts = Math.ceil((size[/** @type {keyof typeof size} */ (flow)] * 1024 * 1024) / (4 * 1024 * 1024));
+      if (flow !== '55-upload-inject-small.yaml') assert.ok(parts >= 6, name);
     }
   });
 

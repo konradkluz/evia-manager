@@ -774,10 +774,9 @@ describe('upload scenarios in the run (EVM-130 stage C, AC1, AC5, AC6, AC8)', ()
     assert.equal(code, 0, machine.logs.join('\n'));
     assert.deepEqual(machine.maestroFlows(), ['50-upload-sign-in.yaml', '56-upload-inject-uploading.yaml']);
     // the control port is on the loopback, the first call switches the sign-in on, then the reset and the settings of the scenario
-    assert.deepEqual(calls.slice(0, 4), [
+    assert.deepEqual(calls.slice(0, 3), [
       'POST http://127.0.0.1:4555/control/active {"active":true}',
       'POST http://127.0.0.1:4555/control/reset {}',
-      'POST http://127.0.0.1:4555/control/default-size {"bytes":25165824}',
       'POST http://127.0.0.1:4555/control/part-delay {"ms":5000}',
     ]);
     assert.ok(calls.every((call) => call.includes('http://127.0.0.1:4555/control/')));

@@ -7,8 +7,8 @@
  * the upload part of the scenario server (src/upload-stub.mjs), whose tokens the upload operations check.
  *
  * The file of a flow is injected by the hook of the e2e variant (random content made natively, nothing binary in the repository); the server
- * learns its size from `upload-size:<bytes>` (the app of this stage does not declare it yet, EVM-131 `file`), so the number of MiB in a flow
- * and the size here are one decision: 40 MiB = 10 parts of 4 MiB (the part size of the run), 24 MiB = 6 parts, 1 MiB = 1 part. The delay of the
+ * learns its size from the declaration of the file in `createUploadSession` (EVM-131 `file`), so the number of MiB in a flow alone decides
+ * the number of parts: 40 MiB = 10 parts of 4 MiB (the part size of the run), 24 MiB = 6 parts, 1 MiB = 1 part. The delay of the
  * answer to every part (`upload-part-delay`) is the window in which the steps interrupt the app: the part is stored at once, the answer comes
  * late, so an app killed meanwhile never saw the ETag and the resume finds the part with `ListParts` instead of sending it again.
  *
@@ -17,24 +17,20 @@
  */
 import { SCENARIOS } from './scenarios.mjs';
 
-export const MIB = 1024 * 1024;
-const BIG = 40 * MIB;
-const MEDIUM = 24 * MIB;
-const SMALL = 1 * MIB;
 /** The answer to every part is held this long (ms): ten parts of the big file take about a minute. */
 const SLOW = 5000;
 
 /**
- * The first step of every scenario: the server forgets the earlier scenario, the log is empty, the file is as big as the flows inject.
- * @param {number} bytes @param {number} delay @param {import('./device.mjs').DeviceAction[]} [more]
+ * The first step of every scenario: the server forgets the earlier scenario, the log is empty, the answer to every part is held `delay` ms.
+ * @param {number} delay @param {import('./device.mjs').DeviceAction[]} [more]
  * @returns {import('./scenarios.mjs').Step}
  */
-const signIn = (bytes, delay, more = []) => ({
+const signIn = (delay, more = []) => ({
   flow: '50-upload-sign-in.yaml',
   server: 'ok',
   airplane: false,
   upload: true,
-  before: ['upload-reset', 'logcat-clear', `upload-size:${String(bytes)}`, `upload-part-delay:${String(delay)}`, ...more],
+  before: ['upload-reset', 'logcat-clear', `upload-part-delay:${String(delay)}`, ...more],
 });
 
 /**
@@ -54,7 +50,7 @@ export const UPLOAD_SCENARIOS = [
     name: 'upload-interruptions',
     ac: 'EVM-130 AC1 AC3 AC5 AC6',
     steps: [
-      signIn(BIG, SLOW),
+      signIn(SLOW),
       { flow: '51-upload-offline-inject.yaml', server: 'ok', airplane: true, upload: true, after: ['jobs-none', 'upload-none-yet'] },
       {
         flow: '52-upload-resumes.yaml',
@@ -83,7 +79,7 @@ export const UPLOAD_SCENARIOS = [
     name: 'upload-original-until-clean',
     ac: 'EVM-130 AC4',
     steps: [
-      signIn(SMALL, 0),
+      signIn(0),
       { flow: '55-upload-inject-small.yaml', server: 'ok', airplane: false, upload: true },
       { flow: '54-upload-sent.yaml', server: 'ok', airplane: false, upload: true, after: ['upload-checkpoint:0', 'original-present'] },
       {
@@ -103,7 +99,7 @@ export const UPLOAD_SCENARIOS = [
     name: 'upload-file-verdicts',
     ac: 'EVM-130 AC4',
     steps: [
-      signIn(SMALL, 0, ['upload-verdict:checksum_mismatch']),
+      signIn(0, ['upload-verdict:checksum_mismatch']),
       { flow: '55-upload-inject-small.yaml', server: 'ok', airplane: false, upload: true },
       { flow: '57-upload-failed.yaml', server: 'ok', airplane: false, upload: true, after: ['original-present'] },
       { flow: '58-upload-retry.yaml', server: 'ok', airplane: false, upload: true, before: ['upload-verdict:none'] },
@@ -117,7 +113,7 @@ export const UPLOAD_SCENARIOS = [
     name: 'upload-token-refresh',
     ac: 'EVM-130 AC2 AC3 AC5',
     steps: [
-      signIn(MEDIUM, SLOW),
+      signIn(SLOW),
       { flow: '56-upload-inject-uploading.yaml', server: 'ok', airplane: false, upload: true, after: ['upload-expire-access'] },
       {
         flow: '54-upload-sent.yaml',
@@ -134,7 +130,7 @@ export const UPLOAD_SCENARIOS = [
     name: 'upload-session-revoked',
     ac: 'EVM-130 AC5',
     steps: [
-      signIn(MEDIUM, SLOW),
+      signIn(SLOW),
       { flow: '56-upload-inject-uploading.yaml', server: 'ok', airplane: false, upload: true, after: ['upload-fault:session_revoked'] },
       { flow: '60-upload-revoked-screen.yaml', server: 'ok', airplane: false, background: true, upload: true },
       {
@@ -152,7 +148,7 @@ export const UPLOAD_SCENARIOS = [
     name: 'upload-update-required',
     ac: 'EVM-130 AC5',
     steps: [
-      signIn(MEDIUM, SLOW),
+      signIn(SLOW),
       { flow: '56-upload-inject-uploading.yaml', server: 'ok', airplane: false, upload: true, after: ['upload-fault:version_unsupported'] },
       {
         flow: '62-upload-update-required.yaml',
@@ -170,7 +166,7 @@ export const UPLOAD_SCENARIOS = [
     name: 'upload-device-wipe',
     ac: 'EVM-130 AC5',
     steps: [
-      signIn(MEDIUM, SLOW),
+      signIn(SLOW),
       {
         flow: '56-upload-inject-uploading.yaml',
         server: 'ok',
@@ -194,7 +190,7 @@ export const UPLOAD_SCENARIOS = [
     name: 'upload-manual-wipe',
     ac: 'EVM-130 AC5',
     steps: [
-      signIn(MEDIUM, SLOW),
+      signIn(SLOW),
       { flow: '56-upload-inject-uploading.yaml', server: 'ok', airplane: false, upload: true },
       {
         flow: '68-upload-manual-wipe.yaml',
@@ -211,7 +207,7 @@ export const UPLOAD_SCENARIOS = [
     name: 'upload-hidden-data',
     ac: 'EVM-130 AC5',
     steps: [
-      signIn(MEDIUM, SLOW),
+      signIn(SLOW),
       { flow: '56-upload-inject-uploading.yaml', server: 'ok', airplane: false, upload: true },
       { flow: '64-upload-hidden.yaml', server: 'ok', airplane: false, upload: true, after: ['upload-checkpoint:2'] },
       { flow: '65-upload-hidden-still.yaml', server: 'ok', airplane: false, upload: true },
@@ -223,7 +219,7 @@ export const UPLOAD_SCENARIOS = [
     name: 'upload-notification',
     ac: 'EVM-130 AC6',
     steps: [
-      signIn(MEDIUM, SLOW),
+      signIn(SLOW),
       { flow: '56-upload-inject-uploading.yaml', server: 'ok', airplane: false, upload: true, after: ['notification-private'] },
     ],
   },
@@ -233,7 +229,7 @@ export const UPLOAD_SCENARIOS = [
     name: 'upload-permission-banner',
     ac: 'EVM-130 AC6',
     steps: [
-      signIn(BIG, SLOW),
+      signIn(SLOW),
       { flow: '51-upload-offline-inject.yaml', server: 'ok', airplane: true, upload: true },
       { flow: '66-upload-banner.yaml', server: 'ok', airplane: true, upload: true },
       { flow: '67-upload-banner-gone.yaml', server: 'ok', airplane: true, upload: true, before: ['notifications-grant'] },

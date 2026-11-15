@@ -1,7 +1,9 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call -- the answers and replica changes are parsed JSON read by the assertions */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { runUploadAction, UPLOAD_ACTION_NAMES } from '../src/device-upload.mjs';
 import { E2E_ACCOUNT, startStubApi } from '../src/stub-api.mjs';
+import { UPLOAD_SCENARIOS } from '../src/upload-scenarios.mjs';
 
 const WORK_ORDER = '30000000-0000-4000-8000-000000000001';
 const ASSET = '01900000-0000-7000-8000-000000000002';
@@ -45,7 +47,6 @@ describe('upload part mounted on the scenario server (EVM-130 stage C, AC1, AC4,
     const control = /** @type {number} */ (stub.uploadControlPort);
     try {
       await call(control, '/control/active', { method: 'POST', body: { active: true } });
-      await call(control, '/control/default-size', { method: 'POST', body: { bytes: 20 * 1024 * 1024 } });
       const session = (
         await call(stub.port, '/api/v1/auth/mobile/login/totp', {
           method: 'POST',
@@ -137,6 +138,62 @@ describe('upload part mounted on the scenario server (EVM-130 stage C, AC1, AC4,
           [2, 'clean'],
         ],
       );
+    } finally {
+      await stub.close();
+    }
+  });
+
+  it('EVM-130 AC8: every steering action the scenarios use hits an existing control point of the running upload server (2xx, not 404)', async () => {
+    // the steps that only read the device (adb) or only read the checkpoint with a wait never call a steering point
+    const deviceOnly = new Set([
+      'logcat-clear',
+      'logcat-clean',
+      'tokens-not-in-clear',
+      'jobs-armed',
+      'jobs-none',
+      'app-files-none',
+      'original-present',
+      'original-absent',
+      'notification-private',
+      'notifications-revoke',
+      'notifications-grant',
+      'upload-checkpoint',
+    ]);
+    const stub = await startStubApi();
+    const controlPort = /** @type {number} */ (stub.uploadControlPort);
+    try {
+      // an asset is registered so that the file-state step has something to set
+      await call(controlPort, '/control/asset', { method: 'POST', body: { assetId: ASSET, workOrderId: WORK_ORDER } });
+      /** @type {string[]} */
+      const answers = [];
+      const context = {
+        adb: () => ({ status: 0, stdout: '', stderr: '' }),
+        sleep: () => Promise.resolve(),
+        uploadControl: async (/** @type {string} */ method, /** @type {string} */ path, /** @type {unknown} */ body) => {
+          const answer = await call(controlPort, path, { method, ...(body === undefined ? {} : { body }) });
+          answers.push(`${method} ${path} ${String(answer.status)}`);
+          return { status: answer.status, body: answer.json };
+        },
+      };
+      const used = new Set(
+        UPLOAD_SCENARIOS.flatMap((scenario) => scenario.steps.flatMap((step) => [...(step.before ?? []), ...(step.after ?? [])])).filter(
+          (action) => UPLOAD_ACTION_NAMES.has(action.split(':')[0] ?? '') && !deviceOnly.has(action.split(':')[0] ?? ''),
+        ),
+      );
+      used.add('upload-active:on');
+      used.add('upload-active:off');
+      // the names that exist but no scenario uses are driven too, so a new action cannot slip in without a decision
+      for (const name of UPLOAD_ACTION_NAMES) {
+        if (deviceOnly.has(name) || [...used].some((action) => action.split(':')[0] === name)) continue;
+        assert.fail(`the action ${name} is neither a device step nor used by a scenario: decide which it is`);
+      }
+      assert.ok(used.size >= 8);
+      for (const action of used) {
+        const before = answers.length;
+        await runUploadAction(action, context);
+        assert.ok(answers.length > before, `${action}: no call to the control port`);
+        for (const answer of answers.slice(before)) assert.match(answer, / 2\d\d$/, `${action}: ${answer}`);
+      }
     } finally {
       await stub.close();
     }

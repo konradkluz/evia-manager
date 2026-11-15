@@ -35,7 +35,7 @@ const NEWLINE = /\r?\n/;
  *   | 'original-absent' | 'notification-private' | 'notifications-revoke' | 'notifications-grant' | 'upload-reset' | 'upload-none-yet'
  *   | 'upload-active:on' | 'upload-active:off'
  *   | 'upload-expire-access' | 'upload-refreshed' | `upload-checkpoint:${string}` | `upload-fault:${string}` | `upload-fault-clear:${string}`
- *   | `upload-size:${string}` | `upload-part-delay:${string}` | `upload-verdict:${string}` | `upload-file-state:${string}`} UploadAction
+ *   | `upload-part-delay:${string}` | `upload-verdict:${string}` | `upload-file-state:${string}`} UploadAction
  */
 /** @typedef {{ status: number | null, stdout: string, stderr: string }} Outcome */
 /**
@@ -78,7 +78,6 @@ export const UPLOAD_ACTION_NAMES = new Set([
   'upload-checkpoint',
   'upload-fault',
   'upload-fault-clear',
-  'upload-size',
   'upload-part-delay',
   'upload-verdict',
   'upload-file-state',
@@ -486,12 +485,6 @@ export async function runUploadAction(action, context) {
         { fault: first, ...(count === null ? {} : { count }) },
         `${name === 'upload-fault' ? 'fault' : 'fault cleared:'} ${first}`,
       );
-    }
-    case 'upload-size': {
-      const bytes = whole(first);
-      return bytes === null
-        ? check(false, 'upload-size needs a number of bytes')
-        : steer('/control/default-size', { bytes }, `size of the file ${String(bytes)} bytes`);
     }
     case 'upload-part-delay': {
       const ms = whole(first);

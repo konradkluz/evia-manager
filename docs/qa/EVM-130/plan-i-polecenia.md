@@ -29,7 +29,7 @@ Po scaleniu torów i zielonym przebiegu scenariusze wysyłania można włączyć
 
 ## 3. Scenariusze i przepływy
 
-Zasada przepływów: dane syntetyczne; plik generuje hak e2e (losowa zawartość natywnie, nic binarnego w repozytorium); rozmiar to jedna decyzja przepływu i scenariusza (`upload-size`): 40 MiB = 10 części po 4 MiB (rozmiar części w przebiegu), 24 MiB = 6, 1 MiB = 1; opóźnienie odpowiedzi na część (`upload-part-delay:5000`) to okno na przerwanie — część jest zapisana od razu, odpowiedź przychodzi późno, więc aplikacja zabita w tym czasie nie widziała ETagu, a wznowienie znajduje część przez `ListParts` zamiast wysyłać ją znowu.
+Zasada przepływów: dane syntetyczne; plik generuje hak e2e (losowa zawartość natywnie, nic binarnego w repozytorium); aplikacja deklaruje plik w sesji (`file`, EVM-131), więc serwer bierze rozmiar z deklaracji, a liczbę części wyznacza rozmiar pliku wstrzykiwanego przez przepływ: 40 MiB = 10 części po 4 MiB (rozmiar części w przebiegu), 24 MiB = 6, 1 MiB = 1; opóźnienie odpowiedzi na część (`upload-part-delay:5000`) to okno na przerwanie — część jest zapisana od razu, odpowiedź przychodzi późno, więc aplikacja zabita w tym czasie nie widziała ETagu, a wznowienie znajduje część przez `ListParts` zamiast wysyłać ją znowu.
 
 | Scenariusz (`--only`) | AC | Kroki (przepływ → kroki urządzenia/serwera po przepływie) | Co dowodzi |
 |---|---|---|---|
@@ -73,7 +73,7 @@ Narzędzia są sprawdzone na atrapach; poniższe zależą od zachowania systemu 
 
 ## 6. Otwarte kwestie widoczne dopiero przy tym etapie (do decyzji, bez zmiany AC)
 
-- **Aplikacja nie deklaruje pliku w sesji.** Kontrakt EVM-131 wymaga w `CreateUploadSessionRequest` pola `file` (`fileName`, `declaredSize`, `contentType`, `sha256`) dla medium z telefonu (`400 validation_failed` `/file` `required`). Silnik Kotlin (etap A) tego pola nie wysyła, więc **z prawdziwym serwerem EVM-131 utworzenie sesji nie przejdzie**. Serwer scenariuszy tego etapu akceptuje oba warianty (z deklaracją i bez; bez niej rozmiar bierze ze scenariusza). Potrzebna zmiana w silniku (`modules/evia-upload/engine/**`, poza zakresem tego etapu) przed integracją z EVM-131 — zgłoszone w raporcie etapu.
+- **Deklaracja pliku w sesji.** Kontrakt EVM-131 wymaga w `CreateUploadSessionRequest` pola `file` (`fileName`, `declaredSize`, `contentType`, `sha256`) dla medium z telefonu (`400 validation_failed` `/file` `required`); aplikacja je wysyła, a serwer scenariuszy bierze rozmiar z deklaracji (punkt sterujący `/control/default-size` usunięto).
 - **`@evia/sync-core` nie zna `clean` ani `quarantined`.** Projekcja pobierania czyta tylko `pending | uploading | processing | ready | failed`; kontrakt EVM-131 dopuszcza `clean` i `quarantined` (telefon kasuje oryginał po `clean` albo `ready`). Serwer scenariuszy ogłasza `clean` jako `ready`, a kwarantannę — tak jak serwer (`quarantined`; encja jest pomijana, bo pobieranie jej nie czyta); aplikacja bierze werdykt kwarantanny z odpowiedzi `complete`. Do decyzji w EVM-131/111: rozszerzyć projekcję o `clean` i `quarantined`.
 - **Brak `EVIA_STORAGE_HOSTS` w `ci.yml`** — paczka z CI nie ma wysyłania (fail-closed); zmienna jest opisana w `docs/ops/dystrybucja-apk-android.md`.
 
