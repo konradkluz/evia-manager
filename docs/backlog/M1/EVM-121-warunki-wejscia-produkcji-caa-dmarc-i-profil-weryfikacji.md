@@ -4,7 +4,7 @@ title: Rekordy CAA i rua oraz profil strict w staging-verify dla jedynego środo
 type: enabler
 milestone: M1
 epic: E8 Gotowość produkcyjna
-status: in-review
+status: done
 priority: P1
 path: lekka            # narzędzie, CI i DNS; bez uwierzytelniania, danych osobowych i mediów; jeden recenzent (zmiana .github/** → security-engineer)
 owner: devops-engineer
@@ -67,7 +67,7 @@ Stan na 2026-11-15 (publiczny DNS): `panel.eviacharge.pl` ma CAA `0 issue "letse
 - **RR-99 (nowe, Low, do akceptacji Konrada):** `staging.eviacharge.pl` (samo przekierowanie 308) nie ma CAA; rekomendacja: dodać `0 issue "letsencrypt.org"` na tym węźle przy najbliższej wizycie w OVH.
 - Propozycja do backlogu (`/refine`): kontrola `dns` przyjmuje DMARC `p=none`, nie sprawdza `sp=` i przepuszcza kilka rekordów DMARC — wymagać dokładnie jednego rekordu z `p=reject` (albo `quarantine`), `sp=reject` i `rua` (kod sprzed tej historyjki).
 - Nit: komunikat „brak SPF dla staging” w `checks.mjs` — poprawić przy EVM-125 (przemianowanie staging → produkcja).
-- Dowód AC2 (zielony `staging-verify` na `main` po scaleniu) i odwołanie do niego z RR-40/RR-41 (AC4) trafią do `docs/qa/EVM-121/` w następnym PR, razem ze statusem `done`.
+- Dowód AC2 i AC4: [dowod-staging-verify-strict.md](../../qa/EVM-121/dowod-staging-verify-strict.md) — zielony `staging-verify` na `main` po scaleniu #143 (kontrola `dns` bez ostrzeżeń); RR-40 i RR-41 odwołują się do tego dowodu.
 
 ## Dziennik
 - 2026-10-27 — utworzono (product-owner) z zamknięcia EVM-007
@@ -80,3 +80,4 @@ Stan na 2026-11-15 (publiczny DNS): `panel.eviacharge.pl` ma CAA `0 issue "letse
 - 2026-11-15 — uwagi minor z przeglądu naniesione w docs/security (security-engineer)
 - 2026-11-15 — weryfikacja orkiestratora (ścieżka `lekka`): tabela AC → test sprawdzona (AC1: 9 testów `EVM-121 AC1`; AC2 i AC3: test podsumowania i przypadek DMARC bez `rua`; AC4: dokumenty), `pnpm run gate` zielona (pokrycie zmienionego kodu 100% linii i gałęzi), `npm run test:tools` zielone, `npm run docs:check` 0 błędów, `pnpm run scan` zielony (zizmor i actionlint bez ustaleń), publiczny DNS zgodny z rygorem; **status `in-review`** (Tech Lead)
 - 2026-11-15 — Koszt: bez rozbicia w $ (nieodczytane w sesji) — ok. 0,21 mln tokenów subagentów (workflow 0,14 mln + poprawka dokumentów 0,07 mln); wywołania agentów 3; rundy poprawek 0; ścieżka lekka; sonnet; plik historyjki ok. 12 KB; vs baseline: szacunkowo wyraźnie poniżej celu ścieżki lekkiej
+- 2026-11-15 — PR #143 scalony przez Konrada (`main` `6f88399a`); po wdrożeniu job `staging-verify` zielony w jedynym rygorze (przebieg 43705110832), dowód w `docs/qa/EVM-121/`; RR-99 nadal do decyzji Konrada; **status `done`** (Tech Lead)
