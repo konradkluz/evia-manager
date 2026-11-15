@@ -32,7 +32,7 @@ describe('offline recovery (EVM-107 AC6)', () => {
     first.setOnline(false);
     const ids: string[] = [];
     for (let i = 1; i <= N; i += 1) {
-      expect(await first.enqueue({ type: 'CreateNote', commandVersion: 1, payload: notePayload(i, NOTE_WO) })).toEqual({ ok: true });
+      expect(await first.enqueue({ type: 'CreateNote', commandVersion: 1, payload: notePayload(i, NOTE_WO) })).toMatchObject({ ok: true });
     }
     for (const row of (await phone.queue.readAll()) as { mutationId: string }[]) ids.push(row.mutationId);
     expect(ids).toHaveLength(N);

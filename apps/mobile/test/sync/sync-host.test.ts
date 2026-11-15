@@ -96,7 +96,7 @@ describe('synchronization host (EVM-107 AC2, AC5; security S2, S3)', () => {
     phone.clockNow += 5_000;
     phone.online = false;
     host.setOnline(false);
-    expect(await host.enqueue({ type: 'CreateNote', commandVersion: 1, payload: notePayload(2, NOTE_WO) })).toEqual({ ok: true });
+    expect(await host.enqueue({ type: 'CreateNote', commandVersion: 1, payload: notePayload(2, NOTE_WO) })).toMatchObject({ ok: true });
     const view = await host.queueView(true);
     expect(view.items).toHaveLength(1);
     expect(await host.dependentsOf(view.items[0]?.id ?? '')).toBe(0);

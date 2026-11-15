@@ -2,7 +2,7 @@ import type { EntityType, HydrationReason, ResyncReason } from './pull-types.ts'
 
 /** Own types of the sync core (EVM-091): the core does not import the OpenAPI contract; compatibility is proven by a test. */
 
-export const MUTATION_TYPES = ['CreateNote', 'CreateComment', 'CreateQuickWorkOrder'] as const;
+export const MUTATION_TYPES = ['CreateNote', 'CreateComment', 'CreateQuickWorkOrder', 'CreateMediaAsset'] as const;
 export type MutationType = (typeof MUTATION_TYPES)[number];
 
 /** Limits of the contract (SR-SYNC-06): a mutation up to 64 KB, a batch up to 50 mutations and 1 MB (we stay below). */

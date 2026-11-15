@@ -6,6 +6,7 @@ import type { TemplateSet } from '../orders/templates';
 import { Database } from './database';
 import { StorageError, toStorageError, type StorageErrorCode } from './errors';
 import { InstallationProof } from './installation-proof';
+import { SqlMediaFileStore, type MediaFileStore } from './media-file-store';
 import { cipherVersionSupported, generateKeyHex, keyCheckValue, keyPragma } from './key';
 import type { AppFiles, CryptoSource, DeviceSecrets, InstallationIdentity, KeyVault, StorageDiagnostic } from './ports';
 import { SqlQueueStore } from './queue-store';
@@ -61,7 +62,13 @@ export interface UnlockedStore {
     writeTemplates(set: TemplateSet): Promise<void>;
     /** The customers and places of the active generation for the form of a quick work order (EVM-106); never called in the hidden-data mode. */
     readQuickOrderSource(): Promise<QuickOrderSource>;
+    /** `fileState` and its reason of `media_asset` entities of the active generation (EVM-130 AC4); absent = not in the replica yet. */
+    readMediaServerStates(
+      ids: readonly string[],
+    ): Promise<ReadonlyMap<string, { readonly fileState: string; readonly reasonCode: string | null }>>;
   };
+  /** The files of the queue of this owner (EVM-130): identifiers, digest, state — see `media-file-store.ts`. */
+  readonly media: MediaFileStore;
   /** Results of settled mutations for their consumer (EVM-107); taken = removed. */
   takeSettled(): Promise<{ mutationId: string; info: SettledInfo }[]>;
   /** `unsentItemCount` of the store (see `LocalDataHost.unsentItemCount`). */
@@ -124,6 +131,7 @@ export class LocalDataHost {
   #db: Database | null = null;
   #unlocked: string | null = null;
   readonly #wipeSteps: { name: string; run: () => Promise<void> }[] = [];
+  readonly #firstWipeSteps: { name: string; run: () => Promise<void> }[] = [];
   readonly #unsentCounters: { name: string; count: () => Promise<number> }[] = [];
   /** Tail of the host queue: prepare, openForUser, "Rozumiem" and the wipe run one at a time (one key, one database). */
   #tail: Promise<unknown> = Promise.resolve();
@@ -133,9 +141,13 @@ export class LocalDataHost {
     this.#schema = deps.schema ?? SCHEMA;
   }
 
-  /** Extra wipe steps (media, thumbnails, native jobs — E11/EVM-109), run after the built-in ones in registration order. */
-  registerWipeStep(name: string, run: () => Promise<void>): void {
-    this.#wipeSteps.push({ name, run });
+  /**
+   * Extra wipe steps (media, thumbnails, native jobs — E11/EVM-109), run after the built-in ones in registration order. With
+   * `first` the step runs BEFORE every built-in one (right after the marker): the native step of EVM-130 stops the jobs and removes the
+   * files and the token store first, so that nothing is uploaded or refreshed while the rest of the wipe runs (AC5).
+   */
+  registerWipeStep(name: string, run: () => Promise<void>, options: { readonly first?: boolean } = {}): void {
+    (options.first === true ? this.#firstWipeSteps : this.#wipeSteps).push({ name, run });
   }
 
   /** Extra sources of unsent items (pending files — E11), added to `unsentItemCount` without changing the port. */
@@ -389,7 +401,9 @@ export class LocalDataHost {
         readTemplates: () => replica.readTemplates(),
         writeTemplates: (set) => replica.writeTemplates(set),
         readQuickOrderSource: () => replica.readQuickOrderSource(),
+        readMediaServerStates: (ids) => replica.readMediaServerStates(ids),
       },
+      media: new SqlMediaFileStore(access, userId),
       takeSettled: () => queue.takeSettled(),
       unsentItemCount: async () => {
         await allowed();
@@ -484,6 +498,16 @@ export class LocalDataHost {
     const db = this.#db;
     let total = 0;
     if (db !== null && !db.closed) total += Number((await db.read((tx) => tx.get('SELECT count(*) AS n FROM queue_entries')))?.['n'] ?? 0);
+    // files that left the queue (their command was applied) but are not confirmed by the server yet are still unsent (EVM-130 AC4)
+    if (db !== null && !db.closed) {
+      total += Number(
+        (
+          await db.read((tx) =>
+            tx.get("SELECT count(*) AS n FROM media_files WHERE state IN ('applied', 'uploaded', 'needs_attention', 'failed')"),
+          )
+        )?.['n'] ?? 0,
+      );
+    }
     for (const counter of this.#unsentCounters) total += await counter.count();
     return total;
   }
@@ -545,6 +569,7 @@ export class LocalDataHost {
   #steps(): { name: string; run: () => Promise<void> }[] {
     const { vault, engine, files, secrets } = this.#deps;
     return [
+      ...this.#firstWipeSteps,
       {
         name: 'close_database',
         run: async () => {

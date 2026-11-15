@@ -100,7 +100,7 @@ describe('entry offline (EVM-105 AC1, AC2, AC5)', () => {
     expect(stageId).not.toBe('');
     const input = await command(service, { stageId });
     // `enqueue` answered ok = the record is on disk (the form closes only now)
-    expect(await service.enqueue(input)).toEqual({ ok: true });
+    expect(await service.enqueue(input)).toMatchObject({ ok: true });
     expect(await phone.queue.readAll()).toHaveLength(1);
     expect(server.pushes).toHaveLength(0);
     const waiting = must(await service.orderDetail(ORDER_1)).journal;
@@ -142,7 +142,7 @@ describe('entry offline (EVM-105 AC1, AC2, AC5)', () => {
     const { server, service } = await loaded();
     phone.online = false;
     service.setOnline(false);
-    expect(await service.enqueue(await command(service, { kind: 'comment', stageId: 'whatever' }))).toEqual({ ok: true });
+    expect(await service.enqueue(await command(service, { kind: 'comment', stageId: 'whatever' }))).toMatchObject({ ok: true });
     expect(must(await service.orderDetail(ORDER_1)).journal[0]).toMatchObject({ source: 'pending', kind: 'comment', category: null });
     await networkReturns(service);
     const sent = server.pushes.flatMap((push) => push.mutations);

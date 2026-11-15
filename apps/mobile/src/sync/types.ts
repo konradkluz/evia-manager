@@ -94,7 +94,9 @@ export interface QueueView {
   readonly sent: readonly SentItem[];
 }
 
-export type AttentionResult = { readonly ok: true; readonly dependents?: number } | { readonly ok: false; readonly code: string };
+export type AttentionResult =
+  /** `mutationId`: the id of the entry `enqueue` created (the table of files of EVM-130 links its row to it). */
+  { readonly ok: true; readonly dependents?: number; readonly mutationId?: string } | { readonly ok: false; readonly code: string };
 
 export interface TargetOption {
   readonly id: string;

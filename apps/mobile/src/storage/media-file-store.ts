@@ -1,0 +1,168 @@
+import type { DbAccess, Tx } from './database';
+
+/**
+ * The files of the queue (EVM-130 AC4, architect 6): one row per photo or video created on the phone — the minimal table beside the
+ * queue (SQLCipher, queue side of the schema), extended later by EVM-108 and not paralleled by another structure. A row carries
+ * identifiers, the name of the file in the private directory of the native module (a UUID, relative), size, digest and type — never an
+ * address, a token, a description or a path. The progress of an upload is NOT here (it comes from the native status and its events);
+ * the state of `needs_attention` is, because the native side does not keep it.
+ *
+ * States: `pending` — the command `CreateMediaAsset` waits in the queue; `applied` — the server applied it (the same transaction that
+ * settles the mutation sets it, so it survives any kill) and the file is to be uploaded; `uploaded` — the module sent it, the server
+ * has not confirmed `clean` yet (the original stays); `needs_attention` — a decision of the user ("Wymaga uwagi"); `failed` — "Ponów";
+ * `clean` — the server confirmed the file, the original was removed, the row stays.
+ */
+export const MEDIA_FILE_STATES = ['pending', 'applied', 'uploaded', 'needs_attention', 'failed', 'clean'] as const;
+export type MediaFileState = (typeof MEDIA_FILE_STATES)[number];
+
+export interface MediaFileRecord {
+  /** UUIDv7, also the name of the original in the private directory of the native module. */
+  readonly assetId: string;
+  readonly mutationId: string;
+  readonly workOrderId: string;
+  readonly ownerUserId: string;
+  /** The UUID name of the file relative to the directory of the native module (no path). */
+  readonly fileName: string;
+  readonly sizeBytes: number;
+  /** Lower-case hex SHA-256. */
+  readonly sha256: string;
+  readonly mime: string;
+  readonly state: MediaFileState;
+  /** A code only (`quarantined`, `id_conflict`, `checksum_mismatch`, …); never a message. */
+  readonly lastCode: string | null;
+  readonly createdAt: number;
+  readonly updatedAt: number;
+}
+
+export type NewMediaFile = Omit<MediaFileRecord, 'state' | 'lastCode' | 'updatedAt'>;
+
+/** The files of the signed-in owner; reachable through `UnlockedStore.media` only (owner guard, SR-MOB-13). */
+export interface MediaFileStore {
+  /** Inserts a row in `pending` (idempotent per `assetId`: a second call changes nothing). */
+  register(file: NewMediaFile): Promise<void>;
+  /** Every file of the owner, oldest first. */
+  list(): Promise<readonly MediaFileRecord[]>;
+  setState(assetId: string, state: MediaFileState, code: string | null, at: number): Promise<void>;
+  /** The row of a file that was never created in the queue (a failed enqueue) — never after `applied`. */
+  remove(assetId: string): Promise<void>;
+}
+
+const ASSET_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const SHA256 = /^[0-9a-f]{64}$/;
+
+const isState = (value: unknown): value is MediaFileState => (MEDIA_FILE_STATES as readonly unknown[]).includes(value);
+
+export async function createMediaFilesV2(tx: Tx): Promise<void> {
+  await tx.exec(`
+    CREATE TABLE media_files (
+      asset_id TEXT PRIMARY KEY,
+      mutation_id TEXT NOT NULL UNIQUE,
+      work_order_id TEXT NOT NULL,
+      owner_user_id TEXT NOT NULL,
+      file_name TEXT NOT NULL,
+      size_bytes INTEGER NOT NULL,
+      sha256 TEXT NOT NULL,
+      mime TEXT NOT NULL,
+      state TEXT NOT NULL CHECK (state IN ('pending', 'applied', 'uploaded', 'needs_attention', 'failed', 'clean')),
+      last_code TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE INDEX media_files_state ON media_files (owner_user_id, state);
+  `);
+}
+
+/** The mutation of a file was settled by the server (`applied` or `duplicate`): its file is to be uploaded. Same transaction as the settle. */
+export async function markMediaApplied(tx: Tx, mutationId: string, at: number): Promise<void> {
+  await tx.run("UPDATE media_files SET state = 'applied', updated_at = ? WHERE mutation_id = ? AND state = 'pending'", [at, mutationId]);
+}
+
+export class SqlMediaFileStore implements MediaFileStore {
+  readonly #db: DbAccess;
+  readonly #ownerUserId: string;
+
+  constructor(db: DbAccess, ownerUserId: string) {
+    this.#db = db;
+    this.#ownerUserId = ownerUserId;
+  }
+
+  async register(file: NewMediaFile): Promise<void> {
+    const valid =
+      file.ownerUserId === this.#ownerUserId &&
+      ASSET_ID.test(file.assetId) &&
+      file.fileName === file.assetId &&
+      UUID.test(file.workOrderId) &&
+      SHA256.test(file.sha256) &&
+      Number.isSafeInteger(file.sizeBytes) &&
+      file.sizeBytes > 0 &&
+      /^(image|video)\/[a-z0-9.+-]{1,40}$/.test(file.mime);
+    if (!valid) throw new Error('invalid_media_file');
+    await this.#db.transaction((tx) =>
+      tx.run(
+        `INSERT INTO media_files (asset_id, mutation_id, work_order_id, owner_user_id, file_name, size_bytes, sha256, mime, state, last_code, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', NULL, ?, ?) ON CONFLICT (asset_id) DO NOTHING`,
+        [
+          file.assetId,
+          file.mutationId,
+          file.workOrderId,
+          file.ownerUserId,
+          file.fileName,
+          file.sizeBytes,
+          file.sha256,
+          file.mime,
+          file.createdAt,
+          file.createdAt,
+        ],
+      ),
+    );
+  }
+
+  async list(): Promise<readonly MediaFileRecord[]> {
+    const rows = await this.#db.read((tx) =>
+      tx.all(
+        'SELECT asset_id, mutation_id, work_order_id, owner_user_id, file_name, size_bytes, sha256, mime, state, last_code, created_at, updated_at FROM media_files WHERE owner_user_id = ? ORDER BY created_at, asset_id',
+        [this.#ownerUserId],
+      ),
+    );
+    return rows.flatMap((row): MediaFileRecord[] => {
+      const state = row['state'];
+      if (!isState(state)) return [];
+      return [
+        {
+          assetId: String(row['asset_id']),
+          mutationId: String(row['mutation_id']),
+          workOrderId: String(row['work_order_id']),
+          ownerUserId: String(row['owner_user_id']),
+          fileName: String(row['file_name']),
+          sizeBytes: Number(row['size_bytes']),
+          sha256: String(row['sha256']),
+          mime: String(row['mime']),
+          state,
+          lastCode: typeof row['last_code'] === 'string' ? row['last_code'] : null,
+          createdAt: Number(row['created_at']),
+          updatedAt: Number(row['updated_at']),
+        },
+      ];
+    });
+  }
+
+  async setState(assetId: string, state: MediaFileState, code: string | null, at: number): Promise<void> {
+    if (!isState(state)) throw new Error('invalid_media_state');
+    await this.#db.transaction((tx) =>
+      tx.run('UPDATE media_files SET state = ?, last_code = ?, updated_at = ? WHERE asset_id = ? AND owner_user_id = ?', [
+        state,
+        code,
+        at,
+        assetId,
+        this.#ownerUserId,
+      ]),
+    );
+  }
+
+  async remove(assetId: string): Promise<void> {
+    await this.#db.transaction((tx) =>
+      tx.run("DELETE FROM media_files WHERE asset_id = ? AND owner_user_id = ? AND state = 'pending'", [assetId, this.#ownerUserId]),
+    );
+  }
+}
