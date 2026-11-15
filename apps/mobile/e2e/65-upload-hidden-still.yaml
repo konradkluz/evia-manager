@@ -4,6 +4,9 @@ appId: pl.eviacharge.manager
 ---
 - launchApp:
     stopApp: false
+# the notice of hidden data is on the orders tab; the queue tab (where the app stays) keeps working
+- tapOn:
+    id: 'nav-orders'
 - extendedWaitUntil:
     visible: 'Dane zleceń są ukryte.*'
     timeout: 30000

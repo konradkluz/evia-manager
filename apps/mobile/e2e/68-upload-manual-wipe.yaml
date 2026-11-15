@@ -23,8 +23,13 @@ appId: pl.eviacharge.manager
     timeout: 10000
 - tapOn:
     id: 'wipe-confirm'
+# the app leaves the signed-in state on the terminal screen "Wylogowano" (stage signedOut) whose button leads to the sign-in form
+- extendedWaitUntil:
+    visible: 'Wylogowano'
+    timeout: 90000
+- tapOn: 'Zaloguj się'
 - extendedWaitUntil:
     visible:
       id: 'login-email'
-    timeout: 90000
+    timeout: 30000
 - takeScreenshot: u130-wiped-by-technician
