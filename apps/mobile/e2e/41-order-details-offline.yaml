@@ -37,7 +37,10 @@ appId: pl.eviacharge.manager
 - scrollUntilVisible:
     element: 'Wpis testowy: rozmowa fikcyjna\.'
     direction: DOWN
-- assertVisible: 'Zdarzenie testowe: zmiana etapu\.'
+# the bottom bar with "Zrób zdjęcie" (EVM-108) covers the next journal card when the previous one has just come into view
+- scrollUntilVisible:
+    element: 'Zdarzenie testowe: zmiana etapu\.'
+    direction: DOWN
 - takeScreenshot: m03-details-journal
 - tapOn:
     id: 'order-detail-back'
