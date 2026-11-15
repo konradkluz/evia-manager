@@ -9,6 +9,7 @@
  *   (CI stays green while the clauses are a draft); only `sign` refuses a package that has blockers.
  * Findings carry the rule and the name of the component or package — never contents.
  */
+import { PLACEHOLDER_API_HOST } from './contents.mjs';
 import { childrenNamed, parseXml } from './xml.mjs';
 
 /** Meta-data of the package: the address of the API (https) and the hosts of the object storage (comma separated, no scheme). */
@@ -67,16 +68,107 @@ function sdkPrefixOf(name) {
 /** A host name: labels of letters, digits and hyphens; no scheme, port, path, wildcard or whitespace. */
 const HOST_NAME = /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/i;
 
+/** Every http(s) address in a text (a value may carry more than one). */
+const ADDRESS = /https?:\/\/[^\s"'<>,;]+/gi;
+
+/**
+ * Hosts of the addresses in a value that are not allowed. Reports the host only (never the path or the query: they may carry secrets).
+ * There is NO allowlist of names or keys: a review of the package built from this repository (EVM-102) found no http(s) value in the
+ * meta-data (the XML namespace is an attribute of the root, not meta-data; AndroidX and Expo meta-data hold class names, flags and
+ * numbers) and none in `extra` (build variant, contact of the office, state of the clauses). A legitimate address of a library would
+ * be added here by the exact key, with a test and a justification — never by a prefix such as "androidx".
+ * @param {string} value
+ * @param {ReadonlySet<string>} allowedHosts
+ * @returns {string[]} hosts (or `?` for an address that cannot be parsed)
+ */
+function foreignHosts(value, allowedHosts) {
+  /** @type {string[]} */
+  const foreign = [];
+  for (const address of value.match(ADDRESS) ?? []) {
+    let host = '?';
+    try {
+      host = new URL(address).hostname.toLowerCase();
+    } catch {
+      // unparsable address: reported as `?`
+    }
+    if (!allowedHosts.has(host)) foreign.push(host);
+  }
+  return foreign;
+}
+
+/**
+ * The hosts the package may talk to: the API and the object storage from the meta-data of the package (optional: absent = nothing
+ * from them), plus the stand-in API host of CI when the bundle holds it (the API address of the app is a build variable inlined in
+ * the JavaScript bundle, not a meta-data or `extra`).
+ * @param {import('./xml.mjs').XmlElement} application
+ * @param {boolean} placeholderApi
+ * @returns {Set<string>}
+ */
+function allowedHostsOf(application, placeholderApi) {
+  /** @type {Set<string>} */
+  const hosts = new Set();
+  if (placeholderApi) hosts.add(PLACEHOLDER_API_HOST);
+  for (const meta of childrenNamed(application, 'meta-data')) {
+    const name = meta.attributes['android:name'] ?? '';
+    const value = meta.attributes['android:value'] ?? '';
+    if (name === API_BASE_URL_META) {
+      try {
+        hosts.add(new URL(value).hostname.toLowerCase());
+      } catch {
+        // malformed: reported by hostProblems
+      }
+    } else if (name === STORAGE_HOSTS_META) {
+      for (const host of value.split(',').map((item) => item.trim().toLowerCase())) if (HOST_NAME.test(host)) hosts.add(host);
+    }
+  }
+  return hosts;
+}
+
+/**
+ * Strings of `extra` of the Expo configuration (assets/app.config) with their key paths.
+ * @param {{ path: string, text: string }[]} files
+ * @returns {{ key: string, value: string }[]}
+ */
+function extraStrings(files) {
+  /** @type {{ key: string, value: string }[]} */
+  const found = [];
+  /** @param {unknown} node @param {string} key */
+  const walk = (node, key) => {
+    if (typeof node === 'string') found.push({ key, value: node });
+    else if (Array.isArray(node)) {
+      node.forEach((item, index) => {
+        walk(item, `${key}[${index}]`);
+      });
+    } else if (typeof node === 'object' && node !== null) for (const [name, item] of Object.entries(node)) walk(item, `${key}.${name}`);
+  };
+  for (const { path, text } of files) {
+    if (!/(?:^|\/)app\.config$/.test(path)) continue;
+    try {
+      /** @type {unknown} */
+      let config;
+      config = JSON.parse(text);
+      const { expo, extra } = /** @type {{ extra?: unknown, expo?: { extra?: unknown } }} */ (config ?? {});
+      walk(expo?.extra ?? extra, 'extra');
+    } catch {
+      // unreadable: the declaration of the clauses reports it (clauseBlockers)
+    }
+  }
+  return found;
+}
+
 /**
  * Addresses in the configuration of the package: the meta-data of the API and of the object storage are optional (absent = nothing to
- * check), when they are there they must be well formed, the API address must be https, and no other meta-data of the app may carry
- * an address.
+ * check), when they are there they must be well formed, the API address must be https, and NO other value of the meta-data of the app
+ * and of `extra` may carry an http(s) address of a host other than the API and the object storage (AC5).
  * @param {import('./xml.mjs').XmlElement} application
+ * @param {{ path: string, text: string }[]} files
+ * @param {boolean} placeholderApi
  * @returns {string[]}
  */
-function hostProblems(application) {
+function hostProblems(application, files, placeholderApi) {
   /** @type {string[]} */
   const problems = [];
+  const allowed = allowedHostsOf(application, placeholderApi);
   for (const meta of childrenNamed(application, 'meta-data')) {
     const name = meta.attributes['android:name'] ?? '';
     const value = meta.attributes['android:value'] ?? '';
@@ -87,18 +179,26 @@ function hostProblems(application) {
       if (value.trim() === '' || !hosts.every((host) => HOST_NAME.test(host))) problems.push(`${name} is not a list of host names`);
     } else if (name.startsWith('pl.eviacharge.') && /(?:URL|URI|HOST|HOSTS|ENDPOINT|DOMAIN)S?$/i.test(name)) {
       problems.push(`unexpected address in the package configuration (${name}); only the API and the object storage are allowed`);
+    } else {
+      for (const host of foreignHosts(value, allowed))
+        problems.push(`meta-data ${name} holds an address of the host ${host}; only the API and the object storage are allowed`);
     }
+  }
+  for (const { key, value } of extraStrings(files)) {
+    for (const host of foreignHosts(value, allowed))
+      problems.push(`${key} holds an address of the host ${host}; only the API and the object storage are allowed`);
   }
   return problems;
 }
 
 /**
- * @param {{ manifest: string, dexPackages: string | null }} input
+ * @param {{ manifest: string, dexPackages: string | null, files?: { path: string, text: string }[], placeholderApi?: boolean }} input
  *   `manifest`: the output of `apkanalyzer manifest print`; `dexPackages`: the output of `apkanalyzer dex packages --defined-only`
- *   (`null` when the tool failed: reported by verify itself)
+ *   (`null` when the tool failed: reported by verify itself); `files`: the text assets verify has read (`extra` of assets/app.config);
+ *   `placeholderApi`: the bundle holds the stand-in API host of CI
  * @returns {string[]} problems
  */
-export function checkTelemetry({ manifest, dexPackages }) {
+export function checkTelemetry({ manifest, dexPackages, files = [], placeholderApi = false }) {
   /** @type {string[]} */
   const problems = [];
   /** @type {import('./xml.mjs').XmlElement | null} */
@@ -129,7 +229,7 @@ export function checkTelemetry({ manifest, dexPackages }) {
       const name = meta.attributes['android:name'] ?? '';
       if (SDK_META.test(name)) problems.push(`meta-data ${name} configures a telemetry, analytics or advertising SDK`);
     }
-    problems.push(...hostProblems(application));
+    problems.push(...hostProblems(application, files, placeholderApi));
   }
 
   if (dexPackages !== null) {

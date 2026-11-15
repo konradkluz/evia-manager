@@ -74,6 +74,21 @@ describe('verification of the built APK (EVM-009 AC5, AC6)', () => {
     assert.ok(!calls.some((call) => call.some((part) => part.includes('Inter.ttf'))), 'fonts are not read');
   });
 
+  it('EVM-102 AC5: a foreign address in extra of assets/app.config is a finding of verify; the stand-in API host of the bundle is not', () => {
+    const config =
+      '{"extra":{"privacyClauses":{"draft":false,"markers":false},"u":"https://stats.example.test/x","api":"https://api.example.invalid"}}';
+    const withBundle = analyzer({
+      'files cat --file assets/app.config app.apk': config,
+      'files cat --file assets/index.android.bundle app.apk': 'https://api.example.invalid',
+    });
+    assert.deepEqual(verifyApk(OPTIONS, withBundle.host).problems, [
+      'telemetry: extra.u holds an address of the host stats.example.test; only the API and the object storage are allowed',
+    ]);
+    const bare = config.replace('"api":"https://api.example.invalid"', '"api":"https://other.example.test"');
+    const withoutBundle = analyzer({ 'files cat --file assets/app.config app.apk': bare });
+    assert.equal(verifyApk(OPTIONS, withoutBundle.host).problems.length, 2);
+  });
+
   it('EVM-009 AC6: a failing apkanalyzer is a finding for that step, not a silent pass', () => {
     /** @type {[string, string][]} */
     const failures = [

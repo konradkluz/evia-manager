@@ -94,7 +94,7 @@ export function verifyApk({ apk, applicationId, java, cmdlineTools }, host) {
   // EVM-102 AC5 (static; says nothing about traffic): no telemetry SDK; AC6: the state of the clauses, for `sign` only
   if (manifest !== null) {
     const dexPackages = analyzer(['dex', 'packages', '--defined-only', apk], 'dex packages');
-    problems.push(...guarded('telemetry', () => checkTelemetry({ manifest, dexPackages })));
+    problems.push(...guarded('telemetry', () => checkTelemetry({ manifest, dexPackages, files: scanned, placeholderApi })));
   }
   const releaseBlockers = clauseBlockers(scanned);
 

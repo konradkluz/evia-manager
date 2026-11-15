@@ -114,6 +114,85 @@ describe('static check of the package for telemetry (EVM-102 AC5)', () => {
     }
   });
 
+  describe('EVM-102 AC5: every http(s) address in meta-data and in `extra` belongs to the API or to the object storage', () => {
+    const API = meta(API_BASE_URL_META, 'https://api.example.test/v1') + meta(STORAGE_HOSTS_META, 'storage.example.test');
+    /** @param {unknown} extra */
+    const appConfig = (extra) => [{ path: 'assets/app.config', text: JSON.stringify({ expo: { name: 'x', extra } }) }];
+
+    it('passes the address of the API and of the storage in meta-data of any name and in extra (case of the host ignored)', () => {
+      const manifest = manifestWith(API + meta('com.example.sdk.ENDPOINT', 'HTTPS://Storage.Example.TEST/bucket?x=1'));
+      const files = appConfig({
+        buildVariant: 'release',
+        api: 'https://api.example.test/health',
+        nested: [{ u: 'http://storage.example.test' }],
+      });
+      assert.deepEqual(checkTelemetry({ manifest, dexPackages: '', files }), []);
+    });
+
+    it('reports a foreign address in meta-data of any name (https and http), with the key and the host only', () => {
+      for (const [name, value] of [
+        ['com.example.sdk.ENDPOINT', 'https://stats.example.test/collect?token=SECRET'],
+        ['io.vendor.config', 'http://stats.example.test'],
+        ['pl.eviacharge.OTHER', 'see https://api.example.test and http://stats.example.test/x'],
+      ]) {
+        const problems = checkTelemetry({ manifest: manifestWith(API + meta(String(name), String(value))), dexPackages: '' });
+        assert.deepEqual(problems, [
+          `meta-data ${name} holds an address of the host stats.example.test; only the API and the object storage are allowed`,
+        ]);
+        assert.ok(problems.every((problem) => !/SECRET|collect/.test(problem)));
+      }
+    });
+
+    it('reports a foreign address in extra with the key path, also in nested objects and arrays', () => {
+      const files = appConfig({ eas: { projectId: 'x', url: 'https://u.example.test/p?k=SECRET' }, list: ['ok', 'http://v.example.test'] });
+      const problems = checkTelemetry({ manifest: manifestWith(API), dexPackages: '', files });
+      assert.deepEqual(problems, [
+        'extra.eas.url holds an address of the host u.example.test; only the API and the object storage are allowed',
+        'extra.list[1] holds an address of the host v.example.test; only the API and the object storage are allowed',
+      ]);
+      assert.ok(problems.every((problem) => !/SECRET/.test(problem)));
+    });
+
+    it('reads extra also at the top level of the configuration and ignores other files and unreadable configuration', () => {
+      const top = [{ path: 'assets/app.config', text: JSON.stringify({ extra: { a: 'https://a.example.test' } }) }];
+      assert.equal(checkTelemetry({ manifest: manifestWith(''), dexPackages: '', files: top }).length, 1);
+      const other = [{ path: 'assets/other.json', text: JSON.stringify({ extra: { a: 'https://a.example.test' } }) }];
+      assert.deepEqual(checkTelemetry({ manifest: manifestWith(''), dexPackages: '', files: other }), []);
+      const broken = [{ path: 'assets/app.config', text: '{not json' }];
+      assert.deepEqual(checkTelemetry({ manifest: manifestWith(''), dexPackages: '', files: broken }), []);
+      const nullConfig = [{ path: 'assets/app.config', text: 'null' }];
+      assert.deepEqual(checkTelemetry({ manifest: manifestWith(''), dexPackages: '', files: nullConfig }), []);
+      const noExtra = [{ path: 'assets/app.config', text: JSON.stringify({ expo: { name: 'x' } }) }];
+      assert.deepEqual(checkTelemetry({ manifest: manifestWith(''), dexPackages: '', files: noExtra }), []);
+    });
+
+    it('without the meta-data of the API every address is foreign, except the stand-in host of CI when the bundle holds it', () => {
+      const files = appConfig({ a: 'https://api.example.invalid/x', b: 'https://b.example.test' });
+      assert.equal(checkTelemetry({ manifest: manifestWith(''), dexPackages: '', files }).length, 2);
+      const problems = checkTelemetry({ manifest: manifestWith(''), dexPackages: '', files, placeholderApi: true });
+      assert.deepEqual(problems, ['extra.b holds an address of the host b.example.test; only the API and the object storage are allowed']);
+    });
+
+    it('reports an address that cannot be parsed and ignores malformed meta-data of the API when collecting hosts', () => {
+      const bad = manifestWith(meta(API_BASE_URL_META, 'not a url') + meta('io.vendor.x', 'https://[bad'));
+      const problems = checkTelemetry({ manifest: bad, dexPackages: '' });
+      assert.deepEqual(problems, [
+        `${API_BASE_URL_META} is not an https address`,
+        'meta-data io.vendor.x holds an address of the host ?; only the API and the object storage are allowed',
+      ]);
+    });
+
+    it('the package of CI (fixture manifest, placeholder API, today extra) stays clean', () => {
+      const files = appConfig({
+        buildVariant: 'release',
+        contactEmail: 'office@example.test',
+        contactPhone: null,
+        privacyClauses: { draft: true, markers: false, versions: '1.0' },
+      });
+      assert.deepEqual(checkTelemetry({ manifest: MANIFEST, dexPackages: DEX_PACKAGES, files, placeholderApi: true }), []);
+    });
+  });
+
   it('EVM-102 AC5: verify runs the check on the built package and says nothing about traffic', () => {
     /** @param {string} manifest @param {string} dex */
     const run = (manifest, dex) =>
