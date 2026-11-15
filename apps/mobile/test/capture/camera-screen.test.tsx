@@ -14,6 +14,7 @@ import { SessionContext, type SessionActions } from '../../src/screens/session-c
 import { StartupProvider, type StartupChecker } from '../../src/startup';
 import type { CapturedPhoto } from '../../src/upload/create-media-asset';
 import type { MediaUploadsSnapshot } from '../../src/upload/types';
+import { TOAST_MS } from '../../src/ui';
 import { BLOCKED, DENIED, GRANTED, UNDETERMINED, cameraMock } from '../mocks/expo-camera';
 import { stubPorts, type PortsRig } from '../session-helpers';
 
@@ -496,6 +497,21 @@ describe('the permission of the camera (EVM-108 AC3)', () => {
     expect(rig.media.calls).toEqual([]);
   });
 
+  it('EVM-108 AC3: the system "back" on the explaining screen does what "Nie teraz" does', async () => {
+    const { rig } = setup();
+    cameraMock.set(UNDETERMINED);
+    const handlers: (() => unknown)[] = [];
+    jest.spyOn(BackHandler, 'addEventListener').mockImplementation((_name, handler) => {
+      handlers.push(handler as () => unknown);
+      return { remove: () => undefined };
+    });
+    const onClose = await mount(rig);
+    expect(screen.getByTestId('camera-permission')).toBeOnTheScreen();
+    expect(handlers.at(-1)?.()).toBe(true);
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(rig.sync.enqueued).toEqual([]);
+  });
+
   it('EVM-108 AC3: a permanent refusal says so and offers "Otwórz ustawienia" (the settings of the phone), no second prompt', async () => {
     const { rig } = setup();
     cameraMock.set(BLOCKED);
@@ -631,6 +647,62 @@ describe('no space and the errors of the camera (EVM-108 AC4)', () => {
     expect(screen.queryByTestId('camera-problem')).toBeNull();
     expect(count()).toBe('1 zdjęcie');
     expect(originals.size).toBe(1);
+  });
+
+  it('EVM-108 AC2: the toast "Zapisano w telefonie" goes after TOAST_MS (styleguide 3.14) and does not come back by itself', async () => {
+    jest.useFakeTimers();
+    try {
+      const { rig } = setup();
+      await mount(rig);
+      await choose('other');
+      await shoot();
+      expect(screen.getByText(pl.camera.saved)).toBeOnTheScreen();
+      await act(() => {
+        jest.advanceTimersByTime(TOAST_MS - 1);
+      });
+      expect(screen.getByText(pl.camera.saved)).toBeOnTheScreen();
+      await act(() => {
+        jest.advanceTimersByTime(1);
+      });
+      expect(screen.queryByText(pl.camera.saved)).toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('EVM-108 AC4: after a good shot a failed one leaves NO "Zapisano w telefonie" - only the error; the next good shot clears the error and shows the toast again', async () => {
+    const { rig, state } = setup();
+    await mount(rig);
+    await choose('other');
+    await shoot();
+    expect(screen.getByText(pl.camera.saved)).toBeOnTheScreen();
+    state.registerOk = false;
+    await shoot();
+    expect(screen.queryByText(pl.camera.saved)).toBeNull();
+    expect(screen.getByText(pl.camera.saveFailed)).toBeOnTheScreen();
+    expect(count()).toBe('1 zdjęcie');
+    state.registerOk = true;
+    await shoot();
+    expect(screen.queryByTestId('camera-problem')).toBeNull();
+    expect(screen.getByText(pl.camera.saved)).toBeOnTheScreen();
+    expect(count()).toBe('2 zdjęcia');
+  });
+
+  it('EVM-108 AC4: a shot that starts takes the old toast away at once (a save in progress promises nothing)', async () => {
+    let release: () => void = () => undefined;
+    const { rig, state } = setup();
+    await mount(rig);
+    await choose('other');
+    await shoot();
+    expect(screen.getByText(pl.camera.saved)).toBeOnTheScreen();
+    state.gate = new Promise<void>((resolve) => (release = resolve));
+    await shoot();
+    expect(screen.queryByText(pl.camera.saved)).toBeNull();
+    await act(() => {
+      release();
+    });
+    await settle();
+    expect(screen.getByText(pl.camera.saved)).toBeOnTheScreen();
   });
 
   it('EVM-108 AC4: a camera that gives no picture is a failed save in words, with nothing changed', async () => {

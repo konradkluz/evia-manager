@@ -139,10 +139,16 @@ function CameraCapture({ orderId, onClose, focused }: { orderId: string; onClose
   const latest = useRef({ count, notifications: snapshot.notifications, queued: snapshot.files.some((file) => file.status !== 'sent') });
   latest.current = { count, notifications: snapshot.notifications, queued: snapshot.files.some((file) => file.status !== 'sent') };
 
+  // the toast of the earlier shot goes with its timer (styleguide 3.14) and never stays over the result of the next one
+  const dismissSaved = useCallback(() => {
+    setSavedKey(0);
+  }, []);
+
   const shoot = useCallback(() => {
     if (category === null || saving) return;
     setSaving(true);
     setProblem(null);
+    setSavedKey(0);
     void pipeline.capture({ workOrderId: orderId, category }).then((result) => {
       setSaving(false);
       setFree(media.freeDiskBytes());
@@ -245,7 +251,7 @@ function CameraCapture({ orderId, onClose, focused }: { orderId: string; onClose
         ) : null}
         {savedKey > 0 ? (
           <View style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }} pointerEvents="none">
-            <Toast key={savedKey} message={t('camera.saved')} onDismiss={() => undefined} testID="camera-toast" />
+            <Toast key={savedKey} message={t('camera.saved')} onDismiss={dismissSaved} testID="camera-toast" />
           </View>
         ) : null}
       </View>
