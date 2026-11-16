@@ -4,7 +4,7 @@ title: Administrator w panelu — kod z aplikacji jako drugi krok (z ponownym ko
 type: story
 milestone: M1
 epic: E1 Dostęp i użytkownicy
-status: ready
+status: in-progress
 priority: P1
 path: pelna
 owner: backend-developer
@@ -92,3 +92,4 @@ Kontekst: dziś Administrator ma w panelu wyłącznie klucz dostępu (polityka P
 ## Dziennik
 - 2026-11-16 — utworzono na decyzję Konrada; ADR-0023 i nota security jako wejścia; status draft (product-owner)
 - 2026-11-16 — Konrad zaakceptował treść i rekomendacje (A + K1, RR-101 Medium, bez e-maila, `opus`); ADR-0023 „Zaakceptowana”; realizacja w kolejce `/noc-2026-11-16`; **status `ready`** (Tech Lead)
+- 2026-11-16 — start realizacji w kolejce `/noc-2026-11-16` (tor A, etapami: API → panel → dokumenty); **status `in-progress`** (Tech Lead)
