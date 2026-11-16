@@ -9,6 +9,9 @@ appId: pl.eviacharge.manager
 - extendedWaitUntil:
     visible: 'Brak zasięgu.*'
     timeout: 30000
+# the flow 100 ends on the Queue tab: the list of orders is one tap away
+- tapOn:
+    id: 'nav-orders'
 - runFlow: common/camera-from-order.yaml
 - tapOn:
     id: 'camera-mode-video'
