@@ -54,30 +54,29 @@ const answer = (response: { status: number; body: unknown }) => ({
   code: (response.body as { code?: string }).code,
 });
 
-describe('the authorization of the second step: the matrix of roles and states (EVM-023 AC8; SR-AUTHZ-05, SR-AUTHZ-12; C5)', () => {
-  it('EVM-023 AC8 the contract: the two sign-in operations are public; the enrolment is for Editor and Read-only (the Administrator has no code of the app in the panel); the codes and the step-up are for every role; all of them are on the web channel', () => {
+describe('the authorization of the second step: the matrix of roles and states (EVM-023 AC8, EVM-134 AC2 AC5; SR-AUTHZ-05, SR-AUTHZ-12; C5)', () => {
+  it('EVM-023 AC8 EVM-134 AC2 the contract: the two sign-in operations are public; the enrolment, the codes and the step-up are for every role (the Administrator too, ADR-0023); all of them are on the web channel', () => {
     for (const id of ['loginTotp', 'loginRecoveryCode']) {
       expect(AUTHZ_MANIFEST[id]?.method, id).toBe('post');
       expect(AUTHZ_MANIFEST[id]?.authz, id).toEqual({ public: true });
       expect(PUBLIC_OPERATIONS, id).toContain(id);
     }
-    for (const id of ['startTotpEnrolment', 'confirmTotp']) expect(AUTHZ_MANIFEST[id]?.authz.roles, id).toEqual(['editor', 'read_only']);
-    for (const id of ['generateRecoveryCodes', 'stepUp'])
+    for (const id of ['startTotpEnrolment', 'confirmTotp', 'generateRecoveryCodes', 'stepUp'])
       expect(AUTHZ_MANIFEST[id]?.authz.roles, id).toEqual(['administrator', 'editor', 'read_only']);
     for (const id of ['startTotpEnrolment', 'confirmTotp', 'generateRecoveryCodes', 'stepUp'])
       expect(AUTHZ_MANIFEST[id]?.authz.channels, id).toEqual(['web']);
   });
 
-  it('EVM-023 AC8 B1 startTotpEnrolment: only the enrolment of a link, only for Editor and Read-only; the Administrator, a session of the password alone and an active session are 403 forbidden; nobody is 401', async () => {
+  it('EVM-023 AC8 EVM-134 AC2 AC5 B1 startTotpEnrolment: the enrolment of a link for every role; a session of the password alone is 403 forbidden, an active session needs the re-authentication; nobody is 401', async () => {
     const anonymous = await current.panel().post(SECOND_STEP.setup);
     expect(answer(anonymous)).toEqual({ status: 401, code: 'unauthenticated' });
     const expected: Record<State, (role: Role) => { status: number; code?: string }> = {
-      enrolment_with_link: (role) => (role === 'administrator' ? { status: 403, code: 'forbidden' } : { status: 200 }),
+      enrolment_with_link: () => ({ status: 200 }),
       enrolment_from_login: () => ({ status: 403, code: 'forbidden' }),
-      // EVM-028: an active session may add a code of the app from the account, but only after the full re-authentication (the Administrator never: 403 forbidden)
-      active_fresh: (role) => ({ status: 403, code: role === 'administrator' ? 'forbidden' : 'reauthentication_required' }),
-      active_stale: (role) => ({ status: 403, code: role === 'administrator' ? 'forbidden' : 'reauthentication_required' }),
-      active_from_recovery_code: (role) => ({ status: 403, code: role === 'administrator' ? 'forbidden' : 'reauthentication_required' }),
+      // EVM-028: an active session may add a code of the app from the account, but only after the full re-authentication — every role (EVM-134)
+      active_fresh: () => ({ status: 403, code: 'reauthentication_required' }),
+      active_stale: () => ({ status: 403, code: 'reauthentication_required' }),
+      active_from_recovery_code: () => ({ status: 403, code: 'reauthentication_required' }),
     };
     for (const state of Object.keys(expected) as State[])
       for (const role of ROLES) {
@@ -90,22 +89,24 @@ describe('the authorization of the second step: the matrix of roles and states (
       }
   });
 
-  it('EVM-023 AC8 B1 confirmTotp: the same states, the same answers — the code is not even looked at where the session may not enrol', async () => {
+  it('EVM-023 AC8 EVM-134 AC2 AC5 B1 confirmTotp: the same states, the same answers for every role — the code is not even looked at where the session may not enrol', async () => {
     const anonymous = await current.panel().post(SECOND_STEP.confirm, { code: '123456' });
     expect(answer(anonymous)).toEqual({ status: 401, code: 'unauthenticated' });
     for (const state of ['enrolment_from_login', 'active_fresh', 'active_stale', 'active_from_recovery_code'] as const)
       for (const role of ROLES) {
         nextStep(current);
         const { panel } = await caller(role, state);
-        // EVM-028: an active session of an Editor or a Read-only user is asked for the full re-authentication first
-        const code = state !== 'enrolment_from_login' && role !== 'administrator' ? 'reauthentication_required' : 'forbidden';
+        // EVM-028: an active session is asked for the full re-authentication first — of every role (EVM-134)
+        const code = state === 'enrolment_from_login' ? 'forbidden' : 'reauthentication_required';
         expect(answer(await panel.post(SECOND_STEP.confirm, { code: '123456' })), `${role} ${state}`).toEqual({ status: 403, code });
       }
     for (const role of ROLES) {
       nextStep(current);
       const { panel } = await caller(role, 'enrolment_with_link');
-      const expected = role === 'administrator' ? { status: 403, code: 'forbidden' } : { status: 400, code: 'totp_verification_failed' };
-      expect(answer(await panel.post(SECOND_STEP.confirm, { code: '123456' })), role).toEqual(expected);
+      expect(answer(await panel.post(SECOND_STEP.confirm, { code: '123456' })), role).toEqual({
+        status: 400,
+        code: 'totp_verification_failed',
+      });
     }
   });
 
@@ -145,20 +146,15 @@ describe('the authorization of the second step: the matrix of roles and states (
     expect(answer(await panel.post(SECOND_STEP.recoveryCodes))).toEqual({ status: 403, code: 'recovery_codes_regeneration_unavailable' });
   });
 
-  it('EVM-023 AC7 AC8 stepUp with a code: Editor and Read-only are let in, the Administrator is 403, an enrolment is 403 mfa_enrollment_required, nobody is 401', async () => {
+  it('EVM-023 AC7 AC8 EVM-134 AC4 AC5 stepUp with a code: every role with a code is let in (the Administrator too), an enrolment is 403 mfa_enrollment_required, nobody is 401', async () => {
     const anonymous = await current.panel().post(SECOND_STEP.stepUp, { method: 'totp', code: '123456' });
     expect(answer(anonymous)).toEqual({ status: 401, code: 'unauthenticated' });
     for (const role of ROLES) {
       nextStep(current);
       const fresh = await caller(role, 'active_stale');
-      if (role === 'administrator') {
-        await insertTotpFactor(current, fresh.user.id);
-        const response = await fresh.panel.post(SECOND_STEP.stepUp, { method: 'totp', code: '123456' });
-        expect(answer(response), role).toEqual({ status: 403, code: 'forbidden' });
-      } else {
-        const code = totpCode(fresh.secret ?? '', current.clock.now());
-        expect((await fresh.panel.post(SECOND_STEP.stepUp, { method: 'totp', code })).status, role).toBe(200);
-      }
+      const secret = role === 'administrator' ? (await insertTotpFactor(current, fresh.user.id)).secret : (fresh.secret ?? '');
+      const code = totpCode(secret, current.clock.now());
+      expect((await fresh.panel.post(SECOND_STEP.stepUp, { method: 'totp', code })).status, role).toBe(200);
       for (const state of ['enrolment_with_link', 'enrolment_from_login'] as const)
         expect(
           answer(await (await caller(role, state)).panel.post(SECOND_STEP.stepUp, { method: 'totp', code: '123456' })),

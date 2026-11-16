@@ -33,7 +33,7 @@ export const ADMINISTRATOR_LOCK_KEY = 7_016_001;
 /**
  * The window to set up a second step that a reset by an Administrator opens (EVM-027 D1; SR-AUTH-13; ASVS V6.4.4): 24 hours from the reset. It ends at
  * once with a new reset, a deactivation, the first successful enrolment and its own deadline. Anyone who knows the password may use it (RR-27) — hence the
- * short time, the single use, the e-mail to the owner and — for an Administrator — a passkey only.
+ * short time, the single use, the e-mail to the owner and the alert to the Administrators for an Administrator's account.
  */
 export const SECOND_STEP_SETUP_WINDOW_MS = 24 * HOUR;
 

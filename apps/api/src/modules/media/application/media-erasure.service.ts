@@ -1,7 +1,7 @@
 /**
  * The deletion of a medium or a document, its restore and the erasure of its files (EVM-051 AC1-AC4, AC6, AC7; SR-AUTHZ-02, SR-AUTHZ-05, SR-PRIV-03, SR-PRIV-04,
  * SR-DATA-08, SR-LOG-03, SR-SESS-08, SR-ERR-01; CWE-639, CWE-459). The guard has decided before this runs: a signed-in ADMINISTRATOR on the web channel with a
- * valid CSRF token - and, for the erasure, a passkey authentication in the last 15 minutes (`step_up_required`, after the role: the Editor and Read-only get
+ * valid CSRF token - and, for the erasure, a step-up in the last 15 minutes (`step_up_required`, after the role: the Editor and Read-only get
  * `403 forbidden` and a mobile token `403`, whatever the object).
  *
  * The same six operations serve the media and the documents; what differs (how the subject is found and locked, where its files are, the codes) is a

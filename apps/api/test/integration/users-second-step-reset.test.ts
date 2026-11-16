@@ -268,17 +268,23 @@ describe('the window to set up a second step (EVM-027 D1, D2; SR-AUTH-13, AB-01,
     expect((await panel.get(PATHS.session)).body).toMatchObject({ state: 'active' });
   });
 
-  it('EVM-027 R12 in the window of an Administrator only a passkey may be registered: the code of the app is 403 forbidden, the key is accepted', async () => {
+  it('EVM-134 AC2 in the window of an Administrator a code of the app may be set up as well as a key (the choice, as an Editor)', async () => {
     const admin = await browserOf(current);
     const boss = await enrolledAccount(current, { role: 'administrator' });
     expect((await resetSecondStep(current, admin, boss.user.id)).status).toBe(200);
     const panel = await enterWindow(boss);
 
     const totp = await panel.post(SECOND_STEP.setup);
-    expect(totp.status).toBe(403);
-    expect(totp.body).toMatchObject({ code: 'forbidden' });
-    const { options } = await passkeyOptions(panel);
-    expect((await registerPasskey(panel, options)).status).toBe(201);
+    expect(totp.status).toBe(200);
+    const confirmed = await confirmTotp(panel, codeNow(current, (totp.body as { secret: string }).secret));
+    expect(confirmed.status).toBe(200);
+    expect((await panel.get(PATHS.session)).body).toMatchObject({ state: 'active' });
+
+    const other = await enrolledAccount(current, { role: 'administrator' });
+    expect((await resetSecondStep(current, admin, other.user.id)).status).toBe(200);
+    const keyPanel = await enterWindow(other);
+    const { options } = await passkeyOptions(keyPanel);
+    expect((await registerPasskey(keyPanel, options)).status).toBe(201);
   });
 
   it('EVM-027 D2 R4 the window ends with its deadline: before it the sign-in gives the session, after it 403 mfa_setup_expired and no session — and a session started inside the window ends with it (401 session_revoked)', async () => {

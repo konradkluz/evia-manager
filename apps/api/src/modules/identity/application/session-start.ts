@@ -34,8 +34,8 @@ export async function startSession(
     readonly client: ClientInfo;
     readonly now: Date;
     /**
-     * How the person proved themselves at this step: a passkey or a TOTP code open the window of step-up operations (`now` is recorded in the matching
-     * column); every other way (password only, recovery code) records nothing (SR-SESS-08).
+     * Which authentication of this step opens the window of step-up operations: a passkey or a TOTP code (`now` is recorded in the matching column);
+     * `none` records nothing (SR-SESS-08) — a password only, a recovery code, and an Administrator's sign-in with a code (K1, EVM-134).
      */
     readonly authenticatedWith: 'passkey' | 'totp' | 'none';
   },

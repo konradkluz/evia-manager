@@ -133,12 +133,28 @@ describe('the full re-authentication sets a one-time mark on the session (EVM-02
     }
   });
 
-  it('EVM-028 AC8 the Administrator has no code of the app in the panel: that proof is 403 forbidden and costs nothing', async () => {
+  it('EVM-028 AC8 EVM-134 AC3 an account without a code of the app — an Administrator with a key only: that proof is 403 forbidden and costs nothing', async () => {
     const admin = await signedInWithKey(current);
     const response = await reauthWithCode(admin.panel, 'second_step_change', '123456', admin.password);
     expect(response.status).toBe(403);
     expect(response.body).toMatchObject({ code: 'forbidden' });
     expect((await markOf((await liveSession(admin.user.id))?.id ?? '')).reauth_purpose).toBeNull();
+  });
+
+  it('EVM-134 AC3 an Administrator with a code of the app re-authenticates with it: 204 and the mark of the purpose is set', async () => {
+    const admin = await signedInWithCode(current, 'administrator');
+    nextStep(current);
+    const response = await reauthWithCode(admin.session, 'second_step_change', codeNow(current, admin.secret), admin.password);
+    expect(response.status).toBe(204);
+    const live = (
+      await db()
+        .selectFrom('identity.sessions')
+        .select(['id', 'reauth_purpose'])
+        .where('user_id', '=', admin.user.id)
+        .where('revoked_at', 'is', null)
+        .execute()
+    ).filter((session) => session.reauth_purpose !== null);
+    expect(live.map((session) => session.reauth_purpose)).toEqual(['second_step_change']);
   });
 });
 

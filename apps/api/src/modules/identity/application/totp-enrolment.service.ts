@@ -3,8 +3,8 @@
  * CWE-308, CWE-362, CWE-312; AB-01). Only the session of an ACTIVATION LINK may enrol — the same rule as the registration of a passkey: a session that came
  * from the password alone has no link and can enrol nothing, so a stolen password cannot add the thief's own second step to an account that has none.
  *
- * `setup` — the session is in `mfa_enrollment` and bound to a link that is still usable (otherwise 403 / 401 `session_revoked`), the role is read from the
- * database (the Administrator in the panel has no TOTP, P1: 403), an account that already has an active second step (a passkey or a TOTP) is `409` and
+ * `setup` — the session is in `mfa_enrollment` and bound to a link that is still usable (otherwise 403 / 401 `session_revoked`), every role may enrol
+ * (EVM-134, ADR-0023), an account that already has an active second step (a passkey or a TOTP) is `409` and
  * its secret is never returned. A new secret (160 bits, CSPRNG) is sealed with the envelope of `platform/crypto` (the account is authenticated data) and
  * stored as PENDING — a second setup before the confirmation replaces only a pending secret. A pending factor is not a method of the second step.
  *
@@ -31,7 +31,6 @@ import type { EventBus, EventContext } from '../../../platform/events/event-bus.
 import type { Principal } from '../../../platform/http/principal.ts';
 import { ProblemException } from '../../../platform/http/problem.ts';
 import { CLOCK, DATABASE, EVENT_BUS, FIELD_ENCRYPTION } from '../../../platform/tokens.ts';
-import { totpAllowedForRole } from '../domain/channel-rules.ts';
 import { SESSION_ABSOLUTE_MS, SESSION_IDLE_MS } from '../domain/constants.ts';
 import { deriveCsrfToken, hashToken, newToken } from '../domain/tokens.ts';
 import type { IdentityEvent } from '../events.ts';
@@ -98,7 +97,7 @@ export class TotpEnrolmentService {
           await this.#lockEnrolment(tx, principal, now);
         }
         const user = await findUserById(tx, principal.userId);
-        if (user === undefined || !totpAllowedForRole(user.role, principal.channel)) throw new ProblemException('forbidden');
+        if (user === undefined) throw new ProblemException('forbidden');
         // An enrolment never gets a second setup for an account that already has an active second step — and never sees a secret. From the account only an
         // active code of the app is in the way (the passkey is the other method).
         if (!fromAccount && (await hasPasskey(tx, principal.userId))) throw new ProblemException('mfa_already_configured');
@@ -178,7 +177,7 @@ export class TotpEnrolmentService {
     const actor = { type: 'user', userId: principal.userId } as const;
     const current = { ...client.context, sessionId: principal.sessionId };
     const user = await findUserById(tx, principal.userId, true);
-    if (user?.status !== 'active' || !totpAllowedForRole(user.role, principal.channel)) throw new ProblemException('forbidden');
+    if (user?.status !== 'active') throw new ProblemException('forbidden');
     if (!(await hasReauthMark(tx, principal.sessionId, 'second_step_change', now))) throw new ProblemException('reauthentication_required');
     const factor = await findTotpFactor(tx, principal.userId, true);
     let step: number | null = null;
@@ -228,7 +227,7 @@ export class TotpEnrolmentService {
     const publish = (event: IdentityEvent, context: EventContext) => this.#events.publish(transaction, event, context);
 
     const user = await findUserById(tx, principal.userId, true);
-    if (user === undefined || !totpAllowedForRole(user.role, principal.channel)) throw new ProblemException('forbidden');
+    if (user === undefined) throw new ProblemException('forbidden');
     const factor = await findTotpFactor(tx, principal.userId, true);
     let step: number | null = null;
     if (factor?.state === 'pending') {

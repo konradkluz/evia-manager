@@ -41,10 +41,10 @@ export async function signedInWithKey(
   return account;
 }
 
-/** An Editor (or a Read-only user) who has signed in with a code of the app a moment ago. */
+/** An account (an Editor by default) that has signed in with a code of the app a moment ago. */
 export async function signedInWithCode(
   app: IdentityApp,
-  role: 'editor' | 'read_only' = 'editor',
+  role: 'administrator' | 'editor' | 'read_only' = 'editor',
 ): Promise<TotpAccount & { session: PanelClient }> {
   const account = await totpAccount(app, { role, withCodes: true });
   const { panel, response } = await signInWithTotp(app, account);
