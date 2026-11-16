@@ -56,6 +56,8 @@ services:
       CURSOR_KEY_FILE: /run/secrets/cursor-key
       FIELD_ENCRYPTION_KEYS_FILE: /run/secrets/field-encryption-keys
       LOGIN_THROTTLE_KEY_FILE: /run/secrets/login-throttle-key
+      # EVM-135 AC3 (decision 16): creating site surveys is on; the safeguard is the organisational rule "test surveys only" (not a secret; exactly 'true' or 'false')
+      SITE_SURVEYS_ENABLED: 'true'
       # Object Storage of Scaleway, pl-waw (EVM-084; not secrets). The key IDS are the placeholders below until the IaC session creates the keys (step A11):
       # an unfilled placeholder is not a valid key id, so the API refuses to start (config-files.test.ts refuses to merge it) - never a silent 403 at run time.
       S3_ENDPOINT: https://s3.pl-waw.scw.cloud
