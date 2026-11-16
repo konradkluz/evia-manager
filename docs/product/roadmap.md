@@ -124,6 +124,7 @@ flowchart LR
 | E12 Wpisy offline | wpisy i komentarze bez zasięgu z późniejszą synchronizacją |
 | E13 Nowe zlecenie z telefonu | szybkie zlecenie (klient + adres + szablon) uzupełniane potem w biurze |
 | E14 Dystrybucja i utrzymanie | kanał dystrybucji wewnętrznej Android (iOS odłożony — patrz adnotacja wyżej), wymuszanie minimalnej wersji, raportowanie błędów bez danych osobowych, opcjonalnie push |
+| E15 Wizja lokalna | zlecenie bez klienta (samym adresem, offline) z oględzin; klient przy akceptacji oferty; automatyczne usuwanie 90 / 14 dni — [plan](../backlog/M2/README.md) (EVM-135…141, `draft`, 2026-11-16) |
 
 **Kryteria wyjścia:** **test terenowy** — w garażu podziemnym bez zasięgu technik wykonuje min. 30 zdjęć i 3 filmy oraz dodaje 2 wpisy; po wyjściu na zasięg wszystko trafia do właściwego zlecenia automatycznie, bez duplikatów i strat, także po wymuszonym zamknięciu aplikacji w trakcie uploadu; weryfikacja MASVS i security sign-off; aplikacja zainstalowana na telefonach firmowych z Androidem (pilotaż; iOS po osobnej decyzji).
 

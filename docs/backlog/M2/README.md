@@ -137,6 +137,73 @@ Fazy 1–3 (EVM-090…107) — wpisy, komentarze, lista, szczegóły, szybkie zl
 - **Faza 4 (zmiana 2026-11-14):** noc 14.11 — tor A: 109 (silnik + bramki Kotlin) → 130 (Android, tokeny, kolejka plików); tor B: 131 (API mediów) → 128 → 102. Kolejna noc: 108 → 110 → 111 (doprecyzowanie `/refine`; aparat `expo-camera` z wyłączonym skanerem — przegląd telemetrii, EVM-011 → „Przed M2”). Przed zielonym E2E dysk ≥ 20 GB (jeden emulator na maszynę — E2E torów naprzemiennie).
 - **Faza 5 (podział 2026-11-15):** EVM-112 — test terenowy i dystrybucja na telefony testowe (Konrad + technik, fizyczne telefony; nie czeka na EVM-084 ani na sign-off); potem EVM-132 — sign-off wydania aplikacji (MASVS L1, warunek RR-96, utrata telefonu i spis floty), po którym technicy używają aplikacji na stałe. Dokumenty EVM-132 (checklista, RR-96) można przygotowywać równolegle z testem; sign-off — po raporcie EVM-112.
 
+## Epik E15 — Wizja lokalna (plan z 2026-11-16, `draft`)
+**Cel:** technik (w aplikacji, także offline) i biuro (w panelu) zakładają **wizję lokalną** samym adresem — zdjęcia, filmy i wpisy z oględzin trafiają do systemu przed ofertą, bez zbierania danych klienta, który może nie zostać klientem; po akceptacji oferty biuro przypisuje klienta i wizja staje się zwykłym zleceniem (te same media, numer, wpisy). Wizje bez klienta znikają automatycznie (90 dni; odrzucona 14 dni) — to realny zysk prywatności.
+
+**Model (decyzje Konrada 2026-11-16, wariant „B” architekta):** wizja = zlecenie bez klienta w stanie „Wycena” (bez nowego bytu i statusu); klient wymagany dopiero przy „Zaakceptowane”; zwykły numer `ZL-RRRR-NNNN` od razu; jedno opcjonalne pole „telefon zamawiającego”; zakłada technik (offline) i biuro; oferta w systemie poza zakresem. Fakty z kodu: `customer_id` jest już nullable, odczyty tolerują `customer: null`, media i kolejka telefonu nie wymagają zmian (kotwica mediów niezmienna, konwersji nie ma). ADR-0024 (architekt) opisuje zmianę niezmiennika „Zlecenie = Klient + Lokalizacja + Zakres”.
+
+**Poza zakresem epiku:** oferty (kwota, wersje, PDF, akceptacja), CRM i raport lejka, deduplikacja adresów (ta sama lokalizacja może mieć wiele wizji), termin wizyty i kalendarz, osobny byt „Wizja” i osobna numeracja, edycja wizji z telefonu, „zastosuj szablon do istniejącego zlecenia” (kandydat, jeśli ręczne dodawanie pozycji okaże się uciążliwe), CHECK w bazie, wizje „z inicjatywy firmy” (zakaz w instrukcji).
+
+| ID | Tytuł | Typ | Prio | Ścieżka | Wykonawca / model | `depends_on` |
+|---|---|---|---|---|---|---|
+| [EVM-135](EVM-135-api-wizja-lokalna-zakladanie.md) | API: zakładanie wizji (telefon i panel), flaga, zakres repliki, ochrona adresu — 8 AC | story | P1 | pelna | backend / opus | EVM-099, EVM-127, EVM-133 (flaga) |
+| [EVM-136](EVM-136-api-wizja-lokalna-przypisanie-klienta.md) | API: przypisanie klienta, reguła „Zaakceptowane wymaga klienta”, odrzucenie — 7 AC | story | P1 | pelna | backend / sonnet | EVM-135 |
+| [EVM-137](EVM-137-mobile-wizja-lokalna.md) | Aplikacja: wizja lokalna offline, zdjęcia i filmy, oznaczenie — 7 AC | story | P1 | pelna | mobile / sonnet | EVM-135, EVM-108, EVM-110 |
+| [EVM-138](EVM-138-web-wizja-lokalna.md) | Panel: lista i filtr, założenie, „Przypisz klienta”, odrzucenie — 6 AC | story | P1 | pelna | web / sonnet | EVM-135, EVM-136 |
+| [EVM-139](EVM-139-api-wizja-lokalna-automatyczne-usuwanie.md) | API: automatyczne trwałe usuwanie 90 / 14 dni z rejestrem usunięć — 6 AC | story | P1 | pelna | backend (+devops) / opus | EVM-135, EVM-136, EVM-051 |
+| [EVM-140](EVM-140-wizja-lokalna-przypomnienia-przedluzenie-limit.md) | Przypomnienie, przedłużenie z powodem, limit otwartych wizji — 5 AC | story | P1 | pelna | backend (+web) / sonnet | EVM-139, EVM-138 |
+| [EVM-141](EVM-141-wizja-lokalna-dokumenty-i-rodo.md) | Dokumenty RODO i bezpieczeństwa, karta informacyjna, domena, instrukcja — 6 AC | enabler | P1 | lekka | security / opus | EVM-133 |
+
+Dlaczego 7, a nie 5 historyjek: API podzielone (135 | 136), bo jedna historyjka miałaby ok. 14 AC, a aplikacja potrzebuje tylko 135 — pierwsza działająca wersja w aplikacji po dwóch nocach; usuwanie (139) wydzielone z przypomnień i limitów (140), bo to nieodwracalna operacja (art. 17) wymagająca modelu `opus` i przeglądu security, a 140 jest zwykłym przyrostem.
+
+### Graf i kolejność
+```mermaid
+flowchart LR
+  E133[133 klauzule + akapit o wizji] --> E135
+  ADR[ADR-0024 Zaakceptowany] --> E135[135 API zakładanie]
+  E135 --> E136[136 API przypisanie klienta]
+  E135 --> E137[137 aplikacja]
+  E136 --> E138[138 panel]
+  E135 & E136 --> E139[139 automatyczne usuwanie]
+  E139 & E138 --> E140[140 przypomnienia, przedłużenie, limit]
+  E133 --> E141[141 dokumenty RODO i karta]
+  E137 & E138 --> E112[112 test terenowy z wizją] --> E111[111 status plików]
+  E139 & E141 -. realne wizje .-> GO[włączenie na danych realnych]
+```
+**Tory (noce agentów, klony n1/n2):** noc 1 — tor A: 135 ‖ tor docs: 141 (bez kodu; security). Noc 2 — tor A: 136 ‖ tor B: 137 (po scaleniu 135) → **pierwsza działająca wersja w aplikacji (założenie wizji ze zdjęciami i filmami) po nocy 2**. Noc 3 — tor A: 138 ‖ tor B: 139. Noc 4 — 140. **Realnie 4–6 nocy** (rundy poprawek po przeglądzie security, flaky Maestro, CI); kalendarz ok. 1,5 tygodnia przy porannych przeglądach. Kontrakt 135 scalamy rano po nocy 1, żeby 136/137 nie czekały na siebie. Po nocy 3 test terenowy EVM-112 (obejmie wizję — z wizjami syntetycznymi); EVM-111 za nimi.
+
+### Wymagania security → historyjki (z `security.md`, 2026-11-16)
+| Wymaganie | Ważność | Gdzie |
+|---|---|---|
+| W1 automatyczne usuwanie, rejestr przed zmianą | blocker | EVM-139 (AC1–AC6), EVM-140 AC2 (przedłużenie z audytem) |
+| W2 deny-by-default i macierz ról każdej operacji | blocker | EVM-135 AC4; DoD EVM-136, 139, 140 |
+| W3 przypisanie klienta: IDOR, jednorazowość, idempotencja | blocker | EVM-136 AC1–AC3 |
+| W4 klauzula i karta przed pierwszą realną wizją, flaga | blocker | EVM-133 (akapit), EVM-141 AC4/AC6, EVM-135 AC8 |
+| W5 adres nigdy w logach, powiadomieniach, `change_log`, audycie | blocker | EVM-135 AC7; EVM-137 AC4; EVM-139 AC3–AC4; EVM-140 AC1 |
+| W6 zakres repliki: twórca i opiekun | major | EVM-135 AC5 |
+| W7 limit otwartych wizji | major | EVM-140 AC4 |
+| W8 brak pól swobodnych na dane klienta; jedno pole telefonu | major | EVM-135 (tytuł stały), EVM-137 AC1, EVM-138 AC2 (podpowiedzi), EVM-139 AC1 (purge pól swobodnych) |
+| W9 tryb ukrytych danych | major | EVM-137 AC5 |
+| W10 kolejka po usunięciu wizji | major | EVM-137 AC6, EVM-139 AC4 |
+| W11 brak ZIP i dostępu Tylko odczyt | major | EVM-135 AC4, EVM-136 AC5 |
+| W12 runbook praw osób, `retencja.md`, rejestr | major | EVM-141 AC1, AC3 |
+
+### Ryzyka
+- **Zakres repliki (W6)** wymaga od architekta decyzji, czy zmienia `scopeRuleVersion` (pełny resync) — analiza wariantu B zakładała „bez zmian ADR-0021”.
+- **Pierwsze automatyczne usuwanie danych biznesowych** (139): sekret rejestru usunięć tylko w `api` (RR-55), wyścig z przypisaniem klienta, luki w numeracji `ZL-…`.
+- **Klient po raz pierwszy zmienny:** ścieżka „nieznany klient w rekordzie zlecenia” nieprzećwiczona (EVM-136 AC7); kod, który dopiero powstanie (dokumenty klienta, płatności, portal) musi obsłużyć `customer: null` do akceptacji.
+- **Zakres:** pokusa oferty i CRM (poza zakresem); test terenowy może zmienić ideę — dlatego pierwsza wersja bez edycji, terminów i deduplikacji.
+- **Termin:** kopie bazy do 2026-12-13 (RR-91) i test EVM-112 konkurują o te same noce; EVM-139/141 nie mogą zdążyć przed testem — wizje w teście tylko syntetyczne.
+
+### Przed realnymi wizjami u klientów
+EVM-133 scalone (klauzula z akapitem o wizji); EVM-141 zatwierdzone przez Konrada (rejestr, aneks DPIA, karta wydrukowana, instrukcja); EVM-139 wdrożone (albo pisemne zobowiązanie do ręcznego usunięcia ≤ 90 dni — tylko na czas testu); upoważnienia uczestników; flaga z EVM-135 włączona dopiero po spełnieniu tych warunków.
+
+### Pytania do Konrada (zbiorczo; rekomendacje w historyjkach)
+Nazwa w interfejsie „Wizja lokalna” czy „Oględziny” (EVM-137); Tylko odczyt widzi wizje (EVM-135, rek. nie); zakres repliki twórca + opiekun (EVM-135, rek. tak); adres w wierszu listy w aplikacji (EVM-137, rek. nie); telefon po przypisaniu klienta czyszczony (EVM-136, rek. tak) i kody powodu odrzucenia (EVM-136); luki w numeracji (EVM-139, rek. akceptacja); kanał i odbiorcy przypomnienia, przedłużenie z aplikacji, limity 20/100, maks. 2 przedłużenia (EVM-140); karta A6 + QR, znacznik „informację przekazano”, realne wizje w teście EVM-112 (EVM-141, rek. A6 i QR / bez znacznika / nie).
+
+### Konsultacje przed `ready`
+Architekt — po ADR-0024: EVM-135, 136, 139 (EVM-137 w zakresie kontraktu i stanu funkcji, EVM-140 harmonogram); security — EVM-135, 136, 139, 140 (przeglądy), 141 (autor); UX — makiety w `docs/ux/flows/`: uzupełnienie przepływu 10 (M-10: wejście „Wizja lokalna”, formularz tylko z adresem), 09/M-06 (kategoria „Oględziny”), M-05 i szczegóły (odznaka, „Wygasa za N dni”, tryb ukrytych danych), W-10/W-05/W-06 (filtr, baner „Przypisz klienta”, dialog odrzucenia i przedłużenia), karta informacyjna — przed `ready` EVM-137, 138, 140; devops — EVM-139 (sekret rejestru). EVM-133 musi zawierać akapit o wizji (zmiana zakresu EVM-133 — poza tą gałęzią).
+
 ## Kryteria wyjścia M2 (z roadmapy)
 Test terenowy w garażu podziemnym bez zasięgu: min. 30 zdjęć, 3 filmy, 2 wpisy; po wyjściu na zasięg wszystko w właściwym zleceniu, bez duplikatów i strat, także po wymuszonym zamknięciu aplikacji w trakcie uploadu (EVM-112, razem z dystrybucją i obowiązkowymi sprawdzeniami `manual`); checklista MASVS L1 w security sign-offie wydania 1.1, warunek RR-96 i przećwiczona utrata telefonu (EVM-132 — warunek **stałego** używania przez techników, nie testu); aplikacja zainstalowana na telefonach z Androidem — firmowych lub prywatnych (BYOD, decyzja Konrada 2026-11-01; APK podpisany lokalnie, ADR-0019). Pokrycie scenariuszy „nic nie ginie” 1–6 z `offline-sync.md`: kliencka część w EVM-092, serwerowa w EVM-096/097/098, E2E w EVM-107/112.
 
