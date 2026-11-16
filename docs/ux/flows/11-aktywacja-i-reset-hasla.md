@@ -137,7 +137,7 @@ Obowiązuje W-13, W-12 i formularz „Zmień hasło” w [W-15](12-konto-i-admin
 | Akcja | Operacja | A | E | R | Niezalogowany |
 |---|---|---|---|---|---|
 | Sprawdzenie linku | `POST` z tokenem w treści, bez zużycia (EVM-016 AC5); odpowiedź: e-mail i rola konta albo jeden błąd | tak | tak | tak | tak — tylko z ważnym linkiem; 60 / min / IP (P10) |
-| Ustaw hasło | aktywacja konta: hasło (SR-AUTH-01, -02), nowa sesja (SR-SESS-02), potem W-03 (`403 mfa_enrollment_required` do końca konfiguracji — SR-AUTH-06) | tak — w W-03 tylko klucz dostępu (P1) | tak | tak — W-03 bez informacji o telefonie (P6) | tak — z ważnym linkiem |
+| Ustaw hasło | aktywacja konta: hasło (SR-AUTH-01, -02), nowa sesja (SR-SESS-02), potem W-03 (`403 mfa_enrollment_required` do końca konfiguracji — SR-AUTH-06) | tak — w W-03 wybór metody: klucz dostępu albo kod z aplikacji (EVM-134, ADR-0023) | tak | tak — W-03 bez informacji o telefonie (P6) | tak — z ważnym linkiem |
 | Nowe zaproszenie | — nie ma na ekranie: wysyła je Administrator w [W-16](12-konto-i-administracja.md#w-16-użytkownicy) (step-up); pierwszy Administrator — ponowne polecenie na serwerze (runbook EVM-016) | — | — | — | — |
 
 - **Responsywność:** jak W-01 — karta w kolumnie `size.form.max-width` na środku; `breakpoint.compact` — karta na całą szerokość z marginesem siatki, stopka pod kartą. Link otwarty na telefonie — ten sam układ compact.
