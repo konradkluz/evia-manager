@@ -144,8 +144,8 @@ paymentMilestone:
       precondition_required`; słaby, lista, `*` albo zniekształcony — `400`), treść `PaymentMilestonePatch` (`400`: schemat, zwykły
       tekst numeru faktury, zakres dat; kod i wskaźnik, nigdy wartość; pole serwera — `read_only_field`; pusta treść), powtórka
       idempotentna, zlecenie zamknięte (`409 work_order_closed`), kwota w statusie `invoiced` albo `paid` — korekta płatności (EVM-057,
-      SR-AUTHZ-10, SR-SESS-08; także razem z innymi polami): Edytor — `403 forbidden`, Administrator bez uwierzytelnienia kluczem
-      dostępu w ostatnich 15 minutach — `403 step_up_required` (rola przed step-upem; odpowiedź `403` nie zostawia rekordu
+      SR-AUTHZ-10, SR-SESS-08; także razem z innymi polami): Edytor — `403 forbidden`, Administrator bez step-upu (klucz dostępu albo nowy kod z aplikacji)
+      w ostatnich 15 minutach — `403 step_up_required` (rola przed step-upem; odpowiedź `403` nie zostawia rekordu
       idempotencji, więc ponowienie z tym samym kluczem po step-upie wykonuje korektę), kwota w statusie `cancelled` — `403 forbidden`
       dla każdej roli, pole spoza bieżącego statusu (`409 invalid_state_transition`), wersja
       (`412 version_conflict` — bez bieżących wartości), reguły na stanie po zmianie (`400`: termin przed datą wystawienia —
@@ -234,7 +234,7 @@ paymentMilestone:
       Usunięcie transzy (soft delete) to korekta płatności Administratora ze step-upem (EVM-057 AC4, AC6–AC8; EVM-054 AC5, decyzja Q1;
       SR-AUTHZ-02, SR-AUTHZ-05, SR-AUTHZ-10, SR-AUTHZ-11, SR-SESS-08, SR-API-05, SR-API-06, SR-LOG-03). Rola Administrator (Edytor i
       Tylko odczyt — `403 forbidden`; niezalogowany — `401`; token mobilny — `403 channel_not_allowed`), kanał `web`, step-up:
-      Administrator bez uwierzytelnienia kluczem dostępu w ostatnich 15 minutach — `403 step_up_required` (po roli: rola bez prawa do
+      Administrator bez step-upu (klucz dostępu albo nowy kod z aplikacji) w ostatnich 15 minutach — `403 step_up_required` (po roli: rola bez prawa do
       operacji nigdy się nie dowiaduje o step-upie). Wymaga `X-CSRF-Token` i `If-Match`. Kolejność (jedna transakcja, decyzje na
       wierszach zablokowanych): guard (rola, CSRF, kanał, step-up), ścieżka i `Idempotency-Key` (`400`), zlecenie (polityka odczytu w
       zapytaniu, `FOR NO KEY UPDATE`; nieistniejące albo usunięte — `404 not_found`), `If-Match` (brak — `428 precondition_required`;
@@ -323,7 +323,7 @@ paymentMilestoneTransitions:
       zniekształcony — `400`), treść wg schematu (`400`; pole serwera — `read_only_field`, inne — `unknown_field`), powtórka
       idempotentna (zapisany wynik, bez ponownej kontroli wersji), zlecenie zamknięte (`409 work_order_closed` — przed tabelą), przejście
       w tabeli (brak: `412` przy nieaktualnej wersji, inaczej `409 invalid_state_transition`), korekta płatności — przed wersją (Edytor —
-      `403 forbidden`; Administrator bez uwierzytelnienia kluczem dostępu w ostatnich 15 minutach — `403 step_up_required`; odpowiedź
+      `403 forbidden`; Administrator bez step-upu (klucz dostępu albo nowy kod z aplikacji) w ostatnich 15 minutach — `403 step_up_required`; odpowiedź
       `403` nie zostawia rekordu idempotencji, więc ponowienie z tym samym kluczem po step-upie wykonuje korektę), wersja (`412 version_conflict` — bez bieżących wartości), pola przejścia (`400`: kod i
       wskaźnik, nigdy wartość), warunek (`422 transition_condition_not_met`: data wpłaty z przyszłości — `/paidOn`, `in_future`), zapis
       `version + 1`, audyt, dziennik i rekord idempotencji. Błąd któregokolwiek kroku cofa całość. Idempotencja: `Idempotency-Key`

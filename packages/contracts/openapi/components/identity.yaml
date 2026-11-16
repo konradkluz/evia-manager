@@ -598,7 +598,7 @@ PasskeyStepUpRequest:
       $ref: '#/AuthenticationCredential'
 TotpStepUpRequest:
   type: object
-  description: Kod z aplikacji uwierzytelniającej (Edytor, Tylko odczyt; Administrator w panelu — nie).
+  description: Kod z aplikacji uwierzytelniającej (każda rola z aktywnym kodem; po logowaniu Administratora kodem — nowy kod, K1).
   additionalProperties: false
   required: [method, code]
   properties:
@@ -822,7 +822,7 @@ ReauthenticationPasskeyRequest:
       $ref: '#/AuthenticationCredential'
 ReauthenticationTotpRequest:
   type: object
-  description: Pełne ponowne uwierzytelnienie kodem z aplikacji (Edytor, Tylko odczyt).
+  description: Pełne ponowne uwierzytelnienie kodem z aplikacji (każda rola z aktywnym kodem).
   additionalProperties: false
   required: [purpose, method, code]
   properties:
@@ -875,7 +875,7 @@ AccountSecondStep:
       items:
         $ref: '#/Passkey'
     totp:
-      description: Kod z aplikacji albo `null`, gdy go nie dodano (Administrator — służy tylko do aplikacji na telefonie).
+      description: Kod z aplikacji albo `null`, gdy go nie dodano.
       oneOf:
         - $ref: '#/AccountTotp'
         - type: 'null'

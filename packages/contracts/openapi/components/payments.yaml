@@ -235,7 +235,7 @@ PaymentMilestoneTransition:
     („Anuluj transzę…”). Korekty płatności (EVM-057: `invoiced → planned` „Wycofaj fakturę…” — czyści numer faktury, datę
     wystawienia i termin; `invoiced → cancelled` „Anuluj fakturę…” — dane faktury zostają; `paid → invoiced` „Cofnij wpłatę…” —
     czyści datę wpłaty; `cancelled → planned` „Przywróć transzę…” — czyści dane faktury, datę wpłaty i powód anulowania) wykonuje
-    wyłącznie Administrator ze step-upem (Edytor — `403 forbidden`; Administrator bez uwierzytelnienia kluczem dostępu w ostatnich 15
+    wyłącznie Administrator ze step-upem (Edytor — `403 forbidden`; Administrator bez step-upu (klucz dostępu albo nowy kod z aplikacji) w ostatnich 15
     minutach — `403 step_up_required`); korekta przyjmuje tylko `to` — każde inne pole (także `reason`) to `400 not_allowed`.
     Przejście spoza tabeli — `409 invalid_state_transition`. Pola zależą od przejścia i są niedozwolone poza nim (`not_allowed`):
     `invoiced` — `amount` (gdy transza ma już kwotę, domyślnie ta kwota; bez kwoty w transzy i w żądaniu — `required`),

@@ -428,7 +428,7 @@ workOrder:
       Reguła zależności (SR-AUTHZ-10) zależy od stanu transz płatności zlecenia, więc step-up NIE jest warunkiem operacji
       (`stepUp: false` — tak jak przy `transitionWorkOrder`), tylko kontrolą obiektową przypadku użycia: żywa transza `invoiced`
       (Wystawiona) — `409 has_active_dependents` (także gdy jest i `paid`; nie da się ukryć należności usunięciem zlecenia);
-      żywa transza `paid` (Opłacona) — wymagane uwierzytelnienie kluczem dostępu w ostatnich 15 minutach, bez niego
+      żywa transza `paid` (Opłacona) — wymagane step-up (klucz dostępu albo nowy kod z aplikacji) w ostatnich 15 minutach, bez niego
       `403 step_up_required` (sprawdzane po roli i po regule `409`); tylko transze `planned` i `cancelled` albo brak transz —
       bez step-upu. Odpowiedzi `409` i `403 step_up_required` nie podają liczby, kwot ani identyfikatorów transz.
       Kolejność (jedna transakcja, decyzje na wierszu zlecenia zablokowanym `SELECT … FOR NO KEY UPDATE`, tym samym wierszem, który
