@@ -41,3 +41,19 @@ describe('texts through i18n (EVM-008 AC3; styleguide § 6)', () => {
     expect(html).not.toMatch(/<style|style="/);
   });
 });
+
+describe('texts of the second step (EVM-134 AC6; ADR-0023)', () => {
+  it('EVM-134 AC6 no text says that a passkey is obligatory for the Administrator or that the code of the app is only for the phone', () => {
+    const texts = keys(pl).map((key) => String(createI18n().t(key)));
+    const forbidden = [
+      /obowiązkowy/i,
+      /wyłącznie klucz dostępu/i,
+      /musi mieć klucz dostępu/i,
+      /musi najpierw dodać klucz dostępu/i,
+      /Nie masz klucza dostępu\?/,
+      /Bez klucza dostępu kolejne logowanie/,
+      /Służy tylko do logowania w aplikacji na telefonie/,
+    ];
+    expect(texts.filter((text) => forbidden.some((pattern) => pattern.test(text)))).toEqual([]);
+  });
+});
