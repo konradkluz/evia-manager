@@ -959,6 +959,37 @@ describe('films that wait for Wi-Fi (EVM-110 AC4, AC5)', () => {
     expect(await states(r)).toEqual(['01:applied']);
   });
 
+  it('EVM-110 AC5: Wi-Fi taken away in the middle of a part - the last progress ("Wysyła się 37%") does not outlive the stopped job: the row becomes "Czeka na Wi-Fi" at the event of the module, with no move of the user', async () => {
+    const r = await rig();
+    hold(r, 1);
+    await r.uploads.add(video(1));
+    await apply(r, 1);
+    r.uploads.start();
+    const uploading: UploadStatus = {
+      assetId: asset(1),
+      state: 'uploading',
+      partsDone: 1,
+      partCount: 3,
+      percent: 37,
+      sizeBytes: 1001,
+      waitingForWifi: false,
+    };
+    r.native.statuses = [uploading];
+    r.native.emit('onUploadProgress', uploading);
+    await idle(r);
+    expect(r.uploads.getSnapshot().files).toMatchObject([{ status: 'uploading', percent: 37 }]);
+    // the engine met the gate of the network before the next part: the job ends, the module reports "queued / waiting_wifi", its status says it waits
+    r.native.statuses = [{ ...uploading, state: 'queued', waitingForWifi: true }];
+    r.native.emit('onFileState', { assetId: asset(1), state: 'queued', reason: 'waiting_wifi' });
+    await idle(r);
+    expect(r.uploads.getSnapshot().files).toMatchObject([{ assetId: asset(1), status: 'waiting_wifi', percent: null, actions: [] }]);
+    expect(await states(r)).toEqual(['01:applied']);
+    // Wi-Fi is back: the module sends again, the new progress is shown
+    r.native.emit('onUploadProgress', { ...uploading, partsDone: 2, percent: 67 });
+    await idle(r);
+    expect(r.uploads.getSnapshot().files).toMatchObject([{ status: 'uploading', percent: 67 }]);
+  });
+
   it('EVM-110 AC4: only a film waits for Wi-Fi - a picture never does, and a film that is sending shows its percentage', async () => {
     const r = await rig();
     hold(r, 1);

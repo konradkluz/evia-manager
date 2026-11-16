@@ -88,7 +88,10 @@ const LABELS = {
 
 /** EVM-130 (media block): the synthetic file of the scenarios — a work order that never existed, a size in MiB, random content made natively. */
 export const E2E_MEDIA_WORK_ORDER = '30000000-0000-4000-8000-000000000001';
-export const MIB = 1024 * 1024;
+export /** The wait for the pipeline to be free again between two films of a series: 100 tries, 50 ms apart. */
+const BUSY_RETRIES = 100;
+const BUSY_WAIT_MS = 50;
+const MIB = 1024 * 1024;
 export const E2E_MEDIA_MAX_MIB = 256;
 /** EVM-108 AC7: the most shots of one press of `media: capture N` (the story asks for 30). */
 export const E2E_CAPTURE_MAX = 60;
@@ -164,13 +167,19 @@ const realDeps = (): E2eHooksDeps => ({
     const source: VideoSource = { record: () => saveSyntheticVideo(ports.newId(), film.seed, film.bytes), stop: () => undefined };
     const pipeline = uploads?.capturePipeline(() => Promise.resolve(null), source);
     return {
-      shoot: (request, next, mib) => {
+      shoot: async (request, next, mib) => {
         film = { seed: next, bytes: mib * MIB };
-        const started = pipeline?.startVideo(request);
-        if (started === undefined) return Promise.resolve(NO_FILM);
-        if (!started.ok) return Promise.resolve({ ok: false, code: started.code });
-        started.recording.progress({ duration: 20, fileSize: film.bytes });
-        return started.recording.done;
+        // the pipeline lets go of the previous film a moment AFTER its `done` resolved: the next start of a series waits for it instead of answering `busy`
+        for (let attempt = 0; ; attempt += 1) {
+          const started = pipeline?.startVideo(request);
+          if (started === undefined) return NO_FILM;
+          if (started.ok) {
+            started.recording.progress({ duration: 20, fileSize: film.bytes });
+            return started.recording.done;
+          }
+          if (started.code !== 'busy' || attempt >= BUSY_RETRIES) return { ok: false, code: started.code };
+          await new Promise((resolve) => setTimeout(resolve, BUSY_WAIT_MS));
+        }
       },
     };
   },

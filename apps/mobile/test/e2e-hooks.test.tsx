@@ -29,7 +29,7 @@ const mockCapture = {
   films: [] as { id: string; seed: number; bytes: number }[],
   filmRequests: [] as { workOrderId: string; category: string }[],
   filmProgress: [] as { duration: number; fileSize: number }[],
-  filmStart: 'ok' as 'ok' | 'busy' | 'no_space',
+  filmStart: 'ok' as 'ok' | 'busy' | 'busy_once' | 'no_space',
   filmSave: 'ok' as 'ok' | 'save_failed',
 };
 jest.mock('../src/e2e-hooks/synthetic-picture', () => ({
@@ -63,6 +63,10 @@ jest.mock('../src/session', () => ({
             // EVM-110: a film - the pipeline asks the source of the film for the file exactly once per recording, like the real one
             startVideo: (request: { workOrderId: string; category: string }) => {
               mockCapture.filmRequests.push(request);
+              if (mockCapture.filmStart === 'busy_once') {
+                mockCapture.filmStart = 'ok';
+                return { ok: false, code: 'busy' };
+              }
               if (mockCapture.filmStart !== 'ok') return { ok: false, code: mockCapture.filmStart };
               const recorded = video?.record({}) ?? Promise.resolve(null);
               return {
@@ -651,6 +655,18 @@ describe('the synthetic film hook (EVM-110 AC8; SEC-110-18)', () => {
       { duration: 20, fileSize: 64 * 1024 * 1024 },
       { duration: 20, fileSize: 64 * 1024 * 1024 },
     ]);
+  });
+
+  it('EVM-110 AC8: a series of films waits for the pipeline to let go of the previous film (it does so a moment after `done`) - no `busy` in the middle of a series', async () => {
+    mockCapture.filmStart = 'busy_once';
+    await render(inProvider(<E2eHooks />));
+    await tap(E2E_HOOKS_MARKER);
+    await type('e2e-video-mib', '8');
+    await type('e2e-video-count', '2');
+    await tap('e2e-capture-video');
+    await expectStatus('video_added=2');
+    // the first start was refused once and tried again; the second film followed
+    expect(mockCapture.filmRequests).toHaveLength(3);
   });
 
   it('EVM-110 AC8: a session without the queue of files answers camera_failed and writes no film; a refusal to start and a failed save are reported', async () => {

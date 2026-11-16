@@ -149,7 +149,9 @@ export class MediaUploads implements MediaControl {
       else if (event.state === 'queued' && event.reason === 'checksum_mismatch') {
         await this.#moveTo(store, event.assetId, ['applied', 'uploaded'], 'failed', 'checksum_mismatch', at);
       }
-      if (event.state !== 'queued') this.#progress.delete(event.assetId);
+      // a job that ended (done, stopped, retrying, waiting for Wi-Fi) is not "sending" any more: its last progress must not outlive it, or the row
+      // hangs at "Wysyła się 37%" after the module stopped at the gate of the network (EVM-110 AC5). The next progress event brings a new one.
+      this.#progress.delete(event.assetId);
     } catch {
       // the row keeps its state; the next reconcile asks the module again
     }
