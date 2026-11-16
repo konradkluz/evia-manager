@@ -138,6 +138,7 @@ Dopisek do [M-10](10-mobile-szybkie-zlecenie.md#m-10-szybkie-zlecenie): ten sam 
 │ Ulica [ul. Fikcyjna__________]   │
 │ Nr budynku [12_]                 │
 │ Nr lokalu (opcjonalnie) [__]     │
+│ Kod pocztowy [05-500]            │ klawiatura num
 │                                  │
 │ Telefon zamawiającego            │
 │ (opcjonalnie)                    │
@@ -164,7 +165,7 @@ Dopisek do [M-10](10-mobile-szybkie-zlecenie.md#m-10-szybkie-zlecenie): ten sam 
 
  Po synchronizacji: toast „Wizja lokalna dostała numer ZL-2026-0051.” (+ ogłoszenie TalkBack)
 ```
-- **Pola:** miejscowość, ulica, numer budynku — wymagane; numer lokalu i telefon — opcjonalne; kod pocztowy, typ obiektu, miejsce postojowe, tytuł, klient, szablon, notatka — **nie ma** (wybór istniejącej lokalizacji z telefonu poza zakresem — dopasowanie robi biuro). Walidacja i klawiatury jak w EVM-106; komunikaty: „Podaj miejscowość.” · „Podaj ulicę.” · „Podaj numer budynku.” · „Podaj numer telefonu, np. 600 123 456.” (tylko gdy pole nie jest puste i jest błędne). Typ obiektu i numer lokalu — punkt 6 [listy końcowej](#do-potwierdzenia-przy-demo).
+- **Pola:** miejscowość, ulica, numer budynku — wymagane; **kod pocztowy — wymagany** (rozstrzygnięcie Tech Leada 2026-11-16 z delegacji, do potwierdzenia przez Konrada: kontrakt `SyncNewSite` i model lokalizacji wymagają kodu pocztowego; walidacja `NN-NNN` i komunikat jak w szybkim zleceniu EVM-106; alternatywa — kod opcjonalny dla wizji — wymaga zmiany kontraktu i modelu, do oceny po teście terenowym EVM-112); numer lokalu i telefon — opcjonalne; typ obiektu, miejsce postojowe, tytuł, klient, szablon, notatka — **nie ma** (typ obiektu aplikacja ustawia na „Inny obiekt”) (wybór istniejącej lokalizacji z telefonu poza zakresem — dopasowanie robi biuro). Walidacja i klawiatury jak w EVM-106; komunikaty: „Podaj miejscowość.” · „Podaj ulicę.” · „Podaj numer budynku.” · „Podaj numer telefonu, np. 600 123 456.” (tylko gdy pole nie jest puste i jest błędne). Typ obiektu i numer lokalu — punkt 6 [listy końcowej](#do-potwierdzenia-przy-demo).
 - **Zapis offline (AC2):** „Zapisz wizję” działa lokalnie (komenda `CreateSiteSurvey` pierwsza w kolejce), przycisk wyłączony na czas zapisu (bez podwójnego zapisu), przejście do M-03 z „Oczekuje na numer”; formularz nie ma stanu ładowania (zapis lokalny jest natychmiastowy).
 - **Wymóg informacyjny (W4):** zdanie o wygasaniu jest widoczne **zawsze** (technik wie, co obiecuje zamawiającemu). Zdanie o karcie informacyjnej dla zamawiającego („Przekaż zamawiającemu kartę informacyjną.”) — treść i obecność ustala EVM-141 (odsyłacz, nie wklejamy karty tutaj).
 
@@ -178,7 +179,7 @@ Dopisek do [M-10](10-mobile-szybkie-zlecenie.md#m-10-szybkie-zlecenie): ten sam 
 | Brak uprawnień | Tylko odczyt — M-02. Funkcja wyłączona — wiersza nie ma w arkuszu „Dodaj”. **Tryb ukrytych danych (AC5, W9):** formularz niedostępny — EmptyState `eye-off`: „Wizję lokalną założysz po ponownym zalogowaniu. Zdjęcia możesz robić dalej.” + akcja wyjścia „Zaloguj się ponownie” (jak M-10; offline wyłączona z podpowiedzią „Zalogujesz się, gdy wróci połączenie.”). |
 
 - **Komponenty i tokeny:** AppBar + SyncIndicator (§ 3.18, § 5.4); TextField (§ 3.2, `size.touch-target.field` w rękawicach), telefon z klawiaturą `tel`; InlineAlert (§ 3.19) `color.feedback.info.*`; Button primary `size.touch-target.field` w dolnym pasku `elevation.bottom-bar`; „Oczekuje na numer” (§ 4.15); Toast (§ 3.14); EmptyState + tryb ukrytych danych (§ 4.18).
-- **Mikrocopy:** „Wizja lokalna” · „Numer nadamy po synchronizacji.” · „Adres” · „Miejscowość” · „Ulica” · „Nr budynku” · „Nr lokalu (opcjonalnie)” · „Telefon zamawiającego (opcjonalnie)” · „Tylko numer — imion i nazwisk nie wpisuj.” · „Klienta uzupełni biuro. Wizja bez klienta zostanie usunięta po 90 dniach.” · „Szkic zapisany w telefonie · 13:38” · „Zapisz wizję” · „Zapisano w telefonie. Numer nadamy po synchronizacji. Możesz już robić zdjęcia i filmy.” · „Wizja lokalna dostała numer ZL-2026-0051.” · tryb ukrytych danych — jak wyżej.
+- **Mikrocopy:** „Wizja lokalna” · „Numer nadamy po synchronizacji.” · „Adres” · „Miejscowość” · „Ulica” · „Nr budynku” · „Nr lokalu (opcjonalnie)” · „Kod pocztowy” · „Telefon zamawiającego (opcjonalnie)” · „Tylko numer — imion i nazwisk nie wpisuj.” · „Klienta uzupełni biuro. Wizja bez klienta zostanie usunięta po 90 dniach.” · „Szkic zapisany w telefonie · 13:38” · „Zapisz wizję” · „Zapisano w telefonie. Numer nadamy po synchronizacji. Możesz już robić zdjęcia i filmy.” · „Wizja lokalna dostała numer ZL-2026-0051.” · tryb ukrytych danych — jak wyżej.
 - **Dostępność:** `h1` „Wizja lokalna”; pola z widocznymi etykietami (nie placeholderami), `autocomplete` wyłączone dla pól adresu (dane nie trafiają do słowników klawiatury — `importantForAutofill="no"`); podpowiedź przy telefonie powiązana z polem (`accessibilityHint`); błędy z fokusem na podsumowaniu; nadanie numeru ogłaszane raz bez przerywania pracy (§ 4.15); 200% czcionki — etykiety nad polami, „Nr budynku” i „Nr lokalu” jedno pod drugim; cele ≥ 48 dp.
 
 ## M-03 Szczegóły wizji (AC2, AC4, AC7)
