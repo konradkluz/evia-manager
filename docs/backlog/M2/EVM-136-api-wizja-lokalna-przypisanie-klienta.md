@@ -4,7 +4,7 @@ title: "API: wizja lokalna — przypisanie klienta, reguła „Zaakceptowane wym
 type: story
 milestone: M2
 epic: E15 Wizja lokalna
-status: ready
+status: in-progress
 priority: P1
 path: pelna             # nowa operacja zmieniająca dane zlecenia, reguła domeny, IDOR
 owner: backend-developer
@@ -69,3 +69,4 @@ Rozmiar wg ADR-0024: M. Panel przed przypisaniem podstawia telefon zamawiająceg
 ## Dziennik
 - 2026-11-16 — szkic (product-owner)
 - 2026-11-16 — uzgodniono z ADR-0024, wpisano decyzje Konrada („akceptuję wg rekomendacji”); **status ready** (product-owner)
+- 2026-11-16 — start realizacji w kolejce `/noc-2026-11-16` (tor C, klon n2, na commicie kontraktu EVM-135 `84766fbf`); **status `in-progress`** (Tech Lead)
