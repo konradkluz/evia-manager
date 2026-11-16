@@ -4,13 +4,13 @@ title: Administrator w panelu — kod z aplikacji jako drugi krok (z ponownym ko
 type: story
 milestone: M1
 epic: E1 Dostęp i użytkownicy
-status: draft
+status: ready
 priority: P1
 path: pelna
 owner: backend-developer
 contributors: [web-developer]
 reviewers: [security-engineer, code-reviewer]
-model: opus            # uwierzytelnianie i uprawnienia (reguły drugiego kroku, okno step-upu); wykonawcy i przeglądy na opus — do akceptacji Konrada
+model: opus            # uwierzytelnianie i uprawnienia (reguły drugiego kroku, okno step-upu); wykonawcy i przeglądy na opus — zaakceptowane przez Konrada 2026-11-16
 depends_on: [EVM-023, EVM-026, EVM-027, EVM-028]
 ---
 
@@ -83,11 +83,12 @@ Kontekst: dziś Administrator ma w panelu wyłącznie klucz dostępu (polityka P
 - Opcjonalnie (K3, K6): wskazówka o kluczu na stronie „Konto”, akapit w `wzory-dla-pracownikow.md` — nie są AC.
 - DoD: `docs/process/definition-of-done.md` + przegląd `security-engineer` z listą wymagań z noty (blokery 1–4, major 5–8).
 
-## Pytania do Konrada
-1. **A + K1 — jeden dodatkowy kod przed pierwszą operacją wrażliwą po logowaniu kodem?** Rekomendacja: tak (bez K1 ryzyko High = blocker bramki). Konsekwencja „nie”: historyjka nie przejdzie bramki bezpieczeństwa; alternatywą jest wariant D (bez zmian).
-2. **Akceptacja RR-101 na poziomie 4 Medium** (jak RR-17 dla Edytora)? Rekomendacja: tak, z przeglądem w 2027-02. Konsekwencja „nie”: zostaje wariant C (kod w step-upie nie wystarcza, wraca QR przy operacjach wrażliwych).
-3. **E-mail do Administratora przy każdym logowaniu kodem?** Rekomendacja: nie (alert o nowej przeglądarce wystarcza; jedyny Administrator). Konsekwencja „tak”: mały koszt, szum przy codziennym logowaniu.
-4. **Model `opus` dla wykonawców i przeglądów?** Rekomendacja: tak (uwierzytelnianie). Konsekwencja „nie”: `sonnet` taniej, większe ryzyko błędów w regułach.
+## Decyzje Konrada (2026-11-16, „akceptuję wg rekomendacji”)
+1. **A + K1** — po zalogowaniu kodem pierwsza operacja wrażliwa wymaga nowego kodu albo klucza dostępu: **tak**.
+2. **RR-101** na poziomie 4 Medium (jak RR-17 dla Edytora): **zaakceptowane**, przegląd w 2027-02.
+3. E-mail przy każdym logowaniu Administratora kodem: **nie** (alert o nowej przeglądarce wystarcza).
+4. Model `opus` dla wykonawców i przeglądów: **tak**.
 
 ## Dziennik
 - 2026-11-16 — utworzono na decyzję Konrada; ADR-0023 i nota security jako wejścia; status draft (product-owner)
+- 2026-11-16 — Konrad zaakceptował treść i rekomendacje (A + K1, RR-101 Medium, bez e-maila, `opus`); ADR-0023 „Zaakceptowana”; realizacja w kolejce `/noc-2026-11-16`; **status `ready`** (Tech Lead)

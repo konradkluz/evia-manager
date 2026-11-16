@@ -1,6 +1,6 @@
 # ADR-0023: Administrator w panelu — kod z aplikacji (TOTP) dopuszczony jak u innych ról; logowanie kodem nie otwiera okna step-upu
 
-- **Status:** Proponowana
+- **Status:** Zaakceptowana (Konrad, 2026-11-16) — wariant A + K1; ryzyko rezydualne RR-101 na poziomie 4 Medium zaakceptowane; bez e-maila przy każdym logowaniu kodem
 - **Data:** 2026-11-16
 - **Decydent:** Konrad (akceptacja) · **Autor:** solution-architect · **Uwagi security:** `security-engineer` (nota robocza EVM-134, 2026-11-16)
 - **Powiązane:** EVM-134; zmienia politykę P1 (`docs/security/policies.md`, decyzja 2026-10-03 — punkt „Administrator — passkey”) i decyzję D3 z EVM-027 (2026-10-19, zmiana roli na Administratora wymaga klucza); SR-AUTH-06, SR-AUTH-14; AB-02, TM-90, TM-11, RR-17; EVM-005, EVM-023, EVM-026, EVM-027, EVM-028. ADR-0005 bez zmian (MFA obowiązkowe, TOTP i passkeys — reguły „Administrator tylko passkey” w nim nie ma).
