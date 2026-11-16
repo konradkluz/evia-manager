@@ -1,69 +1,71 @@
 ---
 id: EVM-140
-title: "Wizja lokalna: przypomnienie przed usunięciem, przedłużenie z powodem i limit otwartych wizji"
+title: "Wizja lokalna: przypomnienie przed usunięciem, przedłużenie z powodem (API i panel) i limit otwartych wizji"
 type: story
 milestone: M2
 epic: E15 Wizja lokalna
-status: draft
+status: ready
 priority: P1
-path: pelna             # audyt, e-mail, limity nadużyć; zmiana w API i panelu
+path: pelna             # audyt, e-mail, limity nadużyć, zadanie w workerze
 owner: backend-developer
-contributors: [web-developer]
-reviewers: [code-reviewer, security-engineer, ux-designer]
+contributors: [web-developer, ux-designer]   # panel: dialog przedłużenia (AC6); ux: treść e-maila, komunikaty limitu, dialog
+reviewers: [code-reviewer, security-engineer]
 model: sonnet
-depends_on: [EVM-139, EVM-138]
+depends_on: [EVM-135, EVM-138]   # EVM-138: ekran szczegółów, na którym stoi dialog przedłużenia (AC6)
 ---
 
 # EVM-140: Wizja lokalna — przypomnienie, przedłużenie, limit
 
 ## Cel
-Jako **pracownik biura** chcę **dostać przypomnienie, zanim wizja zniknie, i móc ją świadomie przedłużyć (np. gdy wspólnota czeka na uchwałę)**, aby **nie tracić dokumentacji oferty, która jeszcze trwa**, a jako administrator chcę **limitu otwartych wizji**, aby **nie powstawało „dzikie archiwum” adresów**.
+Jako **pracownik biura** chcę **dostać przypomnienie, zanim wizja zniknie, i móc ją świadomie przedłużyć (np. gdy wspólnota czeka na uchwałę)**, aby **nie tracić dokumentacji oferty, która jeszcze trwa**, a jako administrator chcę **limitu otwartych wizji**, aby **nie powstawało „dzikie archiwum” adresów** (W7). Filtr „wygasające” i data wygaśnięcia w panelu — EVM-138; tu dialog przedłużenia.
 
 ## Decyzje Konrada (2026-11-16)
-1. Wizja bez klienta w „Wycena”. 2. Zwykły numer od razu.
-3. **Wizja bez klienta usuwana po 90 dniach (przypomnienie wcześniej; przedłużenie przez Edytora/Administratora), odrzucona po 14 dniach.**
-4. Jedno opcjonalne pole „telefon zamawiającego”. 5. Zakłada technik i biuro. 6. Oferta poza zakresem. 7. EVM-133 → wizja → EVM-112 → EVM-111.
+1. Wizja = zlecenie bez klienta w „Wycena”; klient dopiero przy „Zaakceptowane”. 2. Zwykły numer od razu. 3. 90 dni (przedłużenie A/E), odrzucona 14 dni. 4. Jedno opcjonalne pole „telefon zamawiającego”. 5. Zakłada technik i biuro. 6. Bez ofert. 7. EVM-133 → wizja → EVM-112 → EVM-111.
+Wieczorem („akceptuję wg rekomendacji”): 8. Nazwa „Wizja lokalna”. 9. Tylko odczyt bez dostępu; telefon: twórca i opiekun. 10. Adres tylko w szczegółach. 11. Klient po przypisaniu niezmienny; powody odrzucenia: „Oferta odrzucona”, „Rezygnacja klienta”. 12. Luki w numeracji akceptowane. 13. Wizje na głównej liście. 14. **Przypomnienie e-mailem 15 dni przed terminem do twórcy i Administratorów; przedłużenie tylko w panelu, najwyżej 2 razy (do 270 dni); limit 20 otwartych wizji na osobę i 100 łącznie.** 15. `enforce` po kopiach, do tego `report`. 16. Tylko wizje testowe do czasu EVM-139/141/133; przełącznik włączony po scaleniu.
 
 ## Kryteria akceptacji
-Role: przedłużenie — Administrator i Edytor (panel); przypomnienie — twórca i Administratorzy; Tylko odczyt — brak.
+Role: przedłużenie — Administrator i Edytor (kanał web); przypomnienie — twórca i Administratorzy; Tylko odczyt i niezalogowany — bez dostępu; kanał `mobile` — brak operacji przedłużenia.
 
 **AC1 — Przypomnienie**
-- Zakładając wizję bez klienta, nieodrzuconą, do wygaśnięcia 15 dni
-- Gdy zadanie przypomnień się wykonuje
-- Wtedy twórca i każdy Administrator dostają jedno przypomnienie (e-mail; treść wyłącznie z numerem zlecenia i datą, **bez adresu i telefonu**: „Wizja lokalna ZL-… zostanie usunięta dnia … Przypisz klienta, przedłuż albo odrzuć.”), z linkiem do zlecenia w panelu; powtórne uruchomienie nie wysyła drugiego; wizja z klientem lub odrzucona nie dostaje przypomnienia; w panelu i aplikacji „Wygasa za N dni” podkreśla stan „pilne” poniżej 15 dni.
+- Zakładając otwartą wizję, której termin wygaśnięcia jest za 15 dni lub mniej, bez `site_survey_reminded_at`
+- Gdy uruchamia się codzienne zadanie w `worker`
+- Wtedy twórca i każdy Administrator dostają jeden e-mail z outboxu (tylko numer zlecenia i data usunięcia, **bez adresu i telefonu**, z linkiem do zlecenia w panelu: „Wizja lokalna ZL-… zostanie usunięta dnia …. Przypisz klienta, przedłuż albo odrzuć.”), `site_survey_reminded_at` jest ustawione, a powtórne uruchomienie nie wysyła drugiego; wizja z klientem, anulowana lub już przypomniana nie dostaje wiadomości.
 
 **AC2 — Przedłużenie z powodem**
-- Zakładając wizję bez klienta
-- Gdy Edytor lub Administrator przedłuża ją o 90 dni, wybierając powód z listy („Czeka na decyzję klienta”, „Czeka na uchwałę wspólnoty / zarządcy”, „Wymaga drugiej wizyty”)
-- Wtedy data wygaśnięcia przesuwa się o 90 dni, powstaje audyt z kodem powodu (bez treści swobodnej), wpis w dzienniku zlecenia i znika oznaczenie „pilne”; przedłużenie nie wysyła kolejnego przypomnienia przed nowym terminem − 15 dni.
+- Zakładając otwartą wizję z licznikiem przedłużeń 0 lub 1
+- Gdy Edytor lub Administrator woła `POST /work-orders/{id}/site-survey/extensions` z kodem powodu (`awaiting_client_decision`, `awaiting_community_decision`, `second_visit_needed`)
+- Wtedy termin przesuwa się o 90 dni, licznik rośnie, `site_survey_reminded_at` jest zerowane (kolejne przypomnienie 15 dni przed nowym terminem), powstaje audyt z kodem powodu (bez treści swobodnej) i wpis dziennika; nieznany kod — `400`.
 
-**AC3 — Maksymalnie dwa przedłużenia**
-- Zakładając wizję przedłużoną już dwa razy (łącznie ≤ 270 dni)
-- Gdy próbuję przedłużyć trzeci raz
-- Wtedy akcja jest wyłączona z podpowiedzią „Przypisz klienta albo odrzuć wizję”, API zwraca `409 extension_limit_reached`; Tylko odczyt i niezalogowany nie mają dostępu (`403`/`401`); wizje po terminie (już usunięte) nie mają akcji.
+**AC3 — Najwyżej dwa przedłużenia i warunki**
+- Zakładając wizję przedłużoną już dwa razy, wizję anulowaną, zlecenie z klientem albo Tylko odczyt
+- Gdy próbuję przedłużyć
+- Wtedy `409 extension_limit_reached` (łącznie ≤ 270 dni), `409` dla anulowanej i zwykłego zlecenia (przedłużenie anulowanej nie istnieje — jest przywrócenie z EVM-136), `403`/`404` dla Tylko odczyt, `401` dla niezalogowanego; test macierzy ról i IDOR.
 
 **AC4 — Limit otwartych wizji**
-- Zakładając Edytora z 20 otwartymi wizjami (bez klienta, nieodrzuconymi) i globalny limit 100 (wartości konfigurowalne)
+- Zakładając twórcę z 20 otwartymi wizjami (bez klienta, nieanulowanymi) albo 100 otwartych łącznie (wartości w konfiguracji jako kod)
 - Gdy zakłada kolejną (telefon lub panel)
-- Wtedy mutacja jest odrzucona kodem ze słownika (`survey_limit_reached` / `survey_limit_global`) z komunikatem po polsku („Masz za dużo otwartych wizji — przypisz klienta, odrzuć lub usuń wizje”) i trafia do „Wymaga uwagi” w aplikacji z „Usuń z telefonu”; przypisanie klienta lub odrzucenie zwalnia miejsce; limit nie dotyczy zwykłych zleceń.
+- Wtedy odmowa kodem `site_survey_limit_exceeded` (telefon: `rejected` → „Wymaga uwagi”; panel: `409`) z komunikatem „Masz za dużo otwartych wizji — przypisz klienta, odrzuć lub poczekaj na wygaśnięcie”; przypisanie klienta albo anulowanie zwalnia miejsce; limit nie dotyczy zwykłych zleceń; test przy liczbie granicznej.
 
-**AC5 — Widok „wizje starzejące się”**
-- Zakładając Administratora lub Edytora w panelu
-- Gdy otwieram filtr „Wizje lokalne” sortowany po dacie wygaśnięcia
-- Wtedy widzę wizje od najbliższego terminu z liczbą dni i licznik „Wizje do rozstrzygnięcia: N” (do 15 dni); stan pusty: „Brak wizji do rozstrzygnięcia”; Administrator widzi wszystkich, Edytor — wszystkie wizje (biuro zarządza listą), Tylko odczyt — brak (decyzja w EVM-135 pyt. 1).
+**AC5 — Adres i dane poza e-mailem i logami**
+- Zakładając wysyłkę przypomnień i odmowy limitu
+- Gdy sprawdzam outbox, logi zadania, metryki i audyt
+- Wtedy nie ma w nich adresu ani telefonu zamawiającego, a dziennik zadania zawiera tylko liczby i identyfikatory; błąd wysyłki jednej wiadomości nie zatrzymuje pozostałych (ponowienie według zasad outboxu).
+
+**AC6 — Przedłużenie w panelu**
+- Zakładając Edytora lub Administratora na szczegółach wizji (EVM-138) z licznikiem przedłużeń 0 lub 1
+- Gdy wybieram „Przedłuż o 90 dni” i powód z listy („Czeka na decyzję klienta”, „Czeka na uchwałę wspólnoty lub zarządcy”, „Wymaga drugiej wizyty”)
+- Wtedy data wygaśnięcia w panelu się przesuwa, a po dwóch przedłużeniach akcja jest wyłączona z podpowiedzią „Przypisz klienta albo odrzuć wizję”; Tylko odczyt nie widzi wizji; błąd serwera ma komunikat i ponowienie; test Playwright (role, klawiatura); przedłużenia z aplikacji nie ma.
 
 ## Poza zakresem
-Przedłużenie z aplikacji (wymaga decyzji — pytanie 2); powiadomienia push; przypomnienia o ofercie i CRM; raport konwersji wizja → zlecenie; dashboard (poza licznikiem z AC5).
+Filtr „wygasające” (EVM-138); przedłużenie z aplikacji; push; przypomnienia o ofercie i CRM; raport konwersji wizja → zlecenie; usuwanie (EVM-139).
 
 ## Decyzje i ograniczenia
-- **Bezpieczeństwo:** W1 (przedłużenie ×2 z powodem i audytem), W2, W5 (przypomnienie bez adresu), W7.
-- E-mail przez istniejący kanał transakcyjny (EVM-089); treść bez danych osobowych.
-- **Pytania do Konrada:**
-  1. Przypomnienie: kanał i odbiorcy? Rekomendacja: e-mail na 15 dni przed terminem do twórcy i wszystkich Administratorów + znacznik „pilne” w panelu i aplikacji; konsekwencja: bez e-maila ryzyko nieprzeczytanego znacznika (technik rzadko zagląda do panelu). Czy 15 dni wystarcza (security: 75. dzień)?
-  2. Czy technik (Edytor w aplikacji) może przedłużyć wizję? Rekomendacja: nie w v1 — przedłużenie w panelu; konsekwencja: technik prosi biuro, ale zarządzanie retencją pozostaje w jednym miejscu.
-  3. Limit 20 na twórcę / 100 globalnie — czy pasuje? Rekomendacja: tak; do zmiany konfiguracją.
-  4. Maksymalnie dwa przedłużenia (≤ 270 dni) — decyzja 3 nie określa górnej granicy. Rekomendacja: tak (security; zostaje < 12 miesięcy); konsekwencja: dłuższa oferta wymaga przypisania klienta.
-- **Konsultacje przed `ready`:** UX (dialog przedłużenia, oznaczenie „pilne”, treść e-maila), security (W7, treść), architekt (harmonogram, ADR-0024).
+- Bezpieczeństwo: W1 (przedłużenie ×2 z powodem i audytem), W2, W5, W7. E-mail przez istniejący outbox (EVM-089); szablon wiadomości dopisany do zamkniętej listy szablonów.
+- Rozstrzygnięcie Tech Leada z delegacji, do potwierdzenia przy demo: nazwy trzech kodów powodu i brzmienie e-maila (ux-designer przegląda treść na starcie).
+
+## Notatki
+Rozmiar wg ADR-0024: M. Odstępstwo od grafu ADR-0024 (tam 140 równolegle z 136/137): AC6 wymaga ekranu z EVM-138, więc 140 idzie po 138 (PR 2); część API (AC1–AC5) nie zależy od panelu. Przed 139 (139 zależy od 140).
 
 ## Dziennik
 - 2026-11-16 — szkic (product-owner)
+- 2026-11-16 — uzgodniono z ADR-0024, wpisano decyzje Konrada („akceptuję wg rekomendacji”); **status ready** (product-owner)

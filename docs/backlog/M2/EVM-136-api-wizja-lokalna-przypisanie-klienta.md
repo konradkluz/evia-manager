@@ -1,10 +1,10 @@
 ---
 id: EVM-136
-title: "API: wizja lokalna — przypisanie klienta, reguła „Zaakceptowane wymaga klienta”, odrzucenie wizji"
+title: "API: wizja lokalna — przypisanie klienta, reguła „Zaakceptowane wymaga klienta”, odrzucenie i przywrócenie"
 type: story
 milestone: M2
 epic: E15 Wizja lokalna
-status: draft
+status: ready
 priority: P1
 path: pelna             # nowa operacja zmieniająca dane zlecenia, reguła domeny, IDOR
 owner: backend-developer
@@ -17,62 +17,55 @@ depends_on: [EVM-135]
 # EVM-136: API — przypisanie klienta i reguła akceptacji wizji
 
 ## Cel
-Jako **pracownik biura** chcę **przypisać klienta do wizji lokalnej, gdy oferta zostanie zaakceptowana (albo oznaczyć wizję jako odrzuconą)**, aby **wizja płynnie stała się zwykłym zleceniem — z tymi samymi zdjęciami, filmami i wpisami — albo zniknęła po krótkim czasie**. To „konwersja” z analizy (security W3): bez przenoszenia mediów, bo identyfikatory się nie zmieniają.
+Jako **pracownik biura** chcę **przypisać klienta do wizji lokalnej, gdy oferta zostanie zaakceptowana (albo wizję odrzucić)**, aby **wizja stała się zwykłym zleceniem — z tymi samymi zdjęciami, filmami i wpisami — albo znikła po krótkim czasie**. To „konwersja” (W3) bez przenoszenia mediów: identyfikatory się nie zmieniają.
 
 ## Decyzje Konrada (2026-11-16)
-1. Wizja = zlecenie bez klienta w stanie „Wycena”; **klient wymagany dopiero przy przejściu do „Zaakceptowane”**; bez osobnego bytu.
-2. Zwykły numer zlecenia od razu (numer zostaje po przypisaniu klienta). 3. Odrzucona — usuwana po 14 dniach (EVM-139).
-4. Jedno opcjonalne pole „telefon zamawiającego”. 5. Zakłada technik i biuro.
-6. Oferta w systemie — poza zakresem. 7. Kolejność: EVM-133 → wizja → EVM-112 → EVM-111.
+1. Wizja = zlecenie bez klienta w „Wycena”; klient dopiero przy „Zaakceptowane”; bez osobnego bytu. 2. Zwykły numer od razu. 3. 90 / 14 dni. 4. Jedno opcjonalne pole „telefon zamawiającego”. 5. Zakłada technik i biuro. 6. Bez ofert. 7. EVM-133 → wizja → EVM-112 → EVM-111.
+Wieczorem („akceptuję wg rekomendacji”): 8. Nazwa „Wizja lokalna”. 9. Tylko odczyt bez dostępu; na telefonie twórca i opiekun. 10. Adres tylko w szczegółach. 11. **Klient po przypisaniu niezmienny (v1); telefon zamawiającego czyszczony; powody odrzucenia: „Oferta odrzucona”, „Rezygnacja klienta”.** 12. Luki w numeracji akceptowane. 13. Wizje na głównej liście z etykietą. 14. Przypomnienie 15 dni przed; przedłużenie tylko w panelu ≤ 2; limit 20 / 100. 15. `enforce` po kopiach, do tego `report`. 16. Tylko wizje testowe do czasu EVM-139/141/133; przełącznik włączony po scaleniu.
 
 ## Kryteria akceptacji
-Role: Administrator i Edytor — tak (kanał web); Tylko odczyt — `403`/`404`; niezalogowany — `401`; kanał `mobile` — nie (`channel_not_allowed`).
+Role: Administrator i Edytor — tak (kanał web); Tylko odczyt — brak dostępu; niezalogowany — `401`; kanał `mobile` — nie (`channel_not_allowed`).
 
-**AC1 — Przypisanie klienta (jednorazowe)**
-- Zakładając wizję (zlecenie bez klienta) i istniejącego, nieusuniętego klienta
-- Gdy Edytor lub Administrator przypisuje klienta (`PUT /work-orders/{id}/customer` z `customerId` i `version`)
-- Wtedy zlecenie ma klienta, ten sam numer, te same media i wpisy, powstaje wpis w dzienniku zlecenia i audyt (bez wartości danych), pole „telefon zamawiającego” jest wyczyszczone, a przy zleceniu z klientem wizja przestaje wygasać.
+**AC1 — Przypisanie klienta**
+- Zakładając otwartą wizję i istniejącego, widocznego, nieusuniętego i niezanonimizowanego klienta
+- Gdy Edytor lub Administrator woła `PUT /work-orders/{id}/customer` z `customerId` i `version`
+- Wtedy jedno `UPDATE` ustawia klienta i zeruje termin wygaśnięcia, licznik przedłużeń i telefon zamawiającego; numer, media i wpisy bez zmian; powstają audyt `work_order.customer_assigned` (same identyfikatory) i wpis dziennika; lokalizacja się nie zmienia; wizja jest od tej chwili zwykłym zleceniem.
 
-**AC2 — Klient tylko raz, idempotencja, konflikty**
-- Zakładając zlecenie, które ma już klienta, albo nieaktualną `version`
+**AC2 — Jednorazowość, idempotencja, konflikty**
+- Zakładając zlecenie z klientem albo nieaktualną `version`
 - Gdy ponawiam przypisanie
-- Wtedy ten sam `customerId` zwraca sukces bez zmian (idempotencja), inny — `409 customer_already_set`, nieaktualna wersja — `409` z aktualną wersją, a zmiana klienta zwykłego zlecenia nadal jest niemożliwa (`customerId` w `PATCH` — `400 read_only_field`).
+- Wtedy ten sam `customerId` zwraca `200` bez zmian, inny — `409 customer_already_set`, zlecenie nie będące wizją — `409`, nieaktualna wersja — `409` jak dziś; zmiana klienta zwykłego zlecenia nadal niemożliwa (`PATCH` → `read_only_field`); dwa równoległe przypisania różnych klientów dają jeden sukces i jeden `409`.
 
-**AC3 — IDOR i klient niedostępny**
-- Zakładając cudzą lub nieistniejącą wizję, klienta usuniętego lub zanonimizowanego albo Tylko odczyt
+**AC3 — Uprawnienia i IDOR**
+- Zakładając cudzą lub nieistniejącą wizję, klienta niewidocznego, usuniętego lub zanonimizowanego, albo Tylko odczyt
 - Gdy przypisuję klienta
-- Wtedy dostaję te same odpowiedzi dla „brak” i „brak dostępu” (`404`), klient usunięty lub zanonimizowany — `422 customer_unavailable`, Tylko odczyt — `403`, a żadna z tych prób nie zmienia danych; podwójne równoległe przypisanie dwóch różnych klientów kończy się jednym sukcesem i jednym `409`.
+- Wtedy „brak” i „brak dostępu” dają to samo (`404`), klient niedostępny — `422 customer_unavailable`, Tylko odczyt — `403`, a żadna próba nie zmienia danych; klient jest blokowany `FOR KEY SHARE` jak w kompozytorze.
 
 **AC4 — „Zaakceptowane” wymaga klienta**
-- Zakładając zlecenie bez klienta w statusie „Wycena” lub „Wstrzymane”
+- Zakładając wizję w „Wycena” lub „Wstrzymane”
 - Gdy przechodzę do „Zaakceptowane” (także przez wznowienie z „Wstrzymane”)
-- Wtedy dostaję `409 customer_required` i zlecenie zostaje bez zmian; ze zleceniem z klientem przejście działa jak dotąd; test przejść po grafie potwierdza, że żadna ścieżka nie omija reguły (jak AC7 EVM-030).
+- Wtedy `409 customer_required`, bez zmian; po przypisaniu klienta przejście działa jak dotąd; reguła jest w tabeli przejść, test po grafie przejść potwierdza, że żadna ścieżka jej nie omija, a CHECK w bazie jest drugą linią obrony.
 
-**AC5 — Operacje wymagające klienta**
-- Zakładając wizję bez klienta
-- Gdy próbuję dodać plan płatności lub transze, wygenerować dokument dla klienta albo wyeksportować archiwum ZIP
-- Wtedy dostaję `409 customer_required` (lista operacji zamknięta w teście; zakres i procesy można dodawać ręcznie), a po przypisaniu klienta operacje działają jak dla zwykłego zlecenia.
+**AC5 — Odrzucenie i przywrócenie wizji**
+- Zakładając otwartą wizję
+- Gdy Edytor lub Administrator anuluje ją z kodem powodu „Oferta odrzucona” albo „Rezygnacja klienta”
+- Wtedy status „Anulowane”, termin wygaśnięcia = najmniejsza z wartości (obecny termin, teraz + 14 dni), audyt bez treści; przywrócenie robi tylko Administrator (step-up, zgodnie z EVM-030) i ustawia termin = większa z wartości (utworzenie + 90 dni × (1 + przedłużenia), teraz + 14 dni); anulowanie zwykłego zlecenia działa jak dotąd, a Edytor nie przywraca (`403`).
 
-**AC6 — Odrzucenie wizji**
-- Zakładając wizję w statusie „Wycena” albo „Wstrzymane”
-- Gdy Edytor lub Administrator odrzuca wizję (przejście do „Anulowane” z kodem powodu „Oferta odrzucona” albo „Rezygnacja klienta”)
-- Wtedy zlecenie jest „Anulowane” z kodem powodu, podaje datę usunięcia (dziś + 14 dni), powstaje audyt bez treści; odrzucenie zwykłego zlecenia działa jak dotąd; Administrator może przywrócić wizję (zgodnie z EVM-030), co czyści datę usunięcia.
-
-**AC7 — Telefon zamawiającego i synchronizacja po przypisaniu**
-- Zakładając wizję w replice telefonu twórcy i biuro przypisujące klienta
+**AC6 — Synchronizacja po przypisaniu**
+- Zakładając wizję w replice telefonu twórcy i przypisanie klienta w panelu
 - Gdy telefon pobiera zmiany
-- Wtedy dostaje migawkę klienta i zlecenie z klientem (test integracyjny ścieżki „nieznany klient w rekordzie zlecenia”, ADR-0021 D3), a lista i overview w panelu pokazują klienta bez ponownego logowania.
+- Wtedy dostaje migawkę klienta i zlecenie z klientem (test integracyjny: rekord wskazuje nieznany `customerId`, ADR-0021 D3), `overview` w panelu pokazuje klienta i zlecenie wchodzi do liczników; Edytor C bez dotychczasowego dostępu dostaje je jak zwykłe zlecenie.
 
 ## Poza zakresem
-Odrzucenie z aplikacji (przejścia statusów tylko w panelu); zmiana klienta wizji po przypisaniu; łączenie wizji z istniejącym zleceniem; automatyczne usuwanie i przypomnienia (EVM-139, EVM-140); ekrany (EVM-138); oferta, CRM, deduplikacja, CHECK w bazie (reguła w domenie).
+Zmiana klienta po przypisaniu; łączenie wizji z istniejącym zleceniem; odrzucenie i przypisanie z aplikacji (przejścia statusów tylko w panelu); blokady płatności/dokumentów/ZIP (EVM-135 AC7); ekrany (EVM-138); usuwanie, przypomnienia (EVM-139, EVM-140); oferta, CRM, deduplikacja.
 
 ## Decyzje i ograniczenia
-- Nowe kody: `customer_required`, `customer_already_set`, `customer_unavailable` (poprawić słownik problemów i kontrakt addytywnie); nowa akcja audytu; kod powodu odrzucenia — wartości stałe, nie tekst swobodny.
-- **Bezpieczeństwo:** W2, W3, W11; autoryzujemy wizję i klienta; media i wpisy nie zmieniają identyfikatorów (konflikt „biuro przypisuje, technik dokłada zdjęcia” nie istnieje).
-- **Pytania do Konrada:**
-  1. Telefon zamawiającego po przypisaniu klienta: wyczyścić (rekomendacja — biuro przepisuje do karty klienta; minimalna retencja) czy zostaje na zleceniu? Konsekwencja „zostaje”: dodatkowe dane osobowe przez 6 lat poza kartą klienta.
-  2. Kody powodu odrzucenia: „Oferta odrzucona”, „Rezygnacja klienta” (rekomendacja; 2 wartości) — czy potrzebne „Inne”?
-- **Konsultacje przed `ready`:** architekt (ADR-0024: miejsce reguły, kontrakt `PUT customer`, audyt), security (przegląd IDOR, W3).
+- Nowe kody: `customer_required`, `customer_already_set`, `customer_unavailable`; nowa akcja audytu; kod powodu — wartość stała, nie tekst; poszerzenie zamkniętych list wg wzoru 0058 (N-1 pisze podzbiór).
+- Konsultacja architekta — ADR-0024 (pkt 3, 4, 9); bezpieczeństwo: W2, W3.
+
+## Notatki
+Rozmiar wg ADR-0024: M. Panel przed przypisaniem podstawia telefon zamawiającego do formularza nowego klienta (EVM-138).
 
 ## Dziennik
 - 2026-11-16 — szkic (product-owner)
+- 2026-11-16 — uzgodniono z ADR-0024, wpisano decyzje Konrada („akceptuję wg rekomendacji”); **status ready** (product-owner)
