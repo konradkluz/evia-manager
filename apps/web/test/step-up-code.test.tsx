@@ -21,6 +21,7 @@ const WRONG = 'Kod jest nieprawidłowy lub wygasł. Wpisz nowy kod z aplikacji.'
 const EDITOR: CurrentSession = { ...ACTIVE_SESSION, user: { ...ACTIVE_SESSION.user, role: 'editor' } };
 const READ_ONLY: CurrentSession = { ...ACTIVE_SESSION, user: { ...ACTIVE_SESSION.user, role: 'read_only' } };
 const CODE_LABEL = 'Kod z aplikacji uwierzytelniającej';
+const FRESH = 'Wpisz nowy kod — kod użyty przy logowaniu nie zadziała drugi raz.';
 
 function Trigger({ methods }: { readonly methods?: readonly ('passkey' | 'totp')[] }) {
   const request = useStepUp();
@@ -100,11 +101,63 @@ describe('W-04 kod z aplikacji (EVM-023 AC7)', () => {
     expect(screen.getByLabelText(CODE_LABEL)).toBeTruthy();
   });
 
-  it('EVM-023 AC7 an Administrator is offered the passkey only, with the hint about another administrator', async () => {
+  it('EVM-134 AC4 an Administrator is offered the passkey and the code of the app; the field says that the code of the login does not work twice; the hint names another administrator', async () => {
     await open(api(ACTIVE_SESSION));
     expect(screen.getByRole('button', { name: 'Użyj klucza dostępu' })).toBeTruthy();
-    expect(screen.queryByLabelText(CODE_LABEL)).toBeNull();
-    expect(screen.getByText('Nie masz klucza dostępu? Poproś innego administratora o reset drugiego kroku logowania.')).toBeTruthy();
+    const field = screen.getByLabelText(CODE_LABEL);
+    expect(field.getAttribute('autocomplete')).toBe('one-time-code');
+    // K1 (ADR-0023): after a login with the code the first sensitive operation needs a NEW code — said at the field, read with it.
+    const described = (field.getAttribute('aria-describedby') ?? '').split(' ').map((id) => document.getElementById(id)?.textContent ?? '');
+    expect(described.join(' ')).toContain(FRESH);
+    expect(screen.getByText('Nie masz dostępu do metody? Poproś innego administratora o reset drugiego kroku logowania.')).toBeTruthy();
+    expect(screen.queryByText(/Nie masz klucza dostępu/)).toBeNull();
+    expect(screen.queryByText(/kod odzyskiwania/i)).toBeNull();
+    expect(await axeViolations(document.body, { bestPractice: true })).toEqual([]);
+  });
+
+  it('EVM-134 AC4 the dialog of an Editor and a Read-only user has no hint about the code of the login (no change for them)', async () => {
+    await open(api(EDITOR));
+    expect(screen.queryByText(new RegExp(FRESH))).toBeNull();
+  });
+
+  it('EVM-134 AC4 an Administrator confirms with a new code: { method: totp, code }, the new token, the request is confirmed', async () => {
+    const fake = api(ACTIVE_SESSION);
+    await open(fake);
+    await userEvent.type(screen.getByLabelText(CODE_LABEL), '654321');
+    await userEvent.click(screen.getByRole('button', { name: 'Potwierdź' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('result').textContent).toBe('confirmed');
+    });
+    expect(parseBody(fake.calls(STEP_UP)[0]?.body ?? '')).toEqual({ method: 'totp', code: '654321' });
+  });
+
+  it('EVM-134 AC4 the code of the login used again (401 totp_failed) is refused like a wrong one: one message, the field cleared and focused, the dialog and the session stay', async () => {
+    const fake = api(ACTIVE_SESSION, { [STEP_UP]: () => problem(401, 'totp_failed') });
+    await open(fake);
+    const field = screen.getByLabelText<HTMLInputElement>(CODE_LABEL);
+    await userEvent.type(field, '123456');
+    await userEvent.click(screen.getByRole('button', { name: 'Potwierdź' }));
+    expect((await screen.findByRole('alert')).textContent).toBe(WRONG);
+    expect(field.value).toBe('');
+    expect(document.activeElement).toBe(field);
+    expect(screen.getByRole('alertdialog')).toBeTruthy();
+    expect(screen.getByTestId('result').textContent).toBe('none');
+    expect(await axeViolations(document.body, { bestPractice: true })).toEqual([]);
+  });
+
+  it('EVM-134 AC4 AC5 an Administrator: 429 says when to try again; the fifth refused code (401 session_revoked) closes the dialog for the gate', async () => {
+    let answer = (): Response => problem(429, 'rate_limited', {}, { 'Retry-After': '120' });
+    const fake = api(ACTIVE_SESSION, { [STEP_UP]: () => answer() });
+    await open(fake);
+    await userEvent.type(screen.getByLabelText(CODE_LABEL), '123456');
+    await userEvent.click(screen.getByRole('button', { name: 'Potwierdź' }));
+    expect((await screen.findByRole('alert')).textContent).toBe('Zbyt wiele prób. Spróbuj ponownie za 2 min.');
+    answer = () => problem(401, 'session_revoked');
+    await userEvent.click(screen.getByRole('button', { name: 'Potwierdź' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('result').textContent).toBe('cancelled');
+    });
+    expect(screen.queryByRole('alertdialog')).toBeNull();
   });
 
   it('EVM-023 AC7 a caller can limit the methods (after a passkey only the passkey)', async () => {

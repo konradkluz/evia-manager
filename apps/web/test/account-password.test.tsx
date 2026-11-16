@@ -142,7 +142,7 @@ describe('W-15 Hasło (EVM-028 AC2)', () => {
     expect(screen.queryByRole('button', { name: 'Zakończ pozostałe sesje' })).toBeNull();
   });
 
-  it('EVM-028 AC2 an Administrator confirms the change with the passkey only', async () => {
+  it('EVM-028 AC2 EVM-134 AC3 an Administrator confirms the change with the passkey or the code of the app', async () => {
     stubWebAuthn();
     let marked = false;
     const api = accountApi(ADMINISTRATOR_ACCOUNT, {
@@ -157,9 +157,9 @@ describe('W-15 Hasło (EVM-028 AC2)', () => {
     await fill();
     await userEvent.click(screen.getByRole('button', { name: 'Zapisz nowe hasło' }));
     const dialog = await screen.findByRole('dialog', { name: 'Potwierdź tożsamość, aby zmienić hasło' });
-    expect(within(dialog).queryByLabelText('Kod z aplikacji uwierzytelniającej')).toBeNull();
+    expect(within(dialog).getByLabelText('Kod z aplikacji uwierzytelniającej')).toBeTruthy();
     expect(
-      within(dialog).getByText('Nie masz klucza dostępu? Poproś innego administratora o reset drugiego kroku logowania.'),
+      within(dialog).getByText('Nie masz dostępu do metody? Poproś innego administratora o reset drugiego kroku logowania.'),
     ).toBeTruthy();
     await userEvent.click(within(dialog).getByRole('button', { name: 'Użyj klucza dostępu' }));
     expect(await screen.findByText(/Konto ma jeszcze 1 inną aktywną sesję\./)).toBeTruthy();

@@ -228,7 +228,6 @@ export const pl = {
     offlineBanner: 'Brak połączenia. Konfiguracja wymaga połączenia z internetem. Postęp zostaje na tej karcie.',
     done: 'Drugi krok logowania jest skonfigurowany.',
     step: 'Krok {{current}} z {{total}}',
-    passkeyRequired: 'Klucz dostępu jest obowiązkowy.',
     method: {
       legend: 'Wybierz metodę',
       passkey: 'Klucz dostępu — Windows Hello, klucz bezpieczeństwa albo telefon (zalecane w panelu)',
@@ -2202,7 +2201,6 @@ export const pl = {
       intro: 'Każda zmiana wymaga hasła i drugiego kroku.',
     },
     rules: {
-      administratorKey: 'Konto administratora musi mieć klucz dostępu — najpierw dodaj drugi.',
       lastMethod: 'To jedyna metoda — najpierw dodaj inną.',
     },
     passkeys: {
@@ -2218,7 +2216,7 @@ export const pl = {
       failed: 'Nie udało się dodać klucza dostępu. Spróbuj ponownie.',
       addedToast: 'Dodano klucz dostępu.',
       notFound: 'Nie znaleziono klucza.',
-      secondKey: 'Dodaj drugi klucz dostępu, np. w telefonie — bez niego utrata komputera blokuje logowanie.',
+      secondKey: 'Dodaj drugą metodę, np. kod z aplikacji albo klucz w telefonie — bez niej utrata komputera blokuje logowanie.',
     },
     totp: {
       title: 'Kod z aplikacji uwierzytelniającej',
@@ -2227,7 +2225,6 @@ export const pl = {
       addTitle: 'Dodaj kod z aplikacji',
       added: 'Dodano {{date}}',
       addedToast: 'Dodano kod z aplikacji.',
-      administratorOnly: 'Służy tylko do logowania w aplikacji na telefonie.',
       notFound: 'Nie znaleziono kodu z aplikacji. Lista została odświeżona.',
     },
     remove: {
@@ -2356,6 +2353,7 @@ export const pl = {
     code: {
       label: 'Kod z aplikacji uwierzytelniającej',
       hint: '6 cyfr z aplikacji uwierzytelniającej.',
+      freshHint: 'Wpisz nowy kod — kod użyty przy logowaniu nie zadziała drugi raz.',
       submit: 'Potwierdź',
       invalid: 'Kod jest nieprawidłowy lub wygasł. Wpisz nowy kod z aplikacji.',
     },
@@ -2363,7 +2361,7 @@ export const pl = {
     rateLimited: 'Zbyt wiele prób. Spróbuj ponownie za {{minutes}} min.',
     serverError: 'Nie udało się potwierdzić tożsamości. Spróbuj ponownie za chwilę. Jeśli problem się powtarza, zgłoś go (kod: {{code}}).',
     offline: 'Brak połączenia. Potwierdzenie wymaga połączenia z internetem.',
-    resetHint: 'Nie masz klucza dostępu? Poproś innego administratora o reset drugiego kroku logowania.',
+    resetHint: 'Nie masz dostępu do metody? Poproś innego administratora o reset drugiego kroku logowania.',
     resetHintOther: 'Nie masz dostępu do metody? Poproś administratora o reset drugiego kroku logowania.',
   },
   administration: {

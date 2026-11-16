@@ -120,15 +120,16 @@ describe('W-04 pełne ponowne uwierzytelnienie (EVM-028 AC2, AC3, AC5)', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
-  it('EVM-028 AC3 an Administrator has the passkey only; the key is checked against the challenge of the step-up and sent with the password', async () => {
+  it('EVM-028 AC3 EVM-134 AC3 an Administrator has the passkey and the code; the key is checked against the challenge of the step-up and sent with the password', async () => {
     const spies = stubWebAuthn();
     const { fake, dialog } = await open(ACTIVE_SESSION, { [STEP_UP_OPTIONS]: () => json(200, ASSERTION_OPTIONS) });
     await userEvent.type(within(dialog).getByLabelText('Hasło'), 'obecne hasło do konta');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Dalej' }));
-    expect(within(dialog).queryByLabelText('Kod z aplikacji uwierzytelniającej')).toBeNull();
+    expect(within(dialog).getByLabelText('Kod z aplikacji uwierzytelniającej')).toBeTruthy();
     expect(
-      within(dialog).getByText('Nie masz klucza dostępu? Poproś innego administratora o reset drugiego kroku logowania.'),
+      within(dialog).getByText('Nie masz dostępu do metody? Poproś innego administratora o reset drugiego kroku logowania.'),
     ).toBeTruthy();
+    expect(within(dialog).queryByText(/klucza dostępu\?/)).toBeNull();
     await userEvent.click(within(dialog).getByRole('button', { name: 'Użyj klucza dostępu' }));
     await waitFor(() => {
       expect(result()).toBe('confirmed');
@@ -138,6 +139,23 @@ describe('W-04 pełne ponowne uwierzytelnienie (EVM-028 AC2, AC3, AC5)', () => {
       purpose: 'second_step_change',
       password: 'obecne hasło do konta',
       credential: ASSERTION,
+    });
+  });
+
+  it('EVM-134 AC3 an Administrator confirms with the code of the app: the password and the code go in one request', async () => {
+    const { fake, dialog } = await open(ACTIVE_SESSION);
+    await userEvent.type(within(dialog).getByLabelText('Hasło'), 'obecne hasło do konta');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Dalej' }));
+    await userEvent.type(within(dialog).getByLabelText('Kod z aplikacji uwierzytelniającej'), '123 456');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Potwierdź' }));
+    await waitFor(() => {
+      expect(result()).toBe('confirmed');
+    });
+    expect(parseBody(fake.calls(REAUTH)[0]?.body ?? '')).toEqual({
+      purpose: 'second_step_change',
+      password: 'obecne hasło do konta',
+      method: 'totp',
+      code: '123456',
     });
   });
 

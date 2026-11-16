@@ -255,25 +255,24 @@ export function ReauthenticationDialog({
           >
             {pending && send.variables.kind === 'passkey' ? t('stepUp.inProgress') : t('stepUp.useKey')}
           </Button>
-          {isAdministrator ? null : (
-            <form noValidate onSubmit={submitCode} className="flex flex-col gap-stack-sm">
-              <TextField
-                label={t('stepUp.code.label')}
-                hint={t('stepUp.code.hint')}
-                value={code}
-                variant="one-time-code"
-                inputRef={codeInput}
-                onChange={(event) => {
-                  setCode(event.target.value);
-                }}
-              />
-              <div>
-                <Button type="submit" variant="secondary" loading={pending && send.variables.kind === 'totp'} disabled={!online}>
-                  {t('stepUp.code.submit')}
-                </Button>
-              </div>
-            </form>
-          )}
+          {/* The code of the app for every role (EVM-134 AC3); an account without one is refused by the server like a wrong code. */}
+          <form noValidate onSubmit={submitCode} className="flex flex-col gap-stack-sm">
+            <TextField
+              label={t('stepUp.code.label')}
+              hint={t('stepUp.code.hint')}
+              value={code}
+              variant="one-time-code"
+              inputRef={codeInput}
+              onChange={(event) => {
+                setCode(event.target.value);
+              }}
+            />
+            <div>
+              <Button type="submit" variant="secondary" loading={pending && send.variables.kind === 'totp'} disabled={!online}>
+                {t('stepUp.code.submit')}
+              </Button>
+            </div>
+          </form>
           <p className="text-body-sm text-text-secondary">{hint}</p>
         </>
       ) : null}

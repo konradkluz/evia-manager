@@ -35,9 +35,10 @@ function classify(error: unknown, method: StepUpMethod): Failure {
 }
 
 /**
- * W-04 "Potwierdź tożsamość, aby …" (EVM-029 AC1, AC3, AC4, EVM-023 AC7; styleguide § 3.13): the dialog of the step-up. An
- * Administrator confirms only with a passkey; an Editor and a Read-only user with a passkey or a code of the authenticator app
- * (one field, never sent on its own). No recovery code, no other way (decision 16). The key or the code is checked by the
+ * W-04 "Potwierdź tożsamość, aby …" (EVM-029 AC1, AC3, AC4, EVM-023 AC7, EVM-134 AC4; styleguide § 3.13): the dialog of the
+ * step-up. Every role confirms with a passkey or a code of the authenticator app (one field, never sent on its own). After a
+ * login of an Administrator with the code the server wants a NEW code (K1, ADR-0023): the field says so, the code of the login is
+ * refused like a wrong one. No recovery code, no other way (decision 16). The key or the code is checked by the
  * server (its own challenge, the key of the account, user verification; the code with a counter of failures of the session);
  * the answer brings the new CSRF token of the rotated session, which replaces the old one at once. A failed key or code leaves
  * the dialog open with a message; "Anuluj" and Esc close it without doing anything. Offline the dialog says so and sends nothing.
@@ -51,7 +52,7 @@ export function StepUpDialog({
   readonly title: string;
   /** The summary of the operation under the title (EVM-057: what is corrected, then the instalment, the order and the amount). */
   readonly details?: readonly string[];
-  /** Methods offered; by default the role decides (Administrator — passkey only). The server checks the method anyway. */
+  /** Methods offered; by default the passkey and the code for every role. The server checks the method anyway. */
   readonly methods?: readonly StepUpMethod[] | undefined;
   readonly onDone: (confirmed: boolean) => void;
 }) {
@@ -61,7 +62,8 @@ export function StepUpDialog({
   const online = useOnline();
   const id = useId();
   const session = useSession();
-  const offered: readonly StepUpMethod[] = methods ?? (session.data?.user.role === 'administrator' ? ['passkey'] : ['passkey', 'totp']);
+  const isAdministrator = session.data?.user.role === 'administrator';
+  const offered: readonly StepUpMethod[] = methods ?? ['passkey', 'totp'];
   const withCode = offered.includes('totp');
   const codeInput = useRef<HTMLInputElement>(null);
   const [code, setCode] = useState('');
@@ -153,7 +155,9 @@ export function StepUpDialog({
     }
     confirmCode.mutate(value);
   };
-  const hint = session.data?.user.role === 'administrator' ? t('stepUp.resetHint') : t('stepUp.resetHintOther');
+  const hint = isAdministrator ? t('stepUp.resetHint') : t('stepUp.resetHintOther');
+  // K1: only an Administrator's login with the code leaves the window closed — the hint is theirs (the field reads it with the label).
+  const codeHint = isAdministrator ? `${t('stepUp.code.hint')} ${t('stepUp.code.freshHint')}` : t('stepUp.code.hint');
 
   return (
     <AlertDialog
@@ -191,7 +195,7 @@ export function StepUpDialog({
         <form noValidate onSubmit={submitCode} className="flex flex-col gap-stack-sm">
           <TextField
             label={t('stepUp.code.label')}
-            hint={t('stepUp.code.hint')}
+            hint={codeHint}
             value={code}
             variant="one-time-code"
             inputRef={codeInput}
