@@ -4,7 +4,7 @@ title: "Wizja lokalna: dokumenty RODO i bezpieczeństwa, karta informacyjna, aka
 type: enabler
 milestone: M2
 epic: E15 Wizja lokalna
-status: in-progress
+status: in-review
 priority: P1
 path: lekka             # dokumentacja bez kodu
 owner: security-engineer
@@ -65,8 +65,16 @@ Kod; treść klauzul poza akapitem wizji (EVM-133); makiety (ux-designer przy EV
 
 ## Notatki
 Rozmiar wg ADR-0024: M. Wejścia: `security.md` z oceny (W4, W12), ADR-0024.
+- **Numeracja:** nowe ryzyko ma numer RR-102 (RR-101 zarezerwowane dla EVM-134, ADR-0023); nowe TM-146…TM-151, SR-AUTHZ-13, SR-PRIV-11, SR-PRIV-12.
+- **Decyzje z delegacji (wariant bezpieczny, do potwierdzenia przez Konrada przy demo):** osobna czynność 9 w rejestrze; lista kontrolna „przed pierwszą realną wizją” w `docs/ops/runbooks/wizja-lokalna.md` (9 punktów); kod QR karty → `https://panel.eviacharge.pl/privacy#prywatnosc`; druk kart po scaleniu EVM-133; RR-102 (Medium) — bez realnych wizji przed trybem `enforce`; terminy w treściach dla osób liczone „od zapisania wizji w systemie”; art. 15 — zdjęć posesji nie wydajemy osobie bez związku z adresem.
+- **Do zatwierdzenia przez Konrada:** aneks DPIA v1.1 (`dpia.md` § 7, warunki 1–8) i czynność 9 rejestru.
+- **Ustalenia otwarte z przeglądu (poza zakresem tej historyjki):** (1) lokalizacja założona dla wizji jest widoczna dla roli Tylko odczyt w wyszukiwaniu lokalizacji — ryzyko rezydualne TM-149 (2 Low), wymaganie otwarte w SR-AUTHZ-13, decyzja Konrada w pkt 9 listy kontrolnej (propozycja: EVM-139 albo osobna historyjka); (2) brak funkcji wyczyszczenia telefonu zamawiającego w panelu — osobna historyjka przez `/refine`, do tego czasu albo do `enforce` bez realnych wizji; (3) ADR-0024 pkt 10 (flaga wyłączona) a decyzja 16 (flaga włączona) — propozycja dopisku z datą w ADR.
+- **Akapit klauzuli** (`rodo.md` → „Akapit klauzuli „Klienci” o wizji lokalnej — do wstawienia w EVM-133”): rekomendacja wstawić przed wersją 1.0 klauzul.
 
 ## Dziennik
 - 2026-11-16 — szkic (product-owner)
 - 2026-11-16 — uzgodniono z ADR-0024, wpisano decyzje Konrada („akceptuję wg rekomendacji”); **status ready** (product-owner)
 - 2026-11-16 — start realizacji w kolejce `/noc-2026-11-16`; **status `in-progress`** (Tech Lead)
+- 2026-11-16 — wykonanie (`security-engineer`, opus): 12 dokumentów, commit `9b425f4c`; orkiestrator przed commitem zmienił numer ryzyka RR-101 → RR-102 (kolizja z EVM-134)
+- 2026-11-16 — przegląd (`code-reviewer`): **APPROVE z uwagami** — AC1–AC6 PASS; 1 major (adres lokalizacji wizji widoczny dla Tylko odczyt), 5 minor, 2 nit; jedna runda poprawek (`security-engineer`), commit `85608c69`
+- 2026-11-16 — weryfikacja orkiestratora po poprawkach: `npm run docs:check` 0 błędów i 0 ostrzeżeń; testy przewodnika panelu (`guide-markdown`, `guide-offline`, `guide`) 18/18; linki i kotwice zmienionych plików sprawdzone skryptem recenzenta i wykonawcy (0 błędów). Koszt subagentów: wykonawca ok. 385 tys. tokenów (z rundą poprawek), przegląd ok. 131 tys. **Status `in-review`** (Tech Lead)

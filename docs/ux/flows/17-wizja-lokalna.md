@@ -530,6 +530,8 @@ AlertDialog `size.dialog.width.sm`; **bez drugiego potwierdzenia** (jak zwykłe 
 - **Dialog „Przywróć wizję”** (AlertDialog `size.dialog.width.sm`, potem W-04): „Przywrócić wizję? Wizja wróci do statusu „Wstrzymane”, a termin jej usunięcia zostanie ustawiony od nowa (nie krótszy niż 14 dni).” [Anuluj] · [[Przywróć wizję]] → ponowne uwierzytelnienie [W-04](01-logowanie-mfa.md#w-04-ponowne-uwierzytelnienie) (passkey). Toast: „Przywrócono wizję. Termin usunięcia: 15.12.2026.” Błędy: jak „Przywróć zlecenie…” (README zasada 16).
 
 ### Dialog „Edytuj telefon zamawiającego” (wariant warunkowy)
+> **Rozstrzygnięcie Tech Leada 2026-11-16 (z delegacji, do potwierdzenia przez Konrada): poza kolejką — nie wchodzi do EVM-138.** ADR-0024 i kontrakt API (EVM-135 / EVM-136) nie mają operacji zmieniającej telefon zamawiającego; propozycja osobnej małej historyjki przez `/refine`. Makieta zostaje jako wejście do tej historyjki.
+
 Wchodzi tylko jeśli Tech Lead / web-developer uzna koszt za mały (rekomendacja: tak — brak edycji zmusza do usuwania wizji przy literówce w numerze). Dialog `size.dialog.width.sm`: jedno pole „Telefon zamawiającego (opcjonalnie)”, podpowiedź „Tylko numer — nie wpisuj imion w opisach.”, [Anuluj] · [[Zapisz]]; puste pole usuwa numer; konflikt `412` wg zasady 16 README; toast „Zapisano telefon zamawiającego.”; Tylko odczyt nie ma dostępu. Telefon nie trafia do wpisów dziennika ani audytu (W5) — wpis „Zmieniono telefon zamawiającego.” bez wartości.
 
 **Stany W-06 „wizja” (zbiorczo)**
@@ -595,4 +597,4 @@ Przypisanie klienta albo odrzucenie zwalnia miejsce (limit liczy otwarte wizje b
 5. **Przycisk „Przywróć wizję…” dla Edytora** — wyłączony z podpowiedzią (spójnie z „Przywróć zlecenie…”) zamiast ukrytego.
 6. **Typ obiektu w formularzu telefonu** i **numer lokalu** — AC1 wylicza tylko miejscowość, ulicę i numer; rekomendacja: numer lokalu opcjonalny (garaże w blokach), typ obiektu ustawia serwer (domyślnie „Inny obiekt”), do uzgodnienia z EVM-135.
 7. **Zdanie o karcie informacyjnej w M-10** — obecność i treść: EVM-141.
-8. **Edycja telefonu zamawiającego w panelu** — wariant warunkowy (EVM-138, „Decyzje i ograniczenia”).
+8. **Edycja telefonu zamawiającego w panelu** — wariant warunkowy (EVM-138, „Decyzje i ograniczenia”). **Rozstrzygnięte 2026-11-16: poza kolejką (brak operacji API w ADR-0024) — osobna historyjka.**
