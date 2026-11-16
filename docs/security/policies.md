@@ -169,6 +169,7 @@ Dezaktywacja konta działa jak „Zablokuj i wyczyść” dla wszystkich urządz
 |---|---|---|---|
 | Zlecenie z danymi powiązanymi (zakres, procesy, etapy, płatności, dziennik, media, dokumenty, przypisania) | 6 lat | końca roku kalendarzowego, w którym zlecenie zamknięto | purge zlecenia z encjami podrzędnymi i plikami |
 | Zlecenie anulowane przed akceptacją (nigdy w stanie `accepted`) | 12 miesięcy | anulowania | purge |
+| Wizja lokalna bez klienta (EVM-141, ADR-0024; zlecenie-wizja z mediami, wpisami, telefonem zamawiającego i lokalizacją założoną dla wizji) | 90 dni; przedłużenie o 90 dni najwyżej 2 razy (≤ 270 dni); odrzucona — 14 dni | utworzenia; odrzucona — anulowania | trwałe usunięcie automatyczne (EVM-139: rejestr usunięć, pliki, redakcja wpisów, anonimizacja lokalizacji, anonimowy nagrobek); do trybu `enforce` — ręcznie ([`retencja.md` → sekcja 5](../ops/runbooks/retencja.md#5-wizja-lokalna--okresy-tryb-report-i-enforce-procedura-ręczna-evm-141)) |
 | Klient | do końca retencji jego ostatniego zlecenia; klient bez zleceń — 12 miesięcy | utworzenia (bez zleceń) | anonimizacja |
 | Lokalizacja i ładowarki | do końca retencji ostatniego zlecenia w lokalizacji | — | anonimizacja albo purge |
 | Strona — organizacja | bez limitu (dane firmy); przegląd co 2 lata | — | — |

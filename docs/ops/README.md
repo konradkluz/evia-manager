@@ -20,4 +20,5 @@
 | [`runbooks/naruszenie-danych.md`](runbooks/naruszenie-danych.md) | naruszenie ochrony danych: karta incydentu 72 h, pierwsze działania, ocena ryzyka, dokument „poza systemem”, spotkanie z checklistą | EVM-064 |
 | [`runbooks/retencja.md`](runbooks/retencja.md) | okresy retencji → miejsce w kodzie, IaC i u dostawców; luki; przegląd ręczny danych biznesowych do M4 | EVM-064 |
 | [`runbooks/rejestr-usuniec.md`](runbooks/rejestr-usuniec.md) | rejestr usunięć poza bazą: format obiektu, semantyka „co najmniej raz”, ponowne stosowanie po odtworzeniu bazy, fail-closed | EVM-040 |
+| [`runbooks/wizja-lokalna.md`](runbooks/wizja-lokalna.md) | instrukcja administratora dla wizji lokalnej: zasada „tylko wizje testowe”, lista kontrolna przed pierwszą realną wizją, wyłączenie funkcji jedną zmianą konfiguracji, cotygodniowy przegląd | EVM-141 |
 | odtworzenie backupu | staging i produkcja | EVM-084, E8 |
