@@ -440,3 +440,103 @@ describe('the command CreateMediaAsset (EVM-131 AC3; SR-SYNC-01, SR-SYNC-02, SR-
     expect((edge as { media: { capturedAt: Date } }).media.capturedAt.getTime()).toBe(NOW.getTime() + CAPTURED_AT_MAX_AHEAD_MS);
   });
 });
+
+describe('the command CreateSiteSurvey (EVM-135 AC1, AC3; ADR-0024 pt 5; SR-INPUT-01, CWE-915)', () => {
+  const SITE = '0193a000-0000-7000-8000-0000000000d1';
+  const NEW_SITE = {
+    id: '0193a000-0000-7000-8000-0000000000d2',
+    siteType: 'single_family_house',
+    street: 'ul. Fikcyjna',
+    buildingNumber: '1',
+    postalCode: '00-001',
+    city: 'Fikcyjnowo',
+  };
+  const survey = (payload: Record<string, unknown> = {}, extra: Record<string, unknown> = {}): RawMutation => ({
+    mutationId: MUTATION,
+    type: 'CreateSiteSurvey',
+    commandVersion: 1,
+    payload: { workOrderId: ORDER, siteId: SITE, ...payload },
+    ...extra,
+  });
+  const errorsOf = (raw: RawMutation) => {
+    const result = decodeMutation(raw, NOW);
+    expect(result.ok).toBe(false);
+    return result.ok ? [] : result.errors;
+  };
+
+  it('EVM-135 AC1 an existing site, no title and no phone: no title (the default is the one of work-orders), no phone, the hash of the payload as received', () => {
+    const raw = survey();
+    const result = decodeMutation(raw, NOW);
+    expect(result).toEqual({
+      ok: true,
+      type: 'CreateSiteSurvey',
+      hash: requestHash({ type: 'CreateSiteSurvey', commandVersion: 1, payload: raw['payload'] }),
+      survey: {
+        workOrderId: ORDER,
+        siteId: SITE,
+        newSite: undefined,
+        siteRef: SITE,
+        title: null,
+        requesterPhone: null,
+        duplicateIds: false,
+      },
+    });
+  });
+
+  it('EVM-135 AC1 a new site, a title (NFC, trimmed) and a phone written as 9 digits, with spaces or +48 are one E.164 number', () => {
+    for (const phone of ['600700800', '600 700 800', '+48 600-700-800', '0048600700800']) {
+      const result = decodeMutation(survey({ siteId: undefined, newSite: NEW_SITE, title: '  Garaź  ', requesterPhone: phone }), NOW);
+      expect(result.ok && result.type === 'CreateSiteSurvey' ? result.survey : null, phone).toMatchObject({
+        siteId: undefined,
+        newSite: NEW_SITE,
+        siteRef: NEW_SITE.id,
+        title: 'Garaź',
+        requesterPhone: '+48600700800',
+      });
+    }
+  });
+
+  it('EVM-135 AC1 a blank title is no title, as in the panel (empty after trimming = absent; the default applies)', () => {
+    const result = decodeMutation(survey({ title: '   ' }), NOW);
+    expect(result.ok && result.type === 'CreateSiteSurvey' ? result.survey.title : 'not decoded').toBeNull();
+  });
+
+  it('EVM-135 AC1 the same identifier for the order and the new site is a duplicate of identifiers (id_conflict without a write)', () => {
+    const result = decodeMutation(survey({ siteId: undefined, newSite: { ...NEW_SITE, id: ORDER } }), NOW);
+    expect(result.ok && result.type === 'CreateSiteSurvey' && result.survey.duplicateIds).toBe(true);
+  });
+
+  it('EVM-135 AC3 no site or both, a phone that is not a number, an empty title are validation_failed with a pointer and a code - never the value', () => {
+    expect(errorsOf(survey({ siteId: undefined }))).toEqual([{ pointer: '/siteId', code: 'exactly_one_of' }]);
+    expect(errorsOf(survey({ newSite: NEW_SITE }))).toEqual([{ pointer: '/siteId', code: 'exactly_one_of' }]);
+    expect(errorsOf(survey({ requesterPhone: '12 34 56 78' }))).toEqual([{ pointer: '/requesterPhone', code: 'invalid_format' }]);
+    expect(errorsOf(survey({ title: '' }))).toEqual([{ pointer: '/title', code: 'too_short' }]);
+    const text = JSON.stringify(errorsOf(survey({ requesterPhone: '12 34 56 78', title: 'x'.repeat(201) })));
+    expect(text).not.toContain('12 34');
+  });
+
+  it('EVM-135 AC1 W8 a customer, a template, a note or a field of the server in the payload is validation_failed (unknown_field) - no free text beyond the title', () => {
+    for (const field of [
+      'customerId',
+      'newCustomer',
+      'templateId',
+      'note',
+      'description',
+      'origin',
+      'number',
+      'status',
+      'siteSurvey',
+      '__proto__',
+    ]) {
+      expect(errorsOf(survey({ [field]: 'x' })), field).toEqual([{ pointer: '', code: 'unknown_field' }]);
+    }
+  });
+
+  it('EVM-135 AC3 an unknown commandVersion is validation_failed with /commandVersion', () => {
+    expect(errorsOf(survey({}, { commandVersion: 2 }))).toEqual([{ pointer: '/commandVersion', code: 'unsupported_version' }]);
+  });
+
+  it('EVM-135 the label of the metric is create_site_survey', () => {
+    expect(typeLabel('CreateSiteSurvey')).toBe('create_site_survey');
+  });
+});

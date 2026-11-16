@@ -8,6 +8,7 @@ import { searchTextMatches } from '../../../platform/database/search-text.ts';
 import type { TemplateScopeItem } from '../../catalog/index.ts';
 import type { Principal } from '../../../platform/http/principal.ts';
 import type { ActiveStatus } from '../domain/work-order-transitions.ts';
+import { SITE_SURVEY_INITIAL_STATUS } from '../domain/site-survey.ts';
 import { CLOSED_STATUSES, type WorkOrderStatus } from '../domain/work-order-status.ts';
 import { deletedWorkOrders, visibleWorkOrders } from './read-policy.ts';
 import type { WorkOrdersDb } from './tables.ts';
@@ -24,6 +25,12 @@ export interface WorkOrderToInsert {
   /** The origin of the order (EVM-099); an order of the phone names the device of the session, an order of the panel has none. */
   readonly origin: 'office' | 'mobile_quick';
   readonly createdViaDeviceId: string | null;
+}
+
+/** A site survey to insert (EVM-135; ADR-0024): no customer, no template, status `quoting`, the deadline and the phone of the requester (E.164 or `null`). */
+export interface SiteSurveyToInsert extends Omit<WorkOrderToInsert, 'customerId' | 'sourceTemplateId' | 'plannedDate' | 'description'> {
+  readonly expiresAt: Date;
+  readonly requesterPhone: string | null;
 }
 
 /**
@@ -45,6 +52,39 @@ export function insertWorkOrder(db: WorkOrdersDb, order: WorkOrderToInsert, acto
       description: order.description,
       origin: order.origin,
       created_via_device_id: order.createdViaDeviceId,
+      created_at: now,
+      created_by: actorUserId,
+      updated_at: now,
+      updated_by: actorUserId,
+      deleted_at: null,
+      deleted_by: null,
+    })
+    .onConflict((conflict) => conflict.column('id').doNothing())
+    .returning('id')
+    .executeTakeFirst();
+}
+
+/**
+ * The site survey (EVM-135 AC1, AC2): INSERT only, like {@link insertWorkOrder} (an existing identifier inserts nothing and the caller answers `id_conflict`
+ * without a word about the row). No customer and the status `quoting` - the CHECKs of 0066 require the deadline then.
+ */
+export function insertSiteSurvey(db: WorkOrdersDb, order: SiteSurveyToInsert, actorUserId: string, now: Date) {
+  return db
+    .insertInto('work_orders.work_orders')
+    .values({
+      id: order.id,
+      number: order.number,
+      title: order.title,
+      status: SITE_SURVEY_INITIAL_STATUS,
+      customer_id: null,
+      site_id: order.siteId,
+      source_template_id: null,
+      planned_date: null,
+      description: null,
+      origin: order.origin,
+      created_via_device_id: order.createdViaDeviceId,
+      site_survey_expires_at: order.expiresAt,
+      requester_phone: order.requesterPhone,
       created_at: now,
       created_by: actorUserId,
       updated_at: now,
