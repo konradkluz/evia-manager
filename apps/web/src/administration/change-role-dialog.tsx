@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useApi } from '../api/api-context.tsx';
 import { unwrap } from '../api/client.ts';
 import { useOnline } from '../shell/use-online.ts';
-import { alertsAdministrators, hasPasskey, ifMatchOf } from './account-operations.ts';
+import { alertsAdministrators, ifMatchOf } from './account-operations.ts';
 import { AccountFailureAlert } from './account-failure-alert.tsx';
 import { ROLES, roleDescription } from './labels.ts';
 import { useAccountCall } from './use-account-call.ts';
@@ -25,9 +25,8 @@ export interface AccountDialogProps {
 /**
  * "Zmienić rolę konta „…”?" (EVM-027 AC1, AC5, AC7; W-16 dialog 3): the roles with the present one marked, the summary of the effect
  * (the sessions of the account end, the new role works after signing in again) and, when the role Administrator is granted or taken
- * away, the alert for all Administrators. A passkey is a condition of the role Administrator (Konrad, 2026-10-19): an account
- * without one is told to add it first (Konto → Drugi krok logowania) and nothing is sent; the server refuses the same
- * (`409 administrator_passkey_required`). `If-Match` carries the version the choice was made on (`412` → "Odśwież dane konta").
+ * away, the alert for all Administrators. Since EVM-134 AC3 (ADR-0023) the role Administrator needs no passkey: any method of
+ * the second step is enough. `If-Match` carries the version the choice was made on (`412` → "Odśwież dane konta").
  */
 export function ChangeRoleDialog({ user, onClose, onDone, onRefreshAccount, onRefreshList }: AccountDialogProps) {
   const { t } = useTranslation();
@@ -66,10 +65,6 @@ export function ChangeRoleDialog({ user, onClose, onDone, onRefreshAccount, onRe
   const submit = () => {
     if (role === user.role) {
       setError(t('users.account.role.same'));
-      return;
-    }
-    if (role === 'administrator' && !hasPasskey(user)) {
-      setError(t('users.account.role.passkeyRequired'));
       return;
     }
     setError(undefined);

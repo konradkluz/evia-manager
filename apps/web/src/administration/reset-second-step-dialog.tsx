@@ -94,7 +94,6 @@ export function ResetSecondStepDialog({ user, onClose, onDone, onRefreshAccount,
         <div id={`${id}-summary`} className="flex flex-col gap-stack-sm text-body text-text-secondary">
           <p>{t('users.account.reset.summary')}</p>
           <p>{t('users.account.reset.window')}</p>
-          {user.role === 'administrator' ? <p>{t('users.account.reset.administratorKey')}</p> : null}
           <p>{t('users.account.reset.password')}</p>
         </div>
         {alertsAdministrators('reset', user) ? <InlineAlert tone="info">{t('users.dialog.administratorAlert')}</InlineAlert> : null}

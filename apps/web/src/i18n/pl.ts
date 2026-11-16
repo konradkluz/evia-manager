@@ -131,8 +131,7 @@ export const pl = {
       remainingOther: 'Pozostało {{count}} kodu.',
       last: 'To był ostatni kod.',
       emailSent: 'Wysłaliśmy e-mail z informacją o tym logowaniu.',
-      hintAdministrator:
-        'Bez klucza dostępu kolejne logowanie znów wymaga kodu. Poproś innego administratora o reset drugiego kroku logowania.',
+      hintAdministrator: 'Jeśli nie masz już żadnej metody, poproś innego administratora o reset drugiego kroku logowania.',
       hintOther: 'Jeśli nie masz już żadnej metody, poproś administratora o reset drugiego kroku logowania.',
       continue: 'Przejdź dalej',
     },
@@ -2376,7 +2375,7 @@ export const pl = {
     title: 'Użytkownicy',
     invite: 'Zaproś użytkownika',
     soleAdministrator:
-      'Jesteś jedynym aktywnym administratorem. Zaproś drugą osobę z rolą Administrator — bez niej utrata klucza dostępu zablokuje zarządzanie systemem.',
+      'Jesteś jedynym aktywnym administratorem. Zaproś drugą osobę z rolą Administrator — bez niej utrata drugiego kroku logowania zablokuje zarządzanie systemem.',
     offlineHint: 'Zmienisz po powrocie połączenia.',
     stale: 'Dane mogą być nieaktualne (z {{time}}).',
     table: {
@@ -2430,7 +2429,6 @@ export const pl = {
         summary: 'Sesje tego konta zakończą się — nowa rola zadziała po ponownym zalogowaniu.',
         submit: 'Zmień rolę',
         same: 'Wybierz rolę inną niż obecna.',
-        passkeyRequired: 'To konto musi najpierw dodać klucz dostępu (Konto → Drugi krok logowania).',
         devicesWarning:
           'Rola Tylko odczyt wyczyści dane firmowe w aplikacji na telefonach tego konta (liczba telefonów: {{devices}}). Niewysłane elementy ostatnio zgłoszone przez telefony: {{pending}} — zostaną utracone.',
         devicesUnknown: 'Nie udało się sprawdzić telefonów tego konta. Aby zmienić rolę mimo to, wybierz „Zmień rolę” jeszcze raz.',
@@ -2466,7 +2464,6 @@ export const pl = {
           'Usuniemy wszystkie metody drugiego kroku i kody odzyskiwania tego konta, a jego sesje zakończą się. Przy następnym logowaniu konto skonfiguruje drugi krok od nowa. Wyślemy e-mail na adres konta.',
         window:
           'Drugi krok trzeba skonfigurować w ciągu 24 godzin — najlepiej od razu, w trakcie tej rozmowy. Po tym czasie potrzebny będzie ponowny reset.',
-        administratorKey: 'Konto administratora skonfiguruje wyłącznie klucz dostępu.',
         password:
           'Jeśli ta osoba zapomniała hasła albo hasło mogło trafić w niepowołane ręce (np. było zapisane na zgubionym telefonie), niech najpierw ustawi nowe hasło z innego urządzenia („Nie pamiętasz hasła?” w logowaniu) — dopiero potem zresetuj drugi krok.',
         submit: 'Zresetuj drugi krok',
