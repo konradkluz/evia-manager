@@ -47,6 +47,8 @@
 
 **Przepływy M1 (EVM-071):** [13](13-klienci.md) — klienci (W-14); [14](14-edycja-lokalizacji-i-strony.md) — edycja lokalizacji i strony (W-20); [15](15-prywatnosc-i-pomoc.md) — prywatność i pomoc (W-19, także przed zalogowaniem, i strona „Instrukcja dla biura”). Rozszerzenia istniejących ekranów są w ich plikach: W-06 — makiety (a)–(d) w [03](03-szczegoly-zlecenia.md#w-06--edycja-zlecenia-evm-071), W-09 w przeglądarce telefonu — [06](06-galeria-i-upload.md#w-09-w-przeglądarce-telefonu), W-10 — [07](07-lista-zlecen-i-filtry.md#w-10-lokalizacja-na-liście-i-więcej-filtrów-evm-071), dialogi transz i W-11 „Do wystawienia” — [08](08-nieoplacone.md#dialogi-dodaj-transzę-i-zmień-kwotę), stopka W-01 i tytuł W-04 — [01](01-logowanie-mfa.md#w-01-logowanie). Funkcje późniejszych historyjek mają w makietach warianty „przed / od EVM-0xx” (README M1 — „UI pokazuje tylko to, co system robi”).
 
+**Przepływ E15 (EVM-137, EVM-138, EVM-140; 2026-11-16):** [17](17-wizja-lokalna.md) — wizja lokalna (zlecenie bez klienta): warianty M-10, M-05, M-03, M-06, M-07 oraz W-10, W-05, W-06 (baner, dialogi „Przypisz klienta”, „Przedłuż wizję”, „Odrzuć wizję”, „Przywróć wizję”, limit otwartych wizji); treść e-maila przypomnienia — [e-maile.md → 10](e-maile.md#10-przypomnienie-o-wygasającej-wizji-lokalnej). To dopiski do zaakceptowanych makiet (nie zastępują ich); nowych identyfikatorów ekranów nie ma.
+
 ## Szkielet aplikacji
 ### Panel web (M1)
 ```text
@@ -231,6 +233,7 @@ Szczegóły akcji — tabele „Role” przy ekranach. „Pełny” = wszystkie 
 | W-18 | wejście ↑ | brak (pozycja niewidoczna; wejście z adresu — `403` z `lock`) | brak (jw.) |
 | W-19 | tak | tak | tak (W-19 i „Instrukcję dla biura” widzi też niezalogowany — ze stopki W-01, bez danych użytkownika) |
 | W-20 | pełny (także „Dodaj stronę”; także w zleceniu zamkniętym) | pełny | brak — „Edytuj” i `⋮` stron ukryte (dane lokalizacji i stron widzi w karcie W-06) |
+| Wizje lokalne — W-10, W-05, W-06 (E15, [17](17-wizja-lokalna.md)) | pełny; „Przywróć wizję” ↑ (W-04) | pełny bez przywracania wizji (wyłączone z podpowiedzią) | brak dostępu — wizje niewidoczne, adres wizji → `404` |
 | M-01 – M-11 | jak Edytor (kanał `mobile`: bez funkcji administracyjnych i step-upu) | pełny w zakresie „telefon tylko dodaje” | brak dostępu: [M-02](01-logowanie-mfa.md#m-02-stany-urządzenia) „Aplikacja niedostępna dla Twojej roli” (`403 channel_not_allowed`) |
 
 ## Zasady wspólne

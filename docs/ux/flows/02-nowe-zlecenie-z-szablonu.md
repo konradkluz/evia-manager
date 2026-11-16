@@ -29,6 +29,7 @@ flowchart TD
 ```
 
 ## W-05 Nowe zlecenie
+> **Wizja lokalna (E15, EVM-138):** wybór rodzaju „Wizja lokalna” nad formularzem (tylko lokalizacja, telefon zamawiającego, opiekun) — [17 — wizja lokalna](17-wizja-lokalna.md#w-05-nowe-zlecenie--wizja-lokalna-evm-138-ac2-evm-140-ac4).
 - **Cel:** założyć zlecenie z szablonu w jednym formularzu — klient, lokalizacja, szablon (zakres, procesy z etapami, plan płatności) — bez przepisywania danych, które system już zna (WCAG 3.3.7).
 - **Główna akcja:** „Utwórz zlecenie”.
 - **Hierarchia treści:** 1) tytuł „Nowe zlecenie” + informacja o szkicu i numerze, 2) Klient, 3) Lokalizacja, 4) Szablon z podglądem, 5) Dane zlecenia (tytuł, opiekun, planowana data, opis), 6) „Utwórz zlecenie” / „Anuluj”.

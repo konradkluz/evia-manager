@@ -425,6 +425,7 @@ Zasady: ruch tylko informuje (skąd przyszedł element, że coś się zmieniło)
 - Kolor ikon: role `color.icon.*` (ikona informacyjna ≥ 3:1).
 - Ikona **zawsze z etykietą tekstową** albo — dla przycisku ikonowego — z nazwą dostępną (`aria-label` / `accessibilityLabel`) i podpowiedzią (tooltip na web).
 - Ikony filmu (EVM-110, wszystkie z Lucide): typ pliku `video`, brak dźwięku `volume-off`, nagrywanie / zatrzymaj `circle` / `square`, za mało miejsca `hard-drive`, czeka na Wi-Fi `wifi`.
+- Ikony wizji lokalnej (EVM-137 / EVM-138, wszystkie z Lucide): wizja `binoculars`, brak klienta `user-x`, wygasa `calendar-x`, odrzucona `thumbs-down`, usunięcie `trash-2`, ostrzeżenie o terminie `triangle-alert`. Jeśli któraś ikona nie występuje w zainstalowanej wersji Lucide, developer zgłasza zamiennik `ux-designerowi` (nie dobiera sam).
 - Słownik ikon akcji (spójność): dodaj `plus`, edytuj `pencil`, usuń `trash-2`, cofnij `undo-2`, zapisz — bez ikony (tekst), aparat `camera`, galeria `images`, wyślij/upload `cloud-upload`, ponów `rotate-ccw`, szukaj `search`, filtry `sliders-horizontal`, menu `menu`, więcej `ellipsis-vertical`, wstecz `arrow-left`, zamknij `x`, kalendarz `calendar`, informacja `info`, ostrzeżenie `triangle-alert`, błąd `circle-alert`, sukces `circle-check`, offline `wifi-off`, ładowanie `loader-circle` (tylko w przyciskach). Ikony statusów: § 4.4; synchronizacji: § 5.4.
 
 ---
@@ -774,6 +775,8 @@ Licznik dni liczony od `waitingSince` w `Europe/Warsaw`, `text.numeric` („od d
 
 **Oznaczenie wyliczane „Po terminie”** (`color.status.payment.overdue.*`, od 1.1.0 — nie jest statusem zapisanym w modelu): etap płatności w stanie `invoiced` z terminem (`dueDate`) wcześniejszym niż dziś w `Europe/Warsaw` (`isOverdue`) pokazuje **jedną mocną odznakę „Po terminie”** (`alarm-clock`, `palette.red.800` / `neutral.0` / `neutral.0`) **zamiast** „Wystawiona”; nazwa dostępna: „Wystawiona, po terminie od 5 dni”. Liczba dni po terminie obok odznaki (`text.numeric`, `color.text.error`). Filtr „Po terminie” = `isOverdue`; „Nieopłacone” = wszystkie `invoiced` (także po terminie).
 
+**Oznaczenia wyliczane „Wizja lokalna” i „Odrzucona” (od EVM-137 / EVM-138, 2026-11-16 — nie są statusami zapisanymi w modelu; ADR-0024).** Wizja lokalna to zlecenie bez klienta ze znacznikiem terminu wygaśnięcia, więc jej odznaka **nie zastępuje** statusu zlecenia, tylko stoi obok niego (obok numeru). Wariant **z obrysem**, żeby nie mylić go z wypełnionymi odznakami statusu (w tym niebieskim „Zaakceptowane”): „Wizja lokalna” — ikona `binoculars` + etykieta, `color.feedback.info.{icon|text}` na `color.feedback.info.bg`, obrys `color.feedback.info.border` `border-width.default` (tekst 8,01:1, ikona 6,16:1, obrys 4,75:1 — § 2.1.4); „Odrzucona” (wizja ze statusem „Anulowane”) — ikona `thumbs-down` + etykieta, `color.status.order.cancelled.{icon|text|bg}`, obrys `color.border.strong`. Oba tylko statyczne (bez hover, fokusu i menu), `radius.pill`, `size.badge.height`, etykieta nigdy nie jest skracana, nigdy sama ikona. Termin wizji to tekst, nie odznaka: „Wygasa za N dni” (`calendar-x`, `color.text.secondary`), przy ≤ 15 dniach `triangle-alert` + `color.text.warning` (ten sam próg-ostrzeżenie co „od 15 dni” w § 4.4), wizja odrzucona — „Usunięcie za N dni” (`trash-2`). Etykiety i zasady użycia: [flows/17](flows/17-wizja-lokalna.md).
+
 Ikony są unikalne w obrębie każdej grupy (z pominięciem kluczy wycofywanych); `circle-check` celowo oznacza „zakończone/opłacone”, a `ban` — „anulowane” we wszystkich grupach (spójne znaczenie). Kontrasty wszystkich par: § 2.1.4 (tekst odznak ≥ 7,13:1, ikony ≥ 4,51:1).
 
 **Weryfikacja rozróżnialności bez koloru (2026-10-02):** odznaki wszystkich 18 wartości wyrenderowano z ikonami Lucide 1.50.0 i sprawdzono w skali szarości oraz w symulacji deuteranopii i protanopii (macierze Machado i in. 2009, nasilenie 1,0). Wynik: każda wartość pozostaje rozróżnialna dzięki unikalnemu kształtowi ikony i etykiecie; tony zlewające się w symulacji (zielony ↔ bursztynowy, fioletowy ↔ niebieski, czerwony subtelny ↔ neutralny przy protanopii) nie niosą samodzielnie informacji. Etykiety pozostają czytelne w skali szarości (kontrast luminancji tekstu ≥ 7:1 nie zależy od barwy). Wariant mocny (Rozliczone, Po terminie) wyróżnia się jasnością tła także w skali szarości. Zrzut z weryfikacji: lokalnie (poza repozytorium); powtórzyć w przeglądzie UX pierwszej implementacji odznaki.
@@ -1037,6 +1040,8 @@ Zasady „nic nie ginie”:
 | Ładowarka | urządzenie ładujące; „wallbox” dopuszczalne w opisach | stacja (dla wallboxów AC) |
 | Ekspertyza, opinia ppoż., warunki przyłączenia, pełnomocnictwo | rodzaje dokumentów | — |
 | Wysyłanie / kolejka / offline | stany przesyłania plików i danych | upload, sync, queue |
+| Wizja lokalna (od EVM-137) | oględziny bez klienta: zlecenie bez klienta w statusie „Wycena”, wygasa po 90 dniach, jeśli nie przypisano klienta; akcje „Przypisz klienta”, „Przedłuż o 90 dni”, „Odrzuć wizję”, „Przywróć wizję”; stan „Brak klienta”; „Telefon zamawiającego” | pre-zlecenie, wizyta, lead, oferta (ofert w systemie nie ma), „Oględziny” jako nazwa zlecenia |
+| Oględziny (kategoria zdjęć) | domyślna kategoria zdjęć i filmów w wizji lokalnej | nazwa zlecenia lub odznaki |
 
 Skróty (OSD, PPE, WLZ, ppoż.) przy pierwszym wystąpieniu na ekranie mają rozwinięcie w podpowiedzi lub `abbr`.
 
@@ -1121,6 +1126,16 @@ Testy dostępności (narzędzia automatyczne + klawiatura + czytnik ekranu) — 
 ---
 
 ## 8. Changelog
+### Uzupełnienie M2 — 2026-11-16 (EVM-137, EVM-138, EVM-140 — wizja lokalna, E15; wpis `ux-designer`, do akceptacji przy demo)
+Makiety: [flows/17](flows/17-wizja-lokalna.md), [e-maile.md → 10](flows/e-maile.md#10-przypomnienie-o-wygasającej-wizji-lokalnej). **Bez nowych tokenów i komponentów** — nowy jest jeden wariant istniejącej odznaki i jedno odstępstwo (niżej); wersja styleguide'u bez zmiany numeru.
+- **Odstępstwo (rozstrzygnięcie Tech Leada z delegacji, EVM-137; do potwierdzenia przy demo): chip „Wizje lokalne (n)” w M-05 jako trzeci chip grupy „Wszystkie / Niewysłane (n) / Wizje lokalne (n)”.**
+  - *Powód:* wizje na głównej liście (decyzja 13) mają zawężenie na telefonie; „Niewysłane (n)” z odstępstwa EVM-103 nie wystarcza, a pełny zestaw chipów z makiety („Moje”, „Czekamy na…”) nie wraca przed M4.
+  - *Zakres:* aplikacja mobilna, lista zleceń M-05; FilterChip (§ 3.7) w grupie radio, wyświetlany tylko gdy w telefonie jest co najmniej jedna wizja (pozycji bez funkcji nie pokazujemy).
+  - *Termin usunięcia:* razem z odstępstwem EVM-103 — M4 (powrót układu chipów z makiety).
+- **§ 4.4 — oznaczenia wyliczane „Wizja lokalna” i „Odrzucona”:** wariant z obrysem istniejących tokenów (`color.feedback.info.*`, `color.status.order.cancelled.*`, `color.border.strong`), ikony `binoculars` i `thumbs-down`, obok statusu zlecenia, nie zamiast niego. Rozróżnialne bez koloru (kształt ikony + etykieta + obrys).
+- **§ 2.10:** ikony wizji (`binoculars`, `user-x`, `calendar-x`, `thumbs-down`, `trash-2`).
+- **§ 6.2:** terminologia „Wizja lokalna”, „Oględziny” (kategoria zdjęć).
+- **Użycie istniejących wzorców bez zmian opisu:** § 4.15 „Oczekuje na numer” dla wizji; § 4.16 „Wymaga uwagi” z komunikatami bez adresu; § 4.18 tryb ukrytych danych (formularz wizji niedostępny); § 4.11 potwierdzenia (przypisanie klienta jest nieodwracalne — dialog z potwierdzeniem); § 3.13 dialog z widokami (wybór → potwierdzenie) zamiast dialogu na dialogu; § 3.19 Banner z trzema akcjami w W-06 (jedna primary).
 ### Uzupełnienie M2 — 2026-11-15 (EVM-110, treść zaakceptowana przez Konrada 2026-11-15; wpis `ux-designer`)
 Filmy w aplikacji mobilnej i „Filmy tylko przez Wi-Fi”. **Bez nowych tokenów** (`color.sync.waiting-wifi.*` istnieje); jeden nowy komponent mobile `SwitchRow` (opis § 3.4) i jedno odstępstwo (niżej).
 - **Odstępstwo (przegląd EVM-110, 2026-11-15): baner zbiorczy „Czeka na Wi-Fi” używa InlineAlert w tonie `warning`, nie dedykowanego tonu `waiting-wifi`.** *Powód:* InlineAlert nie ma takiego tonu; `color.feedback.warning.*` i `color.sync.waiting-wifi.*` są oba bursztynowe, a ikona `wifi` i tekst odróżniają baner od ostrzeżenia. *Zakres:* aplikacja mobilna, Kolejka. *Termin:* do rozważenia ton `waiting-wifi` przy następnej zmianie InlineAlert. Poprawki przeglądu: § 3.24 (ostrzeżenie na podglądzie, tła znaczników, wyłączony chip na ciemnym panelu), § 3.4 (`SwitchRow`). Makieta: [09](flows/09-mobile-zdjecia-filmy-offline.md) (M-06, M-07, M-09).
