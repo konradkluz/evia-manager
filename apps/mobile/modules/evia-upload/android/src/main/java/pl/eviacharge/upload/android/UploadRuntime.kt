@@ -33,8 +33,11 @@ import pl.eviacharge.upload.runner.RunningJobs
 import pl.eviacharge.upload.runner.UploadJobRunner
 import pl.eviacharge.upload.runner.UploadReporter
 import pl.eviacharge.upload.runner.UploadWorker
+import pl.eviacharge.upload.schedule.FileUploadSettings
 import pl.eviacharge.upload.schedule.JobArming
 import pl.eviacharge.upload.schedule.JobLifecycle
+import pl.eviacharge.upload.schedule.UploadSettings
+import pl.eviacharge.upload.schedule.VideoNetworkPolicy
 import pl.eviacharge.upload.session.FileTokenVault
 import pl.eviacharge.upload.session.JceRecordCipher
 import pl.eviacharge.upload.session.MonotonicClock
@@ -42,6 +45,8 @@ import pl.eviacharge.upload.session.SessionState
 import pl.eviacharge.upload.session.TokenOwner
 import java.io.File
 import java.io.IOException
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 /** The names of the build configuration in the manifest (written by `plugins/with-upload.ts`; `tools/mobile-apk verify` checks them). */
 internal object BuildConfigNames {
@@ -97,6 +102,13 @@ class UploadRuntime private constructor(
   val ids = JobIdRegistry(files.jobIdsFile)
   val jobs = JobFileStore(files)
   val running = RunningJobs()
+
+  /** EVM-110: the setting "videos only over Wi-Fi" in its own file (not touched by the sign-out or the wipe) and the network check from the capabilities. */
+  val settings: UploadSettings = FileUploadSettings(files.settingsFile)
+  private val network = VideoNetworkPolicy(settings, AndroidUnmeteredCheck(app))
+
+  /** One thread for whole-file work (the import of a video, SHA-256, arming), apart from the shared thread of the modules. */
+  val heavy: ExecutorService = Executors.newSingleThreadExecutor { task -> Thread(task, "evia-upload-heavy").apply { isDaemon = true } }
   /** What the build configures (the pure `HttpConfig.setupFromMetaData`): the session needs the API address, the upload also the storage hosts. */
   private val setup: UploadSetup = readSetup(app)
   val config: HttpConfig = setup.config ?: throw IllegalStateException("upload is not configured")
@@ -132,6 +144,7 @@ class UploadRuntime private constructor(
           "partCount" to status.partCount,
           "percent" to status.percent,
           "sizeBytes" to status.sizeBytes.toDouble(),
+          "waitingForWifi" to status.waitingForWifi,
         ),
       )
     }
@@ -148,9 +161,9 @@ class UploadRuntime private constructor(
   }
 
   private val store = ProgressStore(jobs, ProgressThrottle({ SystemClock.elapsedRealtime() })) { reporter.progress(it) }
-  private val factory = EngineFactory(config, tokens, files, store, marker, contact, running, logger = RedactingLogger.NONE)
-  val worker = UploadWorker(UploadJobRunner(jobs, tokens, marker, factory::create, RedactingLogger.NONE), jobs, running, marker, tokens, reporter)
-  val arming = JobArming(files, jobs, ids, system, marker, Build.VERSION.SDK_INT) { appVisible }
+  private val factory = EngineFactory(config, tokens, files, store, marker, contact, running, logger = RedactingLogger.NONE, network = network)
+  val worker = UploadWorker(UploadJobRunner(jobs, tokens, marker, factory::create, RedactingLogger.NONE), jobs, running, marker, tokens, reporter, network = network)
+  val arming = JobArming(files, jobs, ids, system, marker, Build.VERSION.SDK_INT, settings) { appVisible }
   val lifecycle = JobLifecycle(files, ids, system, running)
   private val wipeChain = WipeChain(
     files,

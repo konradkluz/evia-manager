@@ -202,6 +202,10 @@ const FORBIDDEN_CAMERA_ACCESS: ReadonlyArray<[RegExp, string]> = [
   [/\bgetExternal\w*\s*\(|\bEnvironment\.DIRECTORY_/, 'pamięć zewnętrzna'],
   [/\bsetLocation\b/, 'pozycja w zdjęciu (setLocation)'],
   [/\bTAG_GPS\w*/, 'znacznik GPS w EXIF'],
+  // EVM-110 (SEC-110-16): the network of a video is read from NetworkCapabilities only - no name of a network, no WifiManager
+  [/\bWifiManager\b|\bgetSSID\b|\bgetBSSID\b|\bgetConnectionInfo\b|\bNEARBY_WIFI_DEVICES\b/, 'nazwa sieci Wi-Fi albo WifiManager'],
+  // EVM-110 (SEC-110-03): films have no sound and the app has no microphone
+  [/\bAudioRecord\b|\bMediaRecorder\b|\bwithAudioEnabled\b|\bRECORD_AUDIO\b/, 'mikrofon'],
 ];
 
 export function cameraSourceProblems(sources: Record<string, string>): string[] {

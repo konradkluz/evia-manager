@@ -77,6 +77,9 @@ sealed class Outcome(
 
     data object RetryChecksum : Outcome("retry_checksum")
 
+    /** A video waits for a network without charges (EVM-110): not an error; the parts sent so far stay, the next run continues. */
+    data object WaitingForWifi : Outcome("waiting_wifi")
+
     /** `delayMs` is set by the engine (the delay the system schedule should respect); the mapping alone sets it only from a `Retry-After`. */
     data class RetryLater(
         val delayMs: Long? = null,
@@ -164,6 +167,15 @@ interface JobStore {
     fun save(snapshot: JobSnapshot)
 
     fun clear(assetId: String)
+}
+
+/** Asked before every part of a file: `false` = this network may not carry it now (a video over a network with charges); the run ends without an error. */
+fun interface NetworkGate {
+    fun allowsPart(): Boolean
+
+    companion object {
+        val OPEN = NetworkGate { true }
+    }
 }
 
 /** True when the work must stop at once (the wipe marker is set): checked before every call; the outcome is [Outcome.DeviceWipe]. */

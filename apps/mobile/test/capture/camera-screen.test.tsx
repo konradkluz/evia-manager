@@ -367,7 +367,8 @@ describe('the camera is released unless the screen is the one in front (EVM-108 
     expect(cameraMock.props).toMatchObject({ mode: 'picture', facing: 'back', active: true });
     expect(cameraMock.props).not.toHaveProperty('barcodeScannerSettings');
     expect(cameraMock.props).not.toHaveProperty('onBarcodeScanned');
-    expect(cameraMock.props).not.toHaveProperty('mute');
+    // EVM-110 AC7: the view is muted in EVERY mode (the film has no sound, the app never asks for the microphone)
+    expect(cameraMock.props).toMatchObject({ mute: true, videoQuality: '720p', videoBitrate: 5_000_000 });
   });
 
   it('EVM-108 AC2: another layer over the screen (a dialog) releases the camera', async () => {

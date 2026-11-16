@@ -16,6 +16,7 @@
  * of the step. What each scenario proves and how to read a failure: docs/qa/EVM-130/plan-i-polecenia.md.
  */
 import { CAMERA_SCENARIOS } from './camera-scenarios.mjs';
+import { VIDEO_SCENARIOS } from './video-scenarios.mjs';
 import { SCENARIOS } from './scenarios.mjs';
 
 /** The answer to every part is held this long (ms): ten parts of the big file take about a minute. */
@@ -248,5 +249,7 @@ export const UPLOAD_SCENARIOS = [
  */
 export function selectScenarios(only) {
   if (only === null) return SCENARIOS;
-  return [...SCENARIOS, ...UPLOAD_SCENARIOS, ...CAMERA_SCENARIOS].filter((scenario) => only.some((word) => scenario.name.startsWith(word)));
+  return [...SCENARIOS, ...UPLOAD_SCENARIOS, ...CAMERA_SCENARIOS, ...VIDEO_SCENARIOS].filter((scenario) =>
+    only.some((word) => scenario.name.startsWith(word)),
+  );
 }

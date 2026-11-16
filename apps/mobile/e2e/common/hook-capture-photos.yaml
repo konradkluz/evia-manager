@@ -1,0 +1,40 @@
+# EVM-110 AC4 (shared): N synthetic pictures through the hook `media: capture N` (the path of a photograph). Called with the variable COUNT. The status line
+# confirms only after the LAST durable save. Ends with the panel closed.
+appId: pl.eviacharge.manager
+---
+- tapOn:
+    id: 'evia-e2e-hooks-panel'
+- scrollUntilVisible:
+    element:
+      id: 'e2e-capture-count'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'e2e-capture-count'
+- eraseText
+- inputText: ${COUNT}
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: 'e2e-capture-batch'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'e2e-capture-batch'
+- scrollUntilVisible:
+    element:
+      id: 'e2e-status'
+    direction: UP
+    centerElement: true
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-status'
+      text: 'capture_added=${COUNT}'
+    timeout: 120000
+- scrollUntilVisible:
+    element:
+      id: 'e2e-close'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'e2e-close'

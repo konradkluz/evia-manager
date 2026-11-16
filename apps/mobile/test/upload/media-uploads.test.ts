@@ -35,7 +35,11 @@ class FakeNativeUpload implements NativeUpload {
   readonly calls: string[] = [];
   readonly armed: { assetId: string; workOrderId: string; userId: string; deviceId: string }[] = [];
   readonly deleted: string[] = [];
-  readonly wifi: boolean[] = [];
+  setKeepScreenOn: NativeUpload['setKeepScreenOn'] = () => true;
+  getVideoWifiOnly: NativeUpload['getVideoWifiOnly'] = () => true;
+  setVideoWifiOnly: NativeUpload['setVideoWifiOnly'] = () => Promise.resolve(true);
+  /** The number of arguments of every call of `reconcile` and `retryUpload`: EVM-110 - the network is decided natively, the caller passes nothing about it. */
+  readonly arity: number[] = [];
   armResult: ArmResultName | Record<string, ArmResultName> = 'armed';
   statuses: UploadStatus[] = [];
   verdict: 'delete' | 'keep' | 'keep_and_retry' | 'keep_quarantined' | 'invalid' | 'unavailable' = 'delete';
@@ -51,9 +55,10 @@ class FakeNativeUpload implements NativeUpload {
     this.calls.push('digestOriginal');
     return Promise.resolve(this.originals.get(assetId) ?? null);
   };
-  reconcile: NativeUpload['reconcile'] = (items, wifiOnly) => {
+  reconcile: NativeUpload['reconcile'] = (...args) => {
+    const [items] = args;
     this.calls.push('reconcile');
-    this.wifi.push(wifiOnly);
+    this.arity.push(args.length);
     this.armed.push(...items);
     return Promise.resolve(
       Object.fromEntries(
@@ -126,7 +131,7 @@ interface Rig {
   readonly enqueued: EnqueueInput[];
   readonly uploads: MediaUploads;
   readonly store: UnlockedStore;
-  readonly state: { signedIn: boolean; visible: boolean; contacts: number; wifiOnly: boolean };
+  readonly state: { signedIn: boolean; visible: boolean; contacts: number };
   setup(overrides?: Partial<MediaUploadsDeps>): MediaUploads;
 }
 
@@ -135,7 +140,7 @@ async function rig(native = new FakeNativeUpload()): Promise<Rig> {
   const queue = new SqlQueueStore(db);
   const replica = new SqlReplicaStore(db);
   const media = new SqlMediaFileStore(db, USER);
-  const state = { signedIn: true, visible: true, contacts: 0, wifiOnly: false };
+  const state = { signedIn: true, visible: true, contacts: 0 };
   const store = {
     userId: USER,
     queue,
@@ -171,7 +176,6 @@ async function rig(native = new FakeNativeUpload()): Promise<Rig> {
         return { ok: true, mutationId: record.mutationId };
       },
       now: () => (clock += 1),
-      wifiOnly: () => state.wifiOnly,
       dataVisible: () => state.visible,
       onNativeEvent: () => {
         state.contacts += 1;
@@ -253,16 +257,15 @@ describe('adding a file and arming it after applied (EVM-130 AC1; architect 7)',
     await r.uploads.reconcile();
     // EVM-131: the MIME type of the row goes to the module, which declares it in the upload session
     expect(r.native.armed).toEqual([{ assetId: asset(1), workOrderId: WO, userId: USER, deviceId: DEVICE, contentType: 'image/jpeg' }]);
-    expect(r.native.wifi).toEqual([false]);
+    expect(r.native.arity).toEqual([1]); // EVM-110 AC4: nothing about the network is passed (the native setting decides)
     // the process was killed and starts again: a new service over the same database arms the same file again
     const restarted = r.setup();
     await restarted.reconcile();
     expect(r.native.armed).toHaveLength(2);
     expect(await states(r)).toEqual(['01:applied']);
-    r.state.wifiOnly = true;
-    r.native.wifi.length = 0;
+    r.native.arity.length = 0;
     await restarted.reconcile();
-    expect(r.native.wifi).toEqual([true]);
+    expect(r.native.arity).toEqual([1]); // EVM-110 AC4: the same after the setting changed - the module reads its own store
   });
 
   it('EVM-130 AC1: add refuses what the server would refuse, a missing original, a missing session and a queue that does not take it — and writes no row', async () => {
@@ -331,6 +334,9 @@ describe('adding a file and arming it after applied (EVM-130 AC1; architect 7)',
     expect(await r.store.media.list()).toMatchObject([
       { assetId: asset(1), mutationId: asset(601), state: 'pending', mime: 'video/mp4', createdAt: 77, sizeBytes: 1001 },
     ]);
+    // a film that was repaired from its command has no stored length: the row shows type and size only (documented, not guessed)
+    expect((await r.store.media.list())[0]).not.toHaveProperty('durationMs');
+    expect(r.uploads.getSnapshot().files[0]?.durationMs ?? null).toBeNull();
     // the command is applied later: the repaired row follows
     await r.queue.settle(asset(601), { outcome: 'applied', warnings: [] });
     await r.uploads.reconcile();
@@ -925,5 +931,123 @@ describe('notifications and the target of a notification (EVM-130 AC6)', () => {
     expect(r.native.listeners.get('onFileState')).toHaveLength(1);
     r.uploads.stop();
     expect(r.native.listeners.get('onFileState')).toHaveLength(0);
+  });
+});
+
+describe('films that wait for Wi-Fi (EVM-110 AC4, AC5)', () => {
+  const video = (n: number) => ({ assetId: asset(n), workOrderId: WO, mediaType: 'video' as const, category: 'defect' as const });
+  const waiting = (n: number): UploadStatus => ({
+    assetId: asset(n),
+    state: 'queued',
+    partsDone: 0,
+    partCount: 0,
+    percent: 0,
+    sizeBytes: 1000 + n,
+    waitingForWifi: true,
+  });
+
+  it('EVM-110 AC4: a film the module says waits for a network without charges is "Czeka na Wi-Fi" - not an error, not "Wymaga uwagi", no action', async () => {
+    const r = await rig();
+    hold(r, 1);
+    await r.uploads.add(video(1));
+    await apply(r, 1);
+    r.native.statuses = [waiting(1)];
+    await idle(r);
+    expect(r.uploads.getSnapshot().files).toMatchObject([
+      { assetId: asset(1), mediaType: 'video', status: 'waiting_wifi', percent: null, actions: [] },
+    ]);
+    expect(await states(r)).toEqual(['01:applied']);
+  });
+
+  it('EVM-110 AC5: Wi-Fi taken away in the middle of a part - the last progress ("Wysyła się 37%") does not outlive the stopped job: the row becomes "Czeka na Wi-Fi" at the event of the module, with no move of the user', async () => {
+    const r = await rig();
+    hold(r, 1);
+    await r.uploads.add(video(1));
+    await apply(r, 1);
+    r.uploads.start();
+    const uploading: UploadStatus = {
+      assetId: asset(1),
+      state: 'uploading',
+      partsDone: 1,
+      partCount: 3,
+      percent: 37,
+      sizeBytes: 1001,
+      waitingForWifi: false,
+    };
+    r.native.statuses = [uploading];
+    r.native.emit('onUploadProgress', uploading);
+    await idle(r);
+    expect(r.uploads.getSnapshot().files).toMatchObject([{ status: 'uploading', percent: 37 }]);
+    // the engine met the gate of the network before the next part: the job ends, the module reports "queued / waiting_wifi", its status says it waits
+    r.native.statuses = [{ ...uploading, state: 'queued', waitingForWifi: true }];
+    r.native.emit('onFileState', { assetId: asset(1), state: 'queued', reason: 'waiting_wifi' });
+    await idle(r);
+    expect(r.uploads.getSnapshot().files).toMatchObject([{ assetId: asset(1), status: 'waiting_wifi', percent: null, actions: [] }]);
+    expect(await states(r)).toEqual(['01:applied']);
+    // Wi-Fi is back: the module sends again, the new progress is shown
+    r.native.emit('onUploadProgress', { ...uploading, partsDone: 2, percent: 67 });
+    await idle(r);
+    expect(r.uploads.getSnapshot().files).toMatchObject([{ status: 'uploading', percent: 67 }]);
+  });
+
+  it('EVM-110 AC4: only a film waits for Wi-Fi - a picture never does, and a film that is sending shows its percentage', async () => {
+    const r = await rig();
+    hold(r, 1);
+    hold(r, 2);
+    await r.uploads.add(photo(1));
+    await r.uploads.add(video(2));
+    await apply(r, 1);
+    await apply(r, 2);
+    // a status of the module that says so for a picture is not believed (the policy is for films only)
+    r.native.statuses = [waiting(1), { ...waiting(2), state: 'uploading', percent: 40, waitingForWifi: false }];
+    await idle(r);
+    expect(r.uploads.getSnapshot().files).toMatchObject([
+      { assetId: asset(1), mediaType: 'photo', status: 'waiting' },
+      { assetId: asset(2), mediaType: 'video', status: 'uploading', percent: 40 },
+    ]);
+  });
+
+  it('EVM-110 AC5: a film that waited over 7 days (the server marked the file without a session failed / abandoned) stays "Czeka na Wi-Fi" and goes as the SAME medium - no "Ponów", no attention, no second row', async () => {
+    const r = await rig();
+    hold(r, 1);
+    await r.uploads.add(video(1));
+    await apply(r, 1);
+    r.native.statuses = [waiting(1)];
+    await idle(r);
+    r.native.armed.length = 0;
+    await serverState(r, 1, 'failed', 'abandoned');
+    await r.uploads.reconcile();
+    expect(await states(r)).toEqual(['01:applied']);
+    expect(r.uploads.getSnapshot().files).toMatchObject([{ assetId: asset(1), status: 'waiting_wifi', actions: [], code: null }]);
+    // the same asset is handed to the module again (it opens a new session for it; JVM test of the engine)
+    expect(r.native.armed.map((item) => item.assetId)).toEqual([asset(1)]);
+    expect(r.native.calls.filter((call) => call.startsWith('retry:'))).toEqual([]);
+    // Wi-Fi comes: the module sends it; the row is the same row and nothing was queued twice
+    r.native.statuses = [{ ...waiting(1), state: 'uploading', percent: 10, waitingForWifi: false }];
+    await r.uploads.reconcile();
+    expect(r.uploads.getSnapshot().files).toMatchObject([{ assetId: asset(1), status: 'uploading', percent: 10 }]);
+    expect(r.enqueued).toHaveLength(1);
+    expect(await r.store.media.list()).toHaveLength(1);
+  });
+
+  it('EVM-110 AC4: the setting is read from the module (on when it fails) and a change is stored by the module and the rows are read again', async () => {
+    const r = await rig();
+    expect(r.uploads.videoWifiOnly()).toBe(true);
+    r.native.getVideoWifiOnly = () => {
+      throw new Error('synthetic');
+    };
+    expect(r.uploads.videoWifiOnly()).toBe(true);
+    const seen: boolean[] = [];
+    r.native.setVideoWifiOnly = (value) => {
+      seen.push(value);
+      return Promise.resolve(true);
+    };
+    r.native.calls.length = 0;
+    expect(await r.uploads.setVideoWifiOnly(false)).toBe(true);
+    await idle(r);
+    expect(seen).toEqual([false]);
+    expect(r.native.calls).toContain('uploadStatuses');
+    r.native.setVideoWifiOnly = () => Promise.reject(new Error('synthetic'));
+    expect(await r.uploads.setVideoWifiOnly(true)).toBe(false);
   });
 });

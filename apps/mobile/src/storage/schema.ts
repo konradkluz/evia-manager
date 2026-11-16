@@ -1,5 +1,5 @@
 import type { Database, Tx } from './database';
-import { addMediaCategoryV3, createMediaFilesV2 } from './media-file-store';
+import { addMediaCategoryV3, addMediaDurationV4, createMediaFilesV2 } from './media-file-store';
 
 /**
  * Versioned local schema (EVM-093 AC2; offline-sync.md, rule 2). Two independent version numbers:
@@ -177,6 +177,8 @@ export const SCHEMA: SchemaPlan = {
     { version: 2, up: createMediaFilesV2 },
     // v3 (EVM-108): the category of a picture, a nullable column — preserving, nothing of v1/v2 is touched
     { version: 3, up: addMediaCategoryV3 },
+    // v4 (EVM-110): the length of a film, a nullable column - preserving, nothing of v1-v3 is touched
+    { version: 4, up: addMediaDurationV4 },
   ],
   replica: [
     {

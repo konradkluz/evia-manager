@@ -52,6 +52,8 @@ class UploadEngineDeps(
     val stop: StopCheck = StopCheck.NEVER,
     /** Part addresses with `http` are accepted only in the e2e variant of the build (EVM-130); never in a release. */
     val allowCleartextPartUrls: Boolean = false,
+    /** EVM-110: asked before every part; a video does not start a part over a network with charges. */
+    val network: NetworkGate = NetworkGate.OPEN,
 )
 
 /**
@@ -219,6 +221,7 @@ class UploadEngine(
             if (part.partNumber in done) continue
             var renewals = 0
             while (true) {
+                if (!deps.network.allowsPart()) throw Stop(Outcome.WaitingForWifi)
                 // The address is fetched right before its part is sent and lives only in memory (SR-FILE-02).
                 val target = call { deps.api.partUrl(context.snapshot.uploadSessionId, part.partNumber) }
                 if (!isTrustedPartUrl(

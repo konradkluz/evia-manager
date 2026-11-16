@@ -38,9 +38,13 @@ export interface MediaFileRecord {
    * `unknown` for a code the app does not know (a row from a newer version, SR-MOB-10) — never shown as free text.
    */
   readonly category?: MediaCategory | 'unknown';
+  /** The length of a film in milliseconds (v4, EVM-110); absent for a picture and for rows from before v4. It stays on the phone: the command does not carry it. */
+  readonly durationMs?: number;
 }
 
 export type NewMediaFile = Omit<MediaFileRecord, 'state' | 'lastCode' | 'updatedAt' | 'category'> & { readonly category?: MediaCategory };
+
+const DURATION_MAX_MS = 24 * 60 * 60 * 1000;
 
 /** The files of the signed-in owner; reachable through `UnlockedStore.media` only (owner guard, SR-MOB-13). */
 export interface MediaFileStore {
@@ -88,6 +92,11 @@ export async function addMediaCategoryV3(tx: Tx): Promise<void> {
   await tx.exec('ALTER TABLE media_files ADD COLUMN category TEXT');
 }
 
+/** v4 (EVM-110): the length of a film in milliseconds. Additive and nullable (pictures and rows from v3 have none). */
+export async function addMediaDurationV4(tx: Tx): Promise<void> {
+  await tx.exec('ALTER TABLE media_files ADD COLUMN duration_ms INTEGER');
+}
+
 /** The checks of a new row; one place for `register` and for the registration inside the transaction of the queue. */
 export function isValidNewMediaFile(file: NewMediaFile, ownerUserId: string): boolean {
   return (
@@ -99,15 +108,16 @@ export function isValidNewMediaFile(file: NewMediaFile, ownerUserId: string): bo
     Number.isSafeInteger(file.sizeBytes) &&
     file.sizeBytes > 0 &&
     /^(image|video)\/[a-z0-9.+-]{1,40}$/.test(file.mime) &&
-    (file.category === undefined || isMediaCategory(file.category))
+    (file.category === undefined || isMediaCategory(file.category)) &&
+    (file.durationMs === undefined || (Number.isSafeInteger(file.durationMs) && file.durationMs >= 0 && file.durationMs <= DURATION_MAX_MS))
   );
 }
 
 /** The INSERT of a row in `pending`; idempotent per `assetId`. Runs inside the caller's transaction. */
 export async function insertMediaFile(tx: Tx, file: NewMediaFile): Promise<void> {
   await tx.run(
-    `INSERT INTO media_files (asset_id, mutation_id, work_order_id, owner_user_id, file_name, size_bytes, sha256, mime, state, last_code, created_at, updated_at, category)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', NULL, ?, ?, ?) ON CONFLICT (asset_id) DO NOTHING`,
+    `INSERT INTO media_files (asset_id, mutation_id, work_order_id, owner_user_id, file_name, size_bytes, sha256, mime, state, last_code, created_at, updated_at, category, duration_ms)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', NULL, ?, ?, ?, ?) ON CONFLICT (asset_id) DO NOTHING`,
     [
       file.assetId,
       file.mutationId,
@@ -120,6 +130,7 @@ export async function insertMediaFile(tx: Tx, file: NewMediaFile): Promise<void>
       file.createdAt,
       file.createdAt,
       file.category ?? null,
+      file.durationMs ?? null,
     ],
   );
 }
@@ -152,7 +163,7 @@ export class SqlMediaFileStore implements MediaFileStore {
   async list(): Promise<readonly MediaFileRecord[]> {
     const rows = await this.#db.read((tx) =>
       tx.all(
-        'SELECT asset_id, mutation_id, work_order_id, owner_user_id, file_name, size_bytes, sha256, mime, state, last_code, created_at, updated_at, category FROM media_files WHERE owner_user_id = ? ORDER BY created_at, asset_id',
+        'SELECT asset_id, mutation_id, work_order_id, owner_user_id, file_name, size_bytes, sha256, mime, state, last_code, created_at, updated_at, category, duration_ms FROM media_files WHERE owner_user_id = ? ORDER BY created_at, asset_id',
         [this.#ownerUserId],
       ),
     );
@@ -174,6 +185,9 @@ export class SqlMediaFileStore implements MediaFileStore {
           createdAt: Number(row['created_at']),
           updatedAt: Number(row['updated_at']),
           ...categoryOf(row['category']),
+          ...(typeof row['duration_ms'] === 'number' && Number.isSafeInteger(row['duration_ms']) && row['duration_ms'] >= 0
+            ? { durationMs: row['duration_ms'] }
+            : {}),
         },
       ];
     });

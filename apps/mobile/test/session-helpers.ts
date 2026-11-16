@@ -102,6 +102,7 @@ export function stubOwner(signIn: SignInClient = okSignIn()): StubOwner {
       return Promise.resolve(owner.queue.map((row) => ({ ...row, label: withLabels ? row.label : null })));
     },
     onBeforeSessionEnd: () => () => undefined,
+    onBeforeSessionEndAsync: () => () => undefined,
     syncStore: () => null,
     endSessionForWipe: ({ online }) => {
       // the real owner emits no `SessionEnded` here: the screen shows the result of the wipe itself

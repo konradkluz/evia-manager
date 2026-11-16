@@ -25,13 +25,13 @@ import {
 } from './device-guard/native';
 import { overrideAuthenticator, overrideBootClock, overrideLock, overrideSessionClock } from './device-guard/overrides';
 import { createSensitiveClipboard } from './clipboard/clipboard';
-import { deviceOverrides } from './e2e-hooks';
+import { deviceOverrides, reportFilmFailure } from './e2e-hooks';
 import { i18next } from './i18n';
 import { logDiagnostic } from './logging/log';
 import { CompanyDataWipe, type WipeConfirmClient } from './wipe/company-wipe';
 import type { SessionPorts } from './screens/SessionRoot';
 import { tokenStore } from './secure-store';
-import { localData, randomSource } from './storage';
+import { localData, randomSource, recordingMarker } from './storage';
 import { createHttpSyncTransport } from './sync/http-transport';
 import { SyncHost } from './sync/sync-host';
 import { SyncService } from './sync/sync-service';
@@ -124,6 +124,8 @@ export function createSessionPorts(
     },
     { first: true },
   );
+  // EVM-110 AC3: a marker left by a recording killed with the process must not show its notice to the NEXT user after a wipe
+  host.registerWipeStep('recording_marker', () => recordingMarker.clear());
   const clipboard = createSensitiveClipboard();
   // EVM-107: one synchronization service per session; the owner stops it (and the clipboard copy goes) BEFORE it removes the replica
   const sync = new SyncHost(
@@ -164,6 +166,10 @@ export function createSessionPorts(
     },
     // the camera (EVM-108): the free space of the phone and the ids of the session (UUIDv7, CSPRNG)
     capture: { disk: expoDiskSpace, newId },
+    // EVM-110 AC3: the marker of a recording in progress (a tiny file in the files of the app; nothing sensitive in it)
+    recordingMarker,
+    // EVM-110: the e2e variant keeps the code of a failed save of a film for the tool; in every other bundle the slot does nothing
+    filmFailure: reportFilmFailure,
   });
   media.start();
   mediaUploads = media;
@@ -173,6 +179,9 @@ export function createSessionPorts(
     sync.stop();
     clipboard.clear();
   });
+  // EVM-110 AC3 (SEC-110-12): a recording in progress is stopped and saved BEFORE the session ends and anything is cleaned (a sign-out, a revoked
+  // session, a wipe); a film that finishes after the end is not imported
+  owner.onBeforeSessionEndAsync(() => media.stopRecording());
   // a wipe in progress hides the data; a finished one is confirmed to the server at every start and return to the foreground
   companyWipe.onPhase((phase) => {
     guard.setWiping(phase !== 'idle');

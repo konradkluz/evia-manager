@@ -38,7 +38,7 @@ const FORBIDDEN_COMPONENT = /expo\.modules\.(updates|devlauncher|devmenu)|com\.f
 const FORBIDDEN_PERMISSION =
   /^android\.permission\.(READ_MEDIA_[A-Z_]+|READ_EXTERNAL_STORAGE|WRITE_EXTERNAL_STORAGE|MANAGE_EXTERNAL_STORAGE|READ_CONTACTS|WRITE_CONTACTS|GET_ACCOUNTS|ACCESS_[A-Z_]*LOCATION)$/;
 
-/** EVM-108 AC8: the camera is the one permission let through next to the upload ones; the microphone waits for EVM-110. */
+/** EVM-108 AC8: the camera is the one permission let through next to the upload ones; the microphone is never requested (EVM-110: films have no sound). */
 const CAMERA_PERMISSION = 'android.permission.CAMERA';
 const RECORD_AUDIO_PERMISSION = 'android.permission.RECORD_AUDIO';
 
@@ -75,7 +75,9 @@ export function checkManifest(manifestText, { applicationId, minimumTargetSdk = 
   ];
   for (const permission of permissions) {
     if (permission === RECORD_AUDIO_PERMISSION)
-      problems.push(`forbidden permission ${permission} (the microphone is requested from EVM-110 only)`);
+      problems.push(
+        `forbidden permission ${permission} (the microphone is never requested: films have no sound, the camera view is muted)`,
+      );
     else if (FOREGROUND_SERVICE_PERMISSION.test(permission))
       problems.push(`forbidden permission ${permission} (foreground service, ADR-0020a)`);
     else if (FORBIDDEN_PERMISSION.test(permission))

@@ -1,5 +1,6 @@
 import {
   createCapturedPhotoInput,
+  createCapturedVideoInput,
   createMediaAssetInput,
   DESCRIPTION_MAX,
   MEDIA_CATEGORIES,
@@ -89,5 +90,50 @@ describe('the command of a captured photo (EVM-108 AC1; security 15)', () => {
     for (const capturedAt of ['yesterday', '2026-11-15', '2026-11-15T08:00:00+01:00', '2026-13-45T08:00:00.000Z', '']) {
       expect(createCapturedPhotoInput({ ...photo, capturedAt })).toBeNull();
     }
+  });
+});
+
+describe('the command of a recorded film (EVM-110 AC1; RR-96, SEC-110-09)', () => {
+  const video = {
+    assetId: ASSET,
+    workOrderId: WO,
+    category: 'defect' as const,
+    capturedAt: '2026-11-15T08:00:00.000Z',
+    durationMs: 133_400,
+  };
+
+  it('EVM-110 AC1: the payload is built explicitly with EXACTLY the keys id, workOrderId, mediaType (video), category, capturedAt - the length is not one of them', () => {
+    const input = createCapturedVideoInput(video);
+    expect(input).toEqual({
+      type: 'CreateMediaAsset',
+      commandVersion: MEDIA_COMMAND_VERSION,
+      payload: { id: ASSET, workOrderId: WO, mediaType: 'video', category: 'defect', capturedAt: '2026-11-15T08:00:00.000Z' },
+    });
+    expect(Object.keys(input?.payload ?? {}).sort()).toEqual(['capturedAt', 'category', 'id', 'mediaType', 'workOrderId']);
+  });
+
+  it('EVM-110 AC1: extra fields of the argument (a description, a stage, a customer, a path) never reach the payload', () => {
+    const input = createCapturedVideoInput({
+      ...video,
+      description: 'SYNTHETIC-DESCRIPTION',
+      procedureStageId: WO,
+      customerName: 'SYNTHETIC-CUSTOMER',
+      uri: 'file:///SYNTHETIC/path.mp4',
+    } as never);
+    expect(Object.keys(input?.payload ?? {}).sort()).toEqual(['capturedAt', 'category', 'id', 'mediaType', 'workOrderId']);
+    expect(JSON.stringify(input)).not.toMatch(/SYNTHETIC|durationMs/);
+  });
+
+  it('EVM-110 AC1: a bad id, a category outside the list, a time that is not an ISO instant or a length that is not a whole non-negative number is refused', () => {
+    expect(createCapturedVideoInput({ ...video, assetId: '10000000-0000-4000-8000-000000000001' })).toBeNull();
+    expect(createCapturedVideoInput({ ...video, workOrderId: 'x' })).toBeNull();
+    expect(createCapturedVideoInput({ ...video, category: 'holiday' as never })).toBeNull();
+    for (const capturedAt of ['yesterday', '2026-11-15', '2026-11-15T08:00:00+01:00', '']) {
+      expect(createCapturedVideoInput({ ...video, capturedAt })).toBeNull();
+    }
+    for (const durationMs of [-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(createCapturedVideoInput({ ...video, durationMs })).toBeNull();
+    }
+    expect(createCapturedVideoInput({ ...video, durationMs: 0 })).not.toBeNull();
   });
 });

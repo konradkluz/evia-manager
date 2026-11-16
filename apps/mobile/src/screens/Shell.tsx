@@ -236,6 +236,10 @@ export function Shell() {
           ) : tab === 'queue' ? (
             <QueueScreen
               onOpenQueue={openQueue}
+              onOpenUploadSettings={() => {
+                setOpenOrderId(null);
+                setTab('more');
+              }}
               onRecreate={(item) => {
                 setEntry({ stage: 'recreate', mutationId: item.id });
               }}

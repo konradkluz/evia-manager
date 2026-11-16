@@ -23,6 +23,8 @@ data class JobStatus(
     val partCount: Int,
     val percent: Int,
     val sizeBytes: Long,
+    /** EVM-110 AC4: a video that is not running waits for a network without charges (the app shows "Czeka na Wi-Fi", never an error). */
+    val waitingForWifi: Boolean = false,
 )
 
 /** The pure mapping from the persisted job to what the status query and the throttled events report (no I/O). */

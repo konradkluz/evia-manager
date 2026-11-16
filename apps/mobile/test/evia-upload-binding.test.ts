@@ -58,7 +58,7 @@ describe('EviaUpload binding (EVM-130 AC2, AC3; SR-SESS-09)', () => {
   it('EVM-108 AC1: the import answers only a code of the closed list and the glue holds no logic - the checks are in the engine; sign-out empties the camera cache', () => {
     expect(EVIA_UPLOAD_FUNCTIONS).toContain('importOriginal');
     expect(EVIA_UPLOAD_FUNCTIONS).toContain('sweepOriginals');
-    expect(CODE).toMatch(/AsyncFunction\("importOriginal"\)\s*\{[^}]*rt\.importer\.import\(assetId, sourceUri\)\.wire/);
+    expect(CODE).toMatch(/AsyncFunction\("importOriginal"\)\s*\{[^}]*rt\.importer\.import\(assetId, sourceUri, kind\)\.wire/);
     expect(CODE).toMatch(/AsyncFunction\("sweepOriginals"\)\s*\{[^}]*rt\.importer\.sweep\(/);
     // the cleaning is its own call (it touches no token); sign-out of the tokens does not clean, and the retry runs only for a signed-out phone
     expect(EVIA_UPLOAD_FUNCTIONS).toContain('clearCaptureCache');

@@ -1,0 +1,47 @@
+# EVM-110 AC8 (shared): N synthetic films of MIB MiB through the hook of the e2e variant `media: capture video` - each is written to the cache folder of the
+# camera and taken by the SAME capture pipeline as a recording (the native import moves it, the digest, one transaction). Called with the variables MIB and
+# COUNT. The status line confirms only after the LAST durable save. Ends with the panel closed.
+appId: pl.eviacharge.manager
+---
+- tapOn:
+    id: 'evia-e2e-hooks-panel'
+# the panel is a scroll view: the fields and the button lie below the fold
+- scrollUntilVisible:
+    element:
+      id: 'e2e-video-mib'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'e2e-video-mib'
+- eraseText
+- inputText: ${MIB}
+- hideKeyboard
+- tapOn:
+    id: 'e2e-video-count'
+- eraseText
+- inputText: ${COUNT}
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: 'e2e-capture-video'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'e2e-capture-video'
+- scrollUntilVisible:
+    element:
+      id: 'e2e-status'
+    direction: UP
+    centerElement: true
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-status'
+      text: 'video_added=${COUNT}'
+    timeout: 240000
+- scrollUntilVisible:
+    element:
+      id: 'e2e-close'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'e2e-close'

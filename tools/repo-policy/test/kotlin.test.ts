@@ -128,6 +128,7 @@ describe('EVM-109 AC5, AC7: thresholds and exclusions on the real files', () => 
       'apps/mobile/modules/evia-upload/android/src/main/java/pl/eviacharge/upload/android/TokenKeystore.kt',
       'apps/mobile/modules/evia-upload/android/src/main/java/pl/eviacharge/upload/android/UploadNotifications.kt',
       'apps/mobile/modules/evia-upload/android/src/main/java/pl/eviacharge/upload/android/AndroidSystemJobs.kt',
+      'apps/mobile/modules/evia-upload/android/src/main/java/pl/eviacharge/upload/android/AndroidUnmeteredCheck.kt',
       'apps/mobile/modules/evia-upload/android/src/main/java/pl/eviacharge/upload/android/UploadRuntime.kt',
     ]);
     // every glue file on disk is on the list and has a reason, and no pure file of the engine is (a new glue file must be added on purpose)
@@ -339,6 +340,28 @@ describe('EVM-108 AC8: no way around the camera of the app in native sources (SR
       'A.kt: zakazane w kodzie natywnym aparatu (zamiar aparatu systemowego)',
       'A.kt: zakazane w kodzie natywnym aparatu (pamięć zewnętrzna)',
     ]);
+  });
+
+  it('EVM-110 AC4 AC7: the name of a Wi-Fi network, WifiManager and the microphone are found in native sources (SEC-110-03, SEC-110-16)', () => {
+    for (const code of [
+      'val m = context.getSystemService(WifiManager::class.java)',
+      'val name = info.getSSID()',
+      'val id = info.getBSSID()',
+      'val info = wifi.getConnectionInfo()',
+      'val p = "android.permission.NEARBY_WIFI_DEVICES"; val q = NEARBY_WIFI_DEVICES',
+      'val r = AudioRecord(source, rate, channel, format, size)',
+      'val r = MediaRecorder()',
+      'recording.prepareRecording(context, out).withAudioEnabled()',
+      'val p = Manifest.permission.RECORD_AUDIO',
+    ]) {
+      expect(cameraSourceProblems({ 'A.kt': code }).length, code).toBeGreaterThan(0);
+    }
+    expect(cameraSourceProblems({ 'A.kt': 'getSystemService(WifiManager::class.java)' })).toEqual([
+      'A.kt: zakazane w kodzie natywnym aparatu (nazwa sieci Wi-Fi albo WifiManager)',
+    ]);
+    expect(cameraSourceProblems({ 'A.kt': 'val a = AudioRecord(1)' })).toEqual(['A.kt: zakazane w kodzie natywnym aparatu (mikrofon)']);
+    // the network of a video is read from capabilities: that is allowed
+    expect(cameraSourceProblems({ 'A.kt': 'capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)' })).toEqual([]);
   });
 
   it('EVM-108 AC8: a comment is text, a similar name is not a finding', () => {

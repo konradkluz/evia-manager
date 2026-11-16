@@ -46,3 +46,16 @@ export function formatFreeSpace(bytes: number): string {
   if (bytes < GB) return `${String(Math.max(0, Math.floor(bytes / MB)))} MB`;
   return `${(Math.floor((bytes / GB) * 10) / 10).toFixed(1).replace('.', ',')} GB`;
 }
+
+/** "2:13" - the length of a film (minutes and two-digit seconds, rounded down to a whole second; EVM-110). */
+export function formatDuration(ms: number): string {
+  const total = Number.isFinite(ms) && ms > 0 ? Math.floor(ms / 1000) : 0;
+  return `${String(Math.floor(total / 60))}:${String(total % 60).padStart(2, '0')}`;
+}
+
+/** "78 MB" / "1,2 GB" - the size of a file in the list (rounded to the nearest unit shown, Polish decimal comma). */
+export function formatFileSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes < 0) return '0 MB';
+  if (bytes < GB) return `${String(Math.max(1, Math.round(bytes / MB)))} MB`;
+  return `${(Math.round((bytes / GB) * 10) / 10).toFixed(1).replace('.', ',')} GB`;
+}

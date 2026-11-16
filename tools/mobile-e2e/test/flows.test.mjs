@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { describe, it } from 'node:test';
 import { APPLICATION_ID } from '../src/commands.mjs';
 import { CAMERA_SCENARIOS } from '../src/camera-scenarios.mjs';
+import { VIDEO_SCENARIOS } from '../src/video-scenarios.mjs';
 import { SCENARIOS } from '../src/scenarios.mjs';
 import { UPLOAD_SCENARIOS } from '../src/upload-scenarios.mjs';
 
@@ -30,7 +31,9 @@ describe('Maestro flows and scenarios agree (EVM-009 AC4)', () => {
     const uploadFlows = [...new Set(UPLOAD_SCENARIOS.flatMap((scenario) => scenario.steps.map((step) => step.flow)))];
     // EVM-108: the flows 80-89 belong to the camera scenarios (src/camera-scenarios.mjs; test/camera-flows.test.mjs judges them)
     const cameraFlows = [...new Set(CAMERA_SCENARIOS.flatMap((scenario) => scenario.steps.map((step) => step.flow)))];
-    assert.deepEqual([...referenced, ...uploadFlows, ...cameraFlows].sort(), files);
+    // EVM-110: the flows 90-9x belong to the video scenarios (src/video-scenarios.mjs; test/video-flows.test.mjs judges them); they reuse the sign-in flow 80
+    const videoFlows = [...new Set(VIDEO_SCENARIOS.flatMap((scenario) => scenario.steps.map((step) => step.flow)))];
+    assert.deepEqual([...new Set([...referenced, ...uploadFlows, ...cameraFlows, ...videoFlows])].sort(), files);
     assert.equal(new Set(referenced).size, referenced.length);
   });
 

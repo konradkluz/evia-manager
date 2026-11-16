@@ -33,11 +33,14 @@ describe('without the native module (EVM-130 AC3; fail closed)', () => {
     const upload = nativeUploadOf(null);
     expect(upload).toBe(UNAVAILABLE_UPLOAD);
     expect(await upload.digestOriginal('a')).toBeNull();
-    expect(await upload.importOriginal('a', 'file:///x')).toBe('unavailable');
+    expect(await upload.importOriginal('a', 'file:///x', 'photo')).toBe('unavailable');
     expect(await upload.sweepOriginals(['a'], 1)).toBe(0);
     expect(await upload.cancelUpload('a', true)).toBe(false);
-    expect(await upload.reconcile([], false)).toEqual({});
-    expect(await upload.retryUpload('a', false)).toBe('unavailable');
+    expect(await upload.reconcile([])).toEqual({});
+    expect(await upload.retryUpload('a')).toBe('unavailable');
+    // EVM-110 AC4: without the module the setting reads its default (on, fail closed) and cannot be stored
+    expect(upload.getVideoWifiOnly()).toBe(true);
+    expect(await upload.setVideoWifiOnly(false)).toBe(false);
     expect(await upload.completeUpload('a', 'ready', null)).toBe('unavailable');
     expect(await upload.uploadStatuses()).toEqual([]);
     expect(await upload.wipeUploads()).toBe(true);
@@ -76,8 +79,8 @@ describe('without the native module (EVM-130 AC3; fail closed)', () => {
     expect(await session.sessionState()).toEqual({ state: 'signed_in', ownerId: 'u:d' });
     const upload = nativeUploadOf(module);
     const item = { assetId: 'a', workOrderId: 'w', userId: 'u', deviceId: 'd', contentType: 'image/jpeg' };
-    expect(await upload.reconcile([item], false)).toEqual({ a: 'upload_unavailable' });
-    expect(await upload.retryUpload('a', false)).toBe('upload_unavailable');
+    expect(await upload.reconcile([item])).toEqual({ a: 'upload_unavailable' });
+    expect(await upload.retryUpload('a')).toBe('upload_unavailable');
     expect(await upload.uploadStatuses()).toEqual([]);
   });
 });

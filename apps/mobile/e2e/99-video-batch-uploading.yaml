@@ -1,0 +1,16 @@
+# EVM-110 AC8: the network without charges (Wi-Fi) is back and the first film is on its way: the Queue shows its progress ("Wysyła się N%"). The server drops
+# the connection in the middle of one part (once) and tools/mobile-e2e then stops the app by force (force-stop) in the middle of the transfer; the resume finds
+# the parts the server holds and sends nothing twice.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- tapOn:
+    id: 'nav-queue'
+- extendedWaitUntil:
+    visible: '.*Wysyła się [0-9]+%'
+    timeout: 180000
+- takeScreenshot: m07-video-three-uploading

@@ -51,7 +51,7 @@ describe('Expo configuration of the build (EVM-009 AC3, AC5, AC6)', () => {
     );
   });
 
-  it('EVM-108 AC8: CAMERA is let through for the camera (not blocked), the microphone stays blocked until EVM-110', () => {
+  it('EVM-108 AC8: CAMERA is let through for the camera (not blocked), the microphone stays blocked for good (EVM-110: films have no sound)', () => {
     expect(BLOCKED_ANDROID_PERMISSIONS).not.toContain('android.permission.CAMERA');
     expect(BLOCKED_ANDROID_PERMISSIONS).toContain('android.permission.RECORD_AUDIO');
     expect(buildExpoConfig(releaseEnv).android?.permissions).toEqual([]);

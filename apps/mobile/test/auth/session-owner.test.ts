@@ -873,6 +873,53 @@ describe('sign-out through the module (EVM-100 AC7; EVM-130 AC2, AC5)', () => {
   });
 });
 
+describe('the end of the session waits for a recording to stop before anything is cleaned (EVM-110 AC3; SEC-110-12)', () => {
+  it('EVM-110 AC3: sign-out, revoked session, device wipe and the wipe of company data await the async tasks BEFORE the replica is removed, the store locked or the cache cleaned', async () => {
+    const logs: string[][] = [];
+    for (const how of ['revoked', 'wipe_required', 'sign_out', 'company_wipe'] as const) {
+      phone = newPhone();
+      const rig = await signedIn(phone);
+      const log: string[] = [];
+      rig.owner.onBeforeSessionEndAsync(async () => {
+        log.push(`start(endSession logged: ${String(phone.log.includes('endSession'))})`);
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        log.push(`done(endSession logged: ${String(phone.log.includes('endSession'))}, cache cleaned: ${String(phone.native.cacheCalls)})`);
+      });
+      const off = rig.owner.onBeforeSessionEndAsync(() => {
+        log.push('removed listener');
+        return Promise.resolve();
+      });
+      off();
+      phone.native.accessScript.push({ status: 'blocked', state: how === 'wipe_required' ? 'wipe_required' : 'paused_revoked' });
+      if (how === 'revoked' || how === 'wipe_required') await rig.owner.refresh();
+      else if (how === 'sign_out') await rig.owner.signOut({ online: false });
+      else await rig.owner.endSessionForWipe({ online: false });
+      logs.push(log);
+    }
+    expect(logs).toEqual(
+      Array.from({ length: 4 }, () => ['start(endSession logged: false)', 'done(endSession logged: false, cache cleaned: 0)']),
+    );
+  });
+
+  it('EVM-110 AC3: a task that fails or never finishes does not keep the user signed in - the end of the session waits at most 3 seconds and still happens', async () => {
+    jest.useFakeTimers();
+    try {
+      phone = newPhone();
+      const rig = await signedIn(phone);
+      rig.owner.onBeforeSessionEndAsync(() => Promise.reject(new Error('a task that fails')));
+      rig.owner.onBeforeSessionEndAsync(() => new Promise<void>(() => undefined));
+      const ended = rig.owner.signOut({ online: false });
+      await jest.advanceTimersByTimeAsync(2900);
+      expect(rig.owner.syncStore()).not.toBeNull();
+      await jest.advanceTimersByTimeAsync(200);
+      expect(await ended).toEqual({ reason: 'signed_out', unsentItems: 0 });
+      expect(rig.owner.syncStore()).toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+});
+
 describe('the end of the session stops the synchronization first (EVM-107 AC5; security S2, S3)', () => {
   it('EVM-107 AC5: the store for the synchronization exists only for a signed-in session (null otherwise, also after the end)', async () => {
     const rig = start(phone);

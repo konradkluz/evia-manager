@@ -1,0 +1,20 @@
+# EVM-110 AC5: Wi-Fi (the network without charges). A synthetic film (32 MiB) is saved by the hook and the transfer starts: the Queue shows its progress
+# ("Wysyła się N%"). The answer to every part is held at the scenario server, so the transfer is still going when tools/mobile-e2e takes Wi-Fi away.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- runFlow:
+    file: common/hook-capture-video.yaml
+    env:
+      MIB: '32'
+      COUNT: '1'
+- tapOn:
+    id: 'nav-queue'
+- extendedWaitUntil:
+    visible: '.*Wysyła się [0-9]+%'
+    timeout: 120000
+- takeScreenshot: m07-video-midway-uploading

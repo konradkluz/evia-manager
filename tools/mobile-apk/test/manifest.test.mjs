@@ -310,6 +310,33 @@ describe('camera permission and libraries of Google in the manifest (EVM-108 AC8
   const withElement = (inside, where = '</manifest>') => changed(where, `${inside}${where}`);
   const camera = '<uses-permission android:name="android.permission.CAMERA" />';
 
+  it('EVM-110 AC7: RECORD_AUDIO is a permanent ban - no "from EVM-110" wording, refused in both permission tags, and the white list does not grow beyond CAMERA', () => {
+    const ban =
+      'forbidden permission android.permission.RECORD_AUDIO (the microphone is never requested: films have no sound, the camera view is muted)';
+    for (const tag of ['uses-permission', 'uses-permission-sdk-23']) {
+      assert.deepEqual(
+        checkManifest(withElement(`${camera}<${tag} android:name="android.permission.RECORD_AUDIO" />`), { applicationId: ID }),
+        [ban],
+        tag,
+      );
+    }
+    assert.ok(!ban.includes('EVM-110'));
+    // an extra permission next to CAMERA (the wake lock for a recording, the state of Wi-Fi, location of a film) is refused
+    for (const name of [
+      'WAKE_LOCK',
+      'ACCESS_WIFI_STATE',
+      'NEARBY_WIFI_DEVICES',
+      'FOREGROUND_SERVICE_CAMERA',
+      'FOREGROUND_SERVICE_MICROPHONE',
+    ]) {
+      const problems = checkManifest(withElement(`${camera}<uses-permission android:name="android.permission.${name}" />`), {
+        applicationId: ID,
+      });
+      assert.equal(problems.length, 1, name);
+      assert.match(problems[0] ?? '', new RegExp(name), name);
+    }
+  });
+
   it('EVM-108 AC8: CAMERA is the one permission added to the white list: the manifest with it passes', () => {
     assert.deepEqual(checkManifest(withElement(camera), { applicationId: ID }), []);
   });
@@ -317,7 +344,9 @@ describe('camera permission and libraries of Google in the manifest (EVM-108 AC8
   it('EVM-108 AC8: the microphone, location, gallery and storage stay forbidden next to CAMERA (own message for the microphone)', () => {
     assert.deepEqual(
       checkManifest(withElement(`${camera}<uses-permission android:name="android.permission.RECORD_AUDIO" />`), { applicationId: ID }),
-      ['forbidden permission android.permission.RECORD_AUDIO (the microphone is requested from EVM-110 only)'],
+      [
+        'forbidden permission android.permission.RECORD_AUDIO (the microphone is never requested: films have no sound, the camera view is muted)',
+      ],
     );
     for (const name of [
       'ACCESS_FINE_LOCATION',

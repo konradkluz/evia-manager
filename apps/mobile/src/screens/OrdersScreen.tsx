@@ -11,6 +11,7 @@ import { ConnectionNotices } from './ConnectionNotices';
 import { ContactWarningBanner, HiddenDataNotice, PatchNotice } from './DeviceNotices';
 import { OrderCard } from './OrderCard';
 import { SyncCapsule } from './SyncCapsule';
+import { InterruptedRecordingNotice } from './InterruptedRecordingNotice';
 import { SyncNotices } from './SyncNotices';
 import { useOrderList } from './orders-hooks';
 import { useGuard, useSession, useSyncSnapshot } from './session-context';
@@ -281,6 +282,7 @@ export function OrdersScreen({
           }}
         />
       )}
+      <InterruptedRecordingNotice />
       {hidden ? null : <SyncNotices now={now} />}
       <View style={{ flex: 1 }}>{content()}</View>
       <View style={{ padding: space.inset.md }}>

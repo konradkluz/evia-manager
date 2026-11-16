@@ -4,7 +4,7 @@ title: "Aplikacja: zdjęcia — aparat, kategoria, kolejka plików"
 type: story
 milestone: M2
 epic: E11 Zdjęcia i filmy
-status: in-review
+status: done
 priority: P1
 path: pelna             # pliki, dane osobowe na urządzeniu
 owner: mobile-developer
@@ -167,3 +167,5 @@ EVM-108 pokazuje w Kolejce **minimum**: wiersz pliku, 4 etykiety stanu, licznik,
 - 2026-11-15 — weryfikacja orkiestratora (ścieżka `pelna`) na `3a2f26dd`: `pnpm run gate` zielona (pokrycie zmienionego kodu: linie 99,3%, gałęzie 95,4%), `npm run test:tools` zielone, `npm run docs:check` 0 błędów, `pnpm run scan` zielony (gitleaks 0, Semgrep 0, OSV i Trivy bez blokujących, zizmor i actionlint 0); emulator jak we wpisie wyżej; do potwierdzenia w CI przed scaleniem: job `mobile-apk` na paczce release i cztery testy JVM z dowiązaniami na Linuksie (Tech Lead)
 - 2026-11-15 — Koszt: bez rozbicia w $ i bez pełnej sumy tokenów (nieodczytane w sesji; kontekst sesji był kompaktowany) — realizacja etapami: plan, 4 etapy i 2 serie poprawek wykonawcy, makieta (ux-designer), wymagania i dokumenty security, QA, 3 przeglądy; rundy poprawek po przeglądach: 1; ścieżka pełna; sonnet; plik historyjki ok. 26 KB; vs baseline: szacunkowo powyżej celu ścieżki pełnej (historyjka z modułem natywnym, JS i Maestro naraz — przy kolejnych dzielić już w `/refine`)
 - 2026-11-15 — bramki zielone, przeglądy APPROVE; **status `in-review`** — demo i akceptacja Konrada (Tech Lead)
+- 2026-11-15 — CI PR #144: pierwszy przebieg czerwony (test reguł lint aparatu przekroczył domyślne 5 s na runnerze; blok dostał limit 30 s jak sąsiedni, `23a64bd3`), drugi zielony — job `mobile-apk` (`verify`, drzewo Gradle, mapping R8 na paczce release) zielony, testy JVM z dowiązaniami symbolicznymi wykonane na Linuksie (gałąź z linii 224 `OriginalImport.kt` pokryta w lcov z CI, niepokryta na Windowsie); warunki przeglądu bezpieczeństwa spełnione (Tech Lead)
+- 2026-11-15 — PR #144 scalony przez Konrada (`main` `da3c780f`); decyzje z „Notatek” (akcje dla `missing_original`, potwierdzenie `buildFromSource` i dodatkowych grup, RR-100) pozostają do rozstrzygnięcia przez Konrada i nie blokują; **status `done`** (Tech Lead)

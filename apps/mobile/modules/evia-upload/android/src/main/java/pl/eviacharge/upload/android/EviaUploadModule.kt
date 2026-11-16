@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import android.view.WindowManager
 import expo.modules.interfaces.permissions.PermissionsStatus
 import expo.modules.kotlin.Promise
 import expo.modules.kotlin.modules.Module
@@ -14,6 +15,7 @@ import pl.eviacharge.upload.files.UploadFiles
 import pl.eviacharge.upload.runner.JobOutcomes
 import pl.eviacharge.upload.runner.JobStatus
 import pl.eviacharge.upload.http.UploadUnavailable
+import pl.eviacharge.upload.files.MediaKind
 import pl.eviacharge.upload.schedule.JobArming
 import pl.eviacharge.upload.schedule.SyntheticFile
 import pl.eviacharge.upload.schedule.wire
@@ -70,7 +72,38 @@ class EviaUploadModule : Module() {
       "partCount" to partCount,
       "percent" to percent,
       "sizeBytes" to sizeBytes.toDouble(),
+      "waitingForWifi" to waitingForWifi,
     )
+
+  /**
+   * EVM-110: work on whole files (the import of a video, the SHA-256, the arming of jobs) runs on the own thread of the upload ([UploadRuntime.heavy]),
+   * never on the shared thread of the modules: the promise is resolved from there; a failure answers [fallback].
+   */
+  private fun <T> heavy(
+    promise: Promise,
+    fallback: T,
+    uploadOnly: Boolean = false,
+    block: (UploadRuntime) -> T,
+  ) {
+    val rt = runtime()
+    if (rt == null || (uploadOnly && !rt.uploadEnabled)) {
+      promise.resolve(fallback)
+      return
+    }
+    try {
+      rt.heavy.execute {
+        promise.resolve(
+          try {
+            block(rt)
+          } catch (error: Throwable) {
+            fallback
+          },
+        )
+      }
+    } catch (error: RuntimeException) {
+      promise.resolve(fallback)
+    }
+  }
 
   /** The target of the notification that arrived with `onNewIntent` (read once by `launchTarget`). */
   @Volatile private var newIntentTarget: String? = null
@@ -266,21 +299,23 @@ class EviaUploadModule : Module() {
      * EVM-108: the picture the camera wrote becomes the durable original of [assetId] (checked, copied with fsync, the source removed).
      * Resolves `ok` | `invalid` | `source_missing` | `no_space` | `io_error` | `wipe_active` | `exists` | `unavailable`; never a path or a message.
      */
-    AsyncFunction("importOriginal") { assetId: String, sourceUri: String ->
-      withRuntime("unavailable") { rt -> rt.importer.import(assetId, sourceUri).wire }
+    AsyncFunction("importOriginal") { assetId: String, sourceUri: String, mediaType: String, promise: Promise ->
+      // EVM-110: the kind comes from the mode of the camera, never from the extension the caller names; a video is MOVED (no copy)
+      val kind = MediaKind.fromWire(mediaType)
+      if (kind == null) promise.resolve("invalid") else heavy(promise, "unavailable") { rt -> rt.importer.import(assetId, sourceUri, kind).wire }
     }
 
     /**
      * EVM-108: the sweep of originals nobody knows (not in [keepAssetIds], older than [olderThanMs]), of import leftovers and of old pictures
      * in the camera cache. Resolves how many files went (`0` when unavailable).
      */
-    AsyncFunction("sweepOriginals") { keepAssetIds: List<String>, olderThanMs: Double ->
-      withRuntime(0) { rt -> rt.importer.sweep(keepAssetIds.toSet(), olderThanMs.toLong()) }
+    AsyncFunction("sweepOriginals") { keepAssetIds: List<String>, olderThanMs: Double, promise: Promise ->
+      heavy(promise, 0) { rt -> rt.importer.sweep(keepAssetIds.toSet(), olderThanMs.toLong()) }
     }
 
     /** `{sizeBytes, sha256}` of the original, computed natively as a stream; `null` when there is none. */
-    AsyncFunction("digestOriginal") { assetId: String ->
-      withRuntime<Map<String, Any?>?>(null) { rt ->
+    AsyncFunction("digestOriginal") { assetId: String, promise: Promise ->
+      heavy<Map<String, Any?>?>(promise, null) { rt ->
         rt.lifecycle.digest(assetId)?.let { mapOf("sizeBytes" to it.sizeBytes.toDouble(), "sha256" to it.sha256Hex) }
       }
     }
@@ -289,23 +324,62 @@ class EviaUploadModule : Module() {
      * Arms the job of a file once the server applied `CreateMediaAsset` (idempotent). Resolves `armed_user_initiated` | `armed` |
      * `already_armed` | `missing_original` | `invalid` | `wipe_active` | `failed` | `upload_unavailable` (no storage hosts in the build) | `unavailable`.
      */
-    AsyncFunction("armUpload") { assetId: String, workOrderId: String, userId: String, deviceId: String, wifiOnly: Boolean, contentType: String? ->
-      withUpload(UploadUnavailable.WIRE) { rt ->
-        rt.arming.arm(JobArming.Item(assetId, workOrderId, userId, deviceId, contentType.orEmpty()), wifiOnly).wire()
+    AsyncFunction("armUpload") { assetId: String, workOrderId: String, userId: String, deviceId: String, contentType: String?, promise: Promise ->
+      // the network of the job comes from the native setting "videos only over Wi-Fi" (EVM-110), never from the caller
+      heavy(promise, UploadUnavailable.WIRE, uploadOnly = true) { rt ->
+        rt.arming.arm(JobArming.Item(assetId, workOrderId, userId, deviceId, contentType.orEmpty())).wire()
+      }
+    }
+
+    /**
+     * EVM-110 AC3: the screen stays on while a film is recorded (`FLAG_KEEP_SCREEN_ON` of the window of the visible activity, set on the UI thread;
+     * no wake lock, no permission). The app takes the flag off at the end of the recording, on an error and when the camera screen goes away.
+     * Resolves `true` when the request reached an activity.
+     */
+    Function("setKeepScreenOn") { on: Boolean ->
+      val activity = appContext.currentActivity
+      if (activity == null) {
+        false
+      } else {
+        activity.runOnUiThread {
+          if (on) {
+            activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+          } else {
+            activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+          }
+        }
+        true
       }
     }
 
     /** Arms every file of the list (start, return to the foreground, after a sign-in). Items: `{assetId, workOrderId, userId, deviceId, contentType}` (`contentType` = the MIME type of the file; the module declares it in the upload session). */
-    AsyncFunction("reconcile") { items: List<Map<String, String>>, wifiOnly: Boolean ->
-      withUpload(UploadUnavailable.reconcile(items.map { it["assetId"].orEmpty() })) { rt ->
+    AsyncFunction("reconcile") { items: List<Map<String, String>>, promise: Promise ->
+      heavy(promise, UploadUnavailable.reconcile(items.map { it["assetId"].orEmpty() }), uploadOnly = true) { rt ->
         val list = items.map { JobArming.Item(it["assetId"].orEmpty(), it["workOrderId"].orEmpty(), it["userId"].orEmpty(), it["deviceId"].orEmpty(), it["contentType"].orEmpty()) }
-        rt.arming.reconcile(list, wifiOnly).mapValues { it.value.wire() }
+        rt.arming.reconcile(list).mapValues { it.value.wire() }
       }
     }
 
     /** "Ponów": the same job is handed to the system again. Same answers as `armUpload`. */
-    AsyncFunction("retryUpload") { assetId: String, wifiOnly: Boolean ->
-      withUpload(UploadUnavailable.WIRE) { rt -> rt.arming.retry(assetId, wifiOnly).wire() }
+    AsyncFunction("retryUpload") { assetId: String, promise: Promise ->
+      heavy(promise, UploadUnavailable.WIRE, uploadOnly = true) { rt -> rt.arming.retry(assetId).wire() }
+    }
+
+    /**
+     * EVM-110 AC4: the setting "videos only over Wi-Fi" (default `true`; a local value of the phone that stays after the sign-out). Read at once, from
+     * the native store the engine reads too (also with the app closed); unreadable = `true`.
+     */
+    Function("getVideoWifiOnly") {
+      runtime()?.settings?.videoWifiOnly() ?: true
+    }
+
+    /** Stores the setting and hands the unfinished videos to the system again with the network it asks for. Resolves `true` when the value is durable. */
+    AsyncFunction("setVideoWifiOnly") { value: Boolean, promise: Promise ->
+      heavy(promise, false) { rt ->
+        val saved = rt.settings.setVideoWifiOnly(value)
+        if (saved && rt.uploadEnabled) rt.arming.rearmVideos()
+        saved
+      }
     }
 
     /** The user cancels a file: the job stops and goes; the original only when [deleteOriginal]. Resolves `true` when everything was removed. */

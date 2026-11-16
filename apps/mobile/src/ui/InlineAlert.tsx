@@ -17,7 +17,7 @@ export interface InlineAlertProps {
   /** Overrides the tone icon (e.g. a refresh icon for a background refresh). */
   icon?: LucideIcon;
   /** How the screen reader announces it (default `polite`); `assertive` for an error that must not be drowned by another announcement (the camera). */
-  live?: 'polite' | 'assertive';
+  live?: 'polite' | 'assertive' | 'none';
   testID?: string;
 }
 
