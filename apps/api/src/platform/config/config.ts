@@ -57,6 +57,11 @@ export interface AppConfig {
    * the process (a staging without the bucket must still deploy), it makes the erasing operations answer `503`. The secret never reaches a log.
    */
   readonly deletionRegister: DeletionRegisterSettings;
+  /**
+   * The switches of features (EVM-135 AC3; ADR-0024 pt 10): `siteSurveys` - creating a site survey from the phone and the panel (`SITE_SURVEYS_ENABLED`,
+   * off unless exactly `true`). Off stops the creation only; the surveys that exist are read, listed and synchronised as before.
+   */
+  readonly features: { readonly siteSurveys: boolean };
   /** The synchronisation of the phones (EVM-096; ADR-0021). The keys of the cursors are secrets: never logged. */
   readonly sync: SyncSettings;
 }
@@ -184,6 +189,8 @@ const schema = z
     SYNC_FULL_DOWNLOADS_PER_DAY: z.coerce.number().int().min(1).max(100).default(3),
     SYNC_SNAPSHOTS_PER_HOUR: z.coerce.number().int().min(1).max(10_000).default(120),
     SYNC_PAGE_MAX_BYTES: z.coerce.number().int().min(10_000).max(1_000_000).default(900_000),
+    // EVM-135: exactly `true` or `false`; absent is off (deny by default) - any other value stops the start
+    SITE_SURVEYS_ENABLED: z.enum(['true', 'false']).default('false'),
     // Empty (an image built without the argument, the example file) is the same as absent.
     EVIA_RELEASE_COMMIT: releaseValue(/^[0-9a-f]{40}$/),
     EVIA_RELEASE_MANIFEST_SHA256: releaseValue(/^[0-9a-f]{64}$/),
@@ -335,6 +342,7 @@ export function loadConfig(env: Env, read: ReadConfigFile = readConfigFile): App
     // EVM-068: in production (staging included) the worker refuses to scan without an image processor instead of leaving photos `clean` silently
     ...(media === undefined ? {} : { media: { ...media, processorRequired: value.NODE_ENV === 'production' } }),
     deletionRegister: resolveDeletionRegisterSettings(value, value.NODE_ENV !== 'production'),
+    features: { siteSurveys: value.SITE_SURVEYS_ENABLED === 'true' },
     sync: {
       cursorKeys: syncCursorKeysOf(value),
       closedOrdersInScopeDays: value.SYNC_CLOSED_ORDERS_IN_SCOPE_DAYS,

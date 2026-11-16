@@ -179,6 +179,8 @@ describe('compose.dev.yaml follows the same hardening as compose.yaml (EVM-077 A
       PANEL_ORIGIN: 'http://localhost:5173',
       WEBAUTHN_RP_ID: 'localhost',
       WEBAUTHN_RP_NAME: 'EVia Manager',
+      // EVM-135 AC3: the site survey is switched on in development (off by default in the code)
+      SITE_SURVEYS_ENABLED: 'true',
       CURSOR_KEY: null,
       // EVM-023: the master key of the TOTP secrets, by name only (dev:init draws it)
       FIELD_ENCRYPTION_KEYS: null,

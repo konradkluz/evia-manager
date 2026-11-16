@@ -72,6 +72,8 @@ services:
       PANEL_ORIGIN: http://localhost:5173
       WEBAUTHN_RP_ID: localhost
       WEBAUTHN_RP_NAME: EVia Manager
+      # EVM-135 AC3: the site survey on in development (the code defaults to off; the deployment value is set in compose.staging.yaml)
+      SITE_SURVEYS_ENABLED: 'true'
       CURSOR_KEY:
       FIELD_ENCRYPTION_KEYS:
     tmpfs:
