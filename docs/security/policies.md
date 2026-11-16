@@ -2,6 +2,8 @@
 
 > Dokument żywy (EVM-005). Właściciel: `security-engineer`; decyzje: Konrad. Wersja **v1, 2026-10-03** — rekomendacje **przyjęte przez Konrada 2026-10-03** na demo EVM-005. P1–P6 wynikają z AC3 historyjki EVM-005, P7–P12 — ze spraw, które ADR-y i model domeny (EVM-002) jawnie przekazały do EVM-005. Żadna rekomendacja nie zmienia decyzji ADR-0001…0015 — potwierdza ich wartości albo doprecyzowuje to, co ADR zostawił do EVM-005. Wymagania `SR-…`: [`requirements.md`](requirements.md); zagrożenia `TM`/`AB`/`RR`: [`threat-model.md`](threat-model.md); retencja i podstawy prawne: [`rodo.md`](rodo.md).
 
+> **Uzupełnienie 2026-11-16 (EVM-134 — decyzja Konrada, [ADR-0023](../architecture/adr/0023-administrator-kod-z-aplikacji-w-panelu.md); `security-engineer`):** P1 — Administrator w panelu ma passkey albo TOTP jak inne role (wariant D z kompensacją K1: logowanie kodem nie otwiera okna step-upu); koniec decyzji D3 z EVM-027; ryzyko RR-101 (4 Medium, zaakceptowane). Pozostałe decyzje P1–P12 bez zmian.
+
 > **Uzupełnienie 2026-11-12 (bez Sentry — decyzja Konrada, EVM-085; `security-engineer`):** P4 — wiersz „Błędy (Sentry)” nie dotyczy (nieobsłużone błędy API są w logach operacyjnych, 14 dni); P9 — wiersz Sentry nie dotyczy; P11 — `connect-src` panelu bez originu ingestu Sentry. Decyzje P1–P12 bez zmian.
 
 > **Uzupełnienie 2026-10-21 (EVM-007 / 007a, faza offline):** stan wdrożenia P5, P8, P9, P10 i P11 w kanale staging — sekcja [„Stan wdrożenia polityk w EVM-007”](#stan-wdrożenia-polityk-w-evm-007-007a-faza-offline) na końcu dokumentu; decyzje P1–P12 bez zmian.
@@ -14,7 +16,7 @@
 ## Podsumowanie
 | # | Temat | Rekomendacja w jednym zdaniu | Główne `SR` | Decyzja Konrada |
 |---|---|---|---|---|
-| P1 | MFA | Obowiązkowe dla wszystkich ról; Administrator w panelu — passkey; funkcje administracyjne i step-up tylko w panelu; co najmniej dwóch Administratorów albo konto awaryjne. | SR-AUTH-06, SR-AUTH-13, SR-AUTHZ-12 | przyjęta rekomendacja (2026-10-03) |
+| P1 | MFA | Obowiązkowe dla wszystkich ról; w panelu passkey albo TOTP dla każdej roli, a logowanie Administratora kodem nie otwiera okna step-upu (K1); funkcje administracyjne i step-up tylko w panelu; co najmniej dwóch Administratorów albo konto awaryjne. | SR-AUTH-06, SR-AUTH-13, SR-AUTH-14, SR-AUTHZ-12 | przyjęta rekomendacja (2026-10-03); punkt „Administrator w panelu — passkey” zastąpiony wariantem D z K1 (2026-11-16, ADR-0023) |
 | P2 | Hasła i sesje | Wartości z ADR-0005 bez zmian; limity równoległych sesji; 7 dni offline; dwa tryby unieważnienia urządzenia (automatyczne oraz reset hasła i MFA — jak „Wyloguj”, zmiana roli na Tylko odczyt — jak „Zablokuj i wyczyść”); ten sam `deviceId` po ponownym logowaniu na tej samej instalacji; jeden proces odświeżania tokenu z oknem tolerancji. | SR-SESS-03, SR-SESS-04, SR-SESS-06, SR-SESS-09, SR-MOB-04, SR-MOB-05, SR-SYNC-03 | przyjęta rekomendacja (2026-10-03) |
 | P3 | EXIF / GPS | Aplikacja bez uprawnienia lokalizacji; pochodne zawsze bez metadanych; oryginały bez zmian, tylko dla Administratora i Edytora. | SR-FILE-08 | przyjęta rekomendacja (2026-10-03) |
 | P4 | Retencja | Zlecenia z mediami i dokumentami 6 lat od końca roku zamknięcia; dane techniczne krótko; audyt 2 lata. | SR-DATA-07, SR-PRIV-01 | przyjęta rekomendacja (2026-10-03) |
@@ -32,7 +34,7 @@
 1. **MFA obowiązkowe dla wszystkich ról** (Administrator, Edytor, Tylko odczyt) od pierwszego wydania. Konto bez MFA może wyłącznie dokończyć konfigurację (`403 mfa_enrollment_required`).
 2. **Mechanizmy:**
    - panel web — passkey (Windows Hello, klucz bezpieczeństwa, passkey w telefonie) albo TOTP (aplikacja uwierzytelniająca);
-   - **Administrator w panelu — passkey obowiązkowy** (odporny na phishing; TOTP Administratora działa wyłącznie w aplikacji mobilnej);
+   - **Administrator w panelu — passkey albo TOTP, jak inne role** (od 2026-11-16 — decyzja Konrada, [ADR-0023](../architecture/adr/0023-administrator-kod-z-aplikacji-w-panelu.md), wariant D z kompensacją K1): konto Administratora ma co najmniej jedną metodę (dowolną), a **logowanie Administratora kodem w panelu nie otwiera okna step-upu** — pierwsza operacja wrażliwa wymaga nowego kodu (inny krok czasu niż przy logowaniu) albo klucza dostępu, potem okno 15 min jak dotąd (K1); limity i alerty bez osłabienia (K2). Klucz dostępu pozostaje zalecany (odporny na phishing). Zmiana roli na Administratora nie wymaga klucza (koniec decyzji D3 z EVM-027). Ryzyko rezydualne — RR-101 (4 Medium, zaakceptowane). Do 2026-11-16: passkey obowiązkowy, TOTP Administratora tylko w aplikacji mobilnej;
    - aplikacja mobilna — TOTP (passkeys natywne — decyzja w E9), **tylko operacje kanału `mobile`** (SR-AUTHZ-12): logowanie, synchronizacja, upload, miniatury, profil, wylogowanie. Funkcje administracyjne, operacje ze step-upem, eksporty i pobieranie oryginałów działają wyłącznie w panelu — przechwycone hasło i kod TOTP Administratora dają najwyżej dostęp technika do zakresu urządzenia, nie uprawnienia administracyjne (AB-02);
    - SMS, e-mail i powiadomienia push **nie są** czynnikami.
 3. **Kody odzyskiwania:** 10 jednorazowych, pokazywane raz przy konfiguracji MFA, do zapisania poza telefonem.
@@ -40,7 +42,7 @@
 5. **Odzyskiwanie MFA Administratora** (AB-22, RR-16):
    - co najmniej **dwa konta z rolą Administrator** należące do różnych osób (np. Konrad i wspólnik albo zaufany pracownik); jeśli druga osoba nie jest możliwa — **konto awaryjne Konrada** z kluczem sprzętowym FIDO2 przechowywanym w sejfie (ok. 250–300 zł jednorazowo), używane tylko w awarii, każde logowanie = alert do wszystkich Administratorów;
    - kody odzyskiwania wydrukowane i przechowywane w sejfie, nie w telefonie z TOTP;
-   - ostateczność: runbook (EVM-007, E8) — polecenie na serwerze przez SSH z listy dozwolonych adresów, które resetuje MFA wskazanego Administratora, z audytem i e-mailem do wszystkich Administratorów; wymaga potwierdzenia tożsamości poza systemem; po resecie natychmiastowa ponowna rejestracja.
+   - ostateczność: runbook (EVM-007, E8) — polecenie na serwerze przez SSH z listy dozwolonych adresów, które resetuje MFA wskazanego Administratora (usuwa hasło, klucze dostępu i kod z aplikacji, unieważnia kody odzyskiwania — EVM-134), z audytem i e-mailem do wszystkich Administratorów; wymaga potwierdzenia tożsamości poza systemem; po resecie natychmiastowa ponowna rejestracja (klucz albo kod).
 6. **Pozostali użytkownicy:** MFA resetuje Administrator ze step-upem po weryfikacji tożsamości (osobiście albo rozmowa wideo), z unieważnieniem sesji i e-mailem (SR-AUTH-13).
 
 **Warianty**
@@ -49,7 +51,7 @@
 | **A. Rekomendacja** (wyżej) | zgodność z ASVS V6.3.3 (poziom 2 wymaga MFA do dostępu do aplikacji); credential stuffing nieskuteczny (TM-16: 9 Critical → 3 Medium); phishing w czasie rzeczywistym (AB-02, RR-17) — 4 Medium: passkey zamyka drogę do uprawnień Administratora w panelu, a SR-AUTHZ-12 — w aplikacji; zostają ścieżki TOTP w granicach roli; jedno konto na osobę; jednorazowa konfiguracja u każdego pracownika, kilka sekund przy logowaniu |
 | B. MFA tylko dla Administratora (minimum z ADR-0005), dostępne dla pozostałych | odstępstwo od ASVS L2 V6.3.3; przejęcie hasła Edytora daje dostęp do wszystkich zleceń (TM-16 zostaje Critical) — ryzyko do akceptacji |
 | C. Passkey obowiązkowy dla wszystkich w panelu (bez TOTP w panelu) | najwyższa odporność na phishing w panelu (ścieżki panelu w AB-02: 1 × 2 = 2 Low); RR-17 zostaje 4 Medium do czasu passkeys natywnych w aplikacji (E9), bo aplikacja używa TOTP; każdy komputer biura potrzebuje Windows Hello albo klucza (ok. 150–300 zł na osobę bez Windows Hello) |
-| D. Administrator bez obowiązku passkey (TOTP wystarcza) | prostsze, ale konto Administratora podatne na phishing w czasie rzeczywistym w panelu — przejęcie całego systemu (AB-02 dla Administratora: 2 × 3 = 6 High) |
+| D. Administrator bez obowiązku passkey (TOTP wystarcza) | prostsze, ale konto Administratora podatne na phishing w czasie rzeczywistym w panelu — przejęcie całego systemu (AB-02 dla Administratora: 2 × 3 = 6 High). **Wybrany 2026-11-16 z kompensacją K1** (logowanie kodem nie otwiera okna step-upu; ADR-0023): 2 × 2 = 4 Medium — RR-101 |
 | E. Jeden Administrator bez konta awaryjnego | utrata telefonu Administratora blokuje zarządzanie systemem do czasu odzyskania (AB-22: 4 Medium bez procedury) |
 | F. Administrator tylko w panelu (passkey, bez TOTP); do pracy w terenie osobne konto Edytora tej samej osoby | reguła rola × kanał odrzuca logowanie mobilne Administratora (`403 channel_not_allowed`); konto Administratora nie ma czynnika podatnego na phishing — droga do jego uprawnień zamknięta także przy błędzie w oznaczeniu kanałów (dodatkowa warstwa obok SR-AUTHZ-12); koszt: druga tożsamość tej samej osoby (osobne hasło i TOTP, audyt per konto, mapowanie „kto jest kim” w runbooku), a konto Edytora z TOTP jest podatne na phishing jak każde inne — RR-17 bez zmian (4 Medium); przełączanie kont, gdy Administrator potrzebuje aplikacji w terenie |
 
@@ -58,6 +60,8 @@
 **Wpływ:** TM-16, TM-23, TM-90, AB-01, AB-02, AB-22, RR-16, RR-17; SR-AUTH-06, SR-AUTH-07, SR-AUTH-08, SR-AUTH-09, SR-AUTH-13, SR-AUTH-14, SR-AUTHZ-12; epiki E1, E9, E8 (runbook), EVM-008 (lint `channels`, macierz ról z wymiarem kanału). Po decyzji `solution-architect` aktualizuje wiersz „MFA” w NFR ([`../architecture/README.md`](../architecture/README.md#wymagania-niefunkcjonalne--wartości-docelowe)).
 
 **Decyzja Konrada:** przyjęta rekomendacja (2026-10-03, demo EVM-005).
+
+**Zmiana decyzji 2026-11-16 (Konrad; EVM-134, [ADR-0023](../architecture/adr/0023-administrator-kod-z-aplikacji-w-panelu.md)):** punkt „Administrator w panelu — passkey obowiązkowy” zastąpiony wariantem D z kompensacją K1 (pkt 2 wyżej); uchylona decyzja D3 z EVM-027 (zmiana roli na Administratora wymagała klucza dostępu); ryzyko rezydualne RR-101 — 4 Medium, zaakceptowane, przegląd 2027-02. Pozostałe punkty P1 (w tym pkt 5 — drugi Administrator albo konto awaryjne z kluczem FIDO2) bez zmian.
 
 ## P2 — Hasła i sesje
 **Rekomendacja — wartości**
