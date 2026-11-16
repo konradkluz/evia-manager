@@ -210,6 +210,8 @@ describe('the way from "Nowe" to "Rozliczone" (EVM-030 AC1; SR-API-07)', () => {
         'number',
         'origin',
         'site',
+        // EVM-135: the header always says whether the order is an open site survey
+        'siteSurvey',
         'status',
         'statusChangedAt',
         'title',

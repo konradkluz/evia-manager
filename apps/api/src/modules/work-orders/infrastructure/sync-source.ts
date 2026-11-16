@@ -151,6 +151,10 @@ export class WorkOrderSyncSourceService implements WorkOrderSyncSource {
         sql<string | null>`to_char(work_orders.work_orders.planned_date, 'YYYY-MM-DD')`.as('plannedDate'),
         `${ORDERS}.created_at as createdAt`,
         `${ORDERS}.closed_at as closedAt`,
+        // EVM-135: the site survey (the phone of the requester only reaches the phones in the scope of the survey - ADR-0024 pt 7, 8)
+        `${ORDERS}.site_survey_expires_at as siteSurveyExpiresAt`,
+        `${ORDERS}.site_survey_extensions as siteSurveyExtensions`,
+        `${ORDERS}.requester_phone as requesterPhone`,
       ]);
   }
 }

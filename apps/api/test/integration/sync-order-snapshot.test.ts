@@ -136,6 +136,34 @@ describe('the snapshot of one order (EVM-097 AC3; ADR-0021 D3)', () => {
       expect(raw, forbidden).not.toContain(forbidden);
   });
 
+  it('EVM-135 AC5 the snapshot of an open site survey of the caller (its coordinator) carries siteSurvey and no customer - the schema of the contract and the strict projection', async () => {
+    await boot();
+    const { phone, account } = await editor(app());
+    const site = await insertSite(db());
+    const ids = await insertWorkOrders(db(), [
+      {
+        number: numberOf(2026, 135),
+        siteId: site,
+        coordinatorId: account.user.id,
+        siteSurveyExpiresAt: new Date('2027-02-14T08:00:00.000Z'),
+      },
+    ]);
+    const id = [...ids.values()][0] ?? '';
+    await sql`update work_orders.work_orders set requester_phone = '+48600700800' where id = ${id}`.execute(db());
+    const response = await snapshot(phone, id);
+    expect(response.status, JSON.stringify(response.body)).toBe(200);
+    const body = response.body as SnapshotBody;
+    expect(zSyncWorkOrderSnapshot.safeParse(body).success).toBe(true);
+    for (const entity of body.entities)
+      expect(assertSyncProjectionStrict({ op: 'upsert', entity }), JSON.stringify(entity)).toEqual({ ok: true });
+    expect(body.entities.find((entity) => entity['type'] === 'work_order')).toMatchObject({
+      status: 'quoting',
+      customerId: null,
+      siteSurvey: { expiresAt: '2027-02-14T08:00:00.000Z', extensionCount: 0, requesterPhone: '+48600700800' },
+    });
+    expect(body.entities.filter((entity) => entity['type'] === 'customer')).toEqual([]);
+  });
+
   it("EVM-097 AC3 an order that does not exist, is deleted (soft or for good), is closed over N days ago or is not the caller's is ONE answer: 404 not_found, the same body and the same headers", async () => {
     await boot();
     const { phone } = await editor(app());

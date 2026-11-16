@@ -91,6 +91,7 @@ export class MobileController {
   readonly #wipes: DeviceWipeService;
   readonly #minVersions: AppConfig['minSupportedAppVersion'];
   readonly #sync: AppConfig['sync'];
+  readonly #features: AppConfig['features'];
 
   constructor(
     @Inject(MobileLoginService) logins: MobileLoginService,
@@ -107,6 +108,7 @@ export class MobileController {
     this.#wipes = wipes;
     this.#minVersions = config.minSupportedAppVersion;
     this.#sync = config.sync;
+    this.#features = config.features;
   }
 
   @Post('/api/v1/auth/mobile/login')
@@ -166,6 +168,6 @@ export class MobileController {
   @OperationId('getClientConfig')
   getClientConfig(@Req() request: Request): ClientConfig {
     requireMobilePrincipal(request);
-    return clientConfig(this.#minVersions, this.#sync);
+    return clientConfig(this.#minVersions, this.#sync, this.#features);
   }
 }

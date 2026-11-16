@@ -53,6 +53,15 @@ export const workOrderChange = (row: SyncWorkOrderProjection): SyncUpsertChange 
     plannedDate: row.plannedDate,
     createdAt: row.createdAt.toISOString(),
     closedAt: row.closedAt === null ? null : row.closedAt.toISOString(),
+    // EVM-135 (ADR-0024): the object of an open site survey, `null` for an ordinary order; additive - an older app drops it
+    siteSurvey:
+      row.siteSurveyExpiresAt === null
+        ? null
+        : {
+            expiresAt: row.siteSurveyExpiresAt.toISOString(),
+            extensionCount: row.siteSurveyExtensions,
+            requesterPhone: row.requesterPhone,
+          },
   },
 });
 

@@ -34,6 +34,8 @@ export const HEADER: WorkOrderDetails = {
   version: 3,
   createdAt: '2026-09-01T10:00:00.000Z',
   origin: 'office',
+  // EVM-135: an ordinary order, not a site survey
+  siteSurvey: null,
 };
 
 export const CUSTOMER: CustomerCard = {

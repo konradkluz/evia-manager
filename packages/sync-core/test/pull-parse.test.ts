@@ -189,6 +189,18 @@ describe('reader of server data (EVM-092 AC6)', () => {
   });
 });
 
+describe('an order of a newer server in the app in the field (EVM-135 AC5; ADR-0024 pt 5)', () => {
+  it('EVM-135 AC5 the reader of this version (N-1 for the site survey) reads a work order with siteSurvey and customerId null: an upsert without the new field, no resync', () => {
+    const siteSurvey = { expiresAt: iso(SERVER_NOW), extensionCount: 0, requesterPhone: '+48600700800' };
+    const parsed = parseChange(upsert('work_order', 1, 2, { customerId: null, status: 'quoting', siteSurvey }));
+    expect(parsed.kind).toBe('upsert');
+    if (parsed.kind !== 'upsert') return;
+    expect(parsed.entity.fields).not.toHaveProperty('siteSurvey');
+    expect(JSON.stringify(parsed)).not.toContain('+48600700800');
+    expect(parseSnapshotEntity(upsert('work_order', 1, 2, { customerId: null, siteSurvey })['entity']).kind).toBe('upsert');
+  });
+});
+
 describe('state of a file in the replica (EVM-130 AC4; contract of EVM-131)', () => {
   const stateOf = (fileState: string, fileStateReasonCode: string | null): unknown => {
     const parsed = parseChange(upsert('media_asset', 1, 1, { fileState, fileStateReasonCode }));

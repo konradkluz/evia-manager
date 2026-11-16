@@ -19,6 +19,33 @@ WorkOrderSort:
     terminem etapu od dziś (klucz: najbliższy termin), 4) pozostałe, także zamknięte. Rola bez odczytu płatności dostaje
     kolejność bez składowej płatności (grupa 1 tylko z etapów). Serwer odrzuca wartość spoza listy (`400 validation_failed`).
   enum: [-number, number, -createdAt, createdAt, longestWaitingSince, nextDueDate, urgency]
+SiteSurvey:
+  type: object
+  description: >-
+    Wizja lokalna (EVM-135, ADR-0024): zlecenie bez klienta w statusie „Wycena” (później „Wstrzymane” albo „Anulowane”) z terminem
+    wygaśnięcia. Obiekt jest tylko przy OTWARTEJ wizji; po przypisaniu klienta zlecenie jest zwykłym zleceniem (`siteSurvey: null`).
+    Telefon zamawiającego to dane osobowe (DO-K): tylko w szczegółach i na liście dla Administratora i Edytora, nigdy w adresie, logach
+    i powiadomieniach. Adres lokalizacji wizji nie występuje na liście (tylko w szczegółach).
+  required: [expiresAt, extensionCount, requesterPhone]
+  additionalProperties: false
+  properties:
+    expiresAt:
+      type: string
+      format: date-time
+      description: Termin wygaśnięcia (UTC; utworzenie + 90 dni, przedłużenie o 90 dni — EVM-140); po nim wizję usuwa zadanie EVM-139.
+      maxLength: 40
+    extensionCount:
+      type: integer
+      description: Liczba przedłużeń terminu (0–2).
+      minimum: 0
+      maximum: 2
+    requesterPhone:
+      description: Telefon zamawiającego (E.164) albo `null`.
+      oneOf:
+        - type: string
+          pattern: '^\+[1-9][0-9]{7,14}$'
+          maxLength: 16
+        - type: 'null'
 WorkOrderView:
   type: string
   description: >-
@@ -184,9 +211,18 @@ WorkOrderListItem:
     site:
       description: >-
         Lokalizacja zlecenia (EVM-072; tylko do odczytu): miasto, ulica i numer budynku — bez kodu pocztowego, numeru lokalu i
-        miejsca postojowego (SR-DATA-03). `null`, gdy zlecenie nie ma lokalizacji albo lokalizacja jest niewidoczna.
+        miejsca postojowego (SR-DATA-03). `null`, gdy zlecenie nie ma lokalizacji albo lokalizacja jest niewidoczna, oraz zawsze
+        dla otwartej wizji lokalnej (adres wizji tylko w szczegółach — EVM-135, ADR-0024 pkt 2).
       oneOf:
         - $ref: '#/WorkOrderListSite'
+        - type: 'null'
+    siteSurvey:
+      readOnly: true
+      description: >-
+        Wizja lokalna (EVM-135; tylko do odczytu): obiekt przy otwartej wizji (etykieta „Wizja lokalna”; `customer` jest wtedy `null`),
+        `null` przy zwykłym zleceniu.
+      oneOf:
+        - $ref: '#/SiteSurvey'
         - type: 'null'
     payment:
       readOnly: true
@@ -522,9 +558,17 @@ WorkOrderDetails:
     data utworzenia oraz cykl życia (EVM-030): `allowedTransitions` dla wołającego, `resumeStatus`, `statusChangedAt`, `closedAt`, `completedOn`.
     Bez powodu wstrzymania i anulowania (pole swobodne — może zawierać dane osobowe; nie jest zwracany), zakresu, danych kontaktowych klienta, PPE i notatek (osobne odczyty). `customer` albo `site` jest `null`,
     gdy zlecenie go nie ma albo rekord został usunięty (żywe zlecenie nie ujawnia usuniętego rekordu).
-  required: [id, number, title, status, customer, site, coordinator, version, createdAt, origin, allowedTransitions]
+  required: [id, number, title, status, customer, site, coordinator, version, createdAt, origin, allowedTransitions, siteSurvey]
   additionalProperties: false
   properties:
+    siteSurvey:
+      readOnly: true
+      description: >-
+        Wizja lokalna (EVM-135; tylko do odczytu, zapis — `400 read_only_field`): termin wygaśnięcia, liczba przedłużeń i telefon
+        zamawiającego przy otwartej wizji (zlecenie bez klienta, `customer: null`); `null` przy zwykłym zleceniu.
+      oneOf:
+        - $ref: '#/SiteSurvey'
+        - type: 'null'
     origin:
       type: string
       readOnly: true

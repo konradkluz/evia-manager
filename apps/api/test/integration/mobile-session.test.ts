@@ -358,6 +358,8 @@ describe('the role matrix of the new operations (EVM-094 AC8; SR-AUTHZ-01, SR-AU
         closedWorkOrdersInScopeDays: 30,
         periodicResyncDays: 7,
         scopeRuleVersion: 293,
+        // EVM-135 AC3: the switch of the site survey as the server has it (off by default)
+        features: { siteSurveys: false },
       });
       noCookies(response);
     }

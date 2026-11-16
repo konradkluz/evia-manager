@@ -17,6 +17,12 @@ export interface ClientConfigValues {
   readonly scopeRuleVersion: number;
   readonly minSupportedVersion: ClientVersionsPair;
   readonly recommendedVersion: ClientVersionsPair;
+  /** The switches of the server (EVM-135 AC3): `siteSurveys` - the app offers "Nowa wizja lokalna" only when it is on. */
+  readonly features: ClientFeatures;
+}
+
+export interface ClientFeatures {
+  readonly siteSurveys: boolean;
 }
 
 import { effectiveScopeRuleVersion } from '../../../platform/sync/scope-rule.ts';
@@ -27,11 +33,12 @@ export interface ClientSyncSettings {
   readonly scopeRuleVersion: number;
 }
 
-export const clientConfig = (minimum: ClientVersionsPair, sync: ClientSyncSettings): ClientConfigValues => ({
+export const clientConfig = (minimum: ClientVersionsPair, sync: ClientSyncSettings, features: ClientFeatures): ClientConfigValues => ({
   offlineContactWindowDays: 7,
   closedWorkOrdersInScopeDays: sync.closedOrdersInScopeDays,
   periodicResyncDays: sync.periodicResyncDays,
   scopeRuleVersion: effectiveScopeRuleVersion({ configured: sync.scopeRuleVersion, closedDays: sync.closedOrdersInScopeDays }),
   minSupportedVersion: { android: minimum.android, ios: minimum.ios },
   recommendedVersion: { android: minimum.android, ios: minimum.ios },
+  features: { siteSurveys: features.siteSurveys },
 });

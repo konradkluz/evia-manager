@@ -504,6 +504,33 @@
         },
         "description": "Treść niezgodna ze schematem (`validation_failed`) albo wpisana nazwa modelu różni się od modelu urządzenia (`device_model_mismatch`, `errors[0].pointer: /confirmModel`) — serwer porównuje sam (po przycięciu i normalizacji NFC, z rozróżnieniem wielkości liter), bez echa wpisanej wartości."
       },
+      "DocumentCreateConflict": {
+        "content": {
+          "application/problem+json": {
+            "example": {
+              "code": "customer_required",
+              "status": 409,
+              "title": "The work order has no customer",
+              "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+              "type": "/problems/customer_required"
+            },
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "Identyfikator zajęty (`id_conflict` — bez żadnych danych istniejącego zasobu), zlecenie jest wizją lokalną bez klienta (`customer_required`, EVM-135: dokumenty — każda kotwica — dopiero po przypisaniu klienta) albo żądanie z tym samym kluczem idempotencji w toku (`idempotency_in_progress`, z `Retry-After`).",
+        "headers": {
+          "Retry-After": {
+            "description": "Liczba sekund do ponowienia (tylko `idempotency_in_progress`).",
+            "schema": {
+              "maximum": 3600,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        }
+      },
       "Forbidden": {
         "content": {
           "application/problem+json": {
@@ -735,7 +762,7 @@
             }
           }
         },
-        "description": "Brak zdjęć do eksportu (`no_media_to_export`): zlecenie nie ma żadnego zdjęcia w stanie `ready`. Odpowiedź nie zdradza liczby plików w kwarantannie."
+        "description": "Brak zdjęć do eksportu (`no_media_to_export`): zlecenie nie ma żadnego zdjęcia w stanie `ready`. Odpowiedź nie zdradza liczby plików w kwarantannie. Zlecenie jest wizją lokalną bez klienta (`customer_required`, EVM-135): eksport ZIP dopiero po przypisaniu klienta."
       },
       "MediaStorageUnavailable": {
         "content": {
@@ -1306,7 +1333,7 @@
             }
           }
         },
-        "description": "Identyfikator zajęty (`id_conflict` — także identyfikator transzy innego zlecenia; bez danych istniejącego zasobu), zlecenie jest zamknięte (`work_order_closed`: Rozliczone albo Anulowane — płatności tylko do odczytu, PO-8) albo żądanie z tym samym kluczem idempotencji jest w toku (`idempotency_in_progress`, z `Retry-After`). Odpowiedź nie podaje statusu zlecenia ani kwot.",
+        "description": "Identyfikator zajęty (`id_conflict` — także identyfikator transzy innego zlecenia; bez danych istniejącego zasobu), zlecenie jest zamknięte (`work_order_closed`: Rozliczone albo Anulowane — płatności tylko do odczytu, PO-8), zlecenie jest wizją lokalną bez klienta (`customer_required`, EVM-135: transze dopiero po przypisaniu klienta) albo żądanie z tym samym kluczem idempotencji jest w toku (`idempotency_in_progress`, z `Retry-After`). Odpowiedź nie podaje statusu zlecenia ani kwot.",
         "headers": {
           "Retry-After": {
             "description": "Liczba sekund do ponowienia (tylko `idempotency_in_progress`).",
@@ -2982,6 +3009,9 @@
             "minimum": 1,
             "type": "integer"
           },
+          "features": {
+            "$ref": "#/components/schemas/ServerFeatures"
+          },
           "minSupportedVersion": {
             "$ref": "#/components/schemas/ClientVersions"
           },
@@ -3012,7 +3042,8 @@
           "periodicResyncDays",
           "scopeRuleVersion",
           "minSupportedVersion",
-          "recommendedVersion"
+          "recommendedVersion",
+          "features"
         ],
         "type": "object"
       },
@@ -3555,6 +3586,61 @@
         ],
         "type": "object"
       },
+      "CreateSiteSurveyMutation": {
+        "additionalProperties": false,
+        "properties": {
+          "commandVersion": {
+            "$ref": "#/components/schemas/CommandVersion"
+          },
+          "mutationId": {
+            "$ref": "#/components/schemas/SyncClientId"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/CreateSiteSurveyPayload"
+          },
+          "type": {
+            "const": "CreateSiteSurvey",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mutationId",
+          "type",
+          "commandVersion",
+          "payload"
+        ],
+        "type": "object"
+      },
+      "CreateSiteSurveyPayload": {
+        "additionalProperties": false,
+        "description": "Wizja lokalna z telefonu (EVM-135 AC1, ADR-0024): zlecenie bez klienta i bez szablonu, w statusie `quoting`, numer nadaje serwer, termin wygaśnięcia = utworzenie + 90 dni, opiekun = zalogowany użytkownik. Istniejąca lokalizacja (`siteId`) ALBO nowa (`newSite`, w limicie 20 nowych lokalizacji urządzenia na dobę wspólnym z `CreateQuickWorkOrder`) — dokładnie jedno (inaczej `rejected validation_failed`). `title` opcjonalny (domyślnie „Wizja lokalna”) — nie wpisuj imion ani telefonów. `requesterPhone` opcjonalny (jak telefon nowego klienta; zapis E.164). Klient, szablon i notatka nie występują (`rejected validation_failed`). Funkcja wyłączona na serwerze — `rejected feature_disabled` (bez zapisu). Adres i telefon nie trafiają do logów, audytu ani dziennika zmian.",
+        "properties": {
+          "newSite": {
+            "$ref": "#/components/schemas/SyncNewSite"
+          },
+          "requesterPhone": {
+            "maxLength": 32,
+            "minLength": 7,
+            "pattern": "^[0-9+() -]{7,32}$",
+            "type": "string"
+          },
+          "siteId": {
+            "$ref": "#/components/schemas/SyncId"
+          },
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "workOrderId": {
+            "$ref": "#/components/schemas/SyncClientId"
+          }
+        },
+        "required": [
+          "workOrderId"
+        ],
+        "type": "object"
+      },
       "CreateTimelineEntryRequest": {
         "additionalProperties": false,
         "description": "Nowy wpis albo komentarz; `id` (UUIDv7) nadaje klient. Wpis `note` wymaga `noteCategory`, komentarz go nie przyjmuje. `supersedesEntryId` czyni z wpisu poprawkę wskazanego wpisu tego samego zlecenia (ten sam `kind`; etap, gdy nie podano `procedureStageId`, jest dziedziczony — `null` go czyści). Pola serwera (`author`, `createdAt`, `origin`, `capturedAt`, `supersededByEntryId`, `redactedAt`, `version`, `workOrderId`) są odrzucane — `400 read_only_field`.",
@@ -3735,6 +3821,9 @@
           "csrfToken": {
             "$ref": "#/components/schemas/CsrfToken"
           },
+          "features": {
+            "$ref": "#/components/schemas/ServerFeatures"
+          },
           "idleExpiresAt": {
             "description": "Koniec sesji z powodu bezczynności (60 min od ostatniej aktywności); odczyt tej operacji go nie przesuwa.",
             "format": "date-time",
@@ -3773,7 +3862,8 @@
           "channel",
           "csrfToken",
           "idleExpiresAt",
-          "absoluteExpiresAt"
+          "absoluteExpiresAt",
+          "features"
         ],
         "type": "object"
       },
@@ -7840,6 +7930,19 @@
         "pattern": "^(0|[1-9]\\d{0,8})\\.(0|[1-9]\\d{0,8})\\.(0|[1-9]\\d{0,8})$",
         "type": "string"
       },
+      "ServerFeatures": {
+        "additionalProperties": false,
+        "description": "Przełączniki funkcji serwera (bez danych osobowych): `siteSurveys` — zakładanie wizji lokalnej (EVM-135, `SITE_SURVEYS_ENABLED`; wyłączony zatrzymuje tylko zakładanie — istniejące wizje działają dalej).",
+        "properties": {
+          "siteSurveys": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "siteSurveys"
+        ],
+        "type": "object"
+      },
       "ServiceCategory": {
         "description": "Kategoria usługi katalogu.",
         "enum": [
@@ -8497,6 +8600,43 @@
         ],
         "type": "object"
       },
+      "SiteSurvey": {
+        "additionalProperties": false,
+        "description": "Wizja lokalna (EVM-135, ADR-0024): zlecenie bez klienta w statusie „Wycena” (później „Wstrzymane” albo „Anulowane”) z terminem wygaśnięcia. Obiekt jest tylko przy OTWARTEJ wizji; po przypisaniu klienta zlecenie jest zwykłym zleceniem (`siteSurvey: null`). Telefon zamawiającego to dane osobowe (DO-K): tylko w szczegółach i na liście dla Administratora i Edytora, nigdy w adresie, logach i powiadomieniach. Adres lokalizacji wizji nie występuje na liście (tylko w szczegółach).",
+        "properties": {
+          "expiresAt": {
+            "description": "Termin wygaśnięcia (UTC; utworzenie + 90 dni, przedłużenie o 90 dni — EVM-140); po nim wizję usuwa zadanie EVM-139.",
+            "format": "date-time",
+            "maxLength": 40,
+            "type": "string"
+          },
+          "extensionCount": {
+            "description": "Liczba przedłużeń terminu (0–2).",
+            "maximum": 2,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "requesterPhone": {
+            "description": "Telefon zamawiającego (E.164) albo `null`.",
+            "oneOf": [
+              {
+                "maxLength": 16,
+                "pattern": "^\\+[1-9][0-9]{7,14}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "expiresAt",
+          "extensionCount",
+          "requesterPhone"
+        ],
+        "type": "object"
+      },
       "SiteType": {
         "description": "Typ obiektu (słownik domeny; etykiety w panelu).",
         "enum": [
@@ -8948,7 +9088,8 @@
             "CreateComment": "#/components/schemas/CreateCommentMutation",
             "CreateMediaAsset": "#/components/schemas/CreateMediaAssetMutation",
             "CreateNote": "#/components/schemas/CreateNoteMutation",
-            "CreateQuickWorkOrder": "#/components/schemas/CreateQuickWorkOrderMutation"
+            "CreateQuickWorkOrder": "#/components/schemas/CreateQuickWorkOrderMutation",
+            "CreateSiteSurvey": "#/components/schemas/CreateSiteSurveyMutation"
           },
           "propertyName": "type"
         },
@@ -8964,6 +9105,9 @@
           },
           {
             "$ref": "#/components/schemas/CreateMediaAssetMutation"
+          },
+          {
+            "$ref": "#/components/schemas/CreateSiteSurveyMutation"
           }
         ]
       },
@@ -9004,11 +9148,12 @@
               "idempotency_mismatch",
               "idempotency_in_progress",
               "template_unavailable",
-              "quota_exceeded"
+              "quota_exceeded",
+              "feature_disabled"
             ]
           },
           "errors": {
-            "description": "Błędy walidacji — wskaźnik pola (JSON Pointer w ładunku) i kod, NIGDY wartość. Tylko przy `rejected` `validation_failed` komendy `CreateQuickWorkOrder` (EVM-099 AC5); pozostałe komendy nie dostają pola.",
+            "description": "Błędy walidacji — wskaźnik pola (JSON Pointer w ładunku) i kod, NIGDY wartość. Tylko przy `rejected` `validation_failed` komend `CreateQuickWorkOrder` (EVM-099 AC5) i `CreateSiteSurvey` (EVM-135); pozostałe komendy nie dostają pola.",
             "items": {
               "$ref": "#/components/schemas/SyncMutationFieldError"
             },
@@ -9042,7 +9187,7 @@
             "type": "array"
           },
           "workOrderNumber": {
-            "description": "Numer nadany przez serwer — tylko przy `applied` i `duplicate` komendy `CreateQuickWorkOrder`.",
+            "description": "Numer nadany przez serwer — tylko przy `applied` i `duplicate` komend `CreateQuickWorkOrder` i `CreateSiteSurvey`.",
             "maxLength": 32,
             "type": "string"
           }
@@ -9628,6 +9773,34 @@
         ],
         "type": "object"
       },
+      "SyncSiteSurvey": {
+        "additionalProperties": false,
+        "description": "Wizja lokalna na telefonie — termin wygaśnięcia, liczba przedłużeń i telefon zamawiającego (E.164 albo `null`).",
+        "properties": {
+          "expiresAt": {
+            "$ref": "#/components/schemas/SyncTimestamp"
+          },
+          "extensionCount": {
+            "maximum": 2,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "requesterPhone": {
+            "maxLength": 16,
+            "pattern": "^\\+[1-9][0-9]{7,14}$",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "expiresAt",
+          "extensionCount",
+          "requesterPhone"
+        ],
+        "type": "object"
+      },
       "SyncTimelineEntry": {
         "additionalProperties": false,
         "description": "Wpis dziennika zlecenia (notatka, komentarz, zdarzenie).",
@@ -9871,6 +10044,17 @@
               "null"
             ]
           },
+          "siteSurvey": {
+            "description": "Wizja lokalna (EVM-135, ADR-0024): obiekt przy otwartej wizji (zlecenie bez klienta, `customerId: null`), `null` przy zwykłym zleceniu. Pole addytywne — starsza wersja aplikacji je pomija. Otwarta wizja trafia tylko na telefon jej twórcy i opiekuna.",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SyncSiteSurvey"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "status": {
             "maxLength": 32,
             "type": "string",
@@ -9911,7 +10095,8 @@
           "description",
           "plannedDate",
           "createdAt",
-          "closedAt"
+          "closedAt",
+          "siteSurvey"
         ],
         "type": "object"
       },
@@ -11529,6 +11714,18 @@
               }
             ]
           },
+          "siteSurvey": {
+            "description": "Wizja lokalna (EVM-135; tylko do odczytu, zapis — `400 read_only_field`): termin wygaśnięcia, liczba przedłużeń i telefon zamawiającego przy otwartej wizji (zlecenie bez klienta, `customer: null`); `null` przy zwykłym zleceniu.",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SiteSurvey"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "readOnly": true
+          },
           "status": {
             "$ref": "#/components/schemas/WorkOrderStatus"
           },
@@ -11558,7 +11755,8 @@
           "version",
           "createdAt",
           "origin",
-          "allowedTransitions"
+          "allowedTransitions",
+          "siteSurvey"
         ],
         "type": "object"
       },
@@ -11698,7 +11896,7 @@
             "readOnly": true
           },
           "site": {
-            "description": "Lokalizacja zlecenia (EVM-072; tylko do odczytu): miasto, ulica i numer budynku — bez kodu pocztowego, numeru lokalu i miejsca postojowego (SR-DATA-03). `null`, gdy zlecenie nie ma lokalizacji albo lokalizacja jest niewidoczna.",
+            "description": "Lokalizacja zlecenia (EVM-072; tylko do odczytu): miasto, ulica i numer budynku — bez kodu pocztowego, numeru lokalu i miejsca postojowego (SR-DATA-03). `null`, gdy zlecenie nie ma lokalizacji albo lokalizacja jest niewidoczna, oraz zawsze dla otwartej wizji lokalnej (adres wizji tylko w szczegółach — EVM-135, ADR-0024 pkt 2).",
             "oneOf": [
               {
                 "$ref": "#/components/schemas/WorkOrderListSite"
@@ -11707,6 +11905,18 @@
                 "type": "null"
               }
             ]
+          },
+          "siteSurvey": {
+            "description": "Wizja lokalna (EVM-135; tylko do odczytu): obiekt przy otwartej wizji (etykieta „Wizja lokalna”; `customer` jest wtedy `null`), `null` przy zwykłym zleceniu.",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SiteSurvey"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "readOnly": true
           },
           "status": {
             "$ref": "#/components/schemas/WorkOrderStatus"
@@ -15750,6 +15960,9 @@
               "application/json": {
                 "example": {
                   "closedWorkOrdersInScopeDays": 30,
+                  "features": {
+                    "siteSurveys": true
+                  },
                   "minSupportedVersion": {
                     "android": "1.1.0",
                     "ios": "1.1.0"
@@ -18627,7 +18840,7 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "$ref": "#/components/responses/MediaConflict"
+            "$ref": "#/components/responses/DocumentCreateConflict"
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
@@ -19918,7 +20131,7 @@
     },
     "/api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/upload-sessions": {
       "post": {
-        "description": "Sesja uploadu medium (EVM-044 AC1, AC4, AC5, AC6, AC7; SR-FILE-02, SR-AUTHZ-02, SR-AUTHZ-05, SR-API-05). Role Administrator i Edytor (Tylko odczyt — `403`), kanały `web` i `mobile` (token telefonu: Tylko odczyt — `403 channel_not_allowed`). Łańcuch zlecenie → medium → plik sprawdzany jednym zapytaniem (`404` dla medium innego zlecenia). Sesję otwiera wyłącznie twórca medium albo Administrator (inny Edytor — `404`, jak dla medium innego zlecenia). Dozwolone tylko dla pliku w `pending_upload` (nowa sesja) albo `failed` z przyczyną `checksum_mismatch` („Ponów” — plik wraca do `pending_upload`, klucz obiektu ten sam, poprzednia wersja obiektu zostaje w bucketcie z wersjonowaniem); każdy inny stan — `409 invalid_state_transition`. Istniejąca aktywna sesja WOŁAJĄCEGO jest zwracana ponownie (wznowienie po ponownym wyborze pliku, `200`); aktywna sesja innego użytkownika (Administrator na medium z cudzą sesją) — `409 id_conflict` bez szczegółów. Powtórka tego samego żądania (ten sam `Idempotency-Key`), gdy utworzona wtedy sesja została przerwana albo wygasła — `409 invalid_state_transition` (klient otwiera nową sesję z nowym kluczem i identyfikatorem), nigdy `201` z sesją nieużyteczną. Serwer dzieli plik na części (stały rozmiar 16 MiB, ostatnia mniejsza, najwyżej 1000), wystawia `CreateMultipartUpload` z typem z listy dozwolonych i zapisuje sesję ważną 7 dni. Limit aktywnych sesji użytkownika — `429` z `Retry-After`. Brak konfiguracji magazynu — `503 media_storage_unavailable`.",
+        "description": "Sesja uploadu medium (EVM-044 AC1, AC4, AC5, AC6, AC7; SR-FILE-02, SR-AUTHZ-02, SR-AUTHZ-05, SR-API-05). Role Administrator i Edytor (Tylko odczyt — `403`), kanały `web` i `mobile` (token telefonu: Tylko odczyt — `403 channel_not_allowed`). Łańcuch zlecenie → medium → plik sprawdzany jednym zapytaniem (`404` dla medium innego zlecenia). Sesję otwiera wyłącznie twórca medium albo Administrator (inny Edytor — `404`, jak dla medium innego zlecenia). Dozwolone tylko dla pliku w `pending_upload` (nowa sesja) albo `failed` z przyczyną `checksum_mismatch` („Ponów” — plik wraca do `pending_upload`, klucz obiektu ten sam, poprzednia wersja obiektu zostaje w bucketcie z wersjonowaniem); każdy inny stan — `409 invalid_state_transition`. Istniejąca aktywna sesja WOŁAJĄCEGO jest zwracana ponownie (wznowienie po ponownym wyborze pliku, `200`); aktywna sesja innego użytkownika (Administrator na medium z cudzą sesją) — `409 id_conflict` bez szczegółów. Powtórka tego samego żądania (ten sam `Idempotency-Key`), gdy utworzona wtedy sesja została przerwana albo wygasła — `409 invalid_state_transition` (klient otwiera nową sesję z nowym kluczem i identyfikatorem), nigdy `201` z sesją nieużyteczną. Serwer dzieli plik na części (stały rozmiar 16 MiB, ostatnia mniejsza, najwyżej 1000), wystawia `CreateMultipartUpload` z typem z listy dozwolonych i zapisuje sesję ważną 7 dni. Limit aktywnych sesji użytkownika (wspólny dla panelu i telefonu) — `429` z `Retry-After`. Brak konfiguracji magazynu — `503 media_storage_unavailable`. Telefon (EVM-131): medium utworzone komendą `CreateMediaAsset` nie ma jeszcze pliku, więc `file` (`fileName`, `declaredSize`, `contentType`, `sha256`) jest WYMAGANE (brak — `400 validation_failed` `/file` `required`) i sprawdzane jak partia mediów w panelu (typ i rozszerzenie z listy, 50 MB zdjęcie / 4 GiB film, rodzaj pliku zgodny z rodzajem medium); deklarację dla medium bez pliku składa wyłącznie jego twórca z telefonu (inny użytkownik, także Administrator — `404`), klucz obiektu nadaje serwer. Medium z plikiem przyjmuje wyłącznie identyczną deklarację (powtórka po utracie odpowiedzi); inna — `400 validation_failed` `/file` `not_allowed`. Sesja jest związana z użytkownikiem i urządzeniem sesji telefonu (nigdy z nagłówka ani treści): inny telefon tego samego użytkownika i panel dostają `404`, a aktywna sesja innego urządzenia to `409 id_conflict`. `file` wchodzi do skrótu żądania idempotencji (ten sam klucz bez `file` — `422 idempotency_mismatch`). Telefon wysyła `X-Client-Platform` i `X-Client-Version` (`426` tylko dla tokenu Bearer).",
         "operationId": "createUploadSession",
         "parameters": [
           {
@@ -19986,6 +20199,9 @@
           "422": {
             "$ref": "#/components/responses/MediaUnprocessable"
           },
+          "426": {
+            "$ref": "#/components/responses/MobileClientVersionUnsupported"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -20042,6 +20258,9 @@
           },
           "409": {
             "$ref": "#/components/responses/MediaConflict"
+          },
+          "426": {
+            "$ref": "#/components/responses/MobileClientVersionUnsupported"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -20110,6 +20329,9 @@
           "422": {
             "$ref": "#/components/responses/MediaUnprocessable"
           },
+          "426": {
+            "$ref": "#/components/responses/MobileClientVersionUnsupported"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -20135,7 +20357,7 @@
     },
     "/api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/upload-sessions/{sessionId}/parts": {
       "get": {
-        "description": "Części już wysłane (`ListParts` po stronie serwera) — wysyłanie wznawia się od pierwszej brakującej (EVM-044 AC4, AC6, AC7; SR-AUTHZ-02, SR-AUTHZ-05). Role Administrator i Edytor, kanały `web` i `mobile` (token telefonu: Tylko odczyt — `403 channel_not_allowed`); sesję widzi wyłącznie jej twórca (inny użytkownik, sesja innego medium lub zlecenia, nieistniejąca — jedna odpowiedź `404`). Sesja zakończona lub wygasła — `409 invalid_state_transition`. `Cache-Control: no-store`.",
+        "description": "Części już wysłane (`ListParts` po stronie serwera) — wysyłanie wznawia się od pierwszej brakującej (EVM-044 AC4, AC6, AC7; SR-AUTHZ-02, SR-AUTHZ-05). Role Administrator i Edytor, kanały `web` i `mobile` (token telefonu: Tylko odczyt — `403 channel_not_allowed`); sesję widzi wyłącznie jej twórca — użytkownik i urządzenie (inny użytkownik, inny telefon, panel, sesja innego medium lub zlecenia, nieistniejąca — jedna odpowiedź `404`). Sesja zakończona lub wygasła — `409 invalid_state_transition`. `Cache-Control: no-store`.",
         "operationId": "listUploadParts",
         "parameters": [
           {
@@ -20173,6 +20395,9 @@
           },
           "409": {
             "$ref": "#/components/responses/MediaConflict"
+          },
+          "426": {
+            "$ref": "#/components/responses/MobileClientVersionUnsupported"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -20251,6 +20476,9 @@
           },
           "409": {
             "$ref": "#/components/responses/MediaConflict"
+          },
+          "426": {
+            "$ref": "#/components/responses/MobileClientVersionUnsupported"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"

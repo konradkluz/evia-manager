@@ -128,7 +128,7 @@ workOrderDocuments:
       '404':
         $ref: ../components/responses.yaml#/NotFound
       '409':
-        $ref: ../components/media-responses.yaml#/MediaConflict
+        $ref: ../components/media-responses.yaml#/DocumentCreateConflict
       '413':
         $ref: ../components/responses.yaml#/PayloadTooLarge
       '415':

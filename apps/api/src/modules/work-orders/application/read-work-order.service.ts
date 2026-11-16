@@ -139,6 +139,14 @@ export class ReadWorkOrderService {
         createdAt: order.created_at.toISOString(),
         origin: order.origin,
         ...(authorName === undefined ? {} : { createdBy: { displayName: authorName } }),
+        siteSurvey:
+          order.site_survey_expires_at === null
+            ? null
+            : {
+                expiresAt: order.site_survey_expires_at.toISOString(),
+                extensionCount: order.site_survey_extensions,
+                requesterPhone: order.requester_phone,
+              },
       }),
     );
   }

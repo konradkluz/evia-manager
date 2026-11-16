@@ -107,6 +107,7 @@ describe('work order header (EVM-018 AC1, AC5)', () => {
     expect(response.body).toEqual({
       id: s.orderId,
       origin: 'office', // EVM-099: read-only; the author is absent here - the fixture order has none
+      siteSurvey: null, // EVM-135: an ordinary order, not a site survey
       number: 'ZL-2026-0042',
       title: 'Garaż — pełny proces',
       status: 'new',
@@ -136,6 +137,26 @@ describe('work order header (EVM-018 AC1, AC5)', () => {
     for (const secret of ['jan@example.invalid', '+48600000001', 'PL-TEST-0001', 'alert(1)', 'scopeItems', 'connectionPowerKw']) {
       expect(text, secret).not.toContain(secret);
     }
+  });
+
+  it('EVM-135 AC6 the header of an ordinary order has siteSurvey null; of an open site survey the deadline, the extensions and the requester phone, with no customer', async () => {
+    const s = await scene();
+    const editor = await signIn('editor');
+    expect((await get(editor, `${PATH}/${s.orderId}`)).body).toMatchObject({ siteSurvey: null });
+    const survey = await insertWorkOrders(admin(), [
+      { number: numberOf(2026, 135), siteId: s.siteId, siteSurveyExpiresAt: new Date('2027-02-14T08:00:00.000Z') },
+    ]);
+    const id = [...survey.values()][0] ?? '';
+    await sql`update work_orders.work_orders set requester_phone = '+48600700800', site_survey_extensions = 1 where id = ${id}`.execute(
+      admin(),
+    );
+    const response = await get(editor, `${PATH}/${id}`);
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      status: 'quoting',
+      customer: null,
+      siteSurvey: { expiresAt: '2027-02-14T08:00:00.000Z', extensionCount: 1, requesterPhone: '+48600700800' },
+    });
   });
 
   it('EVM-018 AC1 a customer, a site or a coordinator that is gone leaves the header with null in its place (no data of a deleted record)', async () => {

@@ -59,6 +59,10 @@ export interface SyncWorkOrderProjection {
   readonly plannedDate: string | null;
   readonly createdAt: Date;
   readonly closedAt: Date | null;
+  /** The site survey (EVM-135, ADR-0024): the deadline (`null` = an ordinary order), the extensions and the phone of the requester (DO-K). */
+  readonly siteSurveyExpiresAt: Date | null;
+  readonly siteSurveyExtensions: number;
+  readonly requesterPhone: string | null;
 }
 
 export interface WorkOrderSyncSource {

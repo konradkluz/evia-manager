@@ -2,7 +2,8 @@ import type { EntityType, HydrationReason, ResyncReason } from './pull-types.ts'
 
 /** Own types of the sync core (EVM-091): the core does not import the OpenAPI contract; compatibility is proven by a test. */
 
-export const MUTATION_TYPES = ['CreateNote', 'CreateComment', 'CreateQuickWorkOrder', 'CreateMediaAsset'] as const;
+// CreateSiteSurvey (EVM-135): the type of the contract; the screens, the pending number and the attention plan of a survey come with EVM-137
+export const MUTATION_TYPES = ['CreateNote', 'CreateComment', 'CreateQuickWorkOrder', 'CreateMediaAsset', 'CreateSiteSurvey'] as const;
 export type MutationType = (typeof MUTATION_TYPES)[number];
 
 /** Limits of the contract (SR-SYNC-06): a mutation up to 64 KB, a batch up to 50 mutations and 1 MB (we stay below). */
@@ -68,6 +69,8 @@ export const KNOWN_REJECTION_CODES = [
   'idempotency_mismatch',
   'template_unavailable',
   'quota_exceeded',
+  // EVM-135: the site survey is switched off on the server
+  'feature_disabled',
 ] as const;
 
 export type PauseReason =

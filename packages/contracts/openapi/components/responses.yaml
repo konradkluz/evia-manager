@@ -806,7 +806,8 @@ ScopeItemConflict:
 PaymentMilestoneConflict:
   description: >-
     Identyfikator zajęty (`id_conflict` — także identyfikator transzy innego zlecenia; bez danych istniejącego zasobu), zlecenie jest
-    zamknięte (`work_order_closed`: Rozliczone albo Anulowane — płatności tylko do odczytu, PO-8) albo żądanie z tym samym kluczem
+    zamknięte (`work_order_closed`: Rozliczone albo Anulowane — płatności tylko do odczytu, PO-8), zlecenie jest wizją lokalną bez
+    klienta (`customer_required`, EVM-135: transze dopiero po przypisaniu klienta) albo żądanie z tym samym kluczem
     idempotencji jest w toku (`idempotency_in_progress`, z `Retry-After`). Odpowiedź nie podaje statusu zlecenia ani kwot.
   headers:
     Retry-After:

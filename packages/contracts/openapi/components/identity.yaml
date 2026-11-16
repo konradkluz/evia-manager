@@ -295,8 +295,10 @@ Passkey:
       type: boolean
 CurrentSession:
   type: object
-  required: [user, state, channel, csrfToken, idleExpiresAt, absoluteExpiresAt]
+  required: [user, state, channel, csrfToken, idleExpiresAt, absoluteExpiresAt, features]
   properties:
+    features:
+      $ref: '#/ServerFeatures'
     user:
       type: object
       required: [id, displayName, role]
@@ -326,6 +328,16 @@ CurrentSession:
       format: date-time
       description: Bezwzględny koniec sesji (12 h od zalogowania; nie przesuwa się).
       maxLength: 40
+ServerFeatures:
+  type: object
+  description: >-
+    Przełączniki funkcji serwera (bez danych osobowych): `siteSurveys` — zakładanie wizji lokalnej (EVM-135, `SITE_SURVEYS_ENABLED`;
+    wyłączony zatrzymuje tylko zakładanie — istniejące wizje działają dalej).
+  additionalProperties: false
+  required: [siteSurveys]
+  properties:
+    siteSurveys:
+      type: boolean
 LoginToken:
   type: string
   description: >-

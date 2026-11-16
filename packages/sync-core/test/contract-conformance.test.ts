@@ -69,7 +69,7 @@ describe('sync-core vs. the contract: value sets in both directions (EVM-107 AC7
   });
 
   it('EVM-107 AC7: mutation types, entity types, phases and resync reasons are the same sets', () => {
-    expect(MUTATION_TYPES).toHaveLength(4);
+    expect(MUTATION_TYPES).toHaveLength(5);
     expect(sorted(vocabulary('SyncChangesPage', 'phase'))).toEqual(['changes', 'snapshot']);
     expect(sorted(RESYNC_REASONS.filter((r) => r !== 'invalid_change'))).toEqual(sorted(vocabulary('SyncResyncRequired', 'reason')));
     const projections = openapi.components.schemas['SyncEntity']?.['x-evia-sync-projections'];

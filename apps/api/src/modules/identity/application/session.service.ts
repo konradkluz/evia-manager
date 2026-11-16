@@ -16,11 +16,12 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { CurrentSession, SessionExpiry } from '@evia/contracts';
 import type { Kysely } from 'kysely';
 import type { Clock } from '../../../platform/clock/clock.ts';
+import type { AppConfig } from '../../../platform/config/config.ts';
 import type { Database } from '../../../platform/database/database.ts';
 import type { EventBus, EventContext } from '../../../platform/events/event-bus.ts';
 import { ANONYMOUS, type Authentication, type Principal } from '../../../platform/http/principal.ts';
 import { ProblemException } from '../../../platform/http/problem.ts';
-import { CLOCK, DATABASE, EVENT_BUS } from '../../../platform/tokens.ts';
+import { APP_CONFIG, CLOCK, DATABASE, EVENT_BUS } from '../../../platform/tokens.ts';
 import { isExpired, slidIdleDeadline, touchDue } from '../domain/session-policy.ts';
 import { deriveCsrfToken, hashToken } from '../domain/tokens.ts';
 import { findSessionByTokenHash, revokeSessions, slideSession, type SessionRecord } from '../infrastructure/queries.ts';
@@ -59,11 +60,18 @@ export class SessionService {
   readonly #db: Kysely<Database>;
   readonly #clock: Clock;
   readonly #events: EventBus;
+  readonly #features: AppConfig['features'];
 
-  constructor(@Inject(DATABASE) db: Kysely<Database>, @Inject(CLOCK) clock: Clock, @Inject(EVENT_BUS) events: EventBus) {
+  constructor(
+    @Inject(DATABASE) db: Kysely<Database>,
+    @Inject(CLOCK) clock: Clock,
+    @Inject(EVENT_BUS) events: EventBus,
+    @Inject(APP_CONFIG) config: AppConfig,
+  ) {
     this.#db = db;
     this.#clock = clock;
     this.#events = events;
+    this.#features = config.features;
   }
 
   /**
@@ -137,6 +145,8 @@ export class SessionService {
       csrfToken: principal.csrfToken,
       idleExpiresAt: principal.idleExpiresAt.toISOString(),
       absoluteExpiresAt: principal.absoluteExpiresAt.toISOString(),
+      // EVM-135 AC3: the switches of the server - the panel offers "Nowa wizja lokalna" only when it is on
+      features: { siteSurveys: this.#features.siteSurveys },
     };
   }
 
