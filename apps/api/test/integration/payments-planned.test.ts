@@ -90,7 +90,8 @@ describe('the view "Do wystawienia" (EVM-059 AC1, AC3)', () => {
       ['ZL-2026-0051', 'Montaż', 123_000, 'planned'],
     ]);
     expect(JSON.stringify(body.items[1]?.customer)).toContain('Przykładowy');
-    expect(body.items[0]?.customer).toBeNull();
+    // since 0066 (EVM-135) an order without a customer is a site survey, which has no payments: the other orders have the customer of the fixture
+    expect(JSON.stringify(body.items[0]?.customer)).toContain('Fikstury');
     expect(body.nextCursor).toBeNull();
     expect(body.summary.filtered).toEqual({ count: 5, total: { amountMinor: 663_000, currency: 'PLN' } });
     expect(body.summary.unpaid.count).toBe(1);
@@ -136,8 +137,9 @@ describe('the view "Do wystawienia" (EVM-059 AC1, AC3)', () => {
   it('EVM-059 AC1 the filter by a customer narrows the view; a customer who does not exist gives an empty list', async () => {
     await dataset();
     const editor = await signIn();
+    // the customer of ZL-2026-0042 (the other orders have the customer of the fixture since 0066, EVM-135)
     const customers = (await get(editor, 'view=planned')).body.items.flatMap((item) =>
-      item.customer !== null && 'id' in item.customer ? [item.customer.id] : [],
+      item.workOrder.number === 'ZL-2026-0042' && item.customer !== null && 'id' in item.customer ? [item.customer.id] : [],
     );
     const narrowed = await get(editor, `view=planned&customerId=${customers[0]}`);
     expect(narrowed.body.items.map((item) => item.workOrder.number)).toEqual(['ZL-2026-0042', 'ZL-2026-0042', 'ZL-2026-0042']);

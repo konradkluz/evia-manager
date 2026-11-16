@@ -146,6 +146,7 @@ describe('performance on 10 000 issued milestones in 2 500 orders (EVM-055 AC1, 
       app.clock.advance(61_000);
     }
     for (const count of counts) expect(count).toMatchObject({ domain: 7, payments: 4, orders: 1 });
-    expect(counts.map((count) => count.customers)).toEqual([0, 1, 1]);
+    // since 0066 (EVM-135) every order of the data has a customer (the fixture's one or the one above), so every page has exactly ONE batch of customers
+    expect(counts.map((count) => count.customers)).toEqual([1, 1, 1]);
   });
 });

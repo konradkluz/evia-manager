@@ -32,6 +32,16 @@ export interface WorkOrdersTable {
   origin: Generated<'office' | 'mobile_quick'>;
   /** The device of the session that created a `mobile_quick` order (no foreign key, 0058): both or neither (CHECK). */
   created_via_device_id: Generated<string | null>;
+  /**
+   * The site survey (EVM-135, ADR-0024; migration 0066): the deadline is the marker - `IS NOT NULL` <=> an open survey (no customer, status quoting, on_hold or
+   * cancelled - CHECKs). The phone of the requester is DO-K: never audited, logged, put in an event, a notification or `search_text`.
+   */
+  site_survey_expires_at: Generated<Date | null>;
+  site_survey_extensions: Generated<number>;
+  site_survey_reminded_at: Generated<Date | null>;
+  /** Written once (trigger, EV003) by the purge of EVM-139. */
+  site_survey_purged_at: Generated<Date | null>;
+  requester_phone: Generated<string | null>;
   created_at: Date;
   created_by: string | null;
   updated_at: Date;

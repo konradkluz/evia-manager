@@ -68,7 +68,10 @@ async function place(): Promise<Place> {
 async function orderWithoutCustomer(): Promise<string> {
   numbering += 1;
   const siteId = await insertSite(admin());
-  const ids = await insertWorkOrders(admin(), [{ number: `ZL-7${String(numbering).padStart(3, '0')}-0003`, siteId }]);
+  // since 0066 an order without a customer is a site survey (EVM-135; CHECK)
+  const ids = await insertWorkOrders(admin(), [
+    { number: `ZL-7${String(numbering).padStart(3, '0')}-0003`, siteId, siteSurveyExpiresAt: new Date('2027-02-14T08:00:00Z') },
+  ]);
   return [...ids.values()][0] ?? '';
 }
 

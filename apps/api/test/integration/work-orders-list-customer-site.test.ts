@@ -149,14 +149,15 @@ describe('the customer and the site on the list (EVM-072 AC1; SR-DATA-03, TM-18)
   });
 
   it('EVM-072 AC1 an order without a customer or a site has null; a deleted customer is {deleted: true} without an id or a name; a deleted site is null', async () => {
-    const cookie = await signIn('read_only');
+    // an Editor: since 0066 (EVM-135) the only order without a customer is a site survey, which Read-only does not see (ADR-0024 pt 8)
+    const cookie = await signIn('editor');
     const gone = await insertCustomer(admin(), { lastName: 'Usunięty', deletedAt: '2026-10-05T08:00:00Z' });
     const site = await insertSite(admin(), { city: 'Gdańsk' });
     const goneSite = await insertSite(admin(), { city: 'Sopot', deletedAt: '2026-10-05T08:00:00Z' });
     await insertWorkOrders(admin(), [
-      { number: numberOf(2026, 1) },
+      { number: numberOf(2026, 1), siteSurveyExpiresAt: new Date('2027-02-14T08:00:00Z') },
       { number: numberOf(2026, 2), customerId: gone, siteId: site },
-      { number: numberOf(2026, 3), siteId: goneSite },
+      { number: numberOf(2026, 3), siteId: goneSite, siteSurveyExpiresAt: new Date('2027-02-14T08:00:00Z') },
     ]);
     const list = await page(cookie, '?sort=number');
     expect(list.items[0]).toMatchObject({ customer: null, site: null });

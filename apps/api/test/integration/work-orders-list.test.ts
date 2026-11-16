@@ -5,7 +5,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { MINUTE } from '../support/clock.ts';
 import { createIdentityApp, type IdentityApp } from '../support/identity-app.ts';
 import { createSession, createUser, type Role } from '../support/identity-fixtures.ts';
-import { ALL_STATUSES, insertWorkOrders, numberOf, type WorkOrderSpec } from '../support/work-order-fixtures.ts';
+import { ALL_STATUSES, FIXTURE_CUSTOMER_ID, insertWorkOrders, numberOf, type WorkOrderSpec } from '../support/work-order-fixtures.ts';
 
 let current: IdentityApp;
 beforeAll(async () => {
@@ -127,8 +127,9 @@ describe('the default view and the columns of the list (EVM-017 AC1)', () => {
       waiting: null,
       nextDueDate: null,
       hasOverdueStage: false,
-      // the customer and the site of the order (EVM-072, additive): an order without them has `null`
-      customer: null,
+      // the customer and the site of the order (EVM-072, additive): the fixture names none, so since 0066 (EVM-135) the order has the
+      // customer of the fixture; an order without a site has `null`
+      customer: { id: FIXTURE_CUSTOMER_ID, displayName: expect.stringContaining('Fikstury') as string },
       site: null,
       // the column "Płatność" (EVM-056, additive; a role that may read payments): an order without milestones has nothing issued
       payment: {

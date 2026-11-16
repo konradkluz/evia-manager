@@ -107,7 +107,8 @@ describe('the search and display facades of the three modules (EVM-072 AC2, AC5;
     const customerId = await insertCustomer(admin(), { lastName: 'Zamawiający' });
     const ids = await insertWorkOrders(admin(), [
       { number: 'ZL-2026-0101', title: 'Widoczne', customerId },
-      { number: 'ZL-2026-0102', title: 'Bez klienta' },
+      // since 0066 (EVM-135) an order without a customer is a site survey
+      { number: 'ZL-2026-0102', title: 'Bez klienta', siteSurveyExpiresAt: new Date('2027-02-14T08:00:00Z') },
       { number: 'ZL-2026-0103', title: 'Usunięte', deletedAt: new Date('2026-10-02T08:00:00Z') },
     ]);
     const idOf = (number: string): string => ids.get(number) ?? '';

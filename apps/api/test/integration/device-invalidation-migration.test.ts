@@ -27,7 +27,7 @@ beforeAll(async () => {
   }>`select column_name from information_schema.columns where table_schema = 'identity' and table_name = 'devices'`.execute(db);
   expect(columns.rows.map((row) => row.column_name)).not.toContain('invalidated_at');
   deviceId = await insertWithoutTheColumn(user.id);
-  expect((await migrateToLatest(db, MIGRATIONS)).applied).toEqual(['0064_device_invalidation', '0065_media_sync']);
+  expect((await migrateToLatest(db, MIGRATIONS)).applied).toEqual(['0064_device_invalidation', '0065_media_sync', '0066_site_survey']);
 });
 afterAll(async () => {
   await db.destroy();

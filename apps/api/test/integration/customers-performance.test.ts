@@ -44,9 +44,11 @@ beforeAll(async () => {
            (array['Łódź', 'Gdańsk', 'Kraków'])[n % 3 + 1], 'Testowa', '1', '90-001', now(), now()
     from generate_series(1, ${TOTAL}::int) as n`.execute(app.database.admin);
   await sql`analyze customers.customers`.execute(app.database.admin);
-  await generateWorkOrders(app.database.admin, TOTAL, []);
+  // the customer of the history is one of the synthetic customers, picked before the orders exist: since 0066 (EVM-135) the generated orders get the
+  // shared customer of the fixture, which must not be the one whose history is measured
   const { rows } = await sql<{ id: string }>`select id from customers.customers order by id limit 1`.execute(app.database.admin);
   history = rows[0]?.id ?? '';
+  await generateWorkOrders(app.database.admin, TOTAL, []);
   await sql`update work_orders.work_orders set customer_id = ${history}
             where id in (select id from work_orders.work_orders order by created_at limit 200)`.execute(app.database.admin);
   await rebuildProjection(app.database.admin);
