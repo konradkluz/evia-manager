@@ -13,7 +13,7 @@ appId: pl.eviacharge.manager
 - tapOn:
     id: 'camera-mode-video'
 - tapOn:
-    id: 'camera-category-defect'
+    id: 'camera-category-in_progress'
 - tapOn:
     id: 'camera-shutter'
 - extendedWaitUntil:

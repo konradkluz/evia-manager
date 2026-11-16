@@ -194,7 +194,9 @@ describe('Maestro flows 90-9x and the video scenarios agree (EVM-110)', () => {
     );
     const held = flowText('91-video-wifi-held.yaml');
     for (const part of [
-      "text: '1 film czeka na Wi-Fi\\. Zdjęcia i wpisy wysyłamy normalnie\\.'",
+      "assertVisible: '.*1 film czeka na Wi-Fi\\. Zdjęcia i wpisy wysyłamy normalnie\\..*'",
+      "id: 'waiting-wifi-banner'",
+      'Oględziny, Film',
       "assertVisible: 'Zmień ustawienie'",
       "assertVisible: 'Czeka na Wi-Fi \\(1\\)'",
       "assertNotVisible: 'Wymaga uwagi'",

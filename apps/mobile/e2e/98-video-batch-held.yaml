@@ -12,8 +12,8 @@ appId: pl.eviacharge.manager
 - extendedWaitUntil:
     visible:
       id: 'waiting-wifi-banner'
-      text: '3 filmy czekają na Wi-Fi\. Zdjęcia i wpisy wysyłamy normalnie\.'
     timeout: 120000
+- assertVisible: '.*3 filmy czekają na Wi-Fi\. Zdjęcia i wpisy wysyłamy normalnie\..*'
 - assertVisible: 'Czeka na Wi-Fi \(3\)'
 - assertNotVisible: 'Wymaga uwagi'
 - takeScreenshot: m07-video-three-waiting-wifi

@@ -11,8 +11,8 @@ appId: pl.eviacharge.manager
 - extendedWaitUntil:
     visible:
       id: 'interrupted-recording'
-      text: 'Poprzednie nagranie zostało przerwane i nie zostało zapisane\.'
     timeout: 60000
+- assertVisible: '.*Poprzednie nagranie zostało przerwane i nie zostało zapisane\..*'
 - takeScreenshot: m06-video-previous-interrupted
 - tapOn:
     id: 'interrupted-recording-close'

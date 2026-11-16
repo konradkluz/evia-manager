@@ -17,7 +17,8 @@ appId: pl.eviacharge.manager
       id: 'files-summary'
       text: '3 do wysłania'
     timeout: 60000
-- assertVisible: '.*Czeka na połączenie'
+# offline the three rows are not applied yet (the command waits for the server): "Oczekuje" like every file of the airplane scenarios
+- assertVisible: '.*Oczekuje'
 - assertNotVisible: 'Wymaga uwagi'
 - runFlow:
     file: common/media-status.yaml

@@ -16,7 +16,7 @@ appId: pl.eviacharge.manager
 - tapOn:
     id: 'camera-mode-video'
 - tapOn:
-    id: 'camera-category-defect'
+    id: 'camera-category-in_progress'
 - tapOn:
     id: 'camera-shutter'
 - extendedWaitUntil:
@@ -49,4 +49,4 @@ appId: pl.eviacharge.manager
       id: 'files-summary'
       text: '1 do wysłania'
     timeout: 30000
-- assertVisible: 'Usterka / problem, Film · 0:[0-9]{2} · [0-9]+ MB, .*, Czeka na połączenie'
+- assertVisible: 'W trakcie prac, Film · 0:[0-9]{2} · [0-9]+ MB, .*, Oczekuje'

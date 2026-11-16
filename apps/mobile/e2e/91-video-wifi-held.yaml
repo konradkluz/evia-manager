@@ -23,11 +23,12 @@ appId: pl.eviacharge.manager
 - extendedWaitUntil:
     visible:
       id: 'waiting-wifi-banner'
-      text: '1 film czeka na Wi-Fi\. Zdjęcia i wpisy wysyłamy normalnie\.'
     timeout: 120000
+# the banner is one node with an id; its text is a node of its own (the two are not joined into one condition)
+- assertVisible: '.*1 film czeka na Wi-Fi\. Zdjęcia i wpisy wysyłamy normalnie\..*'
 - assertVisible: 'Zmień ustawienie'
 - assertVisible: 'Czeka na Wi-Fi \(1\)'
-- assertVisible: 'Usterka / problem, Film · .*, Czeka na Wi-Fi'
+- assertVisible: 'Oględziny, Film · .*, Czeka na Wi-Fi'
 - takeScreenshot: m07-video-waiting-wifi
 # the picture is sent over the same network; the film is not
 - extendedWaitUntil:
