@@ -1,0 +1,26 @@
+# EVM-110 AC3: the recording is running (the counter) and tools/mobile-e2e kills the app (kill -9) right after this flow: nothing can be saved.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- extendedWaitUntil:
+    visible: 'Brak zasięgu.*'
+    timeout: 30000
+# the flow 100 ends on the Queue tab: the list of orders is one tap away
+- tapOn:
+    id: 'nav-orders'
+- runFlow: common/camera-from-order.yaml
+- tapOn:
+    id: 'camera-mode-video'
+- tapOn:
+    id: 'camera-category-in_progress'
+- tapOn:
+    id: 'camera-shutter'
+- extendedWaitUntil:
+    visible:
+      id: 'camera-timer'
+      text: '0:(0[3-9]|[1-5][0-9]) / 5:00'
+    timeout: 60000

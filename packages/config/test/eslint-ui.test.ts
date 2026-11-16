@@ -336,6 +336,17 @@ describe('camera lint rules (EVM-108 AC8; SR-FILE-08, SR-MOB-02, SR-MOB-12, CWE-
     ]);
   });
 
+  it('EVM-110 AC7 the microphone is not used: its API of expo-camera, recordAudioAndroid and mute set to false are banned', () => {
+    banned([
+      'const [permission] = useMicrophonePermissions();',
+      'await Camera.requestMicrophonePermissionsAsync();',
+      'await Camera.getMicrophonePermissionsAsync();',
+      'const options = { recordAudioAndroid: true };',
+      'const a = <CameraView mute={false} />;',
+      'const props = { mute: false };',
+    ]);
+  });
+
   it('EVM-108 AC8 takePictureAsync takes no position or copy of the picture: additionalExif, exif: true and base64 are banned in its options', () => {
     banned([
       'await camera.takePictureAsync({ additionalExif: { GPSLatitude: 1 } });',

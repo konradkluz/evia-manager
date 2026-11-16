@@ -1,0 +1,31 @@
+# EVM-110 AC3: the app is started again after the kill in the middle of a recording: ONCE the Banner "Poprzednie nagranie zostało przerwane i nie zostało
+# zapisane." with "Zamknij"; the Queue has exactly ONE row - the film saved before (the flow 100) - and NO row of a damaged film. The file the camera left is
+# removed by the sweep of the module.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- extendedWaitUntil:
+    visible:
+      id: 'interrupted-recording'
+    timeout: 60000
+- assertVisible: '.*Poprzednie nagranie zostało przerwane i nie zostało zapisane\..*'
+- takeScreenshot: m06-video-previous-interrupted
+- tapOn:
+    id: 'interrupted-recording-close'
+- assertNotVisible:
+    id: 'interrupted-recording'
+- tapOn:
+    id: 'nav-queue'
+- extendedWaitUntil:
+    visible:
+      id: 'files-summary'
+      text: '1 do wysłania'
+    timeout: 30000
+- runFlow:
+    file: common/media-status.yaml
+    env:
+      STATUS: 'files=1;waiting=1;uploading=0;sent=0;failed=0;attention=0;notifications=[a-z_]+'

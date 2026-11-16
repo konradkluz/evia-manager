@@ -27,6 +27,12 @@ data class JobSpec(
 object SchedulePolicy {
     const val USER_INITIATED_MIN_API = 34
 
+    /** Only a video is held for a network without charges, and only while the setting is on (EVM-110 AC4). */
+    fun requiresUnmetered(
+        contentType: String,
+        videoWifiOnly: Boolean,
+    ): Boolean = videoWifiOnly && contentType.lowercase().startsWith("video/")
+
     fun decide(
         apiLevel: Int,
         appVisible: Boolean,

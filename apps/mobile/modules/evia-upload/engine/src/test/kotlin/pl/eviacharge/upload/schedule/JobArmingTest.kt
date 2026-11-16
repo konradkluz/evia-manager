@@ -57,7 +57,9 @@ class JobArmingTest {
 
     private fun ids() = JobIdRegistry(files.jobIdsFile)
 
-    private fun arming() = JobArming(files, jobs(), ids(), system, WipeMarker(files.wipeMarkerFile), api) { visible }
+    private val settings = UploadSettings.Fixed(false)
+
+    private fun arming() = JobArming(files, jobs(), ids(), system, WipeMarker(files.wipeMarkerFile), api, settings) { visible }
 
     private fun lifecycle() = JobLifecycle(files, ids(), system, running)
 
@@ -69,6 +71,8 @@ class JobArmingTest {
     }
 
     private fun item(assetId: String = ASSET) = JobArming.Item(assetId, WORK_ORDER, "user-1", "device-1", TEST_TYPE)
+
+    private fun videoItem(assetId: String = ASSET) = JobArming.Item(assetId, WORK_ORDER, "user-1", "device-1", "video/mp4")
 
     @Test
     fun `EVM-130 AC1 a file with its original is armed - the job file, a durable id, a user-initiated job on API 34, app visible`() {
@@ -100,7 +104,8 @@ class JobArmingTest {
     fun `EVM-130 AC1 a regular job when the app is hidden or the system older, Wi-Fi only asks for an unmetered network`() {
         original()
         visible = false
-        assertEquals(ArmResult.Armed(false), arming().arm(item(), wifiOnly = true))
+        settings.setVideoWifiOnly(true)
+        assertEquals(ArmResult.Armed(false), arming().arm(videoItem()))
         assertEquals(
             NetworkRequirement.UNMETERED,
             system.requests
@@ -194,9 +199,11 @@ class JobArmingTest {
         arming().arm(item())
         assertEquals(ArmResult.Armed(true), arming().retry(ASSET))
         assertEquals(2, system.requests.size)
-        assertEquals(ArmResult.Armed(false), arming().apply { visible = false }.retry(ASSET, wifiOnly = true))
+        // EVM-110 AC4: the setting holds back videos only - a picture is retried through any network
+        settings.setVideoWifiOnly(true)
+        assertEquals(ArmResult.Armed(false), arming().apply { visible = false }.retry(ASSET))
         assertEquals(
-            NetworkRequirement.UNMETERED,
+            NetworkRequirement.ANY,
             system.requests
                 .last()
                 .spec.network,

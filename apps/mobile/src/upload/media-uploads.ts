@@ -19,12 +19,14 @@ import type { MediaFileRecord, MediaFileState } from '../storage/media-file-stor
 import type { UnlockedStore } from '../storage';
 import {
   createCapturedPhotoInput,
+  createCapturedVideoInput,
   createMediaAssetInput,
   type AddMediaResult,
   type CapturedPhoto,
+  type CapturedVideo,
   type NewMediaAsset,
 } from './create-media-asset';
-import { CapturePipeline, type CapturePorts } from '../capture/capture-pipeline';
+import { CapturePipeline, type CapturePorts, type VideoRecording, type VideoSource } from '../capture/capture-pipeline';
 import type { DiskSpace } from '../capture/disk-space';
 import type { NativeUpload } from './native-upload';
 import type { MediaControl, MediaFileView, MediaUploadsSnapshot } from './types';
@@ -40,18 +42,30 @@ export interface MediaUploadsDeps {
   /** The queue of the synchronization (`SyncControl.enqueue`): resolves with the id of the new mutation. */
   readonly enqueue: (input: EnqueueInput) => Promise<{ readonly ok: boolean; readonly mutationId?: string }>;
   readonly now: () => number;
-  /** "Filmy tylko przez Wi-Fi" (EVM-110); `false` until that option exists. */
-  readonly wifiOnly?: () => boolean;
   /** `false` in the hidden-data mode: nothing is read from the replica then. */
   readonly dataVisible: () => boolean;
   /** After an event of the module (the contact of a refresh made in the background is merged, EVM-130 architect 9). */
   readonly onNativeEvent?: () => void;
   /** The camera (EVM-108): the free space and the id generator of the session; without them a picture cannot be taken (`camera_failed`). */
   readonly capture?: { readonly disk: DiskSpace; readonly newId: () => string };
+  /**
+   * EVM-110 AC3: a marker that outlives the process while a film is recorded (a tiny file, no data in it): present at the next start = the recording was
+   * killed with the process ("Poprzednie nagranie zostało przerwane i nie zostało zapisane."), shown once. Without it the notice is never shown.
+   */
+  /** EVM-110: the code of the last failed save of a film (the e2e variant writes it to a file for the tool; absent in the app proper). */
+  readonly filmFailure?: (code: string) => void;
+  readonly recordingMarker?: {
+    readonly set: () => Promise<void>;
+    readonly clear: () => Promise<void>;
+    readonly present: () => Promise<boolean>;
+  };
 }
 
 /** Files confirmed by the server stay in the view as "Wysłano" this many (newest first). */
 export const CLEAN_KEPT = 20;
+
+/** How long a sign-out or a wipe waits for a recording to stop and be saved (SEC-110-12). */
+const STOP_RECORDING_MS = 3000;
 /**
  * The sweep of the module removes only files older than this (EVM-108): a picture that is being saved right now has no row yet and is never touched.
  */
@@ -135,7 +149,9 @@ export class MediaUploads implements MediaControl {
       else if (event.state === 'queued' && event.reason === 'checksum_mismatch') {
         await this.#moveTo(store, event.assetId, ['applied', 'uploaded'], 'failed', 'checksum_mismatch', at);
       }
-      if (event.state !== 'queued') this.#progress.delete(event.assetId);
+      // a job that ended (done, stopped, retrying, waiting for Wi-Fi) is not "sending" any more: its last progress must not outlive it, or the row
+      // hangs at "Wysyła się 37%" after the module stopped at the gate of the network (EVM-110 AC5). The next progress event brings a new one.
+      this.#progress.delete(event.assetId);
     } catch {
       // the row keeps its state; the next reconcile asks the module again
     }
@@ -200,18 +216,29 @@ export class MediaUploads implements MediaControl {
   async addCaptured(photo: CapturedPhoto, digest: OriginalDigest): Promise<AddMediaResult> {
     const input = createCapturedPhotoInput(photo);
     if (input === null) return { ok: false, code: 'invalid' };
+    return this.#registerCaptured(input, photo, 'photo', digest, undefined);
+  }
+
+  async #registerCaptured(
+    input: EnqueueInput,
+    media: CapturedPhoto,
+    mediaType: 'photo' | 'video',
+    digest: OriginalDigest,
+    durationMs: number | undefined,
+  ): Promise<AddMediaResult> {
     const store = this.#deps.store();
     if (store === null) return { ok: false, code: 'no_session' };
     store.queue.registerPendingMedia({
-      assetId: photo.assetId,
-      workOrderId: photo.workOrderId,
+      assetId: media.assetId,
+      workOrderId: media.workOrderId,
       ownerUserId: store.userId,
-      fileName: photo.assetId,
+      fileName: media.assetId,
       sizeBytes: digest.sizeBytes,
       sha256: digest.sha256,
-      mime: mimeOf('photo'),
-      createdAt: Date.parse(photo.capturedAt),
-      category: photo.category,
+      mime: mimeOf(mediaType),
+      createdAt: Date.parse(media.capturedAt),
+      category: media.category,
+      ...(durationMs === undefined ? {} : { durationMs }),
     });
     let queued: { readonly ok: boolean; readonly mutationId?: string };
     try {
@@ -220,16 +247,109 @@ export class MediaUploads implements MediaControl {
       queued = { ok: false };
     } finally {
       // a registration that was not used up (the command was refused before the store) must not wait for another command
-      store.queue.clearPendingMedia(photo.assetId);
+      store.queue.clearPendingMedia(media.assetId);
     }
     if (!queued.ok || queued.mutationId === undefined) return { ok: false, code: 'enqueue_failed' };
     void this.reconcile({ sweep: false });
     return { ok: true };
   }
 
-  capturePipeline(takePicture: CapturePorts['takePicture']): CapturePipeline {
+  /** The recording in progress, if any (EVM-110): the one the session owner stops before it ends the session. */
+  #recording: VideoRecording | null = null;
+
+  async stopRecording(timeoutMs = STOP_RECORDING_MS): Promise<void> {
+    const recording = this.#recording;
+    // the session ends after this call: a marker left by an earlier killed recording must not show its notice to the next user (EVM-110 AC3)
+    this.#mark(false);
+    if (recording === null) return;
+    recording.stop('interrupted');
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([
+      recording.done.then(() => undefined),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, timeoutMs);
+      }),
+    ]).finally(() => {
+      clearTimeout(timer);
+    });
+  }
+
+  #markerChain: Promise<unknown> = Promise.resolve();
+
+  /** The marker is written when a recording starts and removed when it ends (saved or not); one write after another, a failure is only a missing notice. */
+  #mark(recording: boolean): void {
+    const marker = this.#deps.recordingMarker;
+    if (marker === undefined) return;
+    this.#markerChain = this.#markerChain.then(() => (recording ? marker.set() : marker.clear())).catch(() => undefined);
+  }
+
+  /**
+   * EVM-110 AC3: `true` when a start found the marker of a recording that was killed with the process. It only READS: the marker goes with
+   * `dismissInterruptedRecording`, called when the notice was SHOWN - a screen that went away before that leaves it for the next one.
+   */
+  async consumeInterruptedRecording(): Promise<boolean> {
+    const marker = this.#deps.recordingMarker;
+    if (marker === undefined || this.#recording !== null) return false;
+    try {
+      await this.#markerChain;
+      return await marker.present();
+    } catch {
+      return false;
+    }
+  }
+
+  /** The notice of the killed recording was shown: the marker goes, so a later start shows nothing. */
+  async dismissInterruptedRecording(): Promise<void> {
+    await this.#markerChain;
+    await this.#deps.recordingMarker?.clear().catch(() => undefined);
+  }
+
+  videoWifiOnly(): boolean {
+    try {
+      return this.#deps.native.getVideoWifiOnly();
+    } catch {
+      return true;
+    }
+  }
+
+  async setVideoWifiOnly(value: boolean): Promise<boolean> {
+    const saved = await this.#deps.native.setVideoWifiOnly(value).catch(() => false);
+    // the rows are read again: the module re-armed the films with the network the new value asks for
+    void this.reconcile({ sweep: false });
+    return saved;
+  }
+
+  /** EVM-110 AC3: the screen stays on while a film is recorded; never throws (a phone without the module just sleeps as usual). */
+  keepScreenOn(on: boolean): void {
+    try {
+      this.#deps.native.setKeepScreenOn(on);
+    } catch {
+      // the screen may sleep: the recording is not affected
+    }
+  }
+
+  /** The registration of a recorded film: one transaction with the command of 5 keys; the length goes to the row only. */
+  async addCapturedVideo(video: CapturedVideo, digest: OriginalDigest): Promise<AddMediaResult> {
+    const input = createCapturedVideoInput(video);
+    if (input === null) return { ok: false, code: 'invalid' };
+    return this.#registerCaptured(input, video, 'video', digest, video.durationMs);
+  }
+
+  capturePipeline(takePicture: CapturePorts['takePicture'], video?: VideoSource): CapturePipeline {
     const capture = this.#deps.capture;
     return new CapturePipeline({
+      ...(video === undefined || capture === undefined
+        ? {}
+        : {
+            video,
+            registerVideo: (recorded: CapturedVideo, digest: OriginalDigest) => this.addCapturedVideo(recorded, digest),
+            sessionUser: () => this.#deps.store()?.userId ?? null,
+            ...(this.#deps.filmFailure === undefined ? {} : { onFailure: this.#deps.filmFailure }),
+            onRecording: (recording: VideoRecording | null) => {
+              this.#recording = recording;
+              this.#mark(recording !== null);
+            },
+          }),
       takePicture: capture === undefined ? () => Promise.resolve(null) : takePicture,
       native: this.#deps.native,
       disk: capture?.disk ?? { freeBytes: () => null },
@@ -336,7 +456,6 @@ export class MediaUploads implements MediaControl {
         // the module declares the type in the upload session (EVM-131); the size and the SHA-256 it computes itself
         contentType: file.mime,
       })),
-      this.#deps.wifiOnly?.() ?? false,
     );
     const at = this.#deps.now();
     for (const file of applied) {
@@ -403,7 +522,7 @@ export class MediaUploads implements MediaControl {
     const file = (await store.media.list()).find((row) => row.assetId === assetId);
     if (file === undefined || (file.state !== 'failed' && file.state !== 'needs_attention') || file.lastCode === 'quarantined')
       return false;
-    const result = await this.#deps.native.retryUpload(assetId, this.#deps.wifiOnly?.() ?? false).catch(() => 'failed' as const);
+    const result = await this.#deps.native.retryUpload(assetId).catch(() => 'failed' as const);
     if (result !== 'armed_user_initiated' && result !== 'armed' && result !== 'already_armed') return false;
     this.#retried.add(assetId);
     await store.media.setState(assetId, 'applied', null, this.#deps.now());
@@ -513,13 +632,19 @@ function viewOf(row: MediaFileRecord, status: UploadStatus | undefined): MediaFi
     category: row.category ?? null,
     mediaType: row.mime === 'video/mp4' ? ('video' as const) : ('photo' as const),
     capturedAt: row.createdAt,
+    durationMs: row.durationMs ?? null,
   };
   switch (row.state) {
     case 'pending':
       return { ...base, status: 'waiting', percent: null, actions: [] };
     case 'applied':
-      return status?.state === 'uploading'
-        ? { ...base, status: 'uploading', percent: Math.max(0, Math.min(100, Math.round(status.percent))), actions: [] }
+      if (status?.state === 'uploading') {
+        return { ...base, status: 'uploading', percent: Math.max(0, Math.min(100, Math.round(status.percent))), actions: [] };
+      }
+      // EVM-110 AC4, AC5: a film that waits for a network without charges. The server's `failed` / `abandoned` of a file without a session (after 7
+      // days) is NOT looked at for a row that waits: it stays "Czeka na Wi-Fi" and is sent again as the same medium, with no "Ponów".
+      return status?.waitingForWifi === true && base.mediaType === 'video'
+        ? { ...base, status: 'waiting_wifi', percent: null, actions: [] }
         : { ...base, status: 'waiting', percent: null, actions: [] };
     case 'uploaded':
     case 'clean':

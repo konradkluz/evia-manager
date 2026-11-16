@@ -72,6 +72,8 @@ describe('the table of files of the queue (EVM-130 AC4; architect 6)', () => {
       'updated_at',
       // v3 (EVM-108): the only addition, a closed code of the category of the picture
       'category',
+      // v4 (EVM-110): the length of a film in milliseconds, a number only
+      'duration_ms',
     ]);
   });
 
@@ -85,7 +87,7 @@ describe('the table of files of the queue (EVM-130 AC4; architect 6)', () => {
     );
     expect(await db.read(readVersions)).toEqual({ queue: 1, replica: 1 });
     expect(await migrate(db, SCHEMA)).toEqual({ kind: 'ok', replicaReset: false });
-    expect(await db.read(readVersions)).toEqual({ queue: 3, replica: 1 });
+    expect(await db.read(readVersions)).toEqual({ queue: 4, replica: 1 });
     expect(
       JSON.stringify(await db.read((tx) => tx.all('SELECT seq, mutation_id, owner_user_id, record FROM queue_entries ORDER BY seq'))),
     ).toBe(before);
@@ -119,6 +121,54 @@ describe('the table of files of the queue (EVM-130 AC4; architect 6)', () => {
     expect(await new SqlMediaFileStore(db, OTHER).list()).toEqual([]);
     await new SqlMediaFileStore(db, OTHER).setState(asset(1), 'clean', null, 9);
     expect((await store.list())[0]?.state).toBe('pending');
+  });
+
+  it('EVM-110 AC1: the length of a film is kept in its row (v4) as whole milliseconds; a picture and a row from before v4 have none; bad values are refused', async () => {
+    const { db } = await migratedDatabase(disk);
+    const queue = new SqlQueueStore(db);
+    const store = new SqlMediaFileStore(db, OWNER);
+    await queue.append(command(1));
+    await queue.append(command(2));
+    await store.register(file(1, { mime: 'video/mp4', durationMs: 133_400, category: 'defect' }));
+    await store.register(file(2));
+    const [film, picture] = await store.list();
+    expect(film).toMatchObject({ mime: 'video/mp4', durationMs: 133_400, category: 'defect' });
+    expect(picture).not.toHaveProperty('durationMs');
+    expect(await store.list()).toHaveLength(2);
+    for (const durationMs of [-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, 25 * 60 * 60 * 1000]) {
+      await expect(store.register(file(3, { durationMs }))).rejects.toThrow('invalid_media_file');
+    }
+    await store.register(file(4, { durationMs: 0 }));
+    expect((await store.list()).find((row) => row.assetId === asset(4))?.durationMs).toBe(0);
+    // a value the app did not write (a text) is not shown as a length
+    await db.transaction((tx) => tx.run('UPDATE media_files SET duration_ms = ? WHERE asset_id = ?', ['abc', asset(1)]));
+    expect((await store.list()).find((row) => row.assetId === asset(1))).not.toHaveProperty('durationMs');
+  });
+
+  it('EVM-110 AC1: a database of v3 (a picture with its category) migrates to v4 with the row intact, no length, and the queue untouched', async () => {
+    const v3: SchemaPlan = { queue: SCHEMA.queue.filter((m) => m.version <= 3), replica: SCHEMA.replica };
+    const { db } = await migratedDatabase(disk, v3);
+    await new SqlQueueStore(db).append(command(1));
+    const before = JSON.stringify(
+      await db.read((tx) => tx.all('SELECT seq, mutation_id, owner_user_id, record FROM queue_entries ORDER BY seq')),
+    );
+    // the row as the version 3 of the app wrote it (it knows no `duration_ms`)
+    await db.transaction((tx) =>
+      tx.run(
+        "INSERT INTO media_files (asset_id, mutation_id, work_order_id, owner_user_id, file_name, size_bytes, sha256, mime, state, last_code, created_at, updated_at, category) VALUES (?, ?, ?, ?, ?, ?, ?, 'image/jpeg', 'pending', NULL, 1, 1, 'other')",
+        [asset(1), mutation(1), WO, OWNER, asset(1), 1001, SHA],
+      ),
+    );
+    expect(await db.read(readVersions)).toEqual({ queue: 3, replica: 1 });
+    expect(await migrate(db, SCHEMA)).toEqual({ kind: 'ok', replicaReset: false });
+    expect(await db.read(readVersions)).toEqual({ queue: 4, replica: 1 });
+    const rows = await new SqlMediaFileStore(db, OWNER).list();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ assetId: asset(1), category: 'other', state: 'pending' });
+    expect(rows[0]).not.toHaveProperty('durationMs');
+    expect(
+      JSON.stringify(await db.read((tx) => tx.all('SELECT seq, mutation_id, owner_user_id, record FROM queue_entries ORDER BY seq'))),
+    ).toBe(before);
   });
 
   it('EVM-130 AC4: a row that is not a UUID name, a foreign owner, a bad digest or an empty file is refused (no path, no free text)', async () => {
@@ -283,7 +333,7 @@ describe('the category of a picture, schema v3 (EVM-108 AC1; SR-MOB-10; RR-98)',
     const queueBefore = JSON.stringify(await db.read((tx) => tx.all('SELECT seq, mutation_id, record FROM queue_entries ORDER BY seq')));
     expect(await db.read(readVersions)).toEqual({ queue: 2, replica: 1 });
     expect(await migrate(db, SCHEMA)).toEqual({ kind: 'ok', replicaReset: false });
-    expect(await db.read(readVersions)).toEqual({ queue: 3, replica: 1 });
+    expect(await db.read(readVersions)).toEqual({ queue: 4, replica: 1 });
     expect(await rowsOf()).toBe(rowsBefore);
     expect(await store.list()).toHaveLength(5);
     expect(JSON.stringify(await db.read((tx) => tx.all('SELECT seq, mutation_id, record FROM queue_entries ORDER BY seq')))).toBe(
@@ -305,7 +355,7 @@ describe('the category of a picture, schema v3 (EVM-108 AC1; SR-MOB-10; RR-98)',
     expect(columns).not.toContain('category');
     expect(await db.read((tx) => tx.all('SELECT asset_id FROM media_files'))).toHaveLength(1);
     expect(await migrate(db, SCHEMA)).toEqual({ kind: 'ok', replicaReset: false });
-    expect(await db.read(readVersions)).toEqual({ queue: 3, replica: 1 });
+    expect(await db.read(readVersions)).toEqual({ queue: 4, replica: 1 });
   });
 
   it('EVM-108 AC1: the category is stored with the row and read back; a row without one has no category, an unknown code reads as "unknown"', async () => {

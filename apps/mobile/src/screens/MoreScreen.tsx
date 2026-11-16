@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ScrollView, Text, View } from 'react-native';
 import { useStartup } from '../startup';
-import { AlertDialog, AppBar, Button } from '../ui';
+import { AlertDialog, AppBar, Button, SwitchRow } from '../ui';
 import { borderWidth, color, space, text } from '../ui/theme';
 import { ContactWarningBanner } from './DeviceNotices';
 import { SyncCapsule } from './SyncCapsule';
@@ -117,6 +117,45 @@ export function useSignOutFlow(openQueue: () => void, onWipe: () => void) {
 }
 
 /**
+ * "Więcej -> Wysyłanie" (EVM-110 AC4; M-09, styleguide § 3.4): the switch "Filmy tylko przez Wi-Fi", on by default. A local setting of the phone (the module keeps it;
+ * it stays after the sign-out and after "Wyczyść dane firmowe"; nothing goes to the server). The change is at once, with no dialog; the switch is blocked until the
+ * value is stored, and what it shows afterwards is what the module holds. The text under it depends on the state. Only films wait for Wi-Fi: pictures and entries
+ * go through any network.
+ */
+function UploadSettings() {
+  const { t } = useTranslation();
+  const { media } = useSession();
+  const [wifiOnly, setWifiOnly] = useState(() => media.videoWifiOnly());
+  const [busy, setBusy] = useState(false);
+  return (
+    <View style={{ rowGap: space.stack.xs }} testID="more-upload">
+      <Text accessibilityRole="header" style={{ ...text.heading4, color: color.text.primary }}>
+        {t('more.upload.title')}
+      </Text>
+      <SwitchRow
+        label={t('more.upload.wifiLabel')}
+        description={t(wifiOnly ? 'more.upload.wifiOn' : 'more.upload.wifiOff')}
+        value={wifiOnly}
+        disabled={busy}
+        onValueChange={(next) => {
+          setBusy(true);
+          void media
+            .setVideoWifiOnly(next)
+            .then(() => {
+              setWifiOnly(media.videoWifiOnly());
+            })
+            .finally(() => {
+              setBusy(false);
+            });
+        }}
+        testID="more-wifi-switch"
+        descriptionTestID="more-wifi-description"
+      />
+    </View>
+  );
+}
+
+/**
  * "Więcej" (M-09) — the part EVM-100 needs (AC7): the name of the user, where account settings live, "Pomoc", the version, "Wyloguj"
  * and, separated at the bottom, "Wyczyść dane firmowe" (EVM-101: the dialog with the number of unsent items). Blocking is always on —
  * there is no switch to turn the app lock off (EVM-101 AC3). Upload and handling switches arrive with their stories.
@@ -139,6 +178,7 @@ export function MoreScreen({ onOpenQueue, onSignOut, onWipe }: { onOpenQueue: ()
           </Text>
           <Text style={{ ...text.body, color: color.text.secondary }}>{t('more.accountNote')}</Text>
         </View>
+        <UploadSettings />
         <View style={{ alignSelf: 'flex-start' }}>
           <Button label={t('more.help')} variant="tertiary" onPress={session.openHelp} testID="more-help" />
         </View>

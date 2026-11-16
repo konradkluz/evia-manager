@@ -1,0 +1,26 @@
+# EVM-110 AC8: the app was killed (kill -9) and started again without a network: the three films are still there - "3 do wysłania", all three waiting for the
+# connection ("Czeka na połączenie": with no network at all the film does not wait for Wi-Fi), none lost, none needing attention.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- extendedWaitUntil:
+    visible: 'Brak zasięgu.*'
+    timeout: 30000
+- tapOn:
+    id: 'nav-queue'
+- extendedWaitUntil:
+    visible:
+      id: 'files-summary'
+      text: '3 do wysłania'
+    timeout: 60000
+# offline the three rows are not applied yet (the command waits for the server): "Oczekuje" like every file of the airplane scenarios
+- assertVisible: '.*Oczekuje'
+- assertNotVisible: 'Wymaga uwagi'
+- runFlow:
+    file: common/media-status.yaml
+    env:
+      STATUS: 'files=3;waiting=3;uploading=0;sent=0;failed=0;attention=0;notifications=[a-z_]+'

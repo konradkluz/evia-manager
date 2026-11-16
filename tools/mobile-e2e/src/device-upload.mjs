@@ -102,6 +102,8 @@ export const uploadCommands = {
   listOriginal: (assetId) => ['shell', `run-as ${APPLICATION_ID} ls ${UPLOAD_ROOT}/originals/${checkedAssetId(assetId)}`],
   /** @param {string} assetId a UUID (checked) */
   digestOriginal: (assetId) => ['shell', `run-as ${APPLICATION_ID} sha256sum ${UPLOAD_ROOT}/originals/${checkedAssetId(assetId)}`],
+  /** The original of a FILM is `<assetId>.mp4` (EVM-110): the same digest, the other name. @param {string} assetId a UUID (checked) */
+  digestFilmOriginal: (assetId) => ['shell', `run-as ${APPLICATION_ID} sha256sum ${UPLOAD_ROOT}/originals/${checkedAssetId(assetId)}.mp4`],
   dumpsysNotification: () => ['shell', 'dumpsys', 'notification', '--noredact'],
   /** @param {boolean} on */
   notificationPermission: (on) => ['shell', 'pm', on ? 'grant' : 'revoke', APPLICATION_ID, NOTIFICATION_PERMISSION],
@@ -358,7 +360,9 @@ export function originalsOnDevice(context, assetIds) {
   /** @type {Record<string, string | null>} */
   const digests = {};
   for (const id of assetIds) {
-    const answer = context.adb(...uploadCommands.digestOriginal(id));
+    let answer = context.adb(...uploadCommands.digestOriginal(id));
+    // a film is `<assetId>.mp4` (EVM-110): when there is no original of the plain name, the film's one is asked
+    if (answer.status !== 0) answer = context.adb(...uploadCommands.digestFilmOriginal(id));
     digests[id] = answer.status === 0 ? (/^([0-9a-f]{64})\b/i.exec(answer.stdout.trim())?.[1]?.toLowerCase() ?? null) : null;
   }
   return digests;

@@ -1,0 +1,50 @@
+# EVM-110 AC8: no network (airplane mode, set by tools/mobile-e2e), "Filmy tylko przez Wi-Fi" on. THREE films are saved by the same path of the camera: two
+# synthetic ones of 64 MiB by the hook `media: capture video` and one short recording of the real camera of the emulator (the virtual scene). The Queue
+# says "3 do wysłania"; tools/mobile-e2e kills the app (kill -9) right after this flow.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- extendedWaitUntil:
+    visible: 'Brak zasięgu.*'
+    timeout: 30000
+- runFlow:
+    file: common/hook-capture-video.yaml
+    env:
+      MIB: '64'
+      COUNT: '2'
+- runFlow: common/camera-from-order.yaml
+- tapOn:
+    id: 'camera-mode-video'
+- tapOn:
+    id: 'camera-category-site_survey'
+- tapOn:
+    id: 'camera-shutter'
+- extendedWaitUntil:
+    visible:
+      id: 'camera-timer'
+      text: '0:(0[3-9]|[1-5][0-9]) / 5:00'
+    timeout: 60000
+- tapOn:
+    id: 'camera-shutter'
+- extendedWaitUntil:
+    visible: 'Zapisano film w telefonie'
+    timeout: 60000
+- tapOn:
+    id: 'camera-done'
+- extendedWaitUntil:
+    visible: 'Zlecenie testowe 1'
+    timeout: 30000
+- tapOn:
+    id: 'order-detail-back'
+- tapOn:
+    id: 'nav-queue'
+- extendedWaitUntil:
+    visible:
+      id: 'files-summary'
+      text: '3 do wysłania'
+    timeout: 60000
+- takeScreenshot: m07-video-three-saved

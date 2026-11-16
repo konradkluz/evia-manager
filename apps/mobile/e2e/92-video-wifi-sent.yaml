@@ -1,0 +1,25 @@
+# EVM-110 AC4 AC5 AC8: the network without charges is back (Wi-Fi, set by tools/mobile-e2e) and the films go on their own - with the app open, after a
+# force-stop, after a kill. The Queue ends with "0 do wysłania", no film waiting for Wi-Fi, no banner. The same flow serves every such end of a scenario;
+# tools/mobile-e2e then asks the scenario server for the objects (one per asset, the SHA-256 of the original, 0 duplicates, no orphaned multipart).
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- tapOn:
+    id: 'nav-queue'
+- extendedWaitUntil:
+    visible: '.*Wysłano'
+    timeout: 300000
+- extendedWaitUntil:
+    visible:
+      id: 'files-summary'
+      text: '0 do wysłania'
+    timeout: 420000
+- assertNotVisible:
+    id: 'waiting-wifi-banner'
+- assertNotVisible: 'Wymaga uwagi'
+- assertNotVisible: 'Wylogowano ten telefon'
+- takeScreenshot: m07-video-sent

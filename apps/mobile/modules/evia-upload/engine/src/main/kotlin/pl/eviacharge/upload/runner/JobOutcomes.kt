@@ -7,7 +7,7 @@ object JobOutcomes {
     /** `jobFinished(wantsReschedule)`: only a run that can simply be continued asks the system to schedule it again. */
     fun wantsReschedule(result: JobResult): Boolean =
         when (result) {
-            is JobResult.Retry, JobResult.RetryChecksum, JobResult.Stopped -> true
+            is JobResult.Retry, JobResult.RetryChecksum, JobResult.Stopped, JobResult.WaitingForWifi -> true
             else -> false
         }
 
@@ -17,6 +17,7 @@ object JobOutcomes {
             JobResult.Finished -> "uploaded" to null
             is JobResult.Retry, JobResult.Stopped -> "queued" to null
             JobResult.RetryChecksum -> "queued" to "checksum_mismatch"
+            JobResult.WaitingForWifi -> "queued" to "waiting_wifi"
             JobResult.PausedForSignIn -> "paused_revoked" to null
             JobResult.PausedForUpdate -> "paused_update" to null
             JobResult.WrongOwner -> "wrong_owner" to null

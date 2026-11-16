@@ -35,3 +35,30 @@ export const expoDiskSpace: DiskSpace = {
     }
   },
 };
+
+/** Before a film starts: below 200 MB the "Film" chip is off (the block of 100 MB + a reserve of 50 MB + about a minute of film; EVM-110 AC2). */
+export const VIDEO_BLOCK_BELOW_BYTES = 200 * MB;
+/** A film that runs stops and is saved when the free space falls below this (the same 100 MB as the block of a picture). */
+export const VIDEO_STOP_BELOW_BYTES = BLOCK_BELOW_BYTES;
+/** The safety limit of the size of a film (a phone that ignores the bitrate cannot record more); every film stays below the scan threshold of 2 GB. */
+export const VIDEO_SAFETY_BYTES = 500_000_000;
+/** What stays free when the size limit is counted from the free space. */
+export const VIDEO_RESERVE_BYTES = 150 * MB;
+/** The library takes `maxFileSize` as a 32-bit integer. */
+export const INT_MAX = 2 ** 31 - 1;
+
+const usable = (freeBytes: number | null): freeBytes is number => freeBytes !== null && Number.isFinite(freeBytes) && freeBytes >= 0;
+
+/** `blocked` below [VIDEO_BLOCK_BELOW_BYTES]; an unknown or nonsensical reading is `ok` (the native import and the engine check again). */
+export function videoDiskLevel(freeBytes: number | null): 'ok' | 'blocked' {
+  return usable(freeBytes) && freeBytes < VIDEO_BLOCK_BELOW_BYTES ? 'blocked' : 'ok';
+}
+
+/**
+ * `maxFileSize` of the recording, counted at the start: the smaller of the safety limit and the free space minus the reserve, at least 1 (0 means "no limit"
+ * to the library) and never above a 32-bit integer.
+ */
+export function videoSizeLimit(freeBytes: number | null): number {
+  const room = usable(freeBytes) ? freeBytes - VIDEO_RESERVE_BYTES : VIDEO_SAFETY_BYTES;
+  return Math.min(INT_MAX, Math.max(1, Math.floor(Math.min(VIDEO_SAFETY_BYTES, room))));
+}

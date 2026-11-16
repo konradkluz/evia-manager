@@ -6,50 +6,89 @@ milestone: M2
 epic: E11 Zdjęcia i filmy
 status: draft
 priority: P2
-path: lekka             # tylko ekran nad lokalną kolejką; bez pobierania miniatur i podpisanych adresów (zawężone 2026-11-12)
+path: lekka             # tylko ekran nad lokalną kolejką; bez pobierania miniatur i podpisanych adresów (zawężone 2026-11-12); decyzja Konrada 2026-11-15
 owner: mobile-developer
 contributors: []
-reviewers: [code-reviewer]
+reviewers: [security-engineer]
 model: sonnet
-depends_on: [EVM-108, EVM-131]
+depends_on: [EVM-108, EVM-110, EVM-131]
 ---
 
 # EVM-111: Aplikacja — status każdego pliku w kolejce telefonu
 
-> **Szkic ramowy** — AC do doprecyzowania po EVM-108/109. Zakres zawężony 2026-11-12: galeria i przegląd mediów zlecenia (zdjęcia i filmy z biura, miniatury z serwera) **tylko w panelu web**.
+> **Szkic do akceptacji treści przez Konrada (2026-11-15; decyzje Konrada naniesione wieczorem).** Zakres zawężony 2026-11-12: galeria i przegląd mediów zlecenia (zdjęcia i filmy z biura, miniatury z serwera) **tylko w panelu web**.
 
 ## Cel
-Jako **technik** chcę **widzieć stan każdego pliku, który zrobiłem telefonem (czeka, wysyła się, wysłany, wymaga uwagi)**, aby **upewnić się, że dotarły i nic nie brakuje**. Ekran M-08 w wersji uproszczonej: lista plików lokalnych z ich statusem, bez podglądu mediów z serwera.
+Jako **technik** chcę **w szczegółach zlecenia zobaczyć, które pliki z mojego telefonu jeszcze nie dotarły do biura i co się z nimi dzieje („3 do wysłania” albo „Wszystko wysłane”)**, aby **mieć pewność, że nic nie brakuje, zanim odjadę sprzed domu klienta**. Kolejka (EVM-108, EVM-110) pokazuje pliki wszystkich zleceń naraz; ta historyjka dodaje widok **jednego zlecenia**, przyczyny w prostych słowach i usuwanie wpisu o pliku z telefonu zaraz po potwierdzeniu wysłania.
 
-## Kryteria akceptacji (ramowe)
+## Kontekst
+Gotowe: wspólny wiersz pliku `FileRow`, etykiety stanów, „Ponów” i „Usuń z telefonu” (EVM-108, EVM-130), stany mediów w replice (EVM-131). EVM-110 (w realizacji) dodaje stan „Czeka na Wi-Fi” i wiersz filmu — ten ekran ich używa, więc **startuje po scaleniu EVM-110**; z EVM-112 może iść równolegle albo po niej (test terenowy tej historyjki **nie wymaga** — wystarcza Kolejka).
 
-**AC1 — Lista plików zlecenia z ich stanem**
-- Zakładając zlecenie, do którego zrobiłem zdjęcia lub filmy na tym telefonie
+## Kryteria akceptacji
+
+**AC1 — „Pliki zlecenia”: pliki tego zlecenia, które jeszcze nie dotarły**
+- Zakładając zalogowanego Administratora lub Edytora, otwarte zlecenie i pliki z kolejki tego telefonu przypisane do tego zlecenia
+- Gdy w szczegółach zlecenia wybieram wiersz „Pliki z tego telefonu” (stały, w treści nad dziennikiem; druga linia: „n do wysłania” albo „Wszystko wysłane” z ikoną `check`; całość jednym celem dotyku z chevronem)
+- Wtedy otwiera się ekran „Pliki zlecenia”: **lista płaska** wierszy wspólnego komponentu pliku — kategoria, czas wykonania, typ (dla filmu także czas trwania i rozmiar, jak w EVM-110) i jedna etykieta stanu: „Oczekuje”, „Wysyła się n%”, „Czeka na Wi-Fi”, „Nie wysłano” albo „Wymaga uwagi”; kolejność: Wymaga uwagi, Nie wysłano, w toku, oczekujące (w grupach od najnowszego); plik **wysłany** (potwierdzony przez serwer) nie jest na liście (AC5); nie ma plików innych zleceń ani innych telefonów; wiersze nie pokazują nazwy klienta, adresu, nazwy pliku ani ścieżki; „Czeka na Wi-Fi” bez banera i dodatkowego objaśnienia (baner zostaje w Kolejce).
+
+**AC2 — „n do wysłania” / „Wszystko wysłane”**
+- Zakładając pliki zlecenia w różnych stanach
+- Gdy stan pliku się zmienia albo plik zostaje wysłany
+- Wtedy nagłówek listy i druga linia wiersza w szczegółach zlecenia pokazują tę samą liczbę bez odświeżania ręcznego: n = liczba plików zlecenia na liście (każdy stan z AC1, także „Czeka na Wi-Fi” i „Wymaga uwagi”), bez paska postępu; przy n = 0 oba pokazują „Wszystko wysłane” z ikoną `check`, ogłoszone raz czytnikowi ekranu; zmiany liczby w nagłówku ogłaszane zbiorczo, nie przy każdym procencie, a w szczegółach zlecenia tylko przez aktualizację nazwy dostępnej („Pliki z tego telefonu, 3 do wysłania” / „…, wszystko wysłane”); liczba pochodzi wyłącznie z lokalnej kolejki tego telefonu (bez nowego API i bez repliki mediów zlecenia, która obejmuje też pliki z innych urządzeń i z panelu).
+
+**AC3 — Stany: pusty, wczytywanie, błąd, offline**
+- Zakładając zlecenie bez niewysłanych plików z tego telefonu, brak sieci albo błąd odczytu lokalnej bazy
 - Gdy otwieram „Pliki zlecenia”
-- Wtedy widzę każdy plik z kolejki telefonu (nazwa/kategoria, typ, czas wykonania, rozmiar) i jego stan: oczekuje, wysyła się (postęp), wysłany (`clean`), błąd, wymaga uwagi; wskaźnik zbiorczy „wysłano n z m”.
+- Wtedy: **pusty** — EmptyState „Wszystko wysłane. Zdjęcia i filmy zlecenia przegląda biuro w panelu.” bez przycisku (nagłówek z liczbą jak w AC2; „Zrób zdjęcie” jest w stałym pasku zlecenia); **wczytywanie** — szkielet 3 wierszy, dla czytnika „Wczytywanie plików…”, bez spinnera; **offline** — wszystkie pliki i stany jak z siecią, bez komunikatu o błędzie i bez banera (jest tylko kapsuła „Offline · n”); **błąd odczytu** — „Nie udało się wczytać listy plików.” z [Spróbuj ponownie] (wiersz w szczegółach bez drugiej linii, jeśli nie zna liczby), żaden rekord ani plik nie zostaje zmieniony.
 
-**AC2 — Offline**
-- Zakładając brak sieci
-- Gdy otwieram listę
-- Wtedy widzę wszystkie pliki lokalne i ich stany bez komunikatu o błędzie; miniatura to lokalny podgląd zrobionego pliku (z pamięci aplikacji, nie z serwera).
+**AC4 — Przyczyny prostym językiem i akcje**
+- Zakładając plik „Wymaga uwagi” albo „Nie wysłano” (w tym kwarantanna, konflikt identyfikatora, brak oryginału, plik uszkodzony w transmisji, kod nieznany tej wersji)
+- Gdy oglądam go na liście
+- Wtedy pod etykietą jest przyczyna zwykłymi słowami z zamkniętego słownika (teksty z makiety 09 / EVM-108) i te same akcje co w Kolejce: „Ponów” tam, gdzie ponowienie ma sens, „Usuń z telefonu” (z potwierdzeniem) tam, gdzie nie ma; **kod nieznany tej wersji** (także treść przypominająca ścieżkę lub klucz obiektu) → tylko „Nie udało się wysłać pliku. Spróbuj ponownie.” i wyłącznie „Ponów”, nigdy „Usuń z telefonu”; „Oczekuje”, „Wysyła się” i „Czeka na Wi-Fi” akcji nie mają; po akcji lista i liczba aktualizują się; „Ponów” bez sieci nie daje błędu (plik czeka na sieć); przyczyna techniczna kwarantanny, surowy kod, klucz obiektu i nazwa pliku nie pojawiają się na ekranie, w nazwach dostępnych ani w logach (kod zostaje w bazie).
 
-**AC3 — Kwarantanna i błąd**
-- Zakładając plik `quarantined` lub `failed`
-- Gdy go oglądam
-- Wtedy widzę przyczynę prostym językiem i akcję („Ponów” albo kontakt z biurem); techniczna przyczyna kwarantanny nie trafia na telefon.
+**AC5 — Wpis o wysłanym pliku znika z telefonu od razu po potwierdzeniu serwera**
+- Zakładając plik zlecenia, dla którego replika `media_asset` pokazuje stan potwierdzony (`clean` albo późniejszy `processing` / `ready` — ta sama reguła co usunięcie oryginału z EVM-130)
+- Gdy telefon dostaje to potwierdzenie
+- Wtedy lokalny wpis o pliku (kategoria, czas, typ, rozmiar, identyfikator zlecenia) jest usuwany razem z oryginałem — znika z listy zlecenia, z Kolejki (nie ma już sekcji „Wysłane pliki” ani etykiety „Wysłano”) i z liczników; wpis **nigdy** nie jest usuwany bez potwierdzenia serwera (sam lokalny znacznik „wysłano” albo koniec transferu nie wystarcza), a pliki oczekujące, wysyłane, „Czeka na Wi-Fi”, „Nie wysłano” i „Wymaga uwagi” nie są usuwane automatycznie bez względu na wiek; usunięcie działa też w trybie ukrytych danych i po `session_revoked` (nic nie odsłania); usuwa tylko wpis lokalny (bez mutacji w kolejce synchronizacji, serwerowy `media_asset` nietknięty); gdy usunięcie wpisu się nie powiedzie, plik zostaje w wyniku jak niewysłany i operacja jest powtarzana (żaden wpis bez oryginału ani oryginał bez wpisu po zakończeniu).
 
-**AC4 — Stan pusty**
-- Zakładając zlecenie bez plików z tego telefonu
-- Gdy otwieram listę
-- Wtedy widzę stan pusty z informacją, że zdjęcia i filmy zlecenia są dostępne w panelu biura.
+**AC6 — Role, prywatność i dostępność**
+- Zakładając różne role i stany aplikacji
+- Gdy otwieram ekran albo wiersz w szczegółach zlecenia
+- Wtedy Administrator i Edytor widzą listę (Tylko odczyt nie loguje się do aplikacji, niezalogowany widzi logowanie); w trybie ukrytych danych, przy blokadzie aplikacji i po `session_revoked` wiersza „Pliki z tego telefonu” w szczegółach nie ma, a ekran „Pliki zlecenia” pokazuje tylko komunikat „Dane zleceń są ukryte. Pliki wyślą się dalej — status zobaczysz w Kolejce.” z akcją wyjścia jak w całej aplikacji (bez wierszy, liczby, numeru zlecenia i nazw dostępnych); przejście w ten stan przy otwartym ekranie usuwa wiersze i liczbę od razu, a czytnik niczego nie ogłasza (także „Wszystko wysłane” i zmian liczby); po odblokowaniu lista wraca; po wylogowaniu i wymuszonym czyszczeniu danych wpisy plików są usunięte wg EVM-130 AC5; żadnych nowych powiadomień ani uprawnień; wiersz jest jedną grupą czytaną „[kategoria], [typ], [czas], [stan]”, a przyciski są poza grupą; cele dotyku ≥ 48 dp, 200% czcionki bez ucinania, stan niesie tekst (nie sam kolor lub ikona).
 
 ## Poza zakresem
-Galeria i przegląd mediów zlecenia na telefonie (zdjęcia z biura, miniatury z serwera, podpisane adresy, pamięć podręczna miniatur) — tylko panel web; pobieranie oryginałów offline; usuwanie mediów z telefonu. Dzięki temu EVM-111 nie zależy od EVM-045 i EVM-068.
+Miniatury i podgląd pliku, także lokalny (decyzja Konrada 2026-11-15); retencja wpisów o wysłanych plikach (7 dni) i licznik „Wysłano n z m” (decyzja Konrada 2026-11-15: wpis znika po potwierdzeniu); historia wysłanych plików na telefonie; galeria i przegląd mediów zlecenia na telefonie, miniatury z serwera, podpisane adresy, pliki z innych telefonów i „Czeka na plik” (panel web); filtry, siatka, przełączniki widoku; rozwijane „Szczegóły techniczne”; „Wstrzymaj” i „Ponów wszystkie” na tym ekranie (są w Kolejce); usuwanie niewysłanego pliku (decyzja Konrada 2026-11-15); osobny przycisk „Zrób zdjęcie” na ekranie; nowe powiadomienia; pobieranie oryginałów; zmiany API, kontraktów i serwera.
+
+## Decyzje i ograniczenia
+- **Decyzje Konrada (2026-11-15, wieczorem; dosłownie: „1. wyciąć. 2. moim zdaniem od razu po przesłaniu można usunąć z telefonu. 3. rekomendacja 4. lekka. 5. rekomendacja.”):** (1) miniatury lokalne wycięte; (2) wpis o wysłanym pliku usuwany z telefonu od razu po wysłaniu — **interpretacja Tech Leada:** po potwierdzeniu przez serwer (AC5), do korekty przez Konrada; (3) stały wiersz w szczegółach zlecenia także przy 0 plikach; (4) ścieżka `lekka`, jedyny recenzent `security-engineer`; (5) `depends_on` + EVM-110, realizacja po EVM-110, równolegle z EVM-112 albo po niej.
+- **Konsekwencje decyzji 2:** (a) licznik „wysłano n z m” odpada — replika `media_asset` na telefonie obejmuje media zlecenia z **wszystkich** urządzeń i z panelu oraz nie niesie plików jeszcze niezgłoszonych (brak `applied`), więc „n z m” z repliki mówiłoby o zleceniu, nie o telefonie; zamiast tego „n do wysłania” / „Wszystko wysłane” z lokalnej kolejki (jak nagłówek Kolejki z EVM-108), bez nowego API; (b) `sentAt`, migracja i zapytanie retencji 7 dni odpadają; (c) **zmienia się zachowanie zrealizowanej EVM-108:** dziś wpisy po `clean` zostają w Kolejce (stała `CLEAN_KEPT` = 20, sekcja „Wysłane pliki”, etykieta „Wysłano” w AC6, kryterium „wiersze w Kolejce mają stan Wysłano” w AC7 i przepływy Maestro) i EVM-130 (AC5) zapisała, że „rekord pliku zostaje zgodnie z EVM-111” — wykonawca aktualizuje te testy i dokumenty (`offline-sync.md`, `rodo.md`, `CHANGELOG.md`) w tej historyjce, bez zmiany tekstu AC zamkniętych historyjek.
+- **UX / UI (konsultacja UX, skrót; 2026-11-15):** tylko istniejące komponenty (`FileRow`, EmptyState, Banner, SyncIndicator) i tokeny, zero nowych. Wiersz „Pliki z tego telefonu” w przewijanej treści M-03, pierwszy nad dziennikiem (nie w dolnym pasku — ten jest od akcji), druga linia `text.body-sm`, po prawej chevron, całość celem ≥ 48 dp zawijanym przy 200% czcionki; podpowiedź „Otwiera listę plików zlecenia”. Ekran: lista płaska, stany z AC3, brak „Zrób zdjęcie” na pustym ekranie, brak banera Wi-Fi i objaśnień filmu. Tryb ukrytych danych: wiersza w M-03 nie ma; ekran = Banner § 4.18 + EmptyState `eye-off`. **Po decyzji 2 nieaktualne:** nagłówek z paskiem postępu i „Wysłano n z m” (teraz tekst „n do wysłania” bez paska); ux-designer potwierdza nowe teksty i zgodność liczby z nagłówkiem Kolejki (czy „Czeka na Wi-Fi” liczy się tak samo) przy aktualizacji dokumentów.
+- **Bezpieczeństwo i prywatność (konsultacja security, skrót; 2026-11-15):** **zostaje:** role (Administrator i Edytor; Tylko odczyt — `403 channel_not_allowed`); brak usuwania wpisu bez potwierdzenia serwera (ten sam predykat co usunięcie oryginału — bez wywołań modułu natywnego ponad to, co już robi EVM-130, i bez mutacji w kolejce); brak ruszania plików niewysłanych; zamknięty słownik przyczyn (SR-MOB-10/11, SR-LOG; kod nieznany → ogólny tekst, tylko „Ponów”, nie trafia na ekran, do nazwy dostępnej ani do logów); tryb ukrytych danych (FLAG_SECURE, brak wierszy, liczby i numeru zlecenia; region na żywo też jest kanałem ujawnienia, więc brak ogłoszeń). **Nieaktualne po decyzji 2:** akceptacja przechowywania rekordu przez 7 dni po wysłaniu, `sentAt` (tylko SQLCipher, czas z przyszłości = wygasły, migracja nadająca czas migracji) i przegląd migracji `sentAt` — w ich miejsce wpis jest usuwany od razu (mniej metadanych na urządzeniu). **Do przeglądu security:** kolejność usunięcia (wpis nie znika przed oryginałem; natywny odśmiecacz traktuje oryginał bez wpisu jako niczyj i go kasuje) i zapytanie usuwające po potwierdzeniu.
+- **Ścieżka `lekka`:** 6 AC, jeden moduł (aplikacja), bez API; jedyny recenzent `security-engineer` (warunek przeglądu: usuwanie wpisu po potwierdzeniu, kolejność z oryginałem, testy z DoD).
+- **Dokumenty UX po akceptacji historyjki** (zrobi ux-designer, nie teraz): makieta 09 — M-08 z „Media zlecenia” (siatka) na uproszczone „Pliki zlecenia” (lista płaska, „n do wysłania”), wiersz w opisie M-03, znaczniki „od EVM-111” (nagłówek, diagram, linie ok. 9, 31, 374, 419), usunięcie „Wysłane pliki” z opisu Kolejki, mikrocopy; styleguide § 4.18 (M-08 = „Pliki zlecenia”, tekst EmptyState) i wpis w changelogu; wiersz nawigacyjny w specyfikacji M-03.
+
+## Do akceptacji przez Konrada
+Po decyzji 2 historyjka jest mniejsza (brak retencji, `sentAt`, migracji i licznika „n z m”), ale ekran zachowuje sens: Kolejka nie pokazuje, do którego zlecenia należy plik (bez numerów — tryb ukrytych danych), a wiersz w zleceniu odpowiada na „czy z tego zlecenia coś jeszcze nie dotarło”. **Jedno pytanie:** czy potwierdzasz, że „od razu po przesłaniu można usunąć z telefonu” oznacza usunięcie wpisu po **potwierdzeniu przez serwer** (nie po samym końcu transferu) — z konsekwencją, że na telefonie nie ma już śladu „Wysłano” (znika sekcja „Wysłane pliki” w Kolejce, a technik widzi tylko, że licznik spadł do „Wszystko wysłane”)? **Rekomendacja: tak** — potwierdzenie serwera jest bezpieczne (oryginał też kasujemy dopiero wtedy), a historię wysłanych zdjęć i filmów technik zobaczy w panelu biura. Alternatywa: zostawić wpis w Kolejce do końca dnia (więcej kodu, wróci pytanie o retencję).
+
+## Notatki techniczne
+- Usunięcie wpisu po potwierdzeniu w tym samym miejscu, gdzie decyzja o oryginale (`media-uploads.ts`, reguła „`clean`, `processing` albo `ready`”): zastępuje stałą `CLEAN_KEPT` = 20; wpis usuwany **po** oryginale; natywny odśmiecacz dotyka plików bez wpisu (test: wpis usunięty, oryginał jeszcze jest → sprzątnięty, nigdy odwrotnie).
+- `MediaFileView` nie niesie identyfikatora zlecenia — potrzebne do filtra (nie do wyświetlania). Selektor „pliki zlecenia” nad tym samym źródłem co Kolejka; bez nowej kolejki i bez zmian w silniku EVM-130. Źródłem liczby jest lokalna kolejka, nie replika mediów.
+- Reakcja na stan: przejście w tryb ukrycia przy otwartym ekranie (nie tylko przy montowaniu) czyści wiersze, liczbę i region na żywo; `DISCARDABLE_CODES` nie rozszerzać o kod nieznany (`reasonKey` w `QueueFiles.tsx`).
+- Pliki wspólne z EVM-110: `FileRow.tsx`, `QueueFiles.tsx`, `i18n/pl.ts` (osobny blok kluczy); testy i przepływy Maestro zależne od „Wysłano” w Kolejce (EVM-108 AC6/AC7) do dostosowania; numeracja Maestro: kolejny wolny zakres.
+- Bez nowych zależności, uprawnień, powiadomień i zmian kontraktu.
+
+## Definition of Done
+- [ ] AC1–AC6 pokryte testami oznaczonymi `EVM-111 AC#` (Jest; jeden przepływ Maestro: zdjęcia w zleceniu → „n do wysłania” → po wysłaniu „Wszystko wysłane” i brak wpisu); `pnpm run gate` i `npm run docs:check` zielone.
+- [ ] Testy negatywne (Jest): (a) plik w każdym stanie innym niż potwierdzony (Oczekuje, Wysyła się, Czeka na Wi-Fi, Nie wysłano, Wymaga uwagi — `quarantined`, `id_conflict`, `missing_original`, kod nieznany) nawet po 30 dniach: wpis, oryginał i plik zadania nietknięte; (b) sam lokalny znacznik „wysłano” albo koniec transferu bez potwierdzenia w replice — wpis nie jest usuwany; (c) usunięcie nie dodaje mutacji do kolejki synchronizacji; kolejność: wpis po oryginale, odśmiecacz nie kasuje oryginału istniejącego wpisu; (d) kod spoza słownika (także z treścią jak ścieżka / klucz obiektu) → tylko tekst ogólny i „Ponów”, bez „Usuń z telefonu”, bez kodu na ekranie, w nazwie dostępnej i w logach; (e) przejście w tryb ukrycia przy otwartym ekranie czyści wiersze i liczbę, bez ogłoszeń czytnika; (f) testy EVM-108 AC6/AC7 (sekcja „Wysłane pliki”, etykieta „Wysłano”) dostosowane świadomie, nie osłabione.
+- [ ] Przegląd: `security-engineer` (usuwanie wpisu po potwierdzeniu, kolejność z oryginałem) i ux-designer statycznie; `CHANGELOG.md`; po akceptacji historyjki ux-designer aktualizuje makietę 09 (M-08, M-03, Kolejka) i styleguide § 4.18.
 
 ## Dziennik
 - 2026-10-27 — utworzono (product-owner)
 - 2026-10-27 — ścieżka zmieniona na `pelna` po konsultacji security (product-owner)
 - 2026-11-12 — zawężono do statusu plików w kolejce telefonu; galeria mediów tylko w panelu web; ścieżka `pelna` → `lekka` (brak pobierania miniatur i podpisanych adresów), zależności 045/068 usunięte, 4 AC (decyzja Konrada 2026-11-12 / Tech Lead z delegacji Konrada „tanio, szybko, bezpiecznie”)
-- 2026-11-14 — `depends_on` + EVM-131; uwagi z konsultacji (product-owner), bez zmiany AC i statusu `draft`: stan `clean` pochodzi wyłącznie z repliki `media_asset` (wymaga EVM-131); offline — tylko dane lokalne; miniatura z pliku lokalnego, bez pamięci podręcznej na dysku; w trybie ukrytym i po `session_revoked` ekran nie renderuje danych; przyczyna kwarantanny tylko jako kod ze słownika; retencja rekordu wysłanego pliku (rekomendacja 7 dni) i jeden komponent listy z Kolejką — do potwierdzenia w `/refine`
-- 2026-11-14 — uwaga z EVM-131 (backend-developer), bez zmiany AC i statusu: replika `media_asset` niesie minimalny ładunek (`description`, `capturedAt`, rozmiary zawsze `null`), więc aplikacja musi zachować lokalny opis i czas wykonania; stan `clean` i `quarantined` (bez przyczyny) pochodzi z `fileState`, a upsert o wersji niewyższej od znanej jest odrzucany — wersja synchronizacji to `version` + licznik stanu pliku
+- 2026-11-14 — `depends_on` + EVM-131; uwagi z konsultacji (product-owner): stan `clean` wyłącznie z repliki `media_asset`; offline — tylko dane lokalne; w trybie ukrytym i po `session_revoked` ekran nie renderuje danych; przyczyna kwarantanny tylko jako kod ze słownika; retencja 7 dni i jeden komponent listy — do potwierdzenia w `/refine`
+- 2026-11-14 — uwaga z EVM-131 (backend-developer): replika `media_asset` niesie minimalny ładunek (rozmiary `null`), więc aplikacja zachowuje lokalny opis i czas wykonania; `clean` i `quarantined` (bez przyczyny) z `fileState`; wersja synchronizacji to `version` + licznik stanu pliku
 - 2026-11-15 — z doprecyzowania EVM-108: retencja rekordów wysłanych plików 7 dni i „wysłano n z m” należą do tej historyjki; lista plików reużywa wspólnego komponentu z EVM-108 (Tech Lead)
+- 2026-11-15 — szkic `/refine` (product-owner): 6 AC, miniatury i „Szczegóły techniczne” do „Poza zakresem”, ścieżka `lekka`, 5 pytań do Konrada; status `draft`
+- 2026-11-15 — naniesiono konsultacje UX i security; status draft, czeka na decyzje Konrada (product-owner)
+- 2026-11-15 — decyzje Konrada: miniatury wycięte, wpis o wysłanym pliku usuwany od razu po potwierdzeniu serwera (zamiast retencji 7 dni i „n z m” — „n do wysłania”), stały wiersz w zleceniu, `lekka` z recenzentem security-engineer, `depends_on` + EVM-110; status draft do akceptacji treści (product-owner)

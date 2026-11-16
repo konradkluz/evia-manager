@@ -11,6 +11,10 @@ export interface ToastProps {
   /** Called when the time is over. */
   onDismiss: () => void;
   testID?: string;
+  /** The screen announces the message itself (one source of the announcement): no alert role and no live region here. Default `true`. */
+  announce?: boolean;
+  /** A message that must be read whole at 200% font (the end of a recording): no limit of lines. Default `false`. */
+  fullText?: boolean;
 }
 
 /**
@@ -18,7 +22,7 @@ export interface ToastProps {
  * a polite live region (announced once). It disappears after six seconds. Errors are never a toast (an alert in place instead).
  * Hosted by the shell above the navigation, so it outlives the screen that raised it.
  */
-export function Toast({ message, onDismiss, testID }: ToastProps) {
+export function Toast({ message, onDismiss, testID, announce = true, fullText = false }: ToastProps) {
   useEffect(() => {
     const timer = setTimeout(onDismiss, TOAST_MS);
     return () => {
@@ -31,8 +35,8 @@ export function Toast({ message, onDismiss, testID }: ToastProps) {
       style={{ position: 'absolute', left: 0, right: 0, bottom: space.inset.md, alignItems: 'center', paddingHorizontal: space.inset.md }}
     >
       <View
-        accessibilityRole="alert"
-        accessibilityLiveRegion="polite"
+        accessibilityRole={announce ? 'alert' : undefined}
+        accessibilityLiveRegion={announce ? 'polite' : 'none'}
         testID={testID}
         style={{
           maxWidth: size.toast.maxWidth,
@@ -43,7 +47,7 @@ export function Toast({ message, onDismiss, testID }: ToastProps) {
           ...elevation.toast,
         }}
       >
-        <Text numberOfLines={2} style={{ ...text.body, color: color.text.inverse }}>
+        <Text numberOfLines={fullText ? undefined : 2} style={{ ...text.body, color: color.text.inverse }}>
           {message}
         </Text>
       </View>

@@ -13,7 +13,7 @@
  * this module; the steps that read the device and the scenario server of the upload part are in device-upload.mjs (`UploadAction`).
  * @typedef {'force-stop' | 'kill-9' | 'reboot' | 'copy-db' | 'corrupt-db' | 'check-encrypted' | 'check-backup-transport'
  *   | 'adb-backup-start' | 'adb-backup-check' | 'adb-backup-control-check' | 'install-release-debugkey' | 'reinstall-e2e'} LocalAction
- * @typedef {LocalAction | import('./device-upload.mjs').UploadAction | import('./device-camera.mjs').CameraAction} DeviceAction
+ * @typedef {LocalAction | import('./device-upload.mjs').UploadAction | import('./device-camera.mjs').CameraAction | import('./device-video.mjs').VideoAction} DeviceAction
  * @typedef {{ status: number | null, stdout: string, stderr: string }} Outcome
  * @typedef {{ action: DeviceAction | 'check-sync-report', ok: boolean, detail: string, skipped?: boolean }} Check
  * `skipped` (EVM-108): the step could not be performed here (no camera) and is reported as such, never as a pass
@@ -22,6 +22,7 @@ import { createHash } from 'node:crypto';
 import { inflateSync } from 'node:zlib';
 import { APPLICATION_ID } from './commands.mjs';
 import { isCameraAction, runCameraAction } from './device-camera.mjs';
+import { isVideoAction, runVideoAction } from './device-video.mjs';
 import { isUploadAction, MAESTRO_LINE, runUploadAction } from './device-upload.mjs';
 
 /** The marker that the hooks write into the queue (composed at run time in the app); it must not appear in any file or log. */
@@ -341,6 +342,7 @@ const succeeded = (outcome) => outcome.status === 0;
 export async function runDeviceAction(action, context) {
   if (isUploadAction(action)) return /** @type {Promise<Check>} */ (runUploadAction(action, context));
   if (isCameraAction(action)) return /** @type {Promise<Check>} */ (runCameraAction(action, context));
+  if (isVideoAction(action)) return /** @type {Promise<Check>} */ (runVideoAction(action, context));
   const { adb } = context;
   /** @param {boolean} ok @param {string} detail @returns {Check} */
   const check = (ok, detail) => ({ action, ok, detail });

@@ -16,6 +16,7 @@ import {
   uploadJobs,
 } from '../src/device-upload.mjs';
 import { runDeviceAction } from '../src/device.mjs';
+import { originalsOnDevice } from '../src/device-upload.mjs';
 
 const APP = 'pl.eviacharge.manager';
 const ASSET = '01900000-0000-7000-8000-000000000002';
@@ -411,5 +412,24 @@ describe('upload device steps: actions (EVM-130 AC1–AC6)', () => {
     const local = await runDeviceAction('force-stop', context);
     assert.equal(local.action, 'force-stop');
     assert.ok(device.calls.some((call) => call.includes('force-stop')));
+  });
+});
+
+describe('the original of a FILM on the device (EVM-110 AC8)', () => {
+  it('EVM-110 AC8: a film is `<assetId>.mp4`: its digest is asked for by that name when there is no original of the plain name, and a picture is still found by the plain one', () => {
+    assert.deepEqual(uploadCommands.digestFilmOriginal(ASSET), [
+      'shell',
+      `run-as ${APP} sha256sum no_backup/evia-upload/originals/${ASSET}.mp4`,
+    ]);
+    assert.throws(() => uploadCommands.digestFilmOriginal('../../etc/passwd'), /not an asset id/);
+    const FILM = 'f'.repeat(64);
+    const NL = String.fromCharCode(10);
+    const film = fake({ adb: { [`originals/${ASSET}.mp4`]: out(0, `${FILM}  x.mp4${NL}`), sha256sum: out(1) } });
+    assert.deepEqual(originalsOnDevice(film.context, [ASSET]), { [ASSET]: FILM });
+    const picture = fake({ adb: { sha256sum: out(0, `${SHA}  x${NL}`) } });
+    assert.deepEqual(originalsOnDevice(picture.context, [ASSET]), { [ASSET]: SHA });
+    assert.equal(picture.calls.length, 1, 'the second name is asked only when the first fails');
+    const none = fake({ adb: { sha256sum: out(1) } });
+    assert.deepEqual(originalsOnDevice(none.context, [ASSET]), { [ASSET]: null });
   });
 });

@@ -62,6 +62,10 @@
       "reason": "EVM-130: glue of JobScheduler (JobInfo.Builder from a JobRequest, SecurityException to a result); needs the Android runtime, proven on the emulator (Maestro, dumpsys jobscheduler, ADR-0015). The kind, network and persistence of the job come from the pure SchedulePolicy and JobArming (JVM tests)"
     },
     {
+      "pattern": "apps/mobile/modules/evia-upload/android/src/main/java/pl/eviacharge/upload/android/AndroidUnmeteredCheck.kt",
+      "reason": "EVM-110: glue of ConnectivityManager (NET_CAPABILITY_NOT_METERED of the active network, null on no network); needs the Android runtime, proven on the emulator (svc wifi disable, Maestro, ADR-0015). The decision what a video may do on such a network is the pure VideoNetworkPolicy (JVM tests)"
+    },
+    {
       "pattern": "apps/mobile/modules/evia-upload/android/src/main/java/pl/eviacharge/upload/android/UploadRuntime.kt",
       "reason": "EVM-130: wiring of the process (one TokenOwner, files in noBackupFilesDir, meta-data of the manifest, clock readings of the phone); needs the Android runtime, proven on the emulator (Maestro, ADR-0015). Only constructs and connects pure engine classes, makes no decision"
     }

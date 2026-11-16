@@ -9,4 +9,10 @@ export function E2eHooks(): null {
   return null;
 }
 
+/**
+ * EVM-110: the e2e variant writes the CODE of the last failed save of a film (`import_io_error`, `register_enqueue_failed`, ...) to a tiny file the tool reads
+ * after a failed flow. In every other bundle this is all there is: nothing is written, nothing is kept.
+ */
+export const reportFilmFailure: (code: string) => void = () => undefined;
+
 export const deviceOverrides: import('../device-guard/overrides').DeviceOverrides | null = null;

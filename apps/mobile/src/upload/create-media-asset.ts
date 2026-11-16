@@ -93,3 +93,31 @@ export function createCapturedPhotoInput(photo: CapturedPhoto): EnqueueInput | n
     },
   };
 }
+
+/** What the camera hands over for a film (EVM-110 AC1): the same four fields as a picture plus the length, which stays on the phone (it is not in the command). */
+export interface CapturedVideo extends CapturedPhoto {
+  /** The length of the film in milliseconds; kept in the row of the file for the list, never sent. */
+  readonly durationMs: number;
+}
+
+/**
+ * The entry for the queue of a recorded film, or `null`. Built field by field like the picture's (no spread of the argument): EXACTLY `id`, `workOrderId`,
+ * `mediaType = video`, `category`, `capturedAt` - never a description or a stage, whatever else the argument carries (RR-96; SEC-110-09).
+ */
+export function createCapturedVideoInput(video: CapturedVideo): EnqueueInput | null {
+  if (!CLIENT_ID.test(video.assetId) || !UUID.test(video.workOrderId)) return null;
+  if (!(MEDIA_CATEGORIES as readonly string[]).includes(video.category)) return null;
+  if (!isIsoInstant(video.capturedAt)) return null;
+  if (!Number.isSafeInteger(video.durationMs) || video.durationMs < 0) return null;
+  return {
+    type: 'CreateMediaAsset',
+    commandVersion: MEDIA_COMMAND_VERSION,
+    payload: {
+      id: video.assetId,
+      workOrderId: video.workOrderId,
+      mediaType: 'video',
+      category: video.category,
+      capturedAt: video.capturedAt,
+    },
+  };
+}

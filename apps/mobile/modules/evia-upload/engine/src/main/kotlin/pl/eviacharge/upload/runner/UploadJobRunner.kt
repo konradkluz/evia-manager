@@ -24,6 +24,9 @@ sealed interface JobResult {
         val delayMs: Long?,
     ) : JobResult
 
+    /** A video waits for a network without charges (EVM-110): not an error, no attention; the next run continues from the snapshot. */
+    data object WaitingForWifi : JobResult
+
     /** `checksum_mismatch`: the snapshot was cleared, the original stays; the next run starts a new session ("Ponów"). */
     data object RetryChecksum : JobResult
 
@@ -114,6 +117,7 @@ class UploadJobRunner(
             Outcome.Uploaded -> JobResult.Finished
             is Outcome.RetryLater -> JobResult.Retry(outcome.delayMs)
             Outcome.RetryChecksum -> JobResult.RetryChecksum
+            Outcome.WaitingForWifi -> JobResult.WaitingForWifi
             Outcome.PausedRevoked -> JobResult.PausedForSignIn
             Outcome.PausedUpdate -> JobResult.PausedForUpdate
             Outcome.DeviceWipe -> JobResult.DeviceWipe

@@ -17,6 +17,7 @@ import pl.eviacharge.upload.http.HttpConfig
 import pl.eviacharge.upload.http.HttpCore
 import pl.eviacharge.upload.http.HttpPartTransport
 import pl.eviacharge.upload.http.HttpUploadApi
+import pl.eviacharge.upload.schedule.VideoNetworkPolicy
 import pl.eviacharge.upload.session.ApiSession
 import java.security.SecureRandom
 import java.util.concurrent.ThreadLocalRandom
@@ -83,6 +84,7 @@ class EngineFactory(
     private val sleeper: Sleeper = ThreadSleeper,
     private val random: RandomSource = ThreadRandom,
     private val logger: RedactingLogger = RedactingLogger.NONE,
+    private val network: VideoNetworkPolicy = VideoNetworkPolicy.OPEN,
 ) {
     fun create(job: JobFileData): UploadEngine {
         val cancel = running.handle(job.assetId) ?: CancelHandle()
@@ -99,6 +101,7 @@ class EngineFactory(
                 logger = logger,
                 stop = stop,
                 allowCleartextPartUrls = config.e2eCleartext,
+                network = network.gateFor(job.contentType),
             ),
         )
     }

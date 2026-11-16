@@ -8,6 +8,7 @@ import { LocalDataHost, wipeFaultForE2e } from './local-data';
 import { createAppFiles, createKeyVault, deviceSecrets, expoCrypto } from './platform';
 
 export { LocalDataHost } from './local-data';
+export { createRecordingMarker, recordingMarker } from './recording-marker';
 export type { DataLossReason, OpenResult, StoreFacts, UnlockedStore } from './local-data';
 export type { InstallationIdentity, KeyHardware, StorageDiagnostic } from './ports';
 /** Opaque pair for the sign-in and the wipe confirmation: only `src/api/auth-client.ts` may unwrap it (dependency-cruiser). */

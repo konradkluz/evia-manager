@@ -23,6 +23,8 @@ import pl.eviacharge.upload.http.HttpCore
 import pl.eviacharge.upload.http.Reply
 import pl.eviacharge.upload.http.TestServer
 import pl.eviacharge.upload.notification.Notice
+import pl.eviacharge.upload.schedule.UploadSettings
+import pl.eviacharge.upload.schedule.VideoNetworkPolicy
 import pl.eviacharge.upload.session.LogoutAnswer
 import pl.eviacharge.upload.session.MemoryVault
 import pl.eviacharge.upload.session.RefreshAnswer
@@ -76,7 +78,12 @@ class UploadWorkerTest {
         val files: UploadFiles,
     )
 
-    private fun wiring(answer: (String) -> Reply): Wiring {
+    private fun wiring(answer: (String) -> Reply): Wiring = wiringWith(answer, VideoNetworkPolicy.OPEN)
+
+    private fun wiringWith(
+        answer: (String) -> Reply,
+        network: VideoNetworkPolicy,
+    ): Wiring {
         val api = TestServer { seen -> answer(seen.path) }.also { server = it }
         val files = UploadFiles(root)
         val jobs = JobFileStore(files)
@@ -86,9 +93,9 @@ class UploadWorkerTest {
         val owner = TokenOwner(MemoryVault(), HttpAuthApi(authCore), { System.nanoTime() / 1_000_000 }, HttpAuthApi(authCore))
         owner.commitLogin(OWNER, "refresh-0", "access-0", 900_000L)
         val store = ProgressStore(jobs, ProgressThrottle({ 0L }, 0L)) { heard.progress.add(it) }
-        val factory = EngineFactory(config, owner, files, store, marker, ContactSink.NONE, running, sleeper = { })
+        val factory = EngineFactory(config, owner, files, store, marker, ContactSink.NONE, running, sleeper = { }, network = network)
         val runner = UploadJobRunner(jobs, owner, marker, { job: JobFileData -> factory.create(job) }, RedactingLogger.NONE)
-        return Wiring(UploadWorker(runner, jobs, running, marker, owner, heard), jobs, owner, marker, files)
+        return Wiring(UploadWorker(runner, jobs, running, marker, owner, heard, network = network), jobs, owner, marker, files)
     }
 
     private fun storageServer(storage: MutableMap<Int, ByteArray>): (String) -> Reply =
@@ -135,6 +142,63 @@ class UploadWorkerTest {
             .apply { parentFile.mkdirs() }
             .writeBytes(ByteArray(40) { it.toByte() })
         wiring.jobs.arm(JobFileData(assetId, WORK_ORDER, 40L, userId, "device-1", TEST_TYPE, TEST_SHA, null))
+    }
+
+    private fun armVideo(
+        wiring: Wiring,
+        assetId: String = ASSET,
+    ) {
+        wiring.files
+            .originalFile(assetId)
+            .apply { parentFile.mkdirs() }
+            .writeBytes(ByteArray(40) { it.toByte() })
+        wiring.jobs.arm(JobFileData(assetId, WORK_ORDER, 40L, "user-1", "device-1", "video/mp4", TEST_SHA, null))
+    }
+
+    @Test
+    fun `EVM-110 AC4 AC5 a video waits for Wi-Fi without an error, a picture goes through the same network, and the video goes when`() {
+        val storage = mutableMapOf<Int, ByteArray>()
+        var unmetered: Boolean? = false
+        val settings = UploadSettings.Fixed(true)
+        val w = wiringWith(storageServer(storage), VideoNetworkPolicy(settings) { unmetered })
+        val picture = "0193a000-0000-7000-8000-00000000000b"
+        armVideo(w)
+        arm(w, picture)
+        // statuses: the video waits for Wi-Fi, the picture does not
+        assertEquals(mapOf(ASSET to true, picture to false), w.worker.statuses().associate { it.assetId to it.waitingForWifi })
+        begin(w, picture)
+        assertEquals(JobResult.Finished, w.worker.execute(picture))
+        assertEquals(setOf(1, 2, 3), storage.keys)
+        storage.clear()
+        begin(w)
+        assertEquals(JobResult.WaitingForWifi, w.worker.execute(ASSET))
+        assertTrue(storage.isEmpty(), "zero parts over a network with charges")
+        assertEquals("queued" to "waiting_wifi", JobOutcomes.fileState(JobResult.WaitingForWifi))
+        assertTrue(JobOutcomes.wantsReschedule(JobResult.WaitingForWifi))
+        assertFalse(JobOutcomes.concernsSession(JobResult.WaitingForWifi))
+        // not a failure: no "needs attention" in the notice tally
+        assertEquals(1, w.worker.statuses().count { it.waitingForWifi })
+        assertFalse(
+            w.worker
+                .notice()
+                ?.text
+                ?.contains("Nie wysłano", ignoreCase = true) == true,
+        )
+        // an unknown network is "with charges" for a held video; the setting turned off lets it go through any network
+        unmetered = null
+        begin(w)
+        assertEquals(JobResult.WaitingForWifi, w.worker.execute(ASSET))
+        settings.setVideoWifiOnly(false)
+        unmetered = false
+        assertFalse(
+            w.worker
+                .statuses()
+                .first { it.assetId == ASSET }
+                .waitingForWifi,
+        )
+        begin(w)
+        assertEquals(JobResult.Finished, w.worker.execute(ASSET))
+        assertEquals(setOf(1, 2, 3), storage.keys)
     }
 
     private fun begin(

@@ -160,7 +160,7 @@ class JobFileStore(
     @Throws(IOException::class)
     fun delete(assetId: String) {
         AtomicFiles.delete(files.jobFile(assetId))
-        AtomicFiles.delete(files.originalFile(assetId))
+        files.originalFiles(assetId).forEach { AtomicFiles.delete(it) }
     }
 
     private fun write(data: JobFileData) = AtomicFiles.write(files.jobFile(data.assetId), JobFileCodec.encode(data))

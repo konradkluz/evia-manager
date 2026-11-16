@@ -76,7 +76,7 @@ class JobLifecycle(
         if (id != null) system.cancel(id)
         return try {
             AtomicFiles.delete(files.jobFile(assetId))
-            if (deleteOriginal) AtomicFiles.delete(files.originalFile(assetId))
+            if (deleteOriginal) files.originalFiles(assetId).forEach { AtomicFiles.delete(it) }
             if (id != null) ids.release(assetId)
             true
         } catch (error: IOException) {

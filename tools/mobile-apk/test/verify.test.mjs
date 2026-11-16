@@ -223,7 +223,7 @@ describe('verification of a package with the camera (EVM-108 AC8; SR-MOB-12, SR-
       ),
     });
     assert.deepEqual(verifyApk(OPTIONS, host).problems, [
-      'manifest: forbidden permission android.permission.RECORD_AUDIO (the microphone is requested from EVM-110 only)',
+      'manifest: forbidden permission android.permission.RECORD_AUDIO (the microphone is never requested: films have no sound, the camera view is muted)',
     ]);
   });
 });

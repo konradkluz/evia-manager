@@ -1,0 +1,19 @@
+# EVM-110 AC8: the phone is on the mobile network with charges (the airplane mode is off; Wi-Fi is off, data on): the three films wait - the ONE banner "3 filmy
+# czekają na Wi-Fi." with the link, "Czeka na Wi-Fi (3)". tools/mobile-e2e then proves the server received not a single part.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- tapOn:
+    id: 'nav-queue'
+- extendedWaitUntil:
+    visible:
+      id: 'waiting-wifi-banner'
+    timeout: 120000
+- assertVisible: '.*3 filmy czekają na Wi-Fi\. Zdjęcia i wpisy wysyłamy normalnie\..*'
+- assertVisible: 'Czeka na Wi-Fi \(3\)'
+- assertNotVisible: 'Wymaga uwagi'
+- takeScreenshot: m07-video-three-waiting-wifi

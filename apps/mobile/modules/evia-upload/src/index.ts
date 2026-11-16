@@ -65,6 +65,8 @@ export interface UploadStatus {
   /** 0..100 */
   readonly percent: number;
   readonly sizeBytes: number;
+  /** EVM-110 AC4: a video that is not running waits for a network without charges ("Czeka na Wi-Fi", never an error). Absent = `false`. */
+  readonly waitingForWifi?: boolean;
 }
 
 /**
@@ -185,23 +187,28 @@ export interface EviaUploadModule {
   /**
    * EVM-108: makes the picture the camera wrote (`file://` URI in the capture cache of the app) the durable original of [assetId]:
    * checked natively, copied with `fsync`, the source removed. Only a code comes back.
+   * EVM-110: [mediaType] is the mode of the camera (never the extension of the file): a `video` (MP4 of the capture cache) is MOVED into place,
+   * not copied, and only within the private storage of the app.
    */
-  importOriginal(assetId: string, sourceUri: string): Promise<ImportResultName>;
+  importOriginal(assetId: string, sourceUri: string, mediaType: 'photo' | 'video'): Promise<ImportResultName>;
   /**
    * EVM-108: removes originals nobody knows (not in [keepAssetIds], older than [olderThanMs]), leftovers of imports and old pictures of
    * the camera cache. Resolves the number of removed files (`0` when unavailable).
    */
   sweepOriginals(keepAssetIds: readonly string[], olderThanMs: number): Promise<number>;
-  armUpload(
-    assetId: string,
-    workOrderId: string,
-    userId: string,
-    deviceId: string,
-    wifiOnly: boolean,
-    contentType: string | null,
-  ): Promise<ArmResultName>;
-  reconcile(items: readonly UploadItem[], wifiOnly: boolean): Promise<Readonly<Record<string, ArmResultName>>>;
-  retryUpload(assetId: string, wifiOnly: boolean): Promise<ArmResultName>;
+  armUpload(assetId: string, workOrderId: string, userId: string, deviceId: string, contentType: string | null): Promise<ArmResultName>;
+  /** The network of a job is decided natively from the setting `getVideoWifiOnly` (EVM-110): the caller passes nothing about it. */
+  reconcile(items: readonly UploadItem[]): Promise<Readonly<Record<string, ArmResultName>>>;
+  retryUpload(assetId: string): Promise<ArmResultName>;
+  /**
+   * EVM-110 AC4: "Filmy tylko przez Wi-Fi" - a local setting of the phone (native, default `true`, stays after the sign-out; unreadable = `true`).
+   * Only `video/*` files wait for a network without charges; pictures and entries go through any network.
+   */
+  /** EVM-110 AC3: keeps the screen on (`true`) or lets it sleep again (`false`) while a film is recorded; `true` when an activity took the request. */
+  setKeepScreenOn(on: boolean): boolean;
+  getVideoWifiOnly(): boolean;
+  /** Stores the setting and hands the unfinished videos to the system again with the network it asks for; `true` when the value is durable. */
+  setVideoWifiOnly(value: boolean): Promise<boolean>;
   cancelUpload(assetId: string, deleteOriginal: boolean): Promise<boolean>;
   completeUpload(assetId: string, serverState: string, reasonCode: string | null): Promise<OriginalVerdictName | 'invalid' | Availability>;
   uploadStatuses(): Promise<readonly UploadStatus[]>;
@@ -243,6 +250,9 @@ export const EVIA_UPLOAD_FUNCTIONS = [
   'armUpload',
   'reconcile',
   'retryUpload',
+  'setKeepScreenOn',
+  'getVideoWifiOnly',
+  'setVideoWifiOnly',
   'cancelUpload',
   'completeUpload',
   'uploadStatuses',
