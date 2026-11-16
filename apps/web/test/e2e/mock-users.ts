@@ -201,7 +201,6 @@ export function answerAccountOperation(
       if (user.status === 'deactivated' || user.role === role) return problem(409, 'invalid_state_transition');
       if (sole) return problem(409, 'last_active_administrator');
       if (user.id === SELF_ID) return problem(409, 'own_account_not_allowed');
-      if (role === 'administrator' && !user.secondStepMethods.includes('passkey')) return problem(409, 'administrator_passkey_required');
       user.role = role;
       return done();
     }

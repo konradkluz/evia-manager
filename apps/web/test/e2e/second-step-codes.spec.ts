@@ -1,5 +1,5 @@
 import { expect, test } from './fixtures.ts';
-import { EMAIL, PASSWORD, RECOVERY_CODE, TOTP_CODE, TOTP_SECRET } from './mock-api.ts';
+import { EMAIL, NEXT_TOTP_CODE, PASSWORD, RECOVERY_CODE, TOTP_CODE, TOTP_SECRET } from './mock-api.ts';
 import { watchPage } from './support.ts';
 
 // The code of the authenticator app and the recovery codes in the browser (EVM-023 AC1–AC8): the real panel under the real
@@ -52,7 +52,10 @@ test.describe('W-02: logowanie kodem z aplikacji i kodem odzyskiwania (EVM-023 A
     await expect(page.getByLabel('Kod z aplikacji uwierzytelniającej')).toBeFocused();
   });
 
-  test('EVM-023 AC3 the Administrator gets only the passkey from the server: no field for a code of the app', async ({ page, api }) => {
+  test('EVM-023 AC3 EVM-134 AC1 an account with only a passkey gets only the passkey from the server: no field for a code of the app', async ({
+    page,
+    api,
+  }) => {
     api.methods = ['passkey', 'recovery_code'];
     await page.goto('/login');
     await page.getByLabel('E-mail').fill(EMAIL);
@@ -61,6 +64,50 @@ test.describe('W-02: logowanie kodem z aplikacji i kodem odzyskiwania (EVM-023 A
     await expect(page.getByRole('button', { name: 'Użyj klucza dostępu' })).toBeFocused();
     await expect(page.getByLabel('Kod z aplikacji uwierzytelniającej')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Użyj innej metody' })).toHaveCount(0);
+  });
+
+  test('EVM-134 AC1 AC4 the Administrator with both methods chooses the code; the first change of a role asks for a NEW code (the code of the login is refused)', async ({
+    page,
+    api,
+  }) => {
+    api.methods = ['passkey', 'totp', 'recovery_code'];
+    const problems = await watchPage(page, ORIGIN);
+    await page.goto('/login');
+    await page.getByLabel('E-mail').fill(EMAIL);
+    await page.getByLabel('Hasło').fill(PASSWORD);
+    await page.getByRole('button', { name: 'Zaloguj się' }).click();
+    await expect(page.getByRole('button', { name: 'Użyj klucza dostępu' })).toBeFocused();
+    await page.getByRole('button', { name: 'Użyj innej metody' }).click();
+    await page.getByLabel('Kod z aplikacji uwierzytelniającej').fill(TOTP_CODE);
+    await page.getByRole('button', { name: 'Potwierdź' }).click();
+    await expect(page.getByRole('heading', { level: 1, name: 'Zlecenia' })).toBeVisible();
+
+    // K1: the login with the code opened no window of the step-up — the first change of a role asks for the identity.
+    await page.goto('/administration/users');
+    await page.getByRole('button', { name: /^Akcje konta: Jan Przykładowy,/ }).click();
+    await page.getByRole('menuitem', { name: 'Zmień rolę…' }).click();
+    const role = page.getByRole('dialog', { name: 'Zmienić rolę konta „Jan Przykładowy”?' });
+    await role.getByRole('radio', { name: /^Administrator/ }).check();
+    await role.getByRole('button', { name: 'Zmień rolę' }).click();
+    const confirm = page.getByRole('alertdialog', { name: 'Potwierdź tożsamość, aby zmienić rolę użytkownika' });
+    const field = confirm.getByLabel('Kod z aplikacji uwierzytelniającej');
+    await expect(field).toHaveAccessibleDescription(/Wpisz nowy kod — kod użyty przy logowaniu nie zadziała drugi raz\./);
+    await field.fill(TOTP_CODE);
+    await confirm.getByRole('button', { name: 'Potwierdź' }).click();
+    await expect(confirm.getByRole('alert')).toHaveText('Kod jest nieprawidłowy lub wygasł. Wpisz nowy kod z aplikacji.');
+    await expect(field).toBeFocused();
+    await expect(field).toHaveValue('');
+    await field.fill(NEXT_TOTP_CODE);
+    await confirm.getByRole('button', { name: 'Potwierdź' }).click();
+    await expect(page.getByText('Zmieniono rolę.')).toBeVisible();
+    await expect(page.getByRole('row', { name: /^Jan Przykładowy, Administrator, Aktywne$/ })).toBeVisible();
+    const steps = api.seen.filter((entry) => entry.url.endsWith('/auth/step-up'));
+    expect(steps.map((entry) => JSON.parse(entry.postData ?? '{}') as unknown)).toEqual([
+      { method: 'totp', code: TOTP_CODE },
+      { method: 'totp', code: NEXT_TOTP_CODE },
+    ]);
+    expect(problems.foreignRequests).toEqual([]);
+    expect(await problems.cspViolations()).toEqual([]);
   });
 
   test('EVM-023 AC5 a recovery code logs in once: the message with the count and the hint, "Przejdź dalej", and the same code is refused', async ({
@@ -165,11 +212,27 @@ test.describe('W-03: konfiguracja kodu z aplikacji i kody odzyskiwania (EVM-023 
     expect(await page.evaluate(() => document.body.textContent)).not.toContain(TOTP_SECRET);
   });
 
-  test('EVM-023 AC3 the Administrator has no choice in the panel: straight to the passkey', async ({ page }) => {
+  test('EVM-134 AC2 the Administrator chooses the code of the app: the QR, the code, the recovery codes once — as an Editor', async ({
+    page,
+    api,
+  }) => {
+    const problems = await watchPage(page, ORIGIN);
     await page.goto('/mfa-setup');
-    await expect(page.getByRole('radio')).toHaveCount(0);
-    await expect(page.getByText('Klucz dostępu jest obowiązkowy.')).toBeVisible();
-    await expect(page.getByText('Krok 2 z 3')).toBeVisible();
+    await expect(page.getByText('Krok 1 z 3')).toBeVisible();
+    await expect(page.getByText('Klucz dostępu jest obowiązkowy.')).toHaveCount(0);
+    await page.getByRole('radio', { name: 'Kod z aplikacji uwierzytelniającej' }).check();
+    await page.getByRole('button', { name: 'Dalej' }).click();
+    await expect(page.getByRole('img', { name: 'Kod QR do zeskanowania w aplikacji uwierzytelniającej' })).toBeVisible();
+    await page.getByLabel('Kod z aplikacji uwierzytelniającej', { exact: true }).last().fill(TOTP_CODE);
+    await page.getByRole('button', { name: 'Potwierdź kod' }).click();
+    await expect(page.getByRole('list', { name: 'Kody odzyskiwania' }).getByRole('listitem')).toHaveCount(10);
+    await expect(page.getByText('Metody logowania: kod z aplikacji · klucz dostępu: nie')).toBeVisible();
+    await page.getByRole('checkbox', { name: 'Kody są zapisane w bezpiecznym miejscu' }).check();
+    await page.getByRole('button', { name: 'Zakończ konfigurację' }).click();
+    await expect(page.getByRole('heading', { level: 1, name: 'Zlecenia' })).toBeVisible();
+    expect(api.role).toBe('administrator');
+    expect(problems.foreignRequests).toEqual([]);
+    expect(await problems.cspViolations()).toEqual([]);
   });
 
   test('EVM-023 AC8 offline W-03 keeps the step and the typed code, the buttons wait for the connection', async ({

@@ -85,6 +85,8 @@ export const PASSWORD = 'zażółć gęślą jaźń!';
 export const RP_ID = 'localhost';
 /** EVM-023: the codes of the synthetic server — a code of the authenticator app is valid once (the same code twice is refused), as is the recovery code. */
 export const TOTP_CODE = '123456';
+/** EVM-134 AC4: the code of the next step of time (a NEW code after the one of the login); also valid once. */
+export const NEXT_TOTP_CODE = '654321';
 export const RECOVERY_CODE = 'ABCDEFGHIJKLMNOPQRST';
 export const TOTP_SECRET = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
 const RECOVERY_CODES = Array.from({ length: 10 }, (_, index) =>
@@ -492,6 +494,9 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
   const partyKeys = new Map<string, string>();
   const customerPatchKeys: PatchKeys = new Map();
   let stepUpChallenge = '';
+  /** A code of the app the server accepts: one of the synthetic steps of time, each once. */
+  const totpValid = (code: string | undefined): boolean =>
+    (code === TOTP_CODE || code === NEXT_TOTP_CODE) && !api.usedCodes.has(`totp:${code}`);
   const active = () => ({ csrf: api.csrf, role: api.role, displayName: api.account.displayName });
   /** A function call, so that the compiler does not narrow `api.session` after the branch (the session changes between requests). */
   const inActiveSession = () => api.session === 'active';
@@ -978,13 +983,14 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
       case 'POST /api/v1/auth/login/totp': {
         const { loginToken, code } = body() as { loginToken?: string; code?: string };
         if (loginToken !== api.loginToken || loginTokenUsed) return route.fulfill(problem(401, 'unauthenticated'));
-        // Administrator in the panel has no code of the app (P1); a code is valid once.
-        if (api.role === 'administrator') return route.fulfill(problem(403, 'forbidden'));
-        if (code !== TOTP_CODE || api.usedCodes.has(`totp:${code}`)) return route.fulfill(problem(401, 'totp_failed'));
-        api.usedCodes.add(`totp:${code}`);
+        // Every role signs in with the code (EVM-134 AC1); a code is valid once.
+        if (!totpValid(code)) return route.fulfill(problem(401, 'totp_failed'));
+        api.usedCodes.add(`totp:${String(code)}`);
         loginTokenUsed = true;
         api.session = 'active';
         api.deadlines = null;
+        // K1 (EVM-134 AC4, ADR-0023): the login of an Administrator with the code does not open the window of the step-up.
+        if (api.role === 'administrator') api.stepUp = 'required';
         return route.fulfill(ok(200, { state: 'active', csrfToken: api.csrf }));
       }
       case 'POST /api/v1/auth/login/recovery-code': {
@@ -1015,8 +1021,7 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
         const passwordOk = proof.purpose === 'password_change' || proof.password === api.account.password;
         let secondOk = false;
         if (proof.method === 'totp') {
-          if (api.role === 'administrator') return route.fulfill(problem(403, 'forbidden'));
-          secondOk = proof.code === TOTP_CODE && !api.usedCodes.has(`totp:${proof.code}`);
+          secondOk = totpValid(proof.code);
           if (secondOk) api.usedCodes.add(`totp:${proof.code}`);
         } else if (proof.credential !== undefined) {
           const client = JSON.parse(decodeBase64Url(proof.credential.response.clientDataJSON)) as {
@@ -1038,7 +1043,6 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
       }
       case 'POST /api/v1/account/totp/enrolment':
         if (inActiveSession()) {
-          if (api.role === 'administrator') return route.fulfill(problem(403, 'forbidden'));
           if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
           if (api.account.mark !== 'second_step_change') return route.fulfill(problem(403, 'reauthentication_required'));
           if (api.account.totp !== null) return route.fulfill(problem(409, 'mfa_already_configured'));
@@ -1055,7 +1059,6 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
         }
         if (api.session !== 'enrollment') return route.fulfill(problem(api.session === 'none' ? 401 : 409, 'mfa_already_configured'));
         if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
-        if (api.role === 'administrator') return route.fulfill(problem(403, 'forbidden'));
         return route.fulfill(
           ok(
             200,
@@ -1070,7 +1073,7 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
         if (inActiveSession()) {
           if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
           const { code } = body() as { code?: string };
-          if (code !== TOTP_CODE || api.usedCodes.has(`totp:${code}`)) return route.fulfill(problem(400, 'totp_verification_failed'));
+          if (!totpValid(code)) return route.fulfill(problem(400, 'totp_verification_failed'));
           const refused = spendMark(api.account, 'second_step_change');
           if (refused !== null) return route.fulfill(refused);
           api.usedCodes.add(`totp:${code}`);
@@ -1080,7 +1083,7 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
         if (api.session !== 'enrollment') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
         if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
         const { code } = body() as { code?: string };
-        if (code !== TOTP_CODE || api.usedCodes.has(`totp:${code}`)) return route.fulfill(problem(400, 'totp_verification_failed'));
+        if (!totpValid(code)) return route.fulfill(problem(400, 'totp_verification_failed'));
         api.usedCodes.add(`totp:${code}`);
         // The confirmation opens the window of the step-up (the code has just been verified); the session is a new one.
         api.session = 'active';
@@ -1284,9 +1287,8 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
         if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
         const stepUpBody = body() as { method?: string; code?: string; credential: { id: string; response: { clientDataJSON: string } } };
         if (stepUpBody.method === 'totp') {
-          // EVM-023 AC7: the code of the app (an Editor or a Read-only user; never the Administrator in the panel).
-          if (api.role === 'administrator') return route.fulfill(problem(403, 'forbidden'));
-          if (stepUpBody.code !== TOTP_CODE || api.usedCodes.has(`totp:${stepUpBody.code}`)) {
+          // EVM-023 AC7, EVM-134 AC4: the code of the app for every role; the code of the login is used already (K1).
+          if (!totpValid(stepUpBody.code)) {
             return route.fulfill(problem(401, 'totp_failed'));
           }
           api.usedCodes.add(`totp:${stepUpBody.code}`);

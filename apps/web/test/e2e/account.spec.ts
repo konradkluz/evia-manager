@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
-import { PASSWORD, TOTP_CODE } from './mock-api.ts';
+import { NEXT_TOTP_CODE, PASSWORD, TOTP_CODE } from './mock-api.ts';
 import { watchPage } from './support.ts';
 
 // W-15 "Konto" in the browser (EVM-028 AC1–AC6, AC8): the real panel under the real strict CSP against the synthetic API of
@@ -126,6 +126,49 @@ test.describe('W-15 Konto w przeglądarce (EVM-028)', () => {
     expect(api.account.totp).not.toBeNull();
     // The secret is not left in the page.
     await expect(page.locator('body')).not.toContainText('JBSWY3DPEHPK3PXP');
+  });
+
+  test('EVM-134 AC3 an Administrator with keys adds the code of the app: W-04, the QR and the code; then any one method is enough', async ({
+    page,
+    api,
+  }) => {
+    await page.goto(ACCOUNT);
+    await expect(page.getByText('Nie dodano.')).toBeVisible();
+    await page.getByRole('button', { name: 'Dodaj kod z aplikacji' }).click();
+    // The synthetic server takes the code in W-04 from any account; the refusal for an account without a code is an API test.
+    await confirmIdentity(page, 'Potwierdź tożsamość, aby dodać kod z aplikacji');
+    const dialog = page.getByRole('dialog', { name: 'Dodaj kod z aplikacji' });
+    await expect(dialog.getByRole('img', { name: /kod QR/i })).toBeVisible();
+    await dialog.getByLabel('Kod z aplikacji uwierzytelniającej').fill(NEXT_TOTP_CODE);
+    await dialog.getByRole('button', { name: 'Potwierdź kod' }).click();
+    await expect(page.getByText('Dodano kod z aplikacji.')).toBeVisible();
+    expect(api.account.totp).not.toBeNull();
+    // Both keys and the code: each may be removed; nothing says the Administrator must keep a key.
+    await expect(page.getByRole('button', { name: 'Usuń klucz dostępu Telefon' })).not.toHaveAttribute('aria-disabled', 'true');
+    await expect(page.getByRole('button', { name: 'Usuń kod z aplikacji uwierzytelniającej' })).not.toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+    await expect(page.getByText(/administratora musi mieć klucz/)).toHaveCount(0);
+  });
+
+  test('EVM-134 AC3 an Administrator removes the last key and keeps the code alone; the code is then the last method and cannot be removed', async ({
+    page,
+    api,
+  }) => {
+    api.account.passkeys = api.account.passkeys.slice(0, 1);
+    api.account.totp = { addedAt: '2026-10-03T11:00:00.000Z' };
+    await page.goto(ACCOUNT);
+    const key = page.getByRole('button', { name: /^Usuń klucz dostępu / });
+    await expect(key).not.toHaveAttribute('aria-disabled', 'true');
+    await key.click();
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Usuń klucz' }).click();
+    await confirmIdentity(page, 'Potwierdź tożsamość, aby usunąć klucz dostępu');
+    await expect(page.getByText('Usunięto klucz dostępu.')).toBeVisible();
+    expect(api.account.passkeys).toHaveLength(0);
+    const code = page.getByRole('button', { name: 'Usuń kod z aplikacji uwierzytelniającej' });
+    await expect(code).toHaveAttribute('aria-disabled', 'true');
+    await expect(page.getByText('To jedyna metoda — najpierw dodaj inną.')).toBeVisible();
   });
 
   test('EVM-028 AC5 new recovery codes: the warning, W-04, ten codes once, the reminder when leaving too early, then they are gone', async ({
