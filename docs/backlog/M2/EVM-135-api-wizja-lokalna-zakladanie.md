@@ -4,7 +4,7 @@ title: "API: wizja lokalna — zakładanie zlecenia bez klienta (telefon i panel
 type: story
 milestone: M2
 epic: E15 Wizja lokalna
-status: ready
+status: in-progress
 priority: P1
 path: pelna             # migracje, nowa polityka dostępu, zakres synchronizacji, dane osobowe
 owner: backend-developer
@@ -81,3 +81,4 @@ Rozmiar wg ADR-0024: **L**. Pierwszy punkt planu technicznego: zapytanie kontrol
 ## Dziennik
 - 2026-11-16 — szkic (product-owner)
 - 2026-11-16 — uzgodniono z ADR-0024, wpisano decyzje Konrada („akceptuję wg rekomendacji”); **status ready** (product-owner)
+- 2026-11-16 — start realizacji w kolejce `/noc-2026-11-16`; **status `in-progress`** (Tech Lead)

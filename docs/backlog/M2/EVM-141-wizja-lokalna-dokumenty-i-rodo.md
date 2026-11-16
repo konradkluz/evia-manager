@@ -4,7 +4,7 @@ title: "Wizja lokalna: dokumenty RODO i bezpieczeństwa, karta informacyjna, aka
 type: enabler
 milestone: M2
 epic: E15 Wizja lokalna
-status: ready
+status: in-progress
 priority: P1
 path: lekka             # dokumentacja bez kodu
 owner: security-engineer
@@ -69,3 +69,4 @@ Rozmiar wg ADR-0024: M. Wejścia: `security.md` z oceny (W4, W12), ADR-0024.
 ## Dziennik
 - 2026-11-16 — szkic (product-owner)
 - 2026-11-16 — uzgodniono z ADR-0024, wpisano decyzje Konrada („akceptuję wg rekomendacji”); **status ready** (product-owner)
+- 2026-11-16 — start realizacji w kolejce `/noc-2026-11-16`; **status `in-progress`** (Tech Lead)
