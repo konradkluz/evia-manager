@@ -4,7 +4,7 @@ title: "Aplikacja: wizja lokalna — zakładanie samym adresem offline, zdjęcia
 type: story
 milestone: M2
 epic: E15 Wizja lokalna
-status: ready
+status: in-progress
 priority: P1
 path: pelna             # dane osobowe na urządzeniu, praca offline, kolejka plików
 owner: mobile-developer
@@ -74,3 +74,4 @@ Rozmiar wg ADR-0024: M (równolegle z EVM-136 i EVM-140). Testy Maestro: przepł
 ## Dziennik
 - 2026-11-16 — szkic (product-owner)
 - 2026-11-16 — uzgodniono z ADR-0024, wpisano decyzje Konrada („akceptuję wg rekomendacji”); **status ready** (product-owner)
+- 2026-11-16 — start realizacji w kolejce `/noc-2026-11-16` (tor B, klon n1, na commicie kontraktu EVM-135 `84766fbf`; makiety: przepływ 17); **status `in-progress`** (Tech Lead)
