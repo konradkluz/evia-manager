@@ -50,6 +50,7 @@ Technik dokumentuje zlecenie zdjęciami, filmami i wpisami także bez zasięgu; 
 | [EVM-108](EVM-108-mobile-zdjecia-aparat-i-kolejka.md) | Aplikacja: zdjęcia — aparat, kategoria, kolejka plików | E11 | story | P1 | pelna | EVM-107, EVM-130, EVM-131 | 4 |
 | [EVM-110](EVM-110-mobile-filmy-i-wifi.md) | Aplikacja: filmy i „filmy tylko przez Wi-Fi” | E11 | story | P1 | pelna | EVM-108, EVM-046, EVM-130, EVM-131 | 4 |
 | [EVM-111](EVM-111-mobile-media-zlecenia.md) | Aplikacja: status każdego pliku w kolejce telefonu | E11 | story | P2 | lekka (zawężona 2026-11-12) | EVM-108, EVM-131 | 4 |
+| [EVM-133](EVM-133-klauzule-prywatnosci-wersja-ostateczna.md) | Klauzule prywatności w wersji ostatecznej (panel i aplikacja) — **blokuje EVM-112 AC2** (podpis APK) — **nowa 2026-11-16** | E14 | story | P0 | lekka | EVM-063, EVM-102 | 5 |
 | [EVM-112](EVM-112-test-terenowy-i-masvs.md) | Test terenowy w garażu i checklista MASVS L1 | E11/E14 | story | P1 | pelna | EVM-105, EVM-106, EVM-110, EVM-084, EVM-130, EVM-131 | 5 |
 | ~~[EVM-113](EVM-113-bramki-kotlin.md)~~ | Bramki Kotlin — **połączona z EVM-109 (AC6), 2026-11-12** | E14 | enabler | — | — | — | — |
 
