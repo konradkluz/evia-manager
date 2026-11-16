@@ -110,7 +110,7 @@ Gdy w trakcie wpisywania wylogujesz się albo zamkniesz kartę, wpisane dane zni
 
 **Wizja lokalna — oględziny przed ofertą**
 
-Wizja lokalna to zlecenie bez klienta: zapisujesz tylko adres (i telefon zamawiającego, jeśli go poda), robisz zdjęcia i filmy, a klienta przypisuje biuro, gdy klient przyjmie ofertę. Wizja ma zwykły numer (np. ZL-2026-0001) i odznakę „Wizja lokalna”. Adres widać tylko w szczegółach wizji. Wizja bez klienta jest trwale usuwana po 90 dniach, a odrzucona — po 14 dniach.
+Wizja lokalna to zlecenie bez klienta: zapisujesz tylko adres (i telefon zamawiającego, jeśli go poda), robisz zdjęcia i filmy, a klienta przypisuje biuro, gdy klient przyjmie ofertę. Wizja ma zwykły numer (np. ZL-2026-0001) i oznaczenie „Wizja lokalna”. Adres widać tylko w szczegółach wizji. Wizję bez klienta usuwamy trwale najpóźniej po 90 dniach od jej zapisania w systemie, a odrzuconą — po 14 dniach. Dopóki automatyczne usuwanie nie zostanie włączone, Administrator robi to ręcznie; potem robi to system.
 
 **Na razie tylko wizje testowe.** Dopóki Administrator nie ogłosi, że wolno zakładać wizje u klientów, zakładamy wyłącznie wizje testowe: adres własny albo biura (za zgodą osoby, której dotyczy), zdjęcia i filmy bez osób, tablic rejestracyjnych, tabliczek z nazwiskami i dokumentów, puste pole „Telefon zamawiającego”. Wizję u prawdziwego klienta założoną przez pomyłkę zgłoś Administratorowi tego samego dnia — usunie ją.
 
@@ -124,13 +124,13 @@ Zasady przy każdej wizji:
 Założenie wizji:
 
 - **W aplikacji na telefonie:** na liście zleceń dotknij „Dodaj” → „Wizja lokalna”. Wpisz adres (miejscowość, ulica, numer) i — jeśli zamawiający go poda — „Telefon zamawiającego”, potem zapisz. Wizja działa bez internetu: do synchronizacji ma oznaczenie „Oczekuje na numer”, a zdjęcia i filmy możesz robić od razu (kategoria „Oględziny”). W trybie ukrytych danych nowej wizji nie założysz. Wizję na telefonie widzisz tylko Ty i opiekun zlecenia.
-- **W panelu:** „Nowe zlecenie” → „Wizja lokalna”. Wybierz lokalizację (istniejącą albo nową), opcjonalnie wpisz „Telefon zamawiającego” i wybierz opiekuna — bez opiekuna wizja nie trafi na telefon technika. Zapisz.
+- **W panelu:** „Nowe zlecenie” → w „Rodzaj” wybierz „Wizja lokalna”. Wybierz lokalizację (istniejącą albo nową), opcjonalnie wpisz „Telefon zamawiającego” i wybierz opiekuna — bez opiekuna wizja nie trafi na telefon technika. Wybierz „Załóż wizję lokalną”.
 
 Co dalej z wizją (panel, Administrator i Edytor):
 
 - **Przypisanie klienta** — gdy klient przyjmie ofertę: w szczegółach wizji wybierz „Przypisz klienta”, znajdź klienta albo dodaj nowego (telefon zamawiającego podstawi się w formularzu). Numer, zdjęcia i wpisy zostają, a wizja staje się zwykłym zleceniem. Klienta przypisuje się tylko raz — przed zapisem sprawdź, że to właściwa osoba. Bez klienta zlecenia nie zaakceptujesz („Aby zaakceptować, przypisz klienta”), a płatności, dokumenty i eksport zdjęć są niedostępne.
-- **Odrzucenie** — gdy klient zrezygnuje albo odrzuci ofertę: „Odrzuć wizję” i powód („Oferta odrzucona” albo „Rezygnacja klienta”). Wizja zostanie trwale usunięta po 14 dniach. Pomyłkę może cofnąć tylko Administrator („Przywróć”).
-- **Przedłużenie** — wizja bez klienta wygasa po 90 dniach (na liście „Wygasa za N dni”, filtr „Wygasające”; 15 dni przed terminem twórca wizji i Administrator dostają e-mail). Gdy decyzja klienta trwa dłużej (np. czeka na uchwałę wspólnoty), wybierz „Przedłuż o 90 dni” i powód z listy. Wizję przedłużysz najwyżej dwa razy — potem przypisz klienta albo pozwól jej wygasnąć.
+- **Odrzucenie** — gdy klient zrezygnuje albo odrzuci ofertę: „Odrzuć wizję” i powód („Oferta odrzucona” albo „Rezygnacja klienta”). Wizja zostanie trwale usunięta po 14 dniach (dopóki automatyczne usuwanie nie zostanie włączone — ręcznie przez Administratora). Pomyłkę może cofnąć tylko Administrator („Przywróć wizję”).
+- **Przedłużenie** — wizja bez klienta wygasa najpóźniej po 90 dniach od zapisania w systemie (na liście „Wygasa za N dni”, widok „Wygasające wizje”, a wszystkie wizje pokaże filtr „Tylko wizje”; 15 dni przed terminem twórca wizji i Administrator dostają e-mail). Gdy decyzja klienta trwa dłużej (np. czeka na uchwałę wspólnoty), wybierz „Przedłuż o 90 dni” i powód z listy. Wizję przedłużysz najwyżej dwa razy — potem przypisz klienta albo pozwól jej wygasnąć.
 - **Limit** — gdy masz 20 otwartych wizji, kolejnej nie założysz („Masz za dużo otwartych wizji…”): przypisz klienta, odrzuć wizję albo poczekaj na wygaśnięcie.
 - **Prośby o dane** — gdy ktoś pyta o zdjęcia z wizji albo prosi o ich usunięcie, przekaż sprawę Administratorowi tego samego dnia.
 

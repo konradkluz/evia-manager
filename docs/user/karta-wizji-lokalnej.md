@@ -23,7 +23,7 @@ Dziękujemy za zaproszenie. Zanim zrobimy zdjęcia, prosimy o przeczytanie tej i
 Adres miejsca instalacji, zdjęcia i filmy posesji, garażu i instalacji elektrycznej (filmy bez dźwięku), notatki z oględzin oraz Twój numer telefonu — tylko jeśli go podasz. Imienia i nazwiska na tym etapie nie zapisujemy. Staramy się nie fotografować osób, tablic rejestracyjnych i tabliczek z nazwiskami — jeśli czegoś nie chcesz na zdjęciu, powiedz technikowi.
 
 **Jak długo?**
-- bez umowy — usuwamy po **90 dniach** od wizji; gdy decyzja wymaga czasu (np. uchwały wspólnoty), możemy przedłużyć ten okres najwyżej dwa razy o 90 dni (łącznie nie dłużej niż **270 dni**),
+- bez umowy — usuwamy najpóźniej po **90 dniach** od zapisania wizji w naszym systemie (zwykle w dniu wizji); gdy decyzja wymaga czasu (np. uchwały wspólnoty), możemy przedłużyć ten okres najwyżej dwa razy o 90 dni (łącznie nie dłużej niż **270 dni** od zapisania wizji),
 - po Twojej rezygnacji albo odrzuceniu oferty — po **14 dniach**,
 - po zawarciu umowy — tak jak dokumentację zlecenia (szczegóły w pełnej informacji).
 
@@ -47,7 +47,7 @@ Masz prawo dostępu do danych i otrzymania ich kopii, sprostowania, usunięcia, 
 Do naklejenia na teczkę lub podkładkę technika albo na protokół z oględzin zostawiany zamawiającemu — gdy karta się skończy, technik pokazuje naklejkę do zeskanowania. Format: 50 × 70 mm (pion), naklejka papierowa matowa.
 
 **Wizja lokalna — Twoje dane**
-[pełna nazwa spółki] przetwarza adres, zdjęcia i filmy posesji oraz — jeśli go podasz — Twój telefon, żeby przygotować ofertę (art. 6 ust. 1 lit. b RODO). Bez umowy usuwamy je po 90 dniach (najwyżej 270), po rezygnacji — po 14 dniach. Prawa, sprzeciw i kontakt:
+[pełna nazwa spółki] przetwarza adres, zdjęcia i filmy posesji oraz — jeśli go podasz — Twój telefon, żeby przygotować ofertę (art. 6 ust. 1 lit. b RODO). Bez umowy usuwamy je najpóźniej po 90 dniach od zapisania wizji w naszym systemie (z przedłużeniem — najwyżej 270), po rezygnacji — po 14 dniach. Prawa, sprzeciw i kontakt:
 [kod QR — 25 × 25 mm]
 [adres strony z klauzulą „Klienci”]
 
@@ -60,7 +60,7 @@ Do naklejenia na teczkę lub podkładkę technika albo na protokół z oględzin
 | Kod QR | co najmniej 25 × 25 mm, poziom korekcji błędów M, margines (strefa ciszy) 4 moduły, czarny na białym; pod kodem — ten sam adres tekstem (dla osób bez skanera) |
 | Logo | opcjonalnie, w nagłówku; nie zmniejsza kodu QR ani tekstu |
 | Nakład | na start po 20 kart na osobę zakładającą wizje; uzupełnia Administrator |
-| Sprawdzenie przed drukiem całego nakładu | wydruk próbny; kod QR skanuje się dwoma różnymi telefonami (aparat systemowy) i otwiera klauzulę „Klienci” w wersji ostatecznej; treść zgodna z klauzulą (okresy 90 / 270 / 14 dni, kontakt) |
+| Sprawdzenie przed drukiem całego nakładu | wydruk próbny; kod QR skanuje się dwoma różnymi telefonami (aparat systemowy) i otwiera klauzulę „Klienci” w wersji ostatecznej; treść zgodna z klauzulą (okresy 90 / 270 / 14 dni liczone od zapisania wizji w systemie — [`rodo.md` → „Od kiedy liczymy”](../security/rodo.md#wizja-lokalna--zasady-przetwarzania-evm-141), kontakt) |
 
 ## Kod QR
 - **Cel kodu (rekomendacja z delegacji, do potwierdzenia przez Konrada):** publiczny adres klauzuli „Klienci”, który otwiera się bez logowania. Dziś jest nim strona „Prywatność i pomoc” panelu, dostępna bez sesji: `https://panel.eviacharge.pl/privacy#prywatnosc` (W-19). Docelowo — strona klauzuli na publicznej stronie firmy (przegląd prawny EVM-133, C9); po jej uruchomieniu karty drukujemy z nowym adresem.

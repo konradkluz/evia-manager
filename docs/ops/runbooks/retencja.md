@@ -69,7 +69,7 @@ Wizja lokalna ([ADR-0024](../../architecture/adr/0024-wizja-lokalna-zlecenie-bez
 | Przypomnienie przed usunięciem | 15 dni przed terminem | `SITE_SURVEY_REMINDER_LEAD_DAYS` | zadanie w `worker` | EVM-140 | nie istnieje |
 | Limit otwartych wizji (przeciw „dzikiemu archiwum”) | 20 na twórcę, 100 łącznie | `SITE_SURVEY_OPEN_LIMIT_PER_CREATOR`, `SITE_SURVEY_OPEN_LIMIT_TOTAL` | domena `work-orders` | EVM-140 | nie istnieje |
 | **Tryb usuwania** | `report` (domyślny) albo `enforce` | `SITE_SURVEY_PURGE_MODE` (konfiguracja wdrożenia) | zadanie w `worker` | EVM-139 | nie istnieje |
-| Przełącznik funkcji | włączony po scaleniu EVM-135 (decyzja Konrada 16) | `SITE_SURVEYS_ENABLED` (konfiguracja wdrożenia) | API | EVM-135 | nie istnieje |
+| Przełącznik funkcji | włączony po scaleniu EVM-135 (decyzja Konrada 16 — zastępuje w tym punkcie ADR-0024 pkt 10; zabezpieczenie zastępcze: zasada „tylko wizje testowe” i lista kontrolna przejścia) | `SITE_SURVEYS_ENABLED` (konfiguracja wdrożenia) | API | EVM-135 | nie istnieje |
 | Rejestr usunięć — klucz `worker` | wyłącznie `PutObject` | manifest sekretów i polityka bucketu | IaC | EVM-139 AC6 | nie istnieje (RR-55) |
 
 Okresy są stałymi w kodzie (SR-PRIV-01) — zmiana = jeden PR ze zmianą `rodo.md`, P4, tej tabeli i stałej, z testem granic (sekcja 3). Tryb i przełącznik są konfiguracją wdrożenia, bo zmienia je decyzja Konrada bez zmiany okresów.
@@ -77,20 +77,20 @@ Okresy są stałymi w kodzie (SR-PRIV-01) — zmiana = jeden PR ze zmianą `rodo
 ### Tryb `report` i `enforce`
 - **`report`** (domyślny): zadanie codziennie wybiera kandydatów (termin minął, brak klienta, nieusunięte) i zapisuje **tylko ich liczbę** w dzienniku i metryce — nic nie usuwa (EVM-139 AC1).
 - **`enforce`**: zadanie trwale usuwa kandydatów (EVM-139 AC2) — najpierw wpis w rejestrze usunięć, potem pliki, wpisy, lokalizacja wizji i telefon; zostaje anonimowy nagrobek z numerem.
-- **Kiedy `enforce` — decyzja Konrada (decyzja 15), gdy:** (1) kopie bazy działają i test odtworzenia przeszedł z krokiem ponownego zastosowania rejestru usunięć ([`restore.md`](restore.md), [`rejestr-usuniec.md`](rejestr-usuniec.md)); (2) `worker` ma własny klucz rejestru (`PutObject`) w IaC; (3) w trybie `report` liczba kandydatów zgadza się z ręcznym przeglądem filtrem „Wygasające” przez co najmniej tydzień. Datę włączenia zapisz w karcie przeglądu i w RR-102 (model zagrożeń).
+- **Kiedy `enforce` — decyzja Konrada (decyzja 15), gdy:** (1) kopie bazy działają i test odtworzenia przeszedł z krokiem ponownego zastosowania rejestru usunięć ([`restore.md`](restore.md), [`rejestr-usuniec.md`](rejestr-usuniec.md)); (2) `worker` ma własny klucz rejestru (`PutObject`) w IaC; (3) w trybie `report` liczba kandydatów zgadza się z ręcznym przeglądem (widok „Wygasające wizje” i filtr „Tylko wizje”) przez co najmniej tydzień. Datę włączenia zapisz w karcie przeglądu i w RR-102 (model zagrożeń).
 
 ### Procedura ręczna do włączenia `enforce` (zobowiązanie Konrada)
 Obowiązuje **od pierwszej realnej wizji** do dnia włączenia `enforce` (warunek przejścia z [instrukcji administratora](wizja-lokalna.md#2-lista-kontrolna-przed-pierwszą-realną-wizją-ac6)). Dla wizji testowych nie jest wymagana — można je zostawić do automatycznego usunięcia.
 
 **Kiedy:** co tydzień (stały dzień) oraz po każdym e-mailu „Wizja lokalna ZL-… zostanie usunięta dnia …”.
 
-**Kto spełnia warunek:** panel → lista zleceń → filtr „Tylko wizje”, sortowanie po terminie: wizje bez klienta z terminem **dziś lub wcześniej** oraz odrzucone (odznaka „Odrzucona”) z datą usunięcia dziś lub wcześniej.
+**Kto spełnia warunek:** panel → lista zleceń → grupa filtrów „Wizje lokalne” → „Tylko wizje”, sortowanie „Termin wygaśnięcia”: wizje bez klienta z terminem **dziś lub wcześniej** oraz odrzucone (oznaczenie „Odrzucona”) z datą usunięcia dziś lub wcześniej. Wizje zbliżające się do terminu pokazuje widok „Wygasające wizje”.
 
 **Operacje w panelu (Administrator, step-up):**
 1. **Zdjęcia i filmy** wizji — trwałe usunięcie pliku (EVM-051).
 2. **Wpisy dziennika** z treścią (np. notatki z oględzin) — redakcja (EVM-040).
 3. **Tytuł i opis** zlecenia — edycja na neutralne („Wizja lokalna”, pusty opis).
-4. **Telefon zamawiającego** — wyczyszczenie w szczegółach wizji (wymaga edycji telefonu w panelu — EVM-138, rozstrzygnięcie z delegacji do potwierdzenia przy demo; bez niej realnych wizji przed `enforce` nie przyjmujemy).
+4. **Telefon zamawiającego** — w panelu **nie ma funkcji wyczyszczenia ani edycji telefonu zamawiającego** (osobna historyjka w backlogu przez `/refine`, poza kolejką wizji). Telefon znika dziś wyłącznie przy przypisaniu klienta (EVM-136) i przy usunięciu wizji przez zadanie w trybie `enforce` (EVM-139). Dlatego **do wdrożenia tej funkcji albo do włączenia `enforce` realnych wizji nie przyjmujemy** (wizje testowe mają puste pole telefonu). Danych nie zmieniamy bezpośrednio w bazie.
 5. **Lokalizacja** założona dla wizji i niewskazywana przez inne zlecenie ani dokument — edycja na wartości neutralne (ulica, numer, lokal, nr miejsca, notatki; miasto może zostać) jak w [`prawa-osob.md` → „Art. 17”](prawa-osob.md#art-17--usunięcie), krok 4.
 6. **Zlecenie** — „Usuń zlecenie” (soft delete, EVM-060).
 
