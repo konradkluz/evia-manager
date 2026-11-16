@@ -44,7 +44,7 @@ describe('texts through i18n (EVM-008 AC3; styleguide § 6)', () => {
 
 describe('texts of the second step (EVM-134 AC6; ADR-0023)', () => {
   it('EVM-134 AC6 no text says that a passkey is obligatory for the Administrator or that the code of the app is only for the phone', () => {
-    const texts = keys(pl).map((key) => String(createI18n().t(key)));
+    const texts = keys(pl).map((key) => key.split('.').reduce<unknown>((node, part) => (node as Record<string, unknown>)[part], pl));
     const forbidden = [
       /obowiązkowy/i,
       /wyłącznie klucz dostępu/i,
@@ -54,6 +54,6 @@ describe('texts of the second step (EVM-134 AC6; ADR-0023)', () => {
       /Bez klucza dostępu kolejne logowanie/,
       /Służy tylko do logowania w aplikacji na telefonie/,
     ];
-    expect(texts.filter((text) => forbidden.some((pattern) => pattern.test(text)))).toEqual([]);
+    expect(texts.filter((text) => forbidden.some((pattern) => pattern.test(String(text))))).toEqual([]);
   });
 });
