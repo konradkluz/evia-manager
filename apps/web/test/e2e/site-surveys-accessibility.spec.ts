@@ -102,7 +102,7 @@ test.describe('accessibility of the site survey in W-06, with colour contrast (E
     await page.addStyleTag({ content: 'html { font-size: 200%; }' });
     const banner = page.getByRole('region', { name: BANNER });
     expect(await fitsTheWindow(page, banner)).toBe(true);
-    for (const name of ['Przypisz klienta', 'Odrzuć wizję…'])
+    for (const name of ['Przypisz klienta', 'Przedłuż o 90 dni', 'Odrzuć wizję…'])
       expect(await fitsTheWindow(page, banner.getByRole('button', { name }))).toBe(true);
     await banner.getByRole('button', { name: 'Przypisz klienta' }).click();
     const dialog = page.getByRole('dialog', { name: 'Przypisz klienta' });
@@ -128,6 +128,9 @@ test.describe('accessibility of the site survey in W-06, with colour contrast (E
     await expect(page.getByRole('dialog', { name: 'Przypisz klienta' })).toBeHidden();
     await expect(page.getByRole('heading', { level: 1, name: SURVEY_NUMBER })).toBeFocused();
     await assign.focus();
+    // EVM-140 AC6: the order of the banner is "Przypisz klienta" -> "Przedłuż o 90 dni" -> "Odrzuć wizję…" -> the tabs
+    await page.keyboard.press('Tab');
+    await expect(page.getByRole('region', { name: BANNER }).getByRole('button', { name: 'Przedłuż o 90 dni' })).toBeFocused();
     await page.keyboard.press('Tab');
     await expect(page.getByRole('region', { name: BANNER }).getByRole('button', { name: 'Odrzuć wizję…' })).toBeFocused();
     await page.keyboard.press('Tab');
