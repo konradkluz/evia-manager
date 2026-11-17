@@ -73,14 +73,25 @@ describe('queue and engine: a site survey (EVM-137 AC2, AC6, W10)', () => {
     expect(store.records()).toHaveLength(0);
   });
 
-  it('EVM-137 AC6 W10: an unknown code of the server (the limit before the contract knows it) is kept as "unknown" and the survey stops, with no endless retry', async () => {
+  it('EVM-137 AC6 W10: an unknown code of the server (one a newer server may add) is kept as "unknown" and the survey stops, with no endless retry', async () => {
     const { core, store, server } = makeCore();
     const root = await core.queue.enqueue(survey);
-    server.rejectCodes.set(root.mutationId, 'site_survey_limit_exceeded');
+    server.rejectCodes.set(root.mutationId, 'a_code_of_a_newer_server');
     await core.engine.flush();
     expect(store.records()[0]).toMatchObject({ state: 'needs_attention', lastCode: 'unknown' });
     const sent = server.requests.length;
     await core.engine.flush();
+    expect(server.requests).toHaveLength(sent);
+  });
+
+  it('EVM-140 AC4: the limit of open site surveys is a known code - kept as it is, the survey stops and is not resent', async () => {
+    const { core, store, server } = makeCore();
+    const root = await core.queue.enqueue(survey);
+    server.rejectCodes.set(root.mutationId, 'site_survey_limit_exceeded');
+    await core.engine.flush();
+    expect(store.records()[0]).toMatchObject({ state: 'needs_attention', lastCode: 'site_survey_limit_exceeded' });
+    const sent = server.requests.length;
+    for (let i = 0; i < 5; i += 1) await core.engine.flush();
     expect(server.requests).toHaveLength(sent);
   });
 

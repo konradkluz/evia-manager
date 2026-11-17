@@ -71,6 +71,8 @@ export const KNOWN_REJECTION_CODES = [
   'quota_exceeded',
   // EVM-135: the site survey is switched off on the server
   'feature_disabled',
+  // EVM-140 AC4: the limit of open site surveys
+  'site_survey_limit_exceeded',
 ] as const;
 
 export type PauseReason =
