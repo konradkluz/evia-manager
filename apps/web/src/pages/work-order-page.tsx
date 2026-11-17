@@ -77,14 +77,15 @@ export function WorkOrderPage() {
   const [focusTick, setFocusTick] = useState(0);
   const active = !gone && id !== '';
   const header = useWorkOrderHeader(id, active);
-  // EVM-138: a site survey has no processes, scope, instalments or card of a customer, and the panel does not ask for them; the order
-  // is known from its header, so these four reads wait for it (the header is read first anyway).
+  // EVM-138: the reads of the processes, the payments and the scope start with the header (no extra round trip for an ordinary order); for
+  // a site survey the API answers `200` with empty lists and the page ignores them. The card of the customer waits for the header and is
+  // not asked for a site survey (no customer: the API says `404` to it). An ordinary order whose customer is gone still asks and shows the
+  // message of the card.
   const surveyOpen = header.data !== undefined && isSurvey(header.data);
-  const ordinary = active && header.data !== undefined && !surveyOpen;
-  const scope = useWorkOrderScope(id, ordinary);
-  const procedures = useWorkOrderProcedures(id, ordinary);
-  const payments = useWorkOrderPayments(id, ordinary);
-  const customer = useWorkOrderCustomer(id, ordinary);
+  const scope = useWorkOrderScope(id, active);
+  const procedures = useWorkOrderProcedures(id, active);
+  const payments = useWorkOrderPayments(id, active);
+  const customer = useWorkOrderCustomer(id, active && header.data !== undefined && !surveyOpen);
   const site = useWorkOrderSite(id, active);
   const siteOrders = useWorkOrderSiteOrders(id, active);
   const heading = useRef<HTMLHeadingElement>(null);

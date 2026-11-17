@@ -70,6 +70,8 @@ export interface CustomerFormController {
   readonly pending: boolean;
   /** Forgets everything typed (the cancelled dialog). */
   readonly reset: () => void;
+  /** Something was typed beyond what the form started with (a dismissal then asks "Odrzucić zmiany?", README of the flows, rule 17). */
+  readonly dirty: boolean;
 }
 
 /**
@@ -306,5 +308,6 @@ export function useCustomerForm({ formId, active, initialPhone, onCreated, onPic
       />
     </form>
   );
-  return { element, pending: mutation.isPending, reset };
+  const initial = initialPhone === undefined ? EMPTY_FORM : { ...EMPTY_FORM, phone: initialPhone };
+  return { element, pending: mutation.isPending, reset, dirty: JSON.stringify(form) !== JSON.stringify(initial) };
 }

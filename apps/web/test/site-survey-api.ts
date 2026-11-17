@@ -48,12 +48,8 @@ export function surveyApi(
   });
 }
 
-export const SURVEY_ROUTES_NOT_ASKED = [
-  `GET ${SURVEY_URL}/scope-items`,
-  `GET ${SURVEY_URL}/procedures`,
-  `GET ${SURVEY_URL}/payment-milestones`,
-  `GET ${SURVEY_URL}/customer`,
-] as const;
+/** The card of the customer is not asked for a survey (the API says `404`); the processes, the instalments and the scope are read with the header and ignored. */
+export const SURVEY_ROUTES_NOT_ASKED = [`GET ${SURVEY_URL}/customer`] as const;
 
 /** Everything the browser keeps for the tab: keys and values of `localStorage` and `sessionStorage` as one text (a phone must not be in it). */
 export function browserStorageText(): string {

@@ -51,7 +51,7 @@ describe('W-06 site survey: details (EVM-138 AC3, AC4; flows/17)', () => {
     expect(document.title).toBe('ZL-2026-0049 · EVia Manager');
   });
 
-  it('EVM-138 AC3 the panel does not read the processes, the scope, the instalments or the card of the customer of a survey', async () => {
+  it('EVM-138 AC3 the card of the customer is not asked for a survey; what the empty reads of the processes, the scope and the instalments say is ignored', async () => {
     const api = surveyApi();
     await renderPanel(SURVEY_PATH, api);
     await screen.findByRole('region', { name: BANNER });
@@ -113,6 +113,15 @@ describe('W-06 site survey: details (EVM-138 AC3, AC4; flows/17)', () => {
     expect(add.getAttribute('aria-disabled')).toBe('true');
     expect(main().getAllByText('Dokumenty dodasz po przypisaniu klienta.').length).toBeGreaterThan(0);
     expect(main().getByRole('button', { name: 'Dodaj zdjęcia lub filmy' }).getAttribute('aria-disabled')).toBeNull();
+  });
+
+  it('EVM-138 AC3 the description of a survey is a free field: the dialog "Edytuj dane zlecenia" warns not to put names, surnames or phones in it (W8)', async () => {
+    await renderPanel(SURVEY_PATH, surveyApi());
+    await userEvent.click(await screen.findByRole('button', { name: 'Akcje zlecenia: ZL-2026-0049' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Edytuj dane zlecenia…' }));
+    const dialog = within(await screen.findByRole('dialog', { name: /Edytuj dane zlecenia/ }));
+    expect(dialog.getByText(/Nie wpisuj imion, nazwisk ani telefonów\./)).toBeTruthy();
+    expect(dialog.getByRole('textbox', { name: /Opis/ }).getAttribute('aria-describedby')).not.toBeNull();
   });
 
   it('EVM-138 AC3 the Editor has "Przypisz klienta" too', async () => {

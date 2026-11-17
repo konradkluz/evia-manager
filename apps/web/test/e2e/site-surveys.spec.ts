@@ -11,8 +11,8 @@ test.use({ session: 'active' });
 const BANNER = 'Wizja lokalna — brak klienta';
 const STATUS = /^Status zlecenia: .*\. Zmień status$/;
 
-/** The reads a survey does not have: the panel must not ask for them (flows/17; EVM-138 delegation decision 5). */
-const NOT_ASKED = ['/scope-items', '/procedures', '/payment-milestones', '/customer'];
+/** The one read a survey has no answer for (`404`): the card of the customer. The empty reads of the processes, the scope and the instalments are ignored. */
+const NOT_ASKED = ['/customer'];
 
 async function open(page: Page) {
   await page.goto(SURVEY_PATH);
@@ -20,10 +20,7 @@ async function open(page: Page) {
 }
 
 test.describe('site survey in W-06 (EVM-138)', () => {
-  test('EVM-138 AC3 the banner, the marks, "Brak klienta" and the phone; no reads of processes, instalments, scope or customer', async ({
-    page,
-    api,
-  }) => {
+  test('EVM-138 AC3 the banner, the marks, "Brak klienta" and the phone; no read of the card of the customer', async ({ page, api }) => {
     await open(page);
     const banner = page.getByRole('region', { name: BANNER });
     await expect(banner).toBeVisible();

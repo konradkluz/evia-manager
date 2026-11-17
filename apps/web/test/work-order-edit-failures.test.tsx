@@ -69,9 +69,6 @@ async function openAddDialog() {
 }
 
 async function openEditDialog() {
-  // EVM-138: the scope is read after the header (a site survey has none and the panel does not ask), so wait for it instead of assuming
-  // it arrived together with the heading.
-  await screen.findByText('Instalacja zasilająca');
   const start = screen.queryByRole('button', { name: 'Edytuj zakres' });
   if (start !== null) await userEvent.click(start);
   await userEvent.click(await screen.findByRole('button', { name: 'Akcje pozycji: Instalacja zasilająca' }));

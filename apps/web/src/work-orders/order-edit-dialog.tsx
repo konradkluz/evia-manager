@@ -14,6 +14,8 @@ import { useOnline } from '../shell/use-online.ts';
 import { formatDueDate } from './procedure-format.ts';
 import { classifyEdit, useStateWord, type EditFailure } from './edit-failure.ts';
 import { PLANNED_DATE_MAX, PLANNED_DATE_MIN } from './order-form.ts';
+import { surveyText } from './site-survey-labels.ts';
+import { isSurvey } from './site-survey.ts';
 import { WORK_ORDER_HEADER_KEY, WORK_ORDER_JOURNAL_KEY, WORK_ORDERS_KEY } from './query-keys.ts';
 import { useAssignableUsers } from './use-order-lookups.ts';
 
@@ -277,7 +279,7 @@ export function OrderEditDialog({ order, onClose }: { readonly order: WorkOrderD
             label={t('workOrder.edit.description')}
             value={current.description}
             rows={4}
-            {...hintOf(t('workOrder.edit.descriptionHint'), 'description')}
+            {...hintOf(isSurvey(order) ? surveyText.descriptionHint : t('workOrder.edit.descriptionHint'), 'description')}
             {...errorOf('description')}
             onChange={(event) => {
               setCurrent((existing) => ({ ...existing, description: event.target.value }));

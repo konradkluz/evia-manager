@@ -7,6 +7,7 @@ import { ApiError, unwrap } from '../api/client.ts';
 import { CustomerPicker, type PickedCustomer } from '../customers/customer-picker.tsx';
 import { useCustomerForm } from '../customers/use-customer-form.tsx';
 import { useAttempt } from '../forms/attempt.ts';
+import { DiscardDialog } from '../forms/discard-dialog.tsx';
 import { refusesAttempt } from '../forms/save-failure.ts';
 import { useToast } from '../shell/toast-context.tsx';
 import { useOnline } from '../shell/use-online.ts';
@@ -71,6 +72,8 @@ export function AssignCustomerDialog({
   const [customer, setCustomer] = useState<PickedCustomer | null>(null);
   const [failure, setFailure] = useState<Failure | null>(null);
   const [added, setAdded] = useState(false);
+  // What was typed in the form of a new customer is not dropped without asking (README of the flows, rule 17).
+  const [discarding, setDiscarding] = useState<'close' | 'back' | null>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const alert = useRef<HTMLDivElement>(null);
   const previousView = useRef<View>('choose');
@@ -159,6 +162,14 @@ export function AssignCustomerDialog({
     }[current];
   };
 
+  const backToChoice = () => {
+    form.reset();
+    setView('choose');
+  };
+  const dismiss = () => {
+    if (view === 'add' && form.dirty) setDiscarding('close');
+    else onClose();
+  };
   const offline = online ? undefined : surveyText.offlineAssign;
   const alertNode =
     failure === null ? null : (
@@ -189,115 +200,129 @@ export function AssignCustomerDialog({
     view === 'add' ? assignText.addNewTitle : view === 'confirm' ? assignText.confirmTitle(order.number) : assignText.chooseTitle;
 
   return (
-    <Dialog
-      open
-      title={assignText.title}
-      closeLabel={assignText.close}
-      onDismiss={onClose}
-      actions={
-        view === 'choose' ? (
+    <>
+      <Dialog
+        open
+        title={assignText.title}
+        closeLabel={assignText.close}
+        onDismiss={dismiss}
+        actions={
+          view === 'choose' ? (
+            <>
+              <Button variant="tertiary" onClick={onClose}>
+                {assignText.cancel}
+              </Button>
+              <HintedButton
+                hint={offline}
+                disabled={customer === null}
+                onClick={() => {
+                  if (customer !== null) setView('confirm');
+                }}
+              >
+                {assignText.next}
+              </HintedButton>
+            </>
+          ) : view === 'add' ? (
+            <>
+              <Button
+                variant="tertiary"
+                onClick={() => {
+                  if (form.dirty) setDiscarding('back');
+                  else backToChoice();
+                }}
+              >
+                {assignText.backToChoice}
+              </Button>
+              <Button type="submit" form={formId} loading={form.pending} disabled={!online}>
+                {assignText.addNew}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                variant="tertiary"
+                onClick={() => {
+                  setAdded(false);
+                  setFailure(null);
+                  setView('choose');
+                }}
+              >
+                {assignText.back}
+              </Button>
+              <HintedButton
+                hint={offline}
+                loading={mutation.isPending}
+                aria-label={customer === null ? assignText.confirm : assignText.confirmName(customer.displayName, order.number)}
+                onClick={assign}
+              >
+                {assignText.confirm}
+              </HintedButton>
+            </>
+          )
+        }
+      >
+        <h3 ref={heading} tabIndex={-1} className="text-heading-4 text-text-primary focus-visible:focus-ring">
+          {viewTitle}
+        </h3>
+        {alertNode}
+        {view === 'confirm' ? (
           <>
-            <Button variant="tertiary" onClick={onClose}>
-              {assignText.cancel}
-            </Button>
-            <HintedButton
-              hint={offline}
-              disabled={customer === null}
-              onClick={() => {
-                if (customer !== null) setView('confirm');
-              }}
-            >
-              {assignText.next}
-            </HintedButton>
+            {added ? <InlineAlert tone="success">{assignText.added}</InlineAlert> : null}
+            <p className="break-words text-body text-text-primary">
+              {customer === null ? '' : assignText.confirmCustomer(customer.displayName)}
+            </p>
+            <Banner icon={TriangleAlert}>
+              <p>{assignText.confirmBody}</p>
+            </Banner>
           </>
         ) : view === 'add' ? (
           <>
-            <Button
-              variant="tertiary"
-              onClick={() => {
-                form.reset();
-                setView('choose');
-              }}
-            >
-              {assignText.backToChoice}
-            </Button>
-            <Button type="submit" form={formId} loading={form.pending} disabled={!online}>
-              {assignText.addNew}
-            </Button>
+            {orderPhone === undefined ? null : <InlineAlert tone="info">{assignText.phoneFilled}</InlineAlert>}
+            {form.element}
           </>
         ) : (
           <>
-            <Button
-              variant="tertiary"
-              onClick={() => {
-                setAdded(false);
-                setFailure(null);
-                setView('choose');
+            <Banner icon={TriangleAlert}>
+              <p>{assignText.once}</p>
+            </Banner>
+            <CustomerPicker
+              selected={customer}
+              onSelect={setCustomer}
+              onClear={() => {
+                setCustomer(null);
               }}
-            >
-              {assignText.back}
-            </Button>
-            <HintedButton
-              hint={offline}
-              loading={mutation.isPending}
-              aria-label={customer === null ? assignText.confirm : assignText.confirmName(customer.displayName, order.number)}
-              onClick={assign}
-            >
-              {assignText.confirm}
-            </HintedButton>
+              onAdd={() => {
+                setView('add');
+              }}
+            />
+            {customer === null ? (
+              <div className="flex flex-wrap items-center gap-inline-md">
+                <span className="text-body text-text-secondary">{assignText.or}</span>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setView('add');
+                  }}
+                >
+                  {assignText.addNew}
+                </Button>
+              </div>
+            ) : null}
           </>
-        )
-      }
-    >
-      <h3 ref={heading} tabIndex={-1} className="text-heading-4 text-text-primary focus-visible:focus-ring">
-        {viewTitle}
-      </h3>
-      {alertNode}
-      {view === 'confirm' ? (
-        <>
-          {added ? <InlineAlert tone="success">{assignText.added}</InlineAlert> : null}
-          <p className="break-words text-body text-text-primary">
-            {customer === null ? '' : assignText.confirmCustomer(customer.displayName)}
-          </p>
-          <Banner icon={TriangleAlert}>
-            <p>{assignText.confirmBody}</p>
-          </Banner>
-        </>
-      ) : view === 'add' ? (
-        <>
-          {orderPhone === undefined ? null : <InlineAlert tone="info">{assignText.phoneFilled}</InlineAlert>}
-          {form.element}
-        </>
-      ) : (
-        <>
-          <Banner icon={TriangleAlert}>
-            <p>{assignText.once}</p>
-          </Banner>
-          <CustomerPicker
-            selected={customer}
-            onSelect={setCustomer}
-            onClear={() => {
-              setCustomer(null);
-            }}
-            onAdd={() => {
-              setView('add');
-            }}
-          />
-          {customer === null ? (
-            <div className="flex flex-wrap items-center gap-inline-md">
-              <span className="text-body text-text-secondary">{assignText.or}</span>
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setView('add');
-                }}
-              >
-                {assignText.addNew}
-              </Button>
-            </div>
-          ) : null}
-        </>
-      )}
-    </Dialog>
+        )}
+      </Dialog>
+      <DiscardDialog
+        open={discarding !== null}
+        onConfirm={() => {
+          const target = discarding;
+          setDiscarding(null);
+          if (target === 'close') onClose();
+          else backToChoice();
+        }}
+        onBack={() => {
+          setDiscarding(null);
+        }}
+      />
+    </>
   );
 }

@@ -1,5 +1,5 @@
 import type { WorkOrderDetails } from '@evia/contracts';
-import { screen, waitFor, within, type BoundFunctions, type queries } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within, type BoundFunctions, type queries } from '@testing-library/react';
 import { userEvent } from './user.ts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { axeViolations } from './a11y.ts';
@@ -54,6 +54,11 @@ async function chooseJan(box: BoundFunctions<typeof queries>) {
   await userEvent.click(box.getByRole('button', { name: 'Dalej' }));
   return within(dialog());
 }
+
+/** Esc on the open dialog (jsdom does not turn the key into the `cancel` event of a modal `<dialog>`). */
+const pressEsc = () => {
+  fireEvent(screen.getAllByRole('dialog').at(-1) as HTMLElement, new Event('cancel', { cancelable: true }));
+};
 
 const confirmName = 'Przypisz klienta Jan Przykładowy do wizji ZL-2026-0049 — nieodwracalnie';
 
@@ -245,6 +250,49 @@ describe('W-06 site survey: "Przypisz klienta" (EVM-138 AC3)', () => {
     });
     expect(screen.getByRole('region', { name: BANNER })).toBeTruthy();
     expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1, name: 'ZL-2026-0049' }));
+  });
+
+  it('EVM-138 AC3 Esc or "Wróć do wyboru" with typed data of a new customer asks "Odrzucić zmiany?"; without typed data it closes at once', async () => {
+    const api = surveyApi(surveyOrder(), { [SEARCH]: found });
+    const box = await openAssign(api);
+    await userEvent.click(box.getByRole('button', { name: 'Dodaj nowego klienta' }));
+    // the phone of the orderer is put in by the panel itself: it is not "typed data"
+    await userEvent.click(within(dialog()).getByRole('button', { name: 'Wróć do wyboru' }));
+    expect(screen.queryByRole('dialog', { name: 'Odrzucić zmiany?' })).toBeNull();
+    await userEvent.click(within(dialog()).getByRole('button', { name: 'Dodaj nowego klienta' }));
+    await userEvent.type(within(dialog()).getByRole('textbox', { name: 'Nazwisko' }), 'Nowak');
+    pressEsc();
+    const ask = await screen.findByRole('dialog', { name: 'Odrzucić zmiany?' });
+    expect(document.activeElement).toBe(within(ask).getByRole('button', { name: 'Wróć do edycji' }));
+    await userEvent.click(within(ask).getByRole('button', { name: 'Wróć do edycji' }));
+    expect(screen.queryByRole('dialog', { name: 'Odrzucić zmiany?' })).toBeNull();
+    expect(within(dialog()).getByRole<HTMLInputElement>('textbox', { name: 'Nazwisko' }).value).toBe('Nowak');
+    // "Wróć do wyboru" asks too, and "Odrzuć zmiany" goes back to the choice
+    await userEvent.click(within(dialog()).getByRole('button', { name: 'Wróć do wyboru' }));
+    await userEvent.click(
+      within(await screen.findByRole('dialog', { name: 'Odrzucić zmiany?' })).getByRole('button', { name: 'Odrzuć zmiany' }),
+    );
+    expect(await within(dialog()).findByRole('combobox', { name: 'Klient' })).toBeTruthy();
+    // Esc in the view of the choice closes the dialog without a question
+    pressEsc();
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+  });
+
+  it('EVM-138 AC3 "Odrzuć zmiany" after Esc closes the whole dialog', async () => {
+    const api = surveyApi(surveyOrder(), { [SEARCH]: found });
+    const box = await openAssign(api);
+    await userEvent.click(box.getByRole('button', { name: 'Dodaj nowego klienta' }));
+    await userEvent.type(within(dialog()).getByRole('textbox', { name: 'Nazwisko' }), 'Nowak');
+    pressEsc();
+    await userEvent.click(
+      within(await screen.findByRole('dialog', { name: 'Odrzucić zmiany?' })).getByRole('button', { name: 'Odrzuć zmiany' }),
+    );
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+    expect(screen.getByRole('region', { name: BANNER })).toBeTruthy();
   });
 
   it('EVM-138 AC3 every view of the dialog has no axe violations', async () => {
