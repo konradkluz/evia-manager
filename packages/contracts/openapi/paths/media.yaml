@@ -650,7 +650,7 @@ mediaAssetPurgeFile:
     summary: Trwałe usunięcie pliku medium (Administrator, step-up)
     description: >-
       „Usuń plik trwale…” (EVM-051 AC2, AC3, AC4, AC6, AC7; SR-PRIV-03, SR-PRIV-04, SR-SESS-08, SR-DATA-08, SR-LOG-03). Tylko Administrator, kanał `web`,
-      `stepUp: true` (rola przed step-upem: Edytor i Tylko odczyt - `403 forbidden`; Administrator bez uwierzytelnienia kluczem w ciągu 15 minut - `403
+      `stepUp: true` (rola przed step-upem: Edytor i Tylko odczyt - `403 forbidden`; Administrator bez step-upu (klucz dostępu albo nowy kod z aplikacji; logowanie Administratora kodem nie otwiera okna — K1) w ciągu 15 minut - `403
       step_up_required`). Wymaga `X-CSRF-Token` i `If-Match` (brak - `428`, zniekształcony - `400`, nieaktualny - `412`). Kolejność: zlecenie (`404`), medium
       TEGO zlecenia pod blokadą (także usunięte miękko; inne zlecenie i nieistniejące - `404`), medium z już usuniętym plikiem - `204` (powtórzenie jest
       idempotentne i domyka usuwanie obiektów), `If-Match`, wersja (`412`), plik w trakcie skanu lub przetwarzania - `409 file_processing` z `Retry-After`

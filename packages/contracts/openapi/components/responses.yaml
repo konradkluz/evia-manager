@@ -309,8 +309,9 @@ NotFound:
         traceId: 4bf92f3577b34da6a3ce929d0e0e4736
 StepUpRequired:
   description: >-
-    Operacja wymaga ponownego uwierzytelnienia (`step_up_required`): ostatnie uwierzytelnienie kluczem dostępu w tej sesji
-    było 15 minut temu lub wcześniej albo go nie było (sesja z hasła, aktywacji lub kodu odzyskiwania). Zwracane dopiero po
+    Operacja wymaga ponownego uwierzytelnienia (`step_up_required`): ostatni step-up w tej sesji (klucz dostępu albo nowy kod z
+    aplikacji; logowanie Administratora kodem nie otwiera okna — K1) był 15 minut temu lub wcześniej albo go nie było (sesja z hasła, aktywacji, kodu odzyskiwania
+    albo z logowania Administratora kodem). Zwracane dopiero po
     kontroli kanału i roli — rola bez prawa do operacji dostaje `forbidden`.
   content:
     application/problem+json:
@@ -493,7 +494,7 @@ TransitionForbidden:
   description: >-
     Brak uprawnienia do tego przejścia (`forbidden`: Tylko odczyt zawsze; Edytor przy przywróceniu — przejściu `settled → completed` albo
     `cancelled → on_hold`), nieudana kontrola CSRF (`csrf_failed`) albo konto bez klucza dostępu (`mfa_enrollment_required`). Przywrócenie
-    przez Administratora bez step-upu (klucz dostępu albo nowy kod z aplikacji) w ostatnich 15 minutach — `step_up_required` (sprawdzane po roli: rola bez
+    przez Administratora bez step-upu (klucz dostępu albo nowy kod z aplikacji w ostatnich 15 minutach; logowanie Administratora kodem nie otwiera okna — K1) — `step_up_required` (sprawdzane po roli: rola bez
     prawa do przejścia nigdy się nie dowiaduje o step-upie). Odpowiedzi nie podają stanu zlecenia.
   content:
     application/problem+json:
@@ -508,8 +509,8 @@ TransitionForbidden:
 WorkOrderDeleteForbidden:
   description: >-
     Brak uprawnienia (`forbidden`: Edytor i Tylko odczyt zawsze), nieudana kontrola CSRF (`csrf_failed`) albo konto bez klucza dostępu
-    (`mfa_enrollment_required`). Administrator przy zleceniu z transzą opłaconą bez step-upu (klucz dostępu albo nowy kod z aplikacji) w ostatnich
-    15 minutach — `step_up_required` (sprawdzane po roli i po regule `409`). Odpowiedź nie mówi, czy zlecenie istnieje, i nie podaje
+    (`mfa_enrollment_required`). Administrator przy zleceniu z transzą opłaconą bez step-upu (klucz dostępu albo nowy kod z aplikacji w ostatnich
+    15 minutach; logowanie Administratora kodem nie otwiera okna — K1) — `step_up_required` (sprawdzane po roli i po regule `409`). Odpowiedź nie mówi, czy zlecenie istnieje, i nie podaje
     liczby ani kwot transz.
   content:
     application/problem+json:
@@ -828,7 +829,7 @@ PaymentMilestoneForbidden:
   description: >-
     Brak uprawnienia (`forbidden`: Tylko odczyt zawsze; Edytor przy korekcie płatności — wycofaniu i anulowaniu faktury, cofnięciu
     wpłaty, przywróceniu transzy i zmianie kwoty transzy „Wystawiona” albo „Opłacona”; każda rola przy zmianie kwoty transzy
-    „Anulowana”), Administrator bez step-upu (klucz dostępu albo nowy kod z aplikacji) w ostatnich 15 minutach przy korekcie płatności
+    „Anulowana”), Administrator bez step-upu (klucz dostępu albo nowy kod z aplikacji w ostatnich 15 minutach; logowanie Administratora kodem nie otwiera okna — K1) przy korekcie płatności
     (`step_up_required` — sprawdzane po roli, EVM-057), nieudana kontrola CSRF (`csrf_failed`) albo konto bez klucza dostępu
     (`mfa_enrollment_required`). Odpowiedź nie podaje statusu ani kwoty transzy.
   content:
@@ -884,7 +885,7 @@ PaymentMilestoneUnprocessable:
             code: in_future
 PaymentMilestoneDeleteForbidden:
   description: >-
-    Brak uprawnienia (`forbidden`: Edytor i Tylko odczyt zawsze), Administrator bez step-upu (klucz dostępu albo nowy kod z aplikacji) w ostatnich 15 minutach (`step_up_required` —
+    Brak uprawnienia (`forbidden`: Edytor i Tylko odczyt zawsze), Administrator bez step-upu (klucz dostępu albo nowy kod z aplikacji w ostatnich 15 minutach; logowanie Administratora kodem nie otwiera okna — K1) (`step_up_required` —
     sprawdzane po roli), nieudana kontrola CSRF (`csrf_failed`) albo konto bez klucza dostępu (`mfa_enrollment_required`). Odpowiedź
     nie mówi, czy transza istnieje.
   content:

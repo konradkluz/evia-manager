@@ -46,7 +46,7 @@ workOrderMediaExports:
     description: >-
       Zlecenie zadania w tle, które składa do jednego pliku ZIP oryginały zdjęć zlecenia w stanie `ready` (czyste po skanie; bez kwarantanny, wymazanych, usuniętych,
       filmów i dokumentów) - EVM-052 AC1, AC2, AC3, AC5; ADR-0009; P10; SR-FILE-07, SR-FILE-09, SR-SESS-08, SR-AUTHZ-05, SR-LOG-03, SR-LOG-07. Role Administrator
-      i Edytor, kanał `web`, `stepUp: true`; Tylko odczyt - `403 forbidden`, niezalogowany - `401`, token mobilny - `403 channel_not_allowed`, Administrator lub Edytor bez
+      i Edytor, kanał `web`, `stepUp: true`; Tylko odczyt - `403 forbidden`, niezalogowany - `401`, token aplikacji mobilnej - `401 unauthenticated` (operacja kanału `web` nie czyta tokenu Bearer), Administrator lub Edytor bez
       świeżego uwierzytelnienia (15 min) - `403 step_up_required`. Wymaga `X-CSRF-Token` i `Idempotency-Key` (powtórka zwraca ten sam eksport i nie liczy się do
       limitu). Kolejność: strażnik → ścieżka (`400`) → zlecenie przez politykę odczytu (`404`) → blokada użytkownika → limity (`429`) → zbiór zdjęć (`409
       no_media_to_export`; `429 export_too_large` powyżej 10 GB) → zapis. Limity per użytkownik: jeden eksport na 10 minut i 5 w kroczących 24 godzinach

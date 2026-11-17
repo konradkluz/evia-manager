@@ -114,4 +114,39 @@ describe('the Administrator and the code of the app in the contract (EVM-134 AC6
     ])
       expect(text, phrase).not.toContain(phrase);
   });
+
+  it('EVM-134 AC4 AC6 every description of step_up_required names a passkey OR a code of the app, and the shared response names K1', () => {
+    const bundle = JSON.parse(text) as {
+      paths: Record<string, Record<string, { description?: string }>>;
+      components: { responses: Record<string, { description?: string }> };
+    };
+    const descriptions = [
+      ...Object.values(bundle.paths).flatMap((item) => Object.values(item).map((operation) => operation.description ?? '')),
+      ...Object.values(bundle.components.responses).map((response) => response.description ?? ''),
+    ];
+    // a step-up "by a passkey" alone is the rule before ADR-0023
+    for (const phrase of [
+      'uwierzytelnienie kluczem dostępu w tej sesji',
+      'kluczem dostępu < 15 min',
+      'uwierzytelnieniem kluczem',
+      'uwierzytelnienia kluczem w ciągu',
+    ])
+      expect(text, phrase).not.toContain(phrase);
+    for (const description of descriptions.filter((value) => /(bez step-upu|ze step-upem) \(klucz/.test(value)))
+      expect(description).toContain('nowy kod z aplikacji');
+    expect(bundle.components.responses['StepUpRequired']?.description).toMatch(/kod z aplikacji.*K1/s);
+  });
+
+  it('EVM-134 AC5 the operations of the administration of users say what the token of the phone really gets: 401 unauthenticated, never a 403', () => {
+    const bundle = JSON.parse(text) as { paths: Record<string, Record<string, { operationId?: string; description?: string }>> };
+    const users = Object.entries(bundle.paths)
+      .filter(([path]) => path.startsWith('/api/v1/users'))
+      .flatMap(([, item]) => Object.values(item))
+      .filter((operation) => /token/.test(operation.description ?? ''));
+    expect(users.length).toBeGreaterThanOrEqual(7);
+    for (const operation of users) {
+      expect(operation.description, operation.operationId).toContain('`401 unauthenticated`');
+      expect(operation.description, operation.operationId).not.toMatch(/token\s+mobilny/);
+    }
+  });
 });
