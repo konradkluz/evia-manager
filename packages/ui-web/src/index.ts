@@ -14,6 +14,7 @@ export {
   type OrderStatusKey,
   type StageStatusKey,
   type PaymentStatusKey,
+  type MarkKey,
 } from './status-badge.tsx';
 export { Combobox, type ComboboxOption, type ComboboxProps } from './combobox.tsx';
 export { Lightbox, type LightboxProps } from './lightbox.tsx';

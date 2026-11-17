@@ -87,3 +87,26 @@ describe('StatusBadge (styleguide § 3.9, § 3.9.1; EVM-017 AC1)', () => {
     expect(screen.getByText('Nieznany status').className).toContain('bg-status-unknown-bg');
   });
 });
+
+describe('StatusBadge marks of a site survey (styleguide § 4.4; EVM-138 AC1, AC5)', () => {
+  it('EVM-138 AC1 "Wizja lokalna" and "Odrzucona" are outlined badges with their own icon and the full label', async () => {
+    const { container } = render(
+      <p>
+        <StatusBadge group="mark" status="survey" label="Wizja lokalna" />
+        <StatusBadge group="mark" status="rejected" label="Odrzucona" />
+      </p>,
+    );
+    const survey = screen.getByText('Wizja lokalna');
+    expect(survey.className).toContain('border-w-default');
+    expect(survey.className).toContain('border-feedback-info-border');
+    expect(survey.className).toContain('text-feedback-info-text');
+    expect(survey.className).toContain('rounded-pill');
+    const rejected = screen.getByText('Odrzucona');
+    expect(rejected.className).toContain('border-border-strong');
+    expect(rejected.className).toContain('bg-status-order-cancelled-bg');
+    // The shape of the icon differs, so the colour is never the only signal.
+    expect(survey.querySelector('svg')?.getAttribute('class')).not.toBe(rejected.querySelector('svg')?.getAttribute('class'));
+    expect(survey.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
+    expect(await axeViolations(container)).toEqual([]);
+  });
+});
