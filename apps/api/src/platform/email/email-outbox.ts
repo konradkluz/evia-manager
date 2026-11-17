@@ -25,6 +25,8 @@ export const EMAIL_KINDS = [
   'session_limit',
   // EVM-094: e-mail 7 for the phone (a sign-in from a device the account did not know; SR-AUTH-15)
   'new_device',
+  // EVM-140: the reminder that a site survey will be deleted (the number and the deadline are read from the survey when the message is composed; ADR-0024 pt 9)
+  'site_survey_expiring',
 ] as const;
 export type EmailKind = (typeof EMAIL_KINDS)[number];
 

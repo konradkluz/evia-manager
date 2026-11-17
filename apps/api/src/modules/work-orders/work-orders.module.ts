@@ -23,6 +23,8 @@ import { SitesModule } from '../sites/index.ts';
 import { CreateScopeItemService } from './application/create-scope-item.service.ts';
 import { CreateSiteSurveyService } from './application/create-site-survey.service.ts';
 import { CreateWorkOrderService } from './application/create-work-order.service.ts';
+import { SiteSurveyReminderComposer } from './application/site-survey-reminder.composer.ts';
+import { SiteSurveyReminderJob } from './application/site-survey-reminder.job.ts';
 import { ExtendSiteSurveyService } from './application/extend-site-survey.service.ts';
 import { DeleteWorkOrderService } from './application/delete-work-order.service.ts';
 import { DeleteScopeItemService } from './application/delete-scope-item.service.ts';
@@ -68,6 +70,8 @@ import {
     RestoreWorkOrderService,
     AssignCustomerService,
     ExtendSiteSurveyService,
+    SiteSurveyReminderComposer,
+    SiteSurveyReminderJob,
     UpdateWorkOrderService,
     CreateScopeItemService,
     UpdateScopeItemService,
@@ -85,6 +89,8 @@ import {
     { provide: SCOPE_ITEM_SYNC_SOURCE, useClass: ScopeItemSyncSourceService },
   ],
   exports: [
+    SiteSurveyReminderComposer,
+    SiteSurveyReminderJob,
     WorkOrderCompositionRegistry,
     WorkOrderScopeRegistry,
     WorkOrderTransitionRegistry,
