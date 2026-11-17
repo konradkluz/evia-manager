@@ -135,6 +135,11 @@ export class FakeSync implements SyncRuntime {
     this.quickSourceRequests.push(this.quickSourceRequests.length);
     return Promise.resolve(this.quickSource);
   }
+  summary: { photos: number; videos: number; entries: number; total: number } = { photos: 0, videos: 0, entries: 0, total: 0 };
+  groupSummary(id: string): Promise<{ photos: number; videos: number; entries: number; total: number }> {
+    this.calls.push(`groupSummary:${id}`);
+    return Promise.resolve(this.summary);
+  }
   dependentsOf(id: string): Promise<number> {
     this.calls.push(`dependentsOf:${id}`);
     return Promise.resolve(this.dependents);
@@ -179,6 +184,12 @@ export class FakeSync implements SyncRuntime {
   readonly numberRequests: number[] = [];
   orderNumbers(): Promise<readonly OrderNumber[]> {
     this.numberRequests.push(this.numberRequests.length);
-    return Promise.resolve(this.targets.map((target) => ({ id: target.id, number: target.number })));
+    return Promise.resolve(
+      this.targets.map((target) => ({
+        id: target.id,
+        number: target.number,
+        ...(target.survey?.awaitingNumber === true ? { awaitingNumber: true } : {}),
+      })),
+    );
   }
 }

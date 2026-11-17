@@ -8,6 +8,7 @@ import type { Database } from '../../src/storage/database';
 import { SqlMediaFileStore } from '../../src/storage/media-file-store';
 import { SqlQueueStore } from '../../src/storage/queue-store';
 import { SqlReplicaStore } from '../../src/storage/replica-store';
+import { SqlSurveyMarks } from '../../src/storage/survey-marks';
 import type { NativeUpload } from '../../src/upload/native-upload';
 import { CLEAN_KEPT, MediaUploads, type MediaUploadsDeps } from '../../src/upload/media-uploads';
 import { migratedDatabase } from '../storage/harness';
@@ -131,6 +132,7 @@ interface Rig {
   readonly enqueued: EnqueueInput[];
   readonly uploads: MediaUploads;
   readonly store: UnlockedStore;
+  readonly marks: SqlSurveyMarks;
   readonly state: { signedIn: boolean; visible: boolean; contacts: number };
   setup(overrides?: Partial<MediaUploadsDeps>): MediaUploads;
 }
@@ -140,6 +142,7 @@ async function rig(native = new FakeNativeUpload()): Promise<Rig> {
   const queue = new SqlQueueStore(db);
   const replica = new SqlReplicaStore(db);
   const media = new SqlMediaFileStore(db, USER);
+  const marks = new SqlSurveyMarks(db);
   const state = { signedIn: true, visible: true, contacts: 0 };
   const store = {
     userId: USER,
@@ -147,7 +150,11 @@ async function rig(native = new FakeNativeUpload()): Promise<Rig> {
     replica,
     media,
     identity: { read: () => Promise.resolve({ deviceId: DEVICE, secret: 'secret-synthetic' }), write: () => Promise.resolve() },
-    replicaExtras: { readMediaServerStates: (ids: readonly string[]) => replica.readMediaServerStates(ids) },
+    replicaExtras: {
+      readMediaServerStates: (ids: readonly string[]) => replica.readMediaServerStates(ids),
+      readSurveyMarks: () => marks.read(),
+      readSurveyOrderIds: () => replica.readSurveyOrderIds(),
+    },
   } as unknown as UnlockedStore;
   const enqueued: EnqueueInput[] = [];
   let counter = 500;
@@ -182,14 +189,17 @@ async function rig(native = new FakeNativeUpload()): Promise<Rig> {
       },
       ...overrides,
     });
-  return { db, queue, replica, native, enqueued, uploads: setup(), store, state, setup };
+  return { db, queue, replica, native, enqueued, uploads: setup(), store, marks, state, setup };
 }
 
-/** `add` starts a reconcile of its own in the background: let it finish, so that the tests do not race it. */
+/**
+ * `add` starts a reconcile of its own in the background, and a reconcile asked meanwhile repeats itself: wait until the service is quiet (no
+ * timer - the old wait of 15 ms was a race with that repeat and failed under the load of the whole suite).
+ */
 const idle = async (r: Rig): Promise<void> => {
+  await r.uploads.settled();
   await r.uploads.reconcile();
-  await new Promise((resolve) => setTimeout(resolve, 15));
-  await r.uploads.reconcile();
+  await r.uploads.settled();
 };
 const photo = (n: number) => ({ assetId: asset(n), workOrderId: WO, mediaType: 'photo' as const, category: 'other' as const });
 const hold = (r: Rig, n: number): void => {
@@ -1052,25 +1062,39 @@ describe('films that wait for Wi-Fi (EVM-110 AC4, AC5)', () => {
   });
 });
 
-describe('a file whose order the server deleted (EVM-137 AC6, W10)', () => {
+describe('a file whose command the server rejected (EVM-137 AC6, W10)', () => {
   /** A file that waits in the queue (row `pending`); the server answered its command `rejected` with `code`. */
-  const rejected = async (code: string, state: 'needs_attention' | 'blocked' = 'needs_attention'): Promise<Rig> => {
+  const rejected = async (
+    code: string,
+    state: 'needs_attention' | 'blocked' = 'needs_attention',
+    survey = false,
+    mediaType: 'photo' | 'video' = 'photo',
+  ): Promise<Rig> => {
     const r = await rig();
     hold(r, 1);
-    await r.uploads.add(photo(1));
+    await r.uploads.add({ ...photo(1), mediaType });
     const [row] = await r.store.media.list();
     await r.queue.update(row?.mutationId ?? '', { state, attempts: 1, lastCode: code });
+    if (survey) await r.marks.add([WO]);
     await r.uploads.refresh();
     await idle(r);
     return r;
   };
 
-  it.each(['target_unavailable', 'forbidden'])(
-    'EVM-137 AC6 W10: the command rejected with %s turns the file into "Wymaga uwagi" with only "Usuń z telefonu" (no "Ponów": nothing to retry)',
-    async (code) => {
-      const r = await rejected(code);
+  it.each([
+    ['target_unavailable', false, 'order_gone'],
+    ['forbidden', false, 'order_gone'],
+    ['target_unavailable', true, 'survey_gone'],
+    ['validation_failed', false, 'command_rejected'],
+    ['id_conflict', true, 'command_rejected'],
+    ['quota_exceeded', false, 'command_rejected'],
+    ['unknown', false, 'command_rejected'],
+  ] as const)(
+    'EVM-137 AC6 W10: the command rejected with %s (survey: %s) turns the file into "Wymaga uwagi" with the code %s and ONLY "Usuń z telefonu" - nothing to retry',
+    async (code, survey, expected) => {
+      const r = await rejected(code, 'needs_attention', survey);
       expect(await states(r)).toEqual(['01:needs_attention']);
-      expect(r.uploads.getSnapshot().files).toMatchObject([{ status: 'attention', code, actions: ['discard'] }]);
+      expect(r.uploads.getSnapshot().files).toMatchObject([{ status: 'attention', code: expected, actions: ['discard'] }]);
     },
   );
 
@@ -1083,7 +1107,6 @@ describe('a file whose order the server deleted (EVM-137 AC6, W10)', () => {
 
   it('EVM-137 AC6: a file behind a command that only waits or is blocked stays "waiting" (the survey may still be created)', async () => {
     expect(await states(await rejected('parent_unavailable', 'blocked'))).toEqual(['01:pending']);
-    expect(await states(await rejected('validation_failed'))).toEqual(['01:pending']);
   });
 
   it('EVM-137 AC6 W10: "Usuń z telefonu" removes the original, the row AND the rejected command - nothing of the file stays and nothing is resent', async () => {
@@ -1093,5 +1116,129 @@ describe('a file whose order the server deleted (EVM-137 AC6, W10)', () => {
     expect(await r.store.media.list()).toEqual([]);
     expect((await r.queue.readAll()).some((entry) => (entry as { mutationId?: string }).mutationId === row?.mutationId)).toBe(false);
     expect(r.uploads.getSnapshot().files).toEqual([]);
+  });
+
+  it('EVM-137 AC6: every file that needs attention has exactly ONE row with an action - the row of the file, whatever the code (nothing is hidden with the command)', async () => {
+    const r = await rejected('validation_failed');
+    const files = r.uploads.getSnapshot().files;
+    expect(files).toHaveLength(1);
+    expect(files[0]?.actions.length).toBeGreaterThan(0);
+  });
+});
+
+describe('files of a group that was discarded (EVM-137 W10)', () => {
+  it('EVM-137 W10: forgetFiles removes the original, the row and nothing else for the commands of a discarded group - also for a file that still waited', async () => {
+    const r = await rig();
+    hold(r, 1);
+    hold(r, 2);
+    await r.uploads.add(photo(1));
+    await r.uploads.add(photo(2));
+    const rows = await r.store.media.list();
+    const cancelled: string[] = [];
+    r.native.cancelUpload = (assetId, deleteOriginal) => {
+      cancelled.push(`${assetId}:${String(deleteOriginal)}`);
+      return Promise.resolve(true);
+    };
+    await r.uploads.forgetFiles([rows[0]?.mutationId ?? '']);
+    expect(cancelled).toEqual([`${asset(1)}:true`]);
+    expect(await states(r)).toEqual(['02:pending']);
+    expect(r.uploads.getSnapshot().files).toHaveLength(1);
+  });
+
+  it('EVM-137 W10: when the module cannot remove the file, the row is NOT lost: it stays as "Wymaga uwagi" with "Usuń z telefonu" (no file without a row)', async () => {
+    const r = await rig();
+    hold(r, 1);
+    await r.uploads.add(photo(1));
+    const [row] = await r.store.media.list();
+    r.native.cancelUpload = () => Promise.resolve(false);
+    await r.uploads.forgetFiles([row?.mutationId ?? '']);
+    expect(await states(r)).toEqual(['01:needs_attention']);
+    expect(r.uploads.getSnapshot().files).toMatchObject([{ status: 'attention', code: 'command_rejected', actions: ['discard'] }]);
+  });
+
+  it('EVM-137 W10: ids that belong to no file change nothing', async () => {
+    const r = await rig();
+    hold(r, 1);
+    await r.uploads.add(photo(1));
+    await r.uploads.forgetFiles(['0194c2a0-0000-7000-8000-0000000000fe']);
+    expect(await states(r)).toEqual(['01:pending']);
+  });
+});
+
+describe('files that wait for a site survey (EVM-137 AC3)', () => {
+  it('EVM-137 AC3: a file whose survey is still only a command of the queue is marked "awaitsSurvey"; once the survey is applied (the command leaves the queue) it is not', async () => {
+    const r = await rig();
+    hold(r, 1);
+    await r.queue.append({
+      mutationId: asset(900),
+      type: 'CreateSiteSurvey',
+      commandVersion: 1,
+      payload: { workOrderId: WO },
+      objectId: WO,
+      orderingKey: WO,
+      createdAt: 1,
+      ownerUserId: USER,
+      state: 'pending',
+      attempts: 0,
+    });
+    await r.uploads.add(photo(1));
+    await idle(r);
+    expect(r.uploads.getSnapshot().files).toMatchObject([{ status: 'waiting', awaitsSurvey: true }]);
+    await r.queue.settle(asset(900), { outcome: 'applied', warnings: [] });
+    await r.uploads.refresh();
+    expect(r.uploads.getSnapshot().files[0]).not.toHaveProperty('awaitsSurvey');
+  });
+
+  it('EVM-137 AC3: a file of an ordinary order never carries the mark', async () => {
+    const r = await rig();
+    hold(r, 1);
+    await r.uploads.add(photo(1));
+    await idle(r);
+    expect(r.uploads.getSnapshot().files[0]).not.toHaveProperty('awaitsSurvey');
+  });
+});
+
+describe('settled (EVM-137: no waiting by the clock)', () => {
+  it('EVM-137: settled waits for a reconciliation AND for the repeat it asked for, and resolves at once when the service is quiet', async () => {
+    const r = await rig();
+    await r.uploads.settled();
+    hold(r, 1);
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    r.native.uploadStatuses = async () => {
+      await gate;
+      return [];
+    };
+    await r.uploads.add(photo(1));
+    await apply(r, 1);
+    const first = r.uploads.reconcile();
+    const second = r.uploads.reconcile(); // asks for a repeat while the first runs
+    let quiet = false;
+    const waited = r.uploads.settled().then(() => {
+      quiet = true;
+    });
+    await Promise.resolve();
+    expect(quiet).toBe(false);
+    release();
+    await Promise.all([first, second, waited]);
+    expect(quiet).toBe(true);
+    await r.uploads.settled();
+  });
+});
+
+describe('a failing adoption of rejections (EVM-137 W10)', () => {
+  it('EVM-137 W10: when the marks of surveys cannot be read the rest of the run goes on - the file is still armed after applied', async () => {
+    const r = await rig();
+    hold(r, 1);
+    await r.uploads.add(photo(1));
+    await idle(r);
+    (r.store.replicaExtras as { readSurveyMarks: () => Promise<string[]> }).readSurveyMarks = () => Promise.reject(new Error('synthetic'));
+    r.native.armed.length = 0;
+    await apply(r, 1);
+    await r.uploads.reconcile();
+    await r.uploads.settled();
+    expect(r.native.armed).toHaveLength(1);
   });
 });

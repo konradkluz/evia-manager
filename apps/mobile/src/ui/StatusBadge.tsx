@@ -1,12 +1,14 @@
 import type { LucideIcon } from 'lucide-react-native';
 import { Text, View } from 'react-native';
 import { Icon } from './Icon';
-import { radius, size, space, text } from './theme';
+import { borderWidth, radius, size, space, text } from './theme';
 
 export interface BadgeTone {
   readonly bg: string;
   readonly text: string;
   readonly icon: string;
+  /** An outline (styleguide § 4.4: the computed mark "Wizja lokalna" has `feedback.info.border`); the statuses have none. */
+  readonly border?: string;
 }
 
 export interface StatusBadgeProps {
@@ -32,6 +34,7 @@ export function StatusBadge({ icon, label, tone, testID }: StatusBadgeProps) {
         paddingVertical: space.inset.xs,
         borderRadius: radius.pill,
         backgroundColor: tone.bg,
+        ...(tone.border === undefined ? {} : { borderWidth: borderWidth.default, borderColor: tone.border }),
       }}
     >
       <Icon icon={icon} color={tone.icon} iconSize="sm" />

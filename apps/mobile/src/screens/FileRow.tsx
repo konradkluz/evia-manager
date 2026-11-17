@@ -147,6 +147,10 @@ function stateOf(file: MediaFileView, t: Translate, online: boolean, now: number
       return { label, icon: Wifi, tone: color.sync.waitingWifi };
     }
     case 'waiting':
-      return { label: t('upload.states.waiting'), icon: Clock, tone: color.sync.queued };
+      return {
+        label: t(file.awaitsSurvey === true ? 'upload.states.awaitsSurvey' : 'upload.states.waiting'),
+        icon: Clock,
+        tone: color.sync.queued,
+      };
   }
 }

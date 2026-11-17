@@ -74,6 +74,7 @@ export {
   Plus,
   RefreshCw,
   Search,
+  Trash,
   ShieldOff,
   Smartphone,
   Square,

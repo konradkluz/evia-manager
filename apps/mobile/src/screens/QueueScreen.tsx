@@ -3,13 +3,14 @@ import { useTranslation } from 'react-i18next';
 import { ScrollView, Text, View } from 'react-native';
 import { formatClock, formatDateTime } from '../i18n/format';
 import { pluralKey } from '../i18n/plural';
-import type { AttentionReason, QueueItem, TargetOption } from '../sync/types';
+import type { AttentionReason, GroupSummary, QueueItem, TargetOption } from '../sync/types';
 import { AlertDialog, AppBar, AttentionCard, Button, EmptyState, InlineAlert, ListChecks, type AttentionAction } from '../ui';
 import { borderWidth, color, size, space, text } from '../ui/theme';
 import { ConnectionNotices } from './ConnectionNotices';
 import { QueueFiles } from './QueueFiles';
 import { SyncCapsule } from './SyncCapsule';
 import { SyncNotices } from './SyncNotices';
+import { surveyDiscardBody } from './survey-discard-text';
 import { useMediaSnapshot, useQueueView, useSession } from './session-context';
 
 const NOTICE_MS = 4_000;
@@ -38,7 +39,7 @@ export function QueueScreen({
   const { hidden, view, reload } = useQueueView();
   const files = useMediaSnapshot().files;
   const [notice, setNotice] = useState<string | null>(null);
-  const [confirm, setConfirm] = useState<{ item: QueueItem; dependents: number } | null>(null);
+  const [confirm, setConfirm] = useState<{ item: QueueItem; dependents: number; summary: GroupSummary | null } | null>(null);
   const [targets, setTargets] = useState<{ item: QueueItem; options: readonly TargetOption[] } | null>(null);
   // "Usuń z telefonu" of a file (EVM-108 AC6): the id of the file that waits for the confirmation (nothing else)
   const [fileToDiscard, setFileToDiscard] = useState<string | null>(null);
@@ -110,13 +111,21 @@ export function QueueScreen({
     );
   };
   const askDiscard = (item: QueueItem): void => {
+    // a survey says what goes with it by kind (EVM-137); the others only how many
+    if (item.type === 'CreateSiteSurvey') {
+      void session.sync.groupSummary(item.id).then((summary) => {
+        setConfirm({ item, dependents: summary.total, summary });
+      }, fail);
+      return;
+    }
     void session.sync.dependentsOf(item.id).then((dependents) => {
-      setConfirm({ item, dependents });
+      setConfirm({ item, dependents, summary: null });
     }, fail);
   };
   const askRetarget = (item: QueueItem): void => {
     void session.sync.retargetOptions(item.targetId).then((options) => {
-      setTargets({ item, options });
+      // nothing is moved INTO a site survey either (EVM-137): its items come only from its own technician
+      setTargets({ item, options: options.filter((option) => option.survey === undefined) });
     }, fail);
   };
 
@@ -320,7 +329,7 @@ export function QueueScreen({
       </ScrollView>
       {confirm === null ? null : (
         <AlertDialog
-          title={t('attention.discard.title')}
+          title={t(confirm.summary === null ? 'attention.discard.title' : 'attention.surveyDiscard.title')}
           onCancel={() => {
             setConfirm(null);
           }}
@@ -352,16 +361,18 @@ export function QueueScreen({
           testID="discard-dialog"
         >
           <Text style={{ ...text.body, color: color.text.primary }}>
-            {confirm.dependents > 0
-              ? t(
-                  pluralKey(confirm.dependents, {
-                    one: 'attention.discard.group_one',
-                    few: 'attention.discard.group_few',
-                    many: 'attention.discard.group_many',
-                  }),
-                  { count: confirm.dependents },
-                )
-              : t('attention.discard.body')}
+            {confirm.summary !== null
+              ? surveyDiscardBody(t, confirm.summary)
+              : confirm.dependents > 0
+                ? t(
+                    pluralKey(confirm.dependents, {
+                      one: 'attention.discard.group_one',
+                      few: 'attention.discard.group_few',
+                      many: 'attention.discard.group_many',
+                    }),
+                    { count: confirm.dependents },
+                  )
+                : t('attention.discard.body')}
           </Text>
         </AlertDialog>
       )}

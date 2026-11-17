@@ -198,6 +198,7 @@ export class FakeHost {
         readMediaServerStates: () => Promise.resolve(new Map()),
         readClientConfig: () => Promise.resolve(null),
         readSurveyOrderIds: () => Promise.resolve([]),
+        readSurveyCreated: () => Promise.resolve(new Map()),
         readSurveyMarks: () => Promise.resolve([]),
         addSurveyMarks: () => Promise.resolve(),
       },

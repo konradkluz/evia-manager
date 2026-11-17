@@ -3,7 +3,6 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Linking, Text, View } from 'react-native';
 import { formatDateTime } from '../i18n/format';
-import { pluralKey } from '../i18n/plural';
 import type {
   DetailCustomerView,
   DetailLocationView,
@@ -17,21 +16,19 @@ import {
   Ban,
   Binoculars,
   Button,
-  CalendarX,
   CircleAlert,
   CircleCheck,
   CirclePause,
   CircleQuestionMark,
   Clock,
-  Icon,
   Inbox,
   InlineAlert,
   StatusBadge,
-  TriangleAlert,
   Wrench,
 } from '../ui';
 import type { BadgeTone } from '../ui';
 import { borderWidth, color, radius, space, text } from '../ui/theme';
+import { SurveyTerm } from './survey-term';
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -135,33 +132,16 @@ export function CustomerCard({ customer }: { customer: DetailCustomerView | null
  * alone), the phone of the requester and "Brak klienta". The address is the location card the screen draws next; nothing of this part is
  * ever in a title, a list row or a message (W5).
  */
-export function SurveyHeader({ survey }: { survey: DetailSurveyView }) {
+export function SurveyHeader({ survey, rejected = false }: { survey: DetailSurveyView; rejected?: boolean }) {
   const { t } = useTranslation();
   const expiry = expiryOf(survey.expiresAt, Date.now());
-  const warn = expiry.state !== 'normal';
-  const label =
-    expiry.state === 'overdue'
-      ? t('orderDetail.surveyOverdue')
-      : expiry.state === 'today'
-        ? t('orderDetail.surveyToday')
-        : t(
-            pluralKey(expiry.days, {
-              one: 'orderDetail.surveyExpires_one',
-              few: 'orderDetail.surveyExpires_few',
-              many: 'orderDetail.surveyExpires_many',
-            }),
-            { count: expiry.days },
-          );
   return (
     <View style={{ rowGap: space.stack.sm }}>
       <View accessible accessibilityRole="header" testID="order-detail-header">
         <StatusBadge icon={Binoculars} label={t('orderDetail.surveyBadge')} tone={color.feedback.info} testID="order-detail-survey-badge" />
       </View>
-      <View style={{ flexDirection: 'row', alignItems: 'center', columnGap: space.inline.sm }} testID="order-detail-survey-expiry">
-        <Icon icon={warn ? TriangleAlert : CalendarX} color={warn ? color.icon.warning : color.icon.secondary} iconSize="sm" />
-        <Text style={{ ...text.body, color: warn ? color.text.warning : color.text.secondary, flexShrink: 1 }}>{label}</Text>
-      </View>
-      {expiry.state === 'normal' ? null : (
+      <SurveyTerm expiresAt={survey.expiresAt} rejected={rejected} testID="order-detail-survey-expiry" />
+      {rejected || expiry.state === 'normal' ? null : (
         <Text style={{ ...text.bodySm, color: color.text.secondary }} testID="order-detail-survey-office">
           {t('orderDetail.surveyOfficeExtends')}
         </Text>

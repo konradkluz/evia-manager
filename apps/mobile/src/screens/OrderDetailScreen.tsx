@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AccessibilityInfo, FlatList, Text, View } from 'react-native';
 import type { JournalItem, OrderDetail } from '../orders/order-detail-model';
-import { AppBar, BottomBar, Button, Clock, EmptyState, Inbox, InlineAlert, Skeleton, StatusBadge } from '../ui';
+import { AppBar, Ban, BottomBar, Button, Clock, EmptyState, Inbox, InlineAlert, Skeleton, StatusBadge } from '../ui';
 import { color, space, text } from '../ui/theme';
 import { ConnectionNotices } from './ConnectionNotices';
 import { HiddenDataNotice } from './DeviceNotices';
@@ -34,7 +34,18 @@ function DetailHeader({ detail }: { detail: OrderDetail }) {
         ) : (
           <OrderStatusBadge status={detail.status} testID="order-detail-status" />
         )}
-        <SurveyHeader survey={detail.survey} />
+        {detail.status === 'cancelled' ? (
+          <StatusBadge
+            icon={Ban}
+            label={t('shell.orders.surveyRejected')}
+            tone={color.status.order.cancelled}
+            testID="order-detail-survey-rejected"
+          />
+        ) : null}
+        <SurveyHeader survey={detail.survey} rejected={detail.status === 'cancelled'} />
+        {detail.status === 'cancelled' ? (
+          <InlineAlert tone="info" body={t('orderDetail.surveyRejectedInfo')} testID="order-detail-survey-rejected-info" />
+        ) : null}
         {waiting ? <InlineAlert tone="info" body={t('orderDetail.surveyPendingBanner')} testID="order-detail-pending-banner" /> : null}
         <LocationCard location={detail.location} />
         <SurveyPhoneCard survey={detail.survey} />
@@ -79,6 +90,51 @@ function DetailHeader({ detail }: { detail: OrderDetail }) {
         </>
       )}
     </View>
+  );
+}
+
+/**
+ * The order is not on the phone any more (outside the scope, deleted). For a site survey (EVM-137 AC6; the queue, the replica and the marks
+ * know it was one) the message leads to the Queue: the unsent photos and entries of the survey wait there ("Wymaga uwagi", "Usuń z telefonu").
+ */
+function UnavailableOrder({ orderId, onBack, onOpenQueue }: { orderId: string; onBack: () => void; onOpenQueue: () => void }) {
+  const { t } = useTranslation();
+  const { sync } = useSession();
+  const [survey, setSurvey] = useState(false);
+  useEffect(() => {
+    let active = true;
+    sync.isSurvey(orderId).then(
+      (is) => {
+        if (active) setSurvey(is);
+      },
+      () => undefined,
+    );
+    return () => {
+      active = false;
+    };
+  }, [sync, orderId]);
+  if (survey) {
+    return (
+      <EmptyState
+        icon={Inbox}
+        title={t('orderDetail.surveyGone')}
+        testID="order-detail-survey-gone"
+        action={
+          <View style={{ rowGap: space.stack.sm }}>
+            <Button label={t('orderDetail.surveyGoneQueue')} onPress={onOpenQueue} testID="order-detail-survey-gone-queue" />
+            <Button label={t('orderDetail.backToList')} variant="tertiary" onPress={onBack} testID="order-detail-unavailable-back" />
+          </View>
+        }
+      />
+    );
+  }
+  return (
+    <EmptyState
+      icon={Inbox}
+      title={t('orderDetail.unavailableBody')}
+      testID="order-detail-unavailable"
+      action={<Button label={t('orderDetail.backToList')} onPress={onBack} testID="order-detail-unavailable-back" />}
+    />
   );
 }
 
@@ -171,14 +227,7 @@ export function OrderDetailScreen({
           />
         );
       case 'unavailable':
-        return (
-          <EmptyState
-            icon={Inbox}
-            title={t('orderDetail.unavailableBody')}
-            testID="order-detail-unavailable"
-            action={<Button label={t('orderDetail.backToList')} onPress={onBack} testID="order-detail-unavailable-back" />}
-          />
-        );
+        return <UnavailableOrder orderId={orderId} onBack={onBack} onOpenQueue={onOpenQueue} />;
       case 'ready':
         return (
           <FlatList<JournalItem>

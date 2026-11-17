@@ -315,3 +315,35 @@ describe('the server rejects the survey or deletes it (EVM-137 AC6, W10)', () =>
     expect(await service.isSurvey(uid('work_order', 1))).toBe(false);
   });
 });
+
+describe('the pickers of an order offer surveys without the address (EVM-137 AC3, AC4, W5)', () => {
+  it('EVM-137 AC4: a survey of the replica is offered with its number, the mark and the date - and without its title (a title may name a person); a survey that waits in the queue as "Oczekuje na numer"', async () => {
+    const server = withFeature(true);
+    const surveyId = '3a000000-0000-4000-8000-0000000000e2';
+    serverHasSurvey(server, surveyId, 3);
+    const service = await started(server);
+    service.trigger();
+    await settle();
+    phone.online = false;
+    const built = surveyCommand();
+    await service.enqueue(built.input);
+    const options = await service.retargetOptions(null);
+    const replica = must(options.find((o) => o.id === surveyId));
+    expect(replica).toMatchObject({ number: 'ZL-2026-0051', title: '', survey: { awaitingNumber: false } });
+    expect(typeof replica.survey?.createdAt).toBe('number');
+    expect(options.find((o) => o.id === built.workOrderId)).toMatchObject({ number: '', survey: { awaitingNumber: true } });
+    expect(options.find((o) => o.id === uid('work_order', 1))).toMatchObject({ title: 'Order 1' });
+    expect(options.find((o) => o.id === uid('work_order', 1))).not.toHaveProperty('survey');
+    expect(JSON.stringify(options)).not.toMatch(ADDRESS);
+  });
+
+  it('EVM-137 AC4 W9: the numbers for the hidden-data mode carry only an id, a number and (for a survey that waits) the flag - nothing that marks a survey', async () => {
+    phone.online = false;
+    const service = await started(withFeature(true));
+    const built = surveyCommand();
+    await service.enqueue(built.input);
+    const numbers = await service.orderNumbers();
+    expect(numbers.find((n) => n.id === built.workOrderId)).toEqual({ id: built.workOrderId, number: '', awaitingNumber: true });
+    for (const n of numbers) expect(Object.keys(n).sort().join()).toMatch(/^(awaitingNumber,id,number|id,number)$/);
+  });
+});

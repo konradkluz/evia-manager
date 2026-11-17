@@ -151,6 +151,10 @@ export function createSessionPorts(
         isOnline: hooks.isOnline,
         onPause: hooks.onPause,
         diagnostics: logDiagnostic,
+        // the files of a discarded group go with it (EVM-137 W10); `mediaUploads` is set right below, before any user action
+        onGroupDiscarded: (ids) => {
+          void mediaUploads?.forgetFiles(ids);
+        },
       }),
     () => owner.syncStore(),
   );

@@ -43,6 +43,7 @@ import {
   INITIAL_FIRST_PULL,
   type AttentionResult,
   type FirstPullFailure,
+  type GroupSummary,
   type QueueCounts,
   type QueueItem,
   type QueueView,
@@ -85,6 +86,7 @@ export interface SyncServiceStore {
     readClientConfig(): Promise<unknown>;
     /** The ids of the open site surveys of the active generation, and the durable marks "this order was a survey" (EVM-137 W10). */
     readSurveyOrderIds(): Promise<string[]>;
+    readSurveyCreated(): Promise<ReadonlyMap<string, number>>;
     readSurveyMarks(): Promise<string[]>;
     addSurveyMarks(ids: readonly string[]): Promise<void>;
   };
@@ -114,6 +116,11 @@ export interface SyncServiceDeps {
   /** A pause of the engine that the app answers with a screen (426, 403) or the end of the session (401). */
   readonly onPause: (reason: SyncPauseReason) => void;
   readonly diagnostics?: (event: SyncDiagnostic) => void;
+  /**
+   * The commands of FILES (`CreateMediaAsset`) that left the queue with a discarded group (EVM-137 W10): the host tells the files, so that no
+   * file or row stays on the phone without its command. Ids only.
+   */
+  readonly onGroupDiscarded?: (mediaMutationIds: readonly string[]) => void;
   readonly engineOptions?: EngineOptions;
   /** Timer seam for tests; the default is `setTimeout`. Returns the cancel function. */
   readonly schedule?: (callback: () => void, ms: number) => () => void;
@@ -567,6 +574,8 @@ export class SyncService implements SyncControl {
     const surveyOrderIds = await this.#surveyOrderIds(records);
     const items: QueueItem[] = records
       .filter((r) => r.parentMutationId === undefined || !ids.has(r.parentMutationId))
+      // the command of a file is not a row of the queue: the file is, with its own state and its own "Usuń z telefonu" (EVM-137, W10)
+      .filter((r) => r.type !== 'CreateMediaAsset')
       .map((r): QueueItem => {
         const plan = r.state === 'needs_attention' ? attentionPlan(r, { surveyOrderIds }) : null;
         const state = r.state === 'needs_attention' ? 'attention' : r.state === 'blocked' ? 'blocked' : syncing ? 'sending' : 'pending';
@@ -676,6 +685,28 @@ export class SyncService implements SyncControl {
     return this.#deps.store.replicaExtras.readQuickOrderSource();
   }
 
+  /** The members of the group of an entry (itself and everything that waits behind it), in the order of the queue. */
+  #groupOf(records: readonly QueueRecord[], id: string): QueueRecord[] {
+    const seen = new Set([id]);
+    for (const r of records) if (r.parentMutationId !== undefined && seen.has(r.parentMutationId)) seen.add(r.mutationId);
+    return records.filter((r) => seen.has(r.mutationId));
+  }
+
+  /** What a discarded group takes with it, by kind (the dialog of a survey: "2 zdjęcia, 1 film i 1 wpis"); counts only, no content. */
+  async groupSummary(id: string): Promise<GroupSummary> {
+    const group = this.#groupOf(await this.#records(), id).filter((r) => r.mutationId !== id);
+    let photos = 0;
+    let videos = 0;
+    let entries = 0;
+    for (const r of group) {
+      if (r.type === 'CreateMediaAsset') {
+        if (r.payload['mediaType'] === 'video') videos += 1;
+        else photos += 1;
+      } else entries += 1;
+    }
+    return { photos, videos, entries, total: group.length };
+  }
+
   async dependentsOf(id: string): Promise<number> {
     const records = await this.#records();
     const seen = new Set([id]);
@@ -710,7 +741,11 @@ export class SyncService implements SyncControl {
 
   discard(id: string): Promise<AttentionResult> {
     return this.#op(async () => {
+      const media = this.#groupOf(await this.#records(), id)
+        .filter((r) => r.type === 'CreateMediaAsset')
+        .map((r) => r.mutationId);
       const { dependents } = await this.#core.attention.discard(id);
+      if (media.length > 0) this.#deps.onGroupDiscarded?.(media);
       return { dependents };
     });
   }
@@ -780,12 +815,38 @@ export class SyncService implements SyncControl {
   /** The orders of the replica as an id and a number only (EVM-108 AC5, security 17): the title is not read; the camera picker of the hidden-data mode. */
   async orderNumbers(): Promise<readonly OrderNumber[]> {
     const list = await this.#deps.store.replicaExtras.listOrderNumbers(200).catch(() => []);
-    return list.map((order) => ({ id: order.id, number: order.number }));
+    const known = new Set(list.map((order) => order.id));
+    // a survey that is only a command of the queue can be chosen by "Oczekuje na numer" (EVM-137); nothing else marks a survey here
+    const pending = (await this.#records().catch(() => [])).filter((r) => r.type === 'CreateSiteSurvey' && !known.has(r.objectId));
+    return [
+      ...pending.map((r): OrderNumber => ({ id: r.objectId, number: '', awaitingNumber: true })),
+      ...list.map((order) => ({ id: order.id, number: order.number })),
+    ];
   }
 
   async retargetOptions(excludeWorkOrderId: string | null): Promise<readonly TargetOption[]> {
-    const list = await this.#deps.store.replicaExtras.listWorkOrders(200).catch(() => []);
-    return list.filter((w) => w.id !== excludeWorkOrderId).map((w) => ({ id: w.id, number: w.number, title: w.title }));
+    const extras = this.#deps.store.replicaExtras;
+    const list = await extras.listWorkOrders(200).catch(() => []);
+    const [replicaSurveys, created] = await Promise.all([
+      extras.readSurveyOrderIds().catch(() => []),
+      extras.readSurveyCreated().catch(() => new Map<string, number>()),
+    ]);
+    const surveys = new Set(replicaSurveys);
+    const known = new Set(list.map((w) => w.id));
+    // a survey is offered by its number (or "Oczekuje na numer"), never by its title - a title may name a person (W5)
+    const pending = (await this.#records().catch(() => [])).filter((r) => r.type === 'CreateSiteSurvey' && !known.has(r.objectId));
+    return [
+      ...pending
+        .filter((r) => r.objectId !== excludeWorkOrderId)
+        .map((r): TargetOption => ({ id: r.objectId, number: '', title: '', survey: { createdAt: r.createdAt, awaitingNumber: true } })),
+      ...list
+        .filter((w) => w.id !== excludeWorkOrderId)
+        .map((w): TargetOption =>
+          surveys.has(w.id)
+            ? { id: w.id, number: w.number, title: '', survey: { createdAt: created.get(w.id) ?? null, awaitingNumber: false } }
+            : { id: w.id, number: w.number, title: w.title },
+        ),
+    ];
   }
 }
 

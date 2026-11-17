@@ -36,6 +36,7 @@ export { default as CircleQuestionMark } from 'lucide-react-native/icons/circle-
 export { default as Clock } from 'lucide-react-native/icons/clock';
 export { default as Info } from 'lucide-react-native/icons/info';
 export { default as Inbox } from 'lucide-react-native/icons/inbox';
+export { default as Trash } from 'lucide-react-native/icons/trash';
 export { default as Search } from 'lucide-react-native/icons/search';
 export { default as TriangleAlert } from 'lucide-react-native/icons/triangle-alert';
 export { default as ThumbsUp } from 'lucide-react-native/icons/thumbs-up';

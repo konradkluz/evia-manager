@@ -202,6 +202,7 @@ export class Phone {
         readQuickOrderSource: () => this.replica.readQuickOrderSource(),
         readClientConfig: () => this.replica.readClientConfig(),
         readSurveyOrderIds: () => this.replica.readSurveyOrderIds(),
+        readSurveyCreated: () => this.replica.readSurveyCreated(),
         readSurveyMarks: () => this.marks.read(),
         addSurveyMarks: (ids) => this.marks.add(ids),
       },

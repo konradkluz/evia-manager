@@ -368,6 +368,21 @@ export class SqlReplicaStore implements ReplicaStore {
     });
   }
 
+  /** When each open site survey of the active generation was created (EVM-137): for the pickers ("Założono 16.11.2026"); ids and times only. */
+  async readSurveyCreated(): Promise<ReadonlyMap<string, number>> {
+    return this.#db.read(async (tx) => {
+      const rows = await tx.all(
+        "SELECT e.id AS id, json_extract(e.fields, '$.createdAt') AS created_at FROM replica_entities e JOIN replica_generations g ON g.generation = e.generation AND g.role = 'active' WHERE e.type = 'work_order' AND json_extract(e.fields, '$.siteSurvey.expiresAt') IS NOT NULL LIMIT 500",
+      );
+      const out = new Map<string, number>();
+      for (const row of rows) {
+        const at = typeof row['created_at'] === 'string' ? Date.parse(row['created_at']) : NaN;
+        if (Number.isFinite(at)) out.set(String(row['id']), at);
+      }
+      return out;
+    });
+  }
+
   /** The stored client config as it came (validated by the reader of the core); `null` = never downloaded. */
   async readClientConfig(): Promise<unknown> {
     return this.#db.read(async (tx) => {

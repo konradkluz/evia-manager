@@ -29,6 +29,14 @@ export interface QueueCounts {
   readonly unsent: number;
 }
 
+/** What a group of the queue holds behind its first entry, by kind (EVM-137: the dialog "Usunąć wizję z telefonu?"). */
+export interface GroupSummary {
+  readonly photos: number;
+  readonly videos: number;
+  readonly entries: number;
+  readonly total: number;
+}
+
 export interface FirstPullState {
   /** 1 = "Pobieramy zlecenia…", 2 = "Zapisujemy na telefonie…". */
   readonly step: 1 | 2;
@@ -111,14 +119,20 @@ export interface RecreateSource {
 
 export interface TargetOption {
   readonly id: string;
+  /** `''` = a site survey that waits for its number ("Oczekuje na numer"). */
   readonly number: string;
+  /** Empty for a site survey: its title may name a person, so the pickers never show it (EVM-137, W5). */
   readonly title: string;
+  /** A site survey (EVM-137): when it was created (`null` = unknown) and whether it still waits for its number. Absent for an ordinary order. */
+  readonly survey?: { readonly createdAt: number | null; readonly awaitingNumber: boolean };
 }
 
 /** What the picker of the order for the camera may know in the hidden-data mode (EVM-108 AC5): an id and a number, never a title. */
 export interface OrderNumber {
   readonly id: string;
+  /** `''` with `awaitingNumber`: a site survey that waits for its number (EVM-137); no other mark of a survey is ever here (hidden-data mode). */
   readonly number: string;
+  readonly awaitingNumber?: boolean;
 }
 
 export interface SyncControl {
@@ -160,6 +174,8 @@ export interface SyncControl {
    * hidden-data mode too (EVM-137 AC3: the camera starts with the category "Oględziny" for a survey).
    */
   isSurvey(workOrderId: string): Promise<boolean>;
+  /** The same by kind, for the dialog of a survey (EVM-137). */
+  groupSummary(id: string): Promise<GroupSummary>;
   /** Entries that depend on this one, for the confirmation dialog. */
   dependentsOf(id: string): Promise<number>;
   discard(id: string): Promise<AttentionResult>;

@@ -35,6 +35,12 @@ export function sameDay(a: number, b: number): boolean {
   return pa['day'] === pb['day'] && pa['month'] === pb['month'] && pa['year'] === pb['year'];
 }
 
+/** "16.11.2026" - a date of the business zone (EVM-137: "Założono 16.11.2026"). */
+export function formatDate(at: number): string {
+  const p = parts(at, { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return `${p['day'] ?? ''}.${p['month'] ?? ''}.${p['year'] ?? ''}`;
+}
+
 /** The calendar day of the business zone as a number of days since the epoch (the difference of two is the number of days between them). */
 export function calendarDay(at: number): number {
   const p = parts(at, { day: '2-digit', month: '2-digit', year: 'numeric' });

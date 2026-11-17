@@ -73,6 +73,7 @@ export interface UnlockedStore {
     /** The stored client config (EVM-137: the switch of the site survey) and the marks of surveys (W10); see `SyncServiceStore`. */
     readClientConfig(): Promise<unknown>;
     readSurveyOrderIds(): Promise<string[]>;
+    readSurveyCreated(): Promise<ReadonlyMap<string, number>>;
     readSurveyMarks(): Promise<string[]>;
     addSurveyMarks(ids: readonly string[]): Promise<void>;
   };
@@ -415,6 +416,7 @@ export class LocalDataHost {
         readMediaServerStates: (ids) => replica.readMediaServerStates(ids),
         readClientConfig: () => replica.readClientConfig(),
         readSurveyOrderIds: () => replica.readSurveyOrderIds(),
+        readSurveyCreated: () => replica.readSurveyCreated(),
         readSurveyMarks: () => surveyMarks.read(),
         addSurveyMarks: (ids) => surveyMarks.add(ids),
       },
