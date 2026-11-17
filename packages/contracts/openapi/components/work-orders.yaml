@@ -54,6 +54,29 @@ SiteSurvey:
           pattern: '^\+[1-9][0-9]{7,14}$'
           maxLength: 16
         - type: 'null'
+SiteSurveyExtensionReason:
+  type: string
+  description: >-
+    Powód przedłużenia wizji lokalnej (EVM-140 AC2; zamknięta lista, bez wolnego tekstu): `awaiting_client_decision` — czeka na decyzję klienta,
+    `awaiting_community_decision` — czeka na uchwałę wspólnoty lub zarządcy, `second_visit_needed` — wymaga drugiej wizyty. Nieznany kod — `400`.
+  enum: [awaiting_client_decision, awaiting_community_decision, second_visit_needed]
+  maxLength: 40
+ExtendSiteSurveyRequest:
+  type: object
+  description: >-
+    Przedłużenie wizji lokalnej o 90 dni (EVM-140 AC2; ADR-0024 pkt 9): `reason` — kod powodu z zamkniętej listy (trafia do audytu i dziennika,
+    nie ma pola swobodnego tekstu); `version` — wersja zlecenia, na której użytkownik podjął decyzję (z `ETag` odczytu; jak w
+    `assignWorkOrderCustomer`). Pola serwera w treści — `400 read_only_field`, inne — `400 unknown_field`.
+  required: [reason, version]
+  additionalProperties: false
+  properties:
+    reason:
+      $ref: '#/SiteSurveyExtensionReason'
+    version:
+      type: integer
+      minimum: 1
+      maximum: 2147483647
+      description: Wersja zlecenia (`ETag`/`version` z odczytu).
 CreateSiteSurveyRequest:
   type: object
   description: >-

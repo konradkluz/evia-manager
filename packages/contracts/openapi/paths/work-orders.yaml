@@ -249,6 +249,9 @@ siteSurveys:
       (także `customerId`, `templateId`, `description`) — `400 unknown_field`; `assigneeUserId` spoza aktywnych użytkowników — `400`
       (`/assigneeUserId`, `assignee_unavailable`); błędy to wskaźnik i kod, nigdy wartość (także nigdy adres ani telefon). Idempotencja jak `createWorkOrder`
       (`Idempotency-Key`, powtórka — `201` z `Idempotent-Replayed: true`). `createWorkOrder` się nie zmienia: zwykłe zlecenie wymaga klienta.
+      Limit otwartych wizji (EVM-140 AC4; stałe w kodzie): 20 otwartych wizji (bez klienta, nieanulowanych) na twórcę i 100 łącznie — kolejna to
+      `409 site_survey_limit_exceeded` (przypisanie klienta albo odrzucenie zwalnia miejsce; limit nie dotyczy zwykłych zleceń); dwa równoległe
+      założenia przy granicy zajmują ostatnie miejsce najwyżej raz (blokada doradcza w transakcji).
     x-evia-authz:
       roles: [administrator, editor]
       channels: [web]
@@ -302,7 +305,7 @@ siteSurveys:
       '404':
         $ref: ../components/responses.yaml#/NotFound
       '409':
-        $ref: ../components/responses.yaml#/ResourceConflict
+        $ref: ../components/responses.yaml#/SiteSurveyCreateConflict
       '413':
         $ref: ../components/responses.yaml#/PayloadTooLarge
       '415':
@@ -1038,6 +1041,82 @@ workOrderCustomer:
         $ref: ../components/responses.yaml#/UnsupportedMediaType
       '422':
         $ref: ../components/responses.yaml#/AssignCustomerUnprocessable
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+workOrderSiteSurveyExtensions:
+  post:
+    operationId: extendSiteSurvey
+    tags: [work-orders]
+    summary: Wizja lokalna — przedłużenie o 90 dni (z powodem)
+    description: >-
+      Przedłużenie otwartej wizji lokalnej (EVM-140 AC2, AC3; ADR-0024 pkt 9; SR-AUTHZ-02, SR-AUTHZ-05, SR-PRIV-01, SR-API-06, SR-LOG-03; CWE-639):
+      `{ "reason": "awaiting_client_decision", "version": 3 }`. Termin wygaśnięcia przesuwa się o 90 dni (od dotychczasowego terminu),
+      licznik przedłużeń rośnie, znacznik przypomnienia jest zerowany (kolejne przypomnienie 15 dni przed nowym terminem), `version + 1`, nowy
+      `ETag`. Najwyżej dwa razy (łącznie do 270 dni od założenia): trzecie — `409 extension_limit_reached`. Role Administrator i Edytor
+      (Tylko odczyt — `403 forbidden`, niezalogowany — `401`; token mobilny — `403 channel_not_allowed`), kanał `web` (aplikacja nie przedłuża),
+      z audytem (`work_order.site_survey_extended` — aktor, identyfikator zlecenia i kod powodu; bez adresu, telefonu, tytułu i tekstu swobodnego)
+      i wpisem dziennika (`work_order_site_survey_extended`). Wymaga `X-CSRF-Token`; wersja jest w TREŚCI (nie w `If-Match`), jak w
+      `assignWorkOrderCustomer`.
+      Kolejność (decyzje zapadają na wierszu zlecenia zablokowanym `SELECT … FOR NO KEY UPDATE` z polityką odczytu w zapytaniu, w jednej
+      transakcji): guard (rola, CSRF, kanał), ścieżka i `Idempotency-Key` (`400`), zlecenie (`404` — brak, usunięte i niewidoczne to jedna
+      odpowiedź, przed treścią), treść (`400`: nieznany kod powodu, brak pola, pole serwera `read_only_field`), powtórka idempotentna, zlecenie
+      które nie jest otwartą wizją (ma klienta) albo wizja anulowana — `409 invalid_state_transition` (anulowanej nie przedłuża się — przywraca
+      ją Administrator ze step-upem), limit przedłużeń — `409 extension_limit_reached`, nieaktualna wersja — `412 version_conflict`, potem zapis,
+      zdarzenia i rekord idempotencji; błąd któregokolwiek kroku cofa całość. Dwa równoległe przedłużenia na tej samej wersji dają jeden sukces
+      i jeden `412`.
+      Idempotencja (api-guidelines.md → Idempotencja): `Idempotency-Key` (UUIDv7) opcjonalny, panel wysyła go zawsze; klucz związany z
+      użytkownikiem, metodą, szablonem ścieżki I zleceniem. Powtórka — `200` z `Idempotent-Replayed: true`.
+    x-evia-authz:
+      roles: [administrator, editor]
+      channels: [web]
+      audit: true
+    parameters:
+      - $ref: '#/WorkOrderIdParameter'
+      - $ref: '#/IdempotencyKeyHeader'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/work-orders.yaml#/ExtendSiteSurveyRequest
+    responses:
+      '200':
+        description: >-
+          Wizja z nowym terminem (`siteSurvey.expiresAt`, `siteSurvey.extensionCount`) albo powtórka z tym samym kluczem idempotencji
+          (wtedy `Idempotent-Replayed: true`).
+        headers:
+          ETag:
+            description: Nowa wersja zasobu (`"<version>"`).
+            schema:
+              type: string
+              maxLength: 32
+          Idempotent-Replayed:
+            description: '`true` przy powtórce żądania z tym samym `Idempotency-Key`, zleceniem i treścią.'
+            schema:
+              type: string
+              enum: ['true']
+        content:
+          application/json:
+            schema:
+              $ref: ../components/work-orders.yaml#/WorkOrderDetails
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/responses.yaml#/ExtendSiteSurveyConflict
+      '412':
+        $ref: ../components/responses.yaml#/PreconditionFailed
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '422':
+        $ref: ../components/responses.yaml#/IdempotencyMismatch
       '429':
         $ref: ../components/responses.yaml#/RateLimited
 workOrderSite:

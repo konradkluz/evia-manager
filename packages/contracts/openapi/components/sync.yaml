@@ -857,7 +857,8 @@ CreateSiteSurveyPayload:
     w limicie 20 nowych lokalizacji urządzenia na dobę wspólnym z `CreateQuickWorkOrder`) — dokładnie jedno (inaczej `rejected
     validation_failed`). `title` opcjonalny (domyślnie „Wizja lokalna”) — nie wpisuj imion ani telefonów. `requesterPhone` opcjonalny
     (jak telefon nowego klienta; zapis E.164). Klient, szablon i notatka nie występują (`rejected validation_failed`). Funkcja wyłączona
-    na serwerze — `rejected feature_disabled` (bez zapisu). Adres i telefon nie trafiają do logów, audytu ani dziennika zmian.
+    na serwerze — `rejected feature_disabled` (bez zapisu). Limit otwartych wizji (EVM-140 AC4: 20 na twórcę i 100 łącznie; wizja bez klienta i
+    nieanulowana) — `rejected site_survey_limit_exceeded` (bez zapisu; telefon pokazuje „Wymaga uwagi”). Adres i telefon nie trafiają do logów, audytu ani dziennika zmian.
   additionalProperties: false
   required: [workOrderId]
   properties:
@@ -1054,6 +1055,7 @@ SyncMutationResult:
         - template_unavailable
         - quota_exceeded
         - feature_disabled
+        - site_survey_limit_exceeded
       maxLength: 64
     errors:
       type: array
