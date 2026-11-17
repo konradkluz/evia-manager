@@ -6,7 +6,7 @@
  *
  * The corrections of a payment (withdraw or cancel an invoice, undo a payment, restore a milestone — EVM-057; threat T7, AB-17) are
  * rows of the Administrator ALONE with a step-up (`stepUp`): the role before the step-up ({@link correctionAccess} — P2: the Editor
- * `403 forbidden`, the Administrator without a passkey in the last 15 minutes `403 step_up_required`). A correction takes the target
+ * `403 forbidden`, the Administrator without a step-up in the last 15 minutes `403 step_up_required`). A correction takes the target
  * alone ({@link correctionFields}); no other row leads back to `planned` from `invoiced` or `cancelled`, to `invoiced` from `paid` or to
  * `cancelled` from `invoiced` (SR-AUTHZ-10 — a test of the table pins it).
  */
@@ -28,7 +28,7 @@ export interface MilestoneTransitionRule {
   readonly move: MilestoneMove;
   /** The roles that may take the move; the Administrator alone for a correction (EVM-057). */
   readonly roles: readonly UserRole[];
-  /** True for a correction: the move asks for an authentication with a passkey in the last 15 minutes (SR-SESS-08). */
+  /** True for a correction: the move asks for a step-up in the last 15 minutes (SR-SESS-08). */
   readonly stepUp: boolean;
   /** The action of the audit trail, after `payment_milestone.` (a correction has one of its own — EVM-057). */
   readonly action: MilestoneAuditAction;
@@ -70,7 +70,7 @@ export type CorrectionAccess = 'ok' | 'forbidden' | 'step_up_required';
 /**
  * The one policy of a correction of a payment (EVM-057; P2; SR-SESS-08, SR-AUTHZ-10): the role BEFORE the step-up — a role that may
  * not correct never learns that a step-up would be asked for.
- * @param stepUpFresh whether the session authenticated with a passkey in the last 15 minutes (`stepUpFresh` of `identity`)
+ * @param stepUpFresh whether the session has a step-up in the last 15 minutes (`stepUpFresh` of `identity`)
  */
 export const correctionAccess = (role: UserRole, stepUpFresh: boolean): CorrectionAccess =>
   role !== 'administrator' ? 'forbidden' : stepUpFresh ? 'ok' : 'step_up_required';

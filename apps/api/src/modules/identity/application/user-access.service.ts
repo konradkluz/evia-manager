@@ -1,7 +1,7 @@
 /**
  * The administration of accounts by an Administrator (EVM-027): a change of a role, a deactivation, a reactivation, the end of all sessions of a
  * user and the reset of the second step (SR-AUTH-13, SR-SESS-06, SR-SESS-07, SR-AUTHZ-09, SR-LOG-07, SR-LOG-03; ASVS V7.4.x, V6.4.4; CWE-362, CWE-285).
- * The guard has decided before this runs: only an Administrator with a fresh key on the web channel gets here.
+ * The guard has decided before this runs: only an Administrator with a fresh step-up (a passkey or a new code of the app) on the web channel gets here.
  *
  * Every operation is ONE transaction with the same fixed order of locks (no deadlock, no race between two Administrators — AC6):
  * 1. the advisory lock `ADMINISTRATOR_LOCK_KEY` (transaction scope: it is released at COMMIT, never held by a pooled connection) — it serialises everything
@@ -67,7 +67,6 @@ import {
 import { supersedeRecoveryCodes } from '../infrastructure/mfa-queries.ts';
 import {
   findUserById,
-  hasPasskey,
   listActiveAdministratorIds,
   lockAdministrators,
   revokeLoginAttemptsOfUser,
@@ -287,7 +286,6 @@ export class UserAccessService {
           role: target.role,
           status: target.status,
           activatedAt: target.activatedAt,
-          hasPasskey: await hasPasskey(db, target.id),
         },
       };
       return work({ tx, db, actor, target, facts, now, request });

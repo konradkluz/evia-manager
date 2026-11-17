@@ -87,7 +87,8 @@ test.describe('UX review screenshots (EVM-023) @screenshots', () => {
       api.session = 'enrollment';
       await page.setViewportSize({ width, height: 800 });
       await page.goto('/mfa-setup');
-      await expect(page.getByText('Krok 2 z 3')).toBeVisible();
+      // EVM-134 AC2: the Administrator chooses the method like an Editor.
+      await expect(page.getByText('Krok 1 z 3')).toBeVisible();
       await shot(`w03-administrator-${px}`);
       await context.setOffline(true);
       await expect(page.getByText(/Brak połączenia\. Konfiguracja wymaga/)).toBeVisible();

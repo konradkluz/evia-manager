@@ -115,11 +115,27 @@ describe('W-03 krok 1: wybór metody (EVM-023 AC1, AC8)', () => {
     expect(screen.queryByText(/telefonie/)).toBeNull();
   });
 
-  it('EVM-023 AC3 an Administrator has no choice: no code of the app in the panel, straight to the passkey', async () => {
+  it('EVM-134 AC2 an Administrator chooses between the passkey and the code like an Editor, with the note about the phone; nothing says the passkey is obligatory', async () => {
     await renderPanel('/mfa-setup', enrolmentApi(ENROLLMENT_SESSION));
-    expect(screen.queryByRole('radio')).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Dalej' })).toBeNull();
-    expect(screen.getByRole('button', { name: 'Dodaj klucz dostępu' })).toBeTruthy();
+    expect(screen.getByText('Krok 1 z 3')).toBeTruthy();
+    const group = screen.getByRole('group', { name: 'Wybierz metodę' });
+    expect(group.querySelectorAll('input[type="radio"]')).toHaveLength(2);
+    expect(screen.getByRole('radio', { name: 'Kod z aplikacji uwierzytelniającej' })).toBeTruthy();
+    expect(screen.getByText(/Aplikacja EVia Manager na telefonie wymaga kodu z aplikacji uwierzytelniającej/)).toBeTruthy();
+    expect(screen.queryByText(/obowiązkowy/)).toBeNull();
+    expect(await axeViolations(document.body, { bestPractice: true })).toEqual([]);
+  });
+
+  it('EVM-134 AC2 an Administrator sets up the code of the app: the code activates the method and the recovery codes are shown as for an Editor', async () => {
+    const { api } = await toTotpStep(ENROLLMENT_SESSION);
+    expect(await screen.findByRole('heading', { level: 2, name: 'Kod z aplikacji uwierzytelniającej' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Wybierz inną metodę' })).toBeTruthy();
+    await confirmWith();
+    expect(await screen.findByRole('list', { name: 'Kody odzyskiwania' })).toBeTruthy();
+    expect(screen.getByText('Krok 3 z 3')).toBeTruthy();
+    expect(screen.getByText('Metody logowania: kod z aplikacji · klucz dostępu: nie')).toBeTruthy();
+    expect(api.calls(CONFIRM_ROUTE)).toHaveLength(1);
+    expect(api.calls(CODES_ROUTE)).toHaveLength(1);
   });
 
   it('EVM-023 AC1 the choice of the code leads to step 2 and the way back returns to the choice', async () => {
@@ -429,7 +445,7 @@ describe('W-03 krok 3 po kluczu dostępu (EVM-023 AC4)', () => {
   async function toPasskeyCodes(overrides: Record<string, () => Response | Promise<Response>> = {}, role: CurrentSession = EDITOR) {
     const api = enrolmentApi(role, overrides);
     const rendered = await renderPanel('/mfa-setup', api);
-    if (role !== ENROLLMENT_SESSION) await userEvent.click(screen.getByRole('button', { name: 'Dalej' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Dalej' }));
     await userEvent.click(screen.getByRole('button', { name: 'Dodaj klucz dostępu' }));
     return { ...rendered, api };
   }

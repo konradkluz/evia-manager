@@ -1,7 +1,7 @@
 import type { User } from '@evia/contracts';
 import { describe, expect, it } from 'vitest';
 import { describeAccountFailure } from '../src/administration/account-failure.ts';
-import { alertsAdministrators, hasPasskey, ifMatchOf, operationsOf } from '../src/administration/account-operations.ts';
+import { alertsAdministrators, ifMatchOf, operationsOf } from '../src/administration/account-operations.ts';
 import { StepUpCancelled } from '../src/administration/use-guarded-call.ts';
 import { ApiError } from '../src/api/client.ts';
 
@@ -56,19 +56,14 @@ describe('the alert for the Administrators (EVM-027 AC7)', () => {
     expect(alertsAdministrators('reset', user())).toBe(false);
     expect(alertsAdministrators('sessions', admin)).toBe(false);
   });
-
-  it('EVM-027 AC1 only a passkey counts as a method that may make an Administrator', () => {
-    expect(hasPasskey(user())).toBe(true);
-    expect(hasPasskey(user({ secondStepMethods: ['totp'] }))).toBe(false);
-    expect(hasPasskey(user({ secondStepMethods: [] }))).toBe(false);
-  });
 });
 
 describe('the failure of an operation (EVM-027 AC5, AC8)', () => {
-  it('EVM-027 AC5 the codes of 409 each have their own kind', () => {
+  it('EVM-027 AC5 EVM-134 AC3 the codes of 409 each have their own kind', () => {
     expect(describeAccountFailure(problem(409, 'last_active_administrator'))).toEqual({ kind: 'lastAdministrator' });
     expect(describeAccountFailure(problem(409, 'own_account_not_allowed'))).toEqual({ kind: 'ownAccount' });
-    expect(describeAccountFailure(problem(409, 'administrator_passkey_required'))).toEqual({ kind: 'passkeyRequired' });
+    // EVM-134 AC3: the role Administrator needs no passkey any more — the old code is an unknown one (a trace code to report).
+    expect(describeAccountFailure(problem(409, 'administrator_passkey_required'))).toEqual({ kind: 'server', code: 'abcdef01' });
     expect(describeAccountFailure(problem(409, 'invalid_state_transition'))).toEqual({ kind: 'stateChanged' });
     expect(describeAccountFailure(problem(409, 'something_new'))).toEqual({ kind: 'server', code: 'abcdef01' });
   });

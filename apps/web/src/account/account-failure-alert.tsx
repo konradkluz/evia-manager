@@ -29,7 +29,7 @@ export function AccountFailureAlert({ failure, notFound }: { readonly failure: A
       case 'reauthenticationExpired':
         return t('account.failure.reauthenticationExpired');
       case 'lastMethod':
-        return failure.required === 'passkey' ? t('account.rules.administratorKey') : t('account.rules.lastMethod');
+        return t('account.rules.lastMethod');
       case 'rate':
         return t('account.failure.rateLimited', { minutes: failure.minutes });
       case 'server':

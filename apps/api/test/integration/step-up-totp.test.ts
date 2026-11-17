@@ -3,8 +3,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { identityTables } from '../../src/modules/identity/infrastructure/tables.ts';
 import { PATHS } from '../support/flows.ts';
 import { createIdentityApp, type IdentityApp } from '../support/identity-app.ts';
-import { signedInAdministrator } from '../support/step-up-flows.ts';
+import { signedInAdministrator, stepUp } from '../support/step-up-flows.ts';
 import {
+  addTotp,
   codeNow,
   generateCodes,
   insertTotpFactor,
@@ -169,25 +170,25 @@ describe('step-up with a code of the app (EVM-023 AC7; SR-SESS-08, SR-SESS-02; A
     expect((await other.get(PATHS.session)).status).toBe(200);
   });
 
-  it('EVM-023 AC3 AC7 an Administrator in the panel cannot step up with a code (403 forbidden): the key is the only way, the session stays as it was', async () => {
+  it('EVM-134 AC4 an Administrator in the panel steps up with a code of the app: 200, the session is rotated and the window opens by the code', async () => {
     const admin = await signedInAdministrator(current);
     const { secret } = await insertTotpFactor(current, admin.user.id);
     const cookie = admin.panel.cookie;
     nextStep(current);
     const response = await sendStepUp(admin.panel, codeNow(current, secret));
-    expect(response.status).toBe(403);
-    expect(response.body).toMatchObject({ code: 'forbidden' });
-    expect(admin.panel.cookie).toBe(cookie);
-    expect((await admin.panel.get(PATHS.session)).status).toBe(200);
+    expect(response.status).toBe(200);
+    adopt(admin.panel, response);
+    expect(admin.panel.cookie).not.toBe(cookie);
+    const live = (await sessionsOf(admin.user.id)).filter((session) => session.revoked_at === null);
+    expect(live).toHaveLength(1);
+    expect(live[0]).toMatchObject({ passkey_authenticated_at: null, totp_authenticated_at: current.clock.now() });
   });
 
-  it('EVM-023 AC7 C3 the role is read from the database: an Editor promoted to Administrator meanwhile is refused, whatever the session says', async () => {
+  it('EVM-134 AC4 the role does not choose the method any more: an Editor promoted to Administrator meanwhile steps up with the code (200)', async () => {
     const { account, panel } = await staleSession();
     await sql`update identity.users set role = 'administrator' where id = ${account.user.id}`.execute(current.database.admin);
     nextStep(current);
-    const response = await sendStepUp(panel, codeNow(current, account.secret));
-    expect(response.status).toBe(403);
-    expect(response.body).toMatchObject({ code: 'forbidden' });
+    expect((await sendStepUp(panel, codeNow(current, account.secret))).status).toBe(200);
   });
 
   it('EVM-023 AC7 a recovery code is not accepted at a step-up, whatever the field is called; the account must have a code of the app', async () => {
@@ -245,5 +246,85 @@ describe('step-up with a code of the app (EVM-023 AC7; SR-SESS-08, SR-SESS-02; A
     account.panel.csrfToken = undefined;
     expect((await sendStepUp(account.panel, '123456')).status).toBe(403);
     account.panel.csrfToken = token;
+  });
+});
+
+describe('K1: an Administrator who signed in with a code has no window of step-up (EVM-134 AC4; ADR-0023, SR-SESS-08, TM-90)', () => {
+  it('EVM-134 AC4 K1 the session of the sign-in records no authentication of the window: the first step-up operation is 403 step_up_required', async () => {
+    const account = await totpAccount(current, { role: 'administrator', withCodes: true });
+    const { panel, response } = await signInWithTotp(current, account);
+    expect(response.status).toBe(200);
+    const live = (await sessionsOf(account.user.id)).filter(
+      (session) => session.revoked_at === null && session.created_at.getTime() === current.clock.now().getTime(),
+    );
+    expect(live).toHaveLength(1);
+    expect(live[0]).toMatchObject({ state: 'active', passkey_authenticated_at: null, totp_authenticated_at: null });
+    const refused = await probe(panel);
+    expect(refused.status).toBe(403);
+    expect(refused.body).toMatchObject({ code: 'step_up_required' });
+  });
+
+  it('EVM-134 AC4 K1 the code of the sign-in (the same time step) is refused at the step-up and counted on the session; a new code opens the window for 15 minutes', async () => {
+    const account = await totpAccount(current, { role: 'administrator', withCodes: true });
+    const signInCode = codeNow(current, account.secret);
+    const panel = current.panel();
+    const loginToken = await startLogin(panel, account);
+    const signedIn = await sendLoginTotp(panel, loginToken, signInCode);
+    expect(signedIn.status).toBe(200);
+    adopt(panel, signedIn);
+
+    const replayed = await sendStepUp(panel, signInCode);
+    expect(replayed.status).toBe(401);
+    expect(replayed.body).toMatchObject({ code: 'totp_failed' });
+    const [session] = (await sessionsOf(account.user.id)).filter(
+      (row) => row.revoked_at === null && row.created_at.getTime() === current.clock.now().getTime(),
+    );
+    expect(session?.step_up_failed_attempts).toBe(1);
+    expect((await events('step_up.failed')).map((event) => event.reason_code)).toEqual(['totp_failed']);
+
+    nextStep(current);
+    const fresh = await sendStepUp(panel, codeNow(current, account.secret));
+    expect(fresh.status).toBe(200);
+    adopt(panel, fresh);
+    // the window is open: the guard lets the operation in (the codes of another session are its own refusal, not a step-up)
+    expect((await probe(panel)).body).toMatchObject({ code: 'recovery_codes_regeneration_unavailable' });
+    current.clock.advance(15 * 60_000);
+    expect((await probe(panel)).body).toMatchObject({ code: 'step_up_required' });
+  });
+
+  it('EVM-134 AC4 K1 after a sign-in with a code the Administrator may confirm with a passkey instead; a sign-in with a passkey still opens the window at once', async () => {
+    const admin = await signedInAdministrator(current);
+    expect(
+      (await sessionsOf(admin.user.id)).some((session) => session.revoked_at === null && session.passkey_authenticated_at !== null),
+    ).toBe(true);
+    const secret = await addTotp(current, admin);
+    nextStep(current);
+    const panel = current.panel();
+    const loginToken = await startLogin(panel, admin);
+    const signedIn = await sendLoginTotp(panel, loginToken, codeNow(current, secret));
+    expect(signedIn.status).toBe(200);
+    adopt(panel, signedIn);
+    const confirmed = await stepUp(panel, admin.authenticator);
+    expect(confirmed.status).toBe(200);
+    const live = (await sessionsOf(admin.user.id)).filter(
+      (session) => session.revoked_at === null && session.created_at.getTime() === current.clock.now().getTime(),
+    );
+    expect(live.map((session) => session.passkey_authenticated_at)).toEqual([current.clock.now()]);
+  });
+
+  it('EVM-134 AC4 K1 the Editor and the Read-only user are unchanged: a sign-in with a code opens the window at once', async () => {
+    for (const role of ['editor', 'read_only'] as const) {
+      const account = await totpAccount(current, { role });
+      const { panel } = await signInWithTotp(current, account);
+      const live = (await sessionsOf(account.user.id)).filter(
+        (session) => session.revoked_at === null && session.created_at.getTime() === current.clock.now().getTime(),
+      );
+      expect(
+        live.map((session) => session.totp_authenticated_at),
+        role,
+      ).toEqual([current.clock.now()]);
+      expect((await probe(panel)).status, role).toBe(200);
+      nextStep(current);
+    }
   });
 });

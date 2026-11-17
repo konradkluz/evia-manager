@@ -7,7 +7,7 @@ events:
     tags: [audit]
     summary: Dziennik audytu (lista zdarzeń, od najnowszych)
     description: >-
-      Tylko Administrator, kanał `web`, po step-upie (ostatnie uwierzytelnienie kluczem dostępu < 15 min, w przeciwnym razie
+      Tylko Administrator, kanał `web`, po step-upie (klucz dostępu albo nowy kod z aplikacji w ostatnich 15 minutach; logowanie Administratora kodem nie otwiera okna — K1; w przeciwnym razie
       `403 step_up_required`); Edytor i Tylko odczyt dostają `403 forbidden` (nigdy `step_up_required`), niezalogowany `401`.
       Zdarzenia od najnowszych (`occurredAt`, potem `id` malejąco), domyślnie ostatnie 30 dni (zakres `from`–`to` do 2 lat,
       `from` ≤ `to`), filtry: `action`, `actorUserId`, `outcome`; paginacja kursorem nieprzezroczystym (`limit` 1–100, domyślnie

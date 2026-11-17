@@ -185,15 +185,11 @@ export interface AccountRequest {
   readonly stepUpFresh: boolean;
 }
 
-/** The rule of the last method (AC4): the server's decision, whatever the panel shows. */
-const lastMethod = (server: AccountServer, role: string, removing: 'passkey' | 'totp'): Answer | null => {
-  if (role === 'administrator') {
-    return removing === 'passkey' && server.passkeys.length <= 1
-      ? problem(409, 'last_second_step_method', { errors: [{ pointer: '/passkeyId', code: 'passkey_required' }] })
-      : null;
-  }
+/** The rule of the last method (EVM-028 AC4, EVM-134 AC3): any one method for every role — the server's decision, whatever the panel shows. */
+const lastMethod = (server: AccountServer, removing: 'passkey' | 'totp'): Answer | null => {
   const methods = server.passkeys.length + (server.totp === null ? 0 : 1);
-  return methods <= 1 ? problem(409, 'last_second_step_method', { errors: [{ pointer: '/passkeyId', code: 'method_required' }] }) : null;
+  const pointer = removing === 'passkey' ? '/passkeyId' : '/totp';
+  return methods <= 1 ? problem(409, 'last_second_step_method', { errors: [{ pointer, code: 'method_required' }] }) : null;
 };
 
 /** Spends the mark of the full re-authentication for the purpose; without it `403 reauthentication_required`. */
@@ -240,15 +236,14 @@ export function answerAccountRoute(server: AccountServer, request: AccountReques
   if (passkey !== null && method === 'DELETE') {
     const found = server.passkeys.find((entry) => entry.id === passkey[1]);
     if (found === undefined) return problem(404, 'not_found');
-    const refused = spendMark(server, 'second_step_change') ?? lastMethod(server, request.role, 'passkey');
+    const refused = spendMark(server, 'second_step_change') ?? lastMethod(server, 'passkey');
     if (refused !== null) return refused;
     server.passkeys = server.passkeys.filter((entry) => entry.id !== found.id);
     return NO_CONTENT;
   }
   if (pathname === '/api/v1/account/totp' && method === 'DELETE') {
     if (server.totp === null) return problem(404, 'not_found');
-    const refused =
-      spendMark(server, 'second_step_change') ?? (request.role === 'administrator' ? null : lastMethod(server, request.role, 'totp'));
+    const refused = spendMark(server, 'second_step_change') ?? lastMethod(server, 'totp');
     if (refused !== null) return refused;
     server.totp = null;
     return NO_CONTENT;

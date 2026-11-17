@@ -18,16 +18,17 @@ import { ACCOUNT_KEY } from './query-keys.ts';
 import { RemoveMethodDialog, type RemoveTarget } from './remove-method-dialog.tsx';
 import { ReauthenticationCancelled, useReauthCall } from './use-reauth-call.ts';
 
-type Role = Account['role'];
 type Open =
   | { readonly kind: 'addPasskey' }
   | { readonly kind: 'remove'; readonly target: RemoveTarget }
   | { readonly kind: 'addTotp'; readonly setup: TotpSetup }
   | { readonly kind: 'codes' };
 
-/** "Usuń…" is off for the last method (EVM-028 AC4): an Administrator keeps at least one passkey (a code of the app is not a method of the panel), the rest at least one method. */
-export function lastMethodRule(role: Role, passkeys: number, totp: boolean): { readonly passkey: boolean; readonly totp: boolean } {
-  if (role === 'administrator') return { passkey: passkeys <= 1, totp: false };
+/**
+ * "Usuń…" is off for the last method (EVM-028 AC4): every role keeps at least one method of any kind — since EVM-134 AC3 (ADR-0023)
+ * the Administrator too, with no rule of a passkey. The server decides the same under the lock of the account.
+ */
+export function lastMethodRule(passkeys: number, totp: boolean): { readonly passkey: boolean; readonly totp: boolean } {
   const only = passkeys + (totp ? 1 : 0) <= 1;
   return { passkey: only, totp: only };
 }
@@ -58,7 +59,7 @@ export function SecondStepCard({
   const { passkeys, totp, recoveryCodes } = account.secondStep;
   const [open, setOpen] = useState<Open | null>(null);
   const [failure, setFailure] = useState<AccountFailure | null>(null);
-  const rule = lastMethodRule(role, passkeys.length, totp !== null);
+  const rule = lastMethodRule(passkeys.length, totp !== null);
 
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: [ACCOUNT_KEY] });
@@ -102,7 +103,7 @@ export function SecondStepCard({
     if (count === 0) return t('account.codes.lowNone');
     return pluralOf(count) === 'one' ? t('account.codes.lowOne', { count }) : t('account.codes.lowFew', { count });
   };
-  const ruleText = role === 'administrator' ? t('account.rules.administratorKey') : t('account.rules.lastMethod');
+  const ruleText = t('account.rules.lastMethod');
   const removeButton = (target: RemoveTarget, off: boolean, label: string, hintId: string) => (
     <Button
       variant="tertiary"
@@ -163,7 +164,8 @@ export function SecondStepCard({
             {t('account.passkeys.add')}
           </Button>
         </div>
-        {role === 'administrator' && passkeys.length === 1 ? (
+        {/* An Administrator with a single passkey and nothing else is told to add a second method (the loss of the computer locks them out). */}
+        {role === 'administrator' && passkeys.length === 1 && totp === null ? (
           <InlineAlert tone="info">{t('account.passkeys.secondKey')}</InlineAlert>
         ) : null}
       </section>
@@ -175,23 +177,21 @@ export function SecondStepCard({
         {totp === null ? (
           <>
             <p className="text-body text-text-secondary">{t('account.totp.none')}</p>
-            {/* An Administrator's code of the app is a thing of the phone application (the API refuses it in the panel). */}
-            {role === 'administrator' ? null : (
-              <div>
-                <Button
-                  variant="secondary"
-                  icon={Smartphone}
-                  loading={startTotp.isPending}
-                  disabled={!online}
-                  onClick={() => {
-                    setFailure(null);
-                    startTotp.mutate();
-                  }}
-                >
-                  {t('account.totp.add')}
-                </Button>
-              </div>
-            )}
+            {/* Every role adds the code of the app (EVM-134 AC3: the Administrator signs in with it in the panel too). */}
+            <div>
+              <Button
+                variant="secondary"
+                icon={Smartphone}
+                loading={startTotp.isPending}
+                disabled={!online}
+                onClick={() => {
+                  setFailure(null);
+                  startTotp.mutate();
+                }}
+              >
+                {t('account.totp.add')}
+              </Button>
+            </div>
           </>
         ) : (
           <>
@@ -207,7 +207,6 @@ export function SecondStepCard({
                 {ruleText}
               </p>
             ) : null}
-            {role === 'administrator' ? <p className="text-body-sm text-text-secondary">{t('account.totp.administratorOnly')}</p> : null}
           </>
         )}
       </section>

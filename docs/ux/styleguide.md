@@ -1126,6 +1126,9 @@ Testy dostępności (narzędzia automatyczne + klawiatura + czytnik ekranu) — 
 ---
 
 ## 8. Changelog
+### Wyrównanie reguł ekranów do ADR-0023 — 2026-11-16 (EVM-134; wpis `ux-designer`)
+Administrator w panelu loguje się kluczem dostępu albo kodem z aplikacji, jak Edytor. **Bez zmian w tokenach, komponentach i wersji styleguide'u; bez odstępstw.** Zmieniły się tylko reguły i teksty istniejących ekranów (W-02, W-03, W-04, W-15, W-16): jedna reguła ostatniej metody dla każdej roli, wybór metody w W-03 także dla Administratora, zmiana roli na Administratora bez wymogu klucza, wskazówka „6 cyfr z aplikacji uwierzytelniającej. Wpisz nowy kod z aplikacji — ten sam kod nie zadziała drugi raz.” w polu kodu okna potwierdzenia Administratora (K1: po zalogowaniu Administratora kodem pierwsza operacja wrażliwa wymaga nowego kodu albo klucza), komunikaty „Twoje konto nie ma kodu z aplikacji. Użyj klucza dostępu.” / „Twoje konto nie ma klucza dostępu. Wpisz kod z aplikacji.” (konto bez wybranej metody; InlineAlert błędu, fokus na drugiej metodzie) oraz teksty opisów urządzeń i dziennika bez „kluczem dostępu”. § 6 (ton, terminologia) bez zmian — nazwy „klucz dostępu”, „kod z aplikacji”, „drugi krok logowania” zostają. Źródło reguł: [flows/01](flows/01-logowanie-mfa.md), [flows/12](flows/12-konto-i-administracja.md).
+
 ### Uzupełnienie M2 — 2026-11-16 (EVM-137, EVM-138, EVM-140 — wizja lokalna, E15; wpis `ux-designer`, do akceptacji przy demo)
 Makiety: [flows/17](flows/17-wizja-lokalna.md), [e-maile.md → 10](flows/e-maile.md#10-przypomnienie-o-wygasającej-wizji-lokalnej). **Bez nowych tokenów i komponentów** — nowy jest jeden wariant istniejącej odznaki i jedno odstępstwo (niżej); wersja styleguide'u bez zmiany numeru.
 - **Odstępstwo (rozstrzygnięcie Tech Leada z delegacji, EVM-137; do potwierdzenia przy demo): chip „Wizje lokalne (n)” w M-05 jako trzeci chip grupy „Wszystkie / Niewysłane (n) / Wizje lokalne (n)”.**

@@ -47,9 +47,6 @@ export function AccountFailureAlert({
     case 'ownAccount':
       text = t('users.account.failure.ownAccount');
       break;
-    case 'passkeyRequired':
-      text = t('users.account.role.passkeyRequired');
-      break;
     case 'ended':
       text = t('users.account.failure.ended');
       break;

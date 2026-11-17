@@ -16,6 +16,7 @@ import { getPasskey } from '../passkey/get-passkey.ts';
 import { useOnline } from '../shell/use-online.ts';
 import { setLoginNotice } from './login-flow.ts';
 import { sessionQueryOptions, useSession } from './session.ts';
+import { isMissingMethod } from './step-up.ts';
 
 /** What a page asks W-04 for in the mode of the full re-authentication (EVM-028; SR-AUTH-10, ASVS V7.5.1). */
 export interface ReauthenticationAsk {
@@ -30,6 +31,8 @@ type Failure =
   | { readonly kind: 'rejected' }
   | { readonly kind: 'key' }
   | { readonly kind: 'code' }
+  | { readonly kind: 'noKey' }
+  | { readonly kind: 'noCode' }
   | { readonly kind: 'rate'; readonly minutes: number }
   | { readonly kind: 'server'; readonly code: string };
 
@@ -117,6 +120,17 @@ export function ReauthenticationDialog({
         setFailure({ kind: proof.kind === 'totp' ? 'code' : 'key' });
         return;
       }
+      if (isMissingMethod(error)) {
+        // The account has no such method (EVM-134): the step stays, the other method is the way on; the password stays for it.
+        if (proof.kind === 'totp') {
+          setFailure({ kind: 'noCode' });
+          keyButton.current?.focus();
+        } else {
+          setFailure({ kind: 'noKey' });
+          codeInput.current?.focus();
+        }
+        return;
+      }
       if (error.status === 400 || error.status === 401) {
         if (withPassword) {
           // One answer for every factor: back to the password, cleared.
@@ -148,6 +162,10 @@ export function ReauthenticationDialog({
         return t('stepUp.failed');
       case 'code':
         return t('stepUp.code.invalid');
+      case 'noKey':
+        return t('stepUp.noKey');
+      case 'noCode':
+        return t('stepUp.noCode');
       case 'rate':
         return t('reauth.rateLimited', { minutes: failure.minutes });
       case 'server':
@@ -255,25 +273,24 @@ export function ReauthenticationDialog({
           >
             {pending && send.variables.kind === 'passkey' ? t('stepUp.inProgress') : t('stepUp.useKey')}
           </Button>
-          {isAdministrator ? null : (
-            <form noValidate onSubmit={submitCode} className="flex flex-col gap-stack-sm">
-              <TextField
-                label={t('stepUp.code.label')}
-                hint={t('stepUp.code.hint')}
-                value={code}
-                variant="one-time-code"
-                inputRef={codeInput}
-                onChange={(event) => {
-                  setCode(event.target.value);
-                }}
-              />
-              <div>
-                <Button type="submit" variant="secondary" loading={pending && send.variables.kind === 'totp'} disabled={!online}>
-                  {t('stepUp.code.submit')}
-                </Button>
-              </div>
-            </form>
-          )}
+          {/* The code of the app for every role (EVM-134 AC3); an account without one gets `403 forbidden` and is told to use the key. */}
+          <form noValidate onSubmit={submitCode} className="flex flex-col gap-stack-sm">
+            <TextField
+              label={t('stepUp.code.label')}
+              hint={t('stepUp.code.hint')}
+              value={code}
+              variant="one-time-code"
+              inputRef={codeInput}
+              onChange={(event) => {
+                setCode(event.target.value);
+              }}
+            />
+            <div>
+              <Button type="submit" variant="secondary" loading={pending && send.variables.kind === 'totp'} disabled={!online}>
+                {t('stepUp.code.submit')}
+              </Button>
+            </div>
+          </form>
           <p className="text-body-sm text-text-secondary">{hint}</p>
         </>
       ) : null}

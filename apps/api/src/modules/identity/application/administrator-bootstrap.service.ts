@@ -9,7 +9,8 @@
  *   bootstrap cannot keep a second valid way in (A1d, W8); an earlier pending Administrator with another address is
  *   deactivated;
  * - an active Administrator exists: refusal without any change — unless the emergency mode names that account: it goes
- *   back to "requires activation" (credentials deleted for real, all sessions ended, `401 session_revoked`), a new link
+ *   back to "requires activation" (credentials deleted for real — the password, the passkeys and the code of the app; the recovery codes retired
+ *   (EVM-134) — all sessions ended, `401 session_revoked`), a new link
  *   is issued, and an audit event and a durable security alert are written (the alert outbox, A2).
  * Refusals do not tell an unknown address from an account that is not an active Administrator.
  */
@@ -26,6 +27,8 @@ import { ACTIVATION_LINK_TTL_MS, ADMINISTRATOR_LOCK_KEY } from '../domain/consta
 import { displayNameFromEmail } from '../domain/text.ts';
 import { hashToken, newToken } from '../domain/tokens.ts';
 import type { EmergencyReason, IdentityEvent } from '../events.ts';
+import { deleteTotpFactor } from '../infrastructure/access-queries.ts';
+import { supersedeRecoveryCodes } from '../infrastructure/mfa-queries.ts';
 import { insertLink, lockAdministrators, revokeSessions, supersedeOpenLinks } from '../infrastructure/queries.ts';
 import { identityTables, type IdentityDb } from '../infrastructure/tables.ts';
 import { runInTransaction } from '../../../platform/database/transactional.ts';
@@ -144,10 +147,16 @@ export class AdministratorBootstrap {
     return created.id;
   }
 
-  /** Back to "requires activation": password and passkeys are secrets, so they are deleted, not flagged. */
+  /**
+   * Back to "requires activation": the password, the passkeys and the code of the app are secrets, so they are deleted, not flagged; the recovery codes
+   * are retired. Since the code of the app is a method of the panel for the Administrator too (EVM-134, ADR-0023), the code of a lost phone must not
+   * survive the emergency — the same as a reset of the second step by an Administrator.
+   */
   async #resetAccount(tx: IdentityDb, userId: string, now: Date): Promise<void> {
     await tx.deleteFrom('identity.password_credentials').where('user_id', '=', userId).execute();
     await tx.deleteFrom('identity.passkeys').where('user_id', '=', userId).execute();
+    await deleteTotpFactor(tx, userId);
+    await supersedeRecoveryCodes(tx, userId, now);
     await tx
       .updateTable('identity.users')
       .set({ status: 'invited', updated_at: now, version: sql`version + 1` })

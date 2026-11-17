@@ -335,11 +335,12 @@ loginTotp:
     tags: [identity]
     summary: Logowanie — drugi krok (kod z aplikacji)
     description: >-
-      Publiczna operacja (kanał `web`). Wymaga ważnego `loginToken` i aktywnego czynnika TOTP konta; Administrator w panelu nie ma
-      tej metody (`403 forbidden`; rola czytana z bazy). Kod: dokładnie 6 cyfr, tolerancja ±1 krok (30 s), każdy krok tylko raz
+      Publiczna operacja (kanał `web`). Wymaga ważnego `loginToken` i aktywnego czynnika TOTP konta — każda rola (EVM-134, ADR-0023). Kod: dokładnie 6 cyfr, tolerancja ±1 krok (30 s), każdy krok tylko raz
       (kod już użyty — przy logowaniu, step-upie albo konfiguracji — jest odrzucany). Sukces w jednej transakcji: zużycie
       `loginToken` i kroku kodu, nowa sesja `active` z nowym identyfikatorem (poprzednia z ciasteczka żądania unieważniona),
-      `lastLoginAt` i audyt; sesja otwiera okno step-upu (15 min). Nieudany kod → `401 totp_failed` (`loginToken` nie jest zużywany;
+      `lastLoginAt` i audyt; sesja Edytora i Tylko odczyt otwiera okno step-upu (15 min), sesja Administratora — NIE (K1, ADR-0023: pierwsza
+      operacja ze step-upem to `403 step_up_required` i potwierdzenie nowym kodem — z innego kroku czasu niż przy logowaniu — albo kluczem
+      dostępu; rola czytana z bazy w chwili logowania). Nieudany kod → `401 totp_failed` (`loginToken` nie jest zużywany;
       licznik wspólny z kluczem dostępu i kodem odzyskiwania — piąta nieudana próba kończy próbę logowania). Cudzy, zużyty, wygasły
       i nieznany `loginToken` dają tę samą odpowiedź. Limit 20 prób na minutę z jednego adresu IP (wspólny kubełek z hasłem
       i kluczem dostępu) → `429 rate_limited` z `Retry-After`. Odpowiedź nie jest buforowana (`Cache-Control: no-store`). Ochrona przed zgadywaniem (EVM-026): od szóstej nieudanej próby odpowiedź jest opóźniana (1, 2, 4, 8, najwyżej 10 s); 10 nieudanych prób w 15 minutach — hasło i drugi krok razem — blokuje logowanie z przeglądarek nieznanych koncie na 15 minut: każda próba, także z poprawnym hasłem lub kodem, to `429 rate_limited` z `Retry-After` (ta sama odpowiedź co przy limicie adresu IP). Przeglądarka znana koncie (ciasteczko `__Host-evia_device`) ma własny licznik. Blokadę zdejmuje upływ czasu albo — gdy wynikała z haseł — reset hasła; nie ma odblokowania przez Administratora.
@@ -625,7 +626,7 @@ stepUp:
     summary: Ponowne uwierzytelnienie kluczem dostępu albo kodem z aplikacji (step-up)
     description: >-
       Każda rola, kanał `web`, sesja `active`. Metody: klucz dostępu (`{ credential }`) albo kod z aplikacji (`{ method: totp, code }`
-      — Edytor i Tylko odczyt z aktywnym TOTP; Administrator w panelu → `403 forbidden`, rola czytana z bazy). Kod odzyskiwania nie
+      — każda rola z aktywnym TOTP; konto bez aktywnego kodu → `403 forbidden`). Kod odzyskiwania nie
       jest obsługiwany (treść jest ścisła: każde inne pole daje `400 validation_failed`). Kod z aplikacji: 6 cyfr, ±1 krok, każdy
       krok tylko raz (wspólnie z logowaniem); nieudany → `401 totp_failed` (sesja bez zmian, zdarzenie `step_up.failed`), piąty zły
       kod w sesji unieważnia ją (`401 session_revoked`, `revoke_reason step_up_failed`); sukces — te same skutki co klucz dostępu,
@@ -633,7 +634,7 @@ stepUp:
       musi należeć do użytkownika sesji, origin i RP ID z konfiguracji, `userVerification: required`, licznik podpisów,
       wyzwanie jednorazowe o celu `passkey_step_up` powiązane z bieżącą sesją (zużywane przy każdej weryfikacji, także nieudanej).
       Sukces w jednej transakcji: poprzednia sesja unieważniona (`rotated`, warunkowy `UPDATE`), nowa sesja z nowym tokenem i nowym
-      `csrfToken`, ten sam użytkownik, kanał i stan, bezwzględny limit 12 h bez zmian, czas uwierzytelnienia kluczem = teraz,
+      `csrfToken`, ten sam użytkownik, kanał i stan, bezwzględny limit 12 h bez zmian, czas uwierzytelnienia użytą metodą (klucz albo kod) = teraz,
       zdarzenia audytu `session.revoked`, `session.created`, `step_up.succeeded`. Sesja już nieważna → `401 session_revoked`
       bez nowej sesji. Nieudany klucz → `401 passkey_failed` (sesja bez zmian, bez rotacji, zdarzenie `step_up.failed`). Wymaga
       `X-CSRF-Token`. Limit 20 żądań na minutę z jednego adresu IP.
@@ -682,14 +683,14 @@ totpEnrolment:
       (znacznik sprawdzany, nie zużywany: `403 reauthentication_required` bez niego); wtedy `409 mfa_already_configured` dotyczy tylko konta
       z AKTYWNYM kodem z aplikacji (klucz dostępu nie przeszkadza). Poza tym: sesja `mfa_enrollment` powiązana z jednorazowym linkiem
       aktywacyjnym (nie z samego logowania hasłem — `403 forbidden`),
-      kanał `web`; Administrator w panelu — `403 forbidden` (TOTP Administratora tylko w aplikacji mobilnej). Konto z aktywnym
+      kanał `web`; każda rola (EVM-134). Konto z aktywnym
       drugim krokiem (klucz dostępu albo kod z aplikacji) → `409 mfa_already_configured`, bez ujawniania sekretu. Zwraca nowy
       sekret (160 bitów z CSPRNG; w bazie wyłącznie zaszyfrowany kopertowo, powiązany z kontem) i adres `otpauth://`; ponowne
       wywołanie przed potwierdzeniem zastępuje sekret oczekujący. Czynnik jest nieaktywny do potwierdzenia poprawnym kodem.
       Brak kluczy szyfrowania w konfiguracji → `503 service_unavailable`. Odpowiedź nie jest buforowana (`Cache-Control: no-store`).
       Wymaga `X-CSRF-Token`; limit 20 żądań na minutę z jednego adresu IP (wspólny kubełek z logowaniem).
     x-evia-authz:
-      roles: [editor, read_only]
+      roles: [administrator, editor, read_only]
       channels: [web]
       allowDuringMfaEnrollment: true
     responses:
@@ -721,7 +722,7 @@ totpConfirm:
     tags: [identity]
     summary: Potwierdzenie kodu z aplikacji — aktywacja metody
     description: >-
-      Jak `startTotpEnrolment` (sesja `mfa_enrollment` z linkiem, bez Administratora w panelu). Poprawny kod z oczekującego sekretu
+      Jak `startTotpEnrolment` (sesja `mfa_enrollment` z linkiem, każda rola). Poprawny kod z oczekującego sekretu
       (6 cyfr, ±1 krok) w jednej transakcji: aktywuje czynnik (krok kodu zapisany — ten kod nie zaloguje), zużywa link aktywacyjny,
       aktywuje konto, unieważnia sesję konfiguracji i tworzy sesję `active` z nowym identyfikatorem i oknem step-upu (nowe
       ciasteczko), wysyła e-mail o zmianie drugiego kroku i zapisuje zdarzenie `mfa.totp_enrolled`. Dwa równoległe potwierdzenia dają
@@ -731,7 +732,7 @@ totpConfirm:
       (`second_step_change`) w tej samej transakcji co aktywację czynnika; sesja nie jest rotowana (brak `Set-Cookie`), odpowiedź niesie bieżący
       `csrfToken`; e-mail „zmiana drugiego kroku”, zdarzenie `mfa.totp_enrolled` i — dla Administratora — alert.
     x-evia-authz:
-      roles: [editor, read_only]
+      roles: [administrator, editor, read_only]
       channels: [web]
       allowDuringMfaEnrollment: true
       audit: true
@@ -847,7 +848,7 @@ users:
     summary: Lista użytkowników (Administracja, W-16)
     description: >-
       Rola Administrator, kanał `web`, bez step-upu i bez audytu odczytu (Edytor i Tylko odczyt — `403 forbidden`; niezalogowany —
-      `401`; token mobilny — `403 channel_not_allowed`). Konta usunięte nie występują. Porządek stały: nazwa wyświetlana w kolacji
+      `401`; token aplikacji mobilnej — `401 unauthenticated` (operacja kanału `web` nie czyta tokenu Bearer)). Konta usunięte nie występują. Porządek stały: nazwa wyświetlana w kolacji
       `pl-PL` („Ł” po „L”), potem `id`. Paginacja kursorem nieprzezroczystym (`limit` 1–100, domyślnie 25; zły kursor —
       `400 invalid_cursor`). Pozycja to konto z e-mailem (dane osobowe — tylko Administrator), rolą, statusem i — dla konta
       `invited` — stanem zaproszenia (`sending`, `sent`, `failed` = „Nie wysłano”, `expired`). Bez haseł, kluczy dostępu, adresów IP
@@ -895,8 +896,8 @@ users:
     summary: Zaproszenie użytkownika (W-16)
     description: >-
       Rola Administrator po step-upie, kanał `web`, z audytem (`user.invited`, bez adresu i nazwy). Edytor i Tylko odczyt — `403
-      forbidden` (także dla istniejącego adresu: `409` nigdy nie wyprzedza kontroli uprawnień); niezalogowany — `401`; token mobilny —
-      `403 channel_not_allowed`; Administrator bez uwierzytelnienia kluczem dostępu w ostatnich 15 minutach — `403 step_up_required`
+      forbidden` (także dla istniejącego adresu: `409` nigdy nie wyprzedza kontroli uprawnień); niezalogowany — `401`; token aplikacji mobilnej —
+      `401 unauthenticated` (operacja kanału `web` nie czyta tokenu Bearer); Administrator bez step-upu (klucz dostępu albo nowy kod z aplikacji w ostatnich 15 minutach; logowanie Administratora kodem nie otwiera okna — K1) — `403 step_up_required`
       (także dla istniejącego adresu — brak wyliczania kont przed step-upem). Kolejność: guard (rola, CSRF, kanał, step-up),
       `Idempotency-Key` i treść (`400 validation_failed`: `invalid_email`, `required`, `too_long`, `invalid_characters`, `invalid_value`),
       jedna transakcja: powtórka idempotentna, konflikt adresu (`409 email_conflict` z `existingUserId` konta widocznego na liście;
@@ -1018,14 +1019,13 @@ userRole:
     summary: Zmiana roli użytkownika (W-16)
     description: >-
       Rola Administrator po step-upie, kanał `web`, z audytem. Edytor i Tylko odczyt — `403 forbidden`; niezalogowany — `401`; token
-      mobilny — `403 forbidden`; Administrator bez uwierzytelnienia kluczem dostępu w ostatnich 15 minutach — `403 step_up_required`.
+      aplikacji mobilnej — `401 unauthenticated` (operacja kanału `web` nie czyta tokenu Bearer); Administrator bez step-upu (klucz dostępu albo nowy kod z aplikacji w ostatnich 15 minutach; logowanie Administratora kodem nie otwiera okna — K1) — `403 step_up_required`.
       Wymaga `X-CSRF-Token`.
       Kolejność: guard (rola, CSRF, kanał, step-up), `userId` (`400`), jedna transakcja: blokada administratorów (jedna dla wszystkich operacji na kontach), ponowne sprawdzenie wywołującego pod blokadą (konto nieaktywne — `401 session_revoked`), blokada konta docelowego (nieistniejące albo usunięte — `404 not_found`), potem `If-Match` i treść (`428`/`400`), wersja (`412 version_conflict`), reguły (`409`), zmiana, unieważnienie sesji, e-maile, alerty i audyt.
       Skutki: od następnego żądania obowiązuje nowa rola (rola jest czytana z bazy przy każdym żądaniu), a wszystkie sesje web konta
       kończą się (`401 session_revoked`) razem z wiszącymi `loginToken` i wyzwaniami WebAuthn; sesja wywołującego pozostaje.
       Odrzucenia `409`: `last_active_administrator` (jedyny aktywny Administrator — przed `own_account_not_allowed`),
-      `own_account_not_allowed` (własne konto), `administrator_passkey_required` (konto bez klucza dostępu nie zostaje Administratorem —
-      stan niezmieniony, bez alertu), `invalid_state_transition` (ta sama rola albo konto dezaktywowane). Alert bezpieczeństwa do
+      `own_account_not_allowed` (własne konto), `invalid_state_transition` (ta sama rola albo konto dezaktywowane). Alert bezpieczeństwa do
       wszystkich aktywnych Administratorów, gdy ktoś zostaje albo przestaje być Administratorem (nie przy zmianie Edytor ↔ Tylko
       odczyt). Zdarzenie audytu `user.role_changed` z kodami ról przed i po (`fromCode`, `toCode`).
     x-evia-authz:
@@ -1082,7 +1082,7 @@ userDeactivation:
     summary: Dezaktywacja konta (W-16)
     description: >-
       Rola Administrator po step-upie, kanał `web`, z audytem. Edytor i Tylko odczyt — `403 forbidden`; niezalogowany — `401`; token
-      mobilny — `403 forbidden`; Administrator bez uwierzytelnienia kluczem dostępu w ostatnich 15 minutach — `403 step_up_required`.
+      aplikacji mobilnej — `401 unauthenticated` (operacja kanału `web` nie czyta tokenu Bearer); Administrator bez step-upu (klucz dostępu albo nowy kod z aplikacji w ostatnich 15 minutach; logowanie Administratora kodem nie otwiera okna — K1) — `403 step_up_required`.
       Wymaga `X-CSRF-Token`.
       Kolejność: guard (rola, CSRF, kanał, step-up), `userId` (`400`), jedna transakcja: blokada administratorów (jedna dla wszystkich operacji na kontach), ponowne sprawdzenie wywołującego pod blokadą (konto nieaktywne — `401 session_revoked`), blokada konta docelowego (nieistniejące albo usunięte — `404 not_found`), potem `If-Match` (`428`/`400`), wersja (`412 version_conflict`), reguły (`409`), zmiana, unieważnienie sesji, e-maile, alerty i audyt.
       Konto `active` albo `invited` przechodzi w `deactivated`; wszystkie jego sesje web kończą się (`401 session_revoked`), wiszące
@@ -1134,7 +1134,7 @@ userReactivation:
     summary: Reaktywacja konta (W-16)
     description: >-
       Rola Administrator po step-upie, kanał `web`, z audytem. Edytor i Tylko odczyt — `403 forbidden`; niezalogowany — `401`; token
-      mobilny — `403 forbidden`; Administrator bez uwierzytelnienia kluczem dostępu w ostatnich 15 minutach — `403 step_up_required`.
+      aplikacji mobilnej — `401 unauthenticated` (operacja kanału `web` nie czyta tokenu Bearer); Administrator bez step-upu (klucz dostępu albo nowy kod z aplikacji w ostatnich 15 minutach; logowanie Administratora kodem nie otwiera okna — K1) — `403 step_up_required`.
       Wymaga `X-CSRF-Token`.
       Kolejność: guard (rola, CSRF, kanał, step-up), `userId` (`400`), jedna transakcja: blokada administratorów (jedna dla wszystkich operacji na kontach), ponowne sprawdzenie wywołującego pod blokadą (konto nieaktywne — `401 session_revoked`), blokada konta docelowego (nieistniejące albo usunięte — `404 not_found`), potem `If-Match` (`428`/`400`), wersja (`412 version_conflict`), reguły (`409`), zmiana, unieważnienie sesji, e-maile, alerty i audyt.
       Konto `deactivated` wraca do `active` z dotychczasowymi metodami drugiego kroku (hasło i klucze zostają), jeśli było kiedyś
@@ -1185,7 +1185,7 @@ userSessions:
     summary: Zakończenie wszystkich sesji użytkownika (W-16)
     description: >-
       Rola Administrator po step-upie, kanał `web`, z audytem. Edytor i Tylko odczyt — `403 forbidden`; niezalogowany — `401`; token
-      mobilny — `403 forbidden`; Administrator bez uwierzytelnienia kluczem dostępu w ostatnich 15 minutach — `403 step_up_required`.
+      aplikacji mobilnej — `401 unauthenticated` (operacja kanału `web` nie czyta tokenu Bearer); Administrator bez step-upu (klucz dostępu albo nowy kod z aplikacji w ostatnich 15 minutach; logowanie Administratora kodem nie otwiera okna — K1) — `403 step_up_required`.
       Wymaga `X-CSRF-Token`.
       Kolejność: guard (rola, CSRF, kanał, step-up), `userId` (`400`), jedna transakcja: blokada administratorów (jedna dla wszystkich operacji na kontach), ponowne sprawdzenie wywołującego pod blokadą (konto nieaktywne — `401 session_revoked`), blokada konta docelowego (nieistniejące albo usunięte — `404 not_found`), reguły (`409`), zmiana, unieważnienie sesji, e-maile, alerty i audyt.
       Każda sesja web konta (w każdym stanie) kończy się — następne żądanie to `401 session_revoked` — razem z wiszącymi `loginToken`
@@ -1221,13 +1221,13 @@ userSecondStepReset:
     summary: Reset drugiego kroku logowania użytkownika (W-16)
     description: >-
       Rola Administrator po step-upie, kanał `web`, z audytem. Edytor i Tylko odczyt — `403 forbidden`; niezalogowany — `401`; token
-      mobilny — `403 forbidden`; Administrator bez uwierzytelnienia kluczem dostępu w ostatnich 15 minutach — `403 step_up_required`.
+      aplikacji mobilnej — `401 unauthenticated` (operacja kanału `web` nie czyta tokenu Bearer); Administrator bez step-upu (klucz dostępu albo nowy kod z aplikacji w ostatnich 15 minutach; logowanie Administratora kodem nie otwiera okna — K1) — `403 step_up_required`.
       Wymaga `X-CSRF-Token`.
       Kolejność: guard (rola, CSRF, kanał, step-up), `userId` (`400`), jedna transakcja: blokada administratorów (jedna dla wszystkich operacji na kontach), ponowne sprawdzenie wywołującego pod blokadą (konto nieaktywne — `401 session_revoked`), blokada konta docelowego (nieistniejące albo usunięte — `404 not_found`), potem `If-Match` i treść (`428`/`400`), wersja (`412 version_conflict`), reguły (`409`), zmiana, unieważnienie sesji, e-maile, alerty i audyt.
       Tylko konto `active`. Klucze dostępu i sekrety kodu z aplikacji są usuwane (materiał szyfrowany znika), kody odzyskiwania
       przestają działać, wszystkie sesje web konta, wiszące `loginToken`, wyzwania i linki resetu hasła są unieważnione. Otwiera się okno
       konfiguracji drugiego kroku (24 godziny, bez tokenu): logowanie hasłem daje wtedy sesję `mfa_enrollment` (`403
-      mfa_enrollment_required` na resztę, ekran W-03); w oknie konta Administratora wolno zarejestrować wyłącznie klucz dostępu. Po
+      mfa_enrollment_required` na resztę, ekran W-03); w oknie każda rola wybiera klucz dostępu albo kod z aplikacji. Po
       końcu okna logowanie poprawnym hasłem to `403 mfa_setup_expired`. Reset hasła nie otwiera drogi omijającej okno — konto bez
       metod nie dostaje linku. Ponowny reset zastępuje okno. Właściciel dostaje e-mail ze stałego szablonu (bez linku logowania).
       `identityVerification` (`in_person`, `video_call`) trafia do audytu jako kod powodu. Reset własnego drugiego kroku —
@@ -1288,7 +1288,7 @@ account:
     description: >-
       Każda rola, kanał `web`, sesja `active` (sesja `mfa_enrollment` — `403 mfa_enrollment_required`). Bez parametrów i bez
       identyfikatora konta — konto to sesja (nie ma sposobu na odczyt cudzego). Zwraca nazwę, e-mail, rolę oraz metody drugiego kroku:
-      klucze dostępu (nazwa i data dodania), kod z aplikacji (data dodania; Administrator: służy tylko do aplikacji na telefonie) i stan
+      klucze dostępu (nazwa i data dodania), kod z aplikacji (data dodania) i stan
       kodów odzyskiwania (liczba pozostałych, data wygenerowania). Bez sekretów, kluczy publicznych i skrótów. Odpowiedź ma
       `Cache-Control: no-store` (zawiera dane osobowe). Bez audytu odczytu.
     x-evia-authz:
@@ -1367,8 +1367,8 @@ accountReauthentication:
       sesją i celem; zużywa go operacja docelowa warunkowym `UPDATE` w swojej transakcji; nie jest kopiowany przy rotacji sesji ani
       zwracany klientowi — brak tokenu do wycieku). Cel `second_step_change`: hasło i drugi krok; cel `password_change`: sam drugi krok
       (bieżące hasło podaje `changePassword`); hasło przy `password_change` albo jego brak przy `second_step_change` → `400 validation_failed`.
-      Drugi krok: klucz dostępu (wyzwanie z `getStepUpPasskeyOptions`, zużywane przy każdej weryfikacji) albo kod z aplikacji (Edytor, Tylko
-      odczyt; Administrator w panelu — `403 forbidden`); kod odzyskiwania jest odrzucany (treść ścisła, decyzja 16). Kolejność: hasło,
+      Drugi krok: klucz dostępu (wyzwanie z `getStepUpPasskeyOptions`, zużywane przy każdej weryfikacji) albo kod z aplikacji (każda
+      rola; konto bez aktywnego kodu — `403 forbidden`); kod odzyskiwania jest odrzucany (treść ścisła, decyzja 16). Kolejność: hasło,
       potem drugi krok; przy złym haśle drugi krok nie jest oceniany. Każda próba (hasło, klucz, kod) przechodzi przez licznik
       zgadywania z logowania (SR-AUTH-05): zakres — przeglądarka znana koncie (ciasteczko `__Host-evia_device`) albo konto; trwająca
       blokada → `429 rate_limited` z `Retry-After` BEZ weryfikacji i z zakończeniem sesji; próba, która ją wywołuje, także. Zły czynnik
@@ -1471,9 +1471,8 @@ accountPasskey:
       Każda rola, kanał `web`, sesja `active` (sesja `mfa_enrollment` — `403 mfa_enrollment_required`). Kolejność: `passkeyId` (`400`), jedna
       transakcja: blokada wiersza konta, klucz TEGO konta (cudzy, nieistniejący i już usunięty — jedna odpowiedź `404 not_found`), znacznik
       pełnego ponownego uwierzytelnienia `second_step_change` (`403 reauthentication_required`; zużywany dopiero z sukcesem operacji),
-      reguła AC4 pod blokadą konta: Administrator nie usuwa ostatniego klucza, a konto bez Administratora — ostatniej metody
-      (klucz albo kod z aplikacji; kod z aplikacji Administratora nie liczy się, kody odzyskiwania nie są metodą) →
-      `409 last_second_step_method`. Sukces: usunięcie, e-mail „zmiana drugiego kroku” (bez nazwy klucza), audyt `passkey.removed`, alert dla
+      reguła AC4 pod blokadą konta: żadne konto (także Administratora — EVM-134) nie usuwa ostatniej metody (klucz albo kod
+      z aplikacji; kody odzyskiwania nie są metodą) → `409 last_second_step_method` (`errors[0].code: method_required`). Sukces: usunięcie, e-mail „zmiana drugiego kroku” (bez nazwy klucza), audyt `passkey.removed`, alert dla
       Administratorów, gdy dotyczy konta Administratora. Wymaga `X-CSRF-Token`.
     x-evia-authz:
       roles: [administrator, editor, read_only]
@@ -1503,8 +1502,8 @@ accountTotp:
     summary: Usunięcie własnego kodu z aplikacji (W-15 → Drugi krok logowania)
     description: >-
       Każda rola, kanał `web`, sesja `active`. Wymaga znacznika `second_step_change` (`403 reauthentication_required`). Konto bez aktywnego
-      kodu z aplikacji — `404 not_found`. Reguła AC4: Edytor i Tylko odczyt nie usuwają ostatniej metody (`409 last_second_step_method`); kod
-      z aplikacji Administratora nie jest metodą drugiego kroku w panelu, więc usunięcie go jest zawsze dozwolone. Sukces: usunięcie
+      kodu z aplikacji — `404 not_found`. Reguła AC4 pod blokadą konta: żadne konto (także Administratora — EVM-134) nie usuwa ostatniej metody
+      (`409 last_second_step_method`, `errors[0].code: method_required`). Sukces: usunięcie
       sekretu (materiał szyfrowany znika), e-mail „zmiana drugiego kroku”, audyt `mfa.totp_removed`, alert dla Administratorów, gdy
       dotyczy konta Administratora. Wymaga `X-CSRF-Token`.
     x-evia-authz:

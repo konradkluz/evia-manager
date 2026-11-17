@@ -17,7 +17,7 @@ flowchart TD
   B -->|"menu: korekta płatności"| G{"Rola"}
   G -->|"Edytor"| H["Pozycja wyłączona z podpowiedzią"]
   G -->|"Administrator"| I["Dialog korekty z podsumowaniem"]
-  I -->|"Potwierdź"| J{{"W-04 Ponowne uwierzytelnienie, tylko passkey"}}
+  I -->|"Potwierdź"| J{{"W-04 Ponowne uwierzytelnienie, klucz dostępu albo kod z aplikacji"}}
   J -->|"Potwierdź"| K["Korekta wykonana, audyt"]
   J -->|"Anuluj"| L["Brak operacji"]
   B -->|"wiersz"| W6["W-06 Szczegóły zlecenia, sekcja Płatności"]
@@ -69,7 +69,7 @@ Klient [Szukaj klienta… ‹search›]
 ```
 
 ## Akcje płatności — status × rola
-Wspólna tabela dla W-11 i sekcji „Płatności” w [W-06](03-szczegoly-zlecenia.md#w-06-szczegóły-zlecenia) (M3 z konsultacji security). Dostępność akcji ściśle wg tabeli przejść „Etap płatności” w `domain-model.md`. **Edytor anuluje wyłącznie transzę „Planowaną”** (doprecyzowanie decyzji z EVM-002). Akcje Administratora ze step-upem przechodzą przez [W-04](01-logowanie-mfa.md#w-04-ponowne-uwierzytelnienie) (tylko passkey); u Edytora są widoczne, ale wyłączone z podpowiedzią „Korektę płatności może wykonać tylko administrator.”; rola Tylko odczyt nie widzi żadnej akcji. **Żadna akcja płatności nie ma „Cofnij”** — każda ma dialog z podsumowaniem (§ 4.11).
+Wspólna tabela dla W-11 i sekcji „Płatności” w [W-06](03-szczegoly-zlecenia.md#w-06-szczegóły-zlecenia) (M3 z konsultacji security). Dostępność akcji ściśle wg tabeli przejść „Etap płatności” w `domain-model.md`. **Edytor anuluje wyłącznie transzę „Planowaną”** (doprecyzowanie decyzji z EVM-002). Akcje Administratora ze step-upem przechodzą przez [W-04](01-logowanie-mfa.md#w-04-ponowne-uwierzytelnienie) (klucz dostępu albo kod z aplikacji; po logowaniu Administratora kodem — nowy kod, K1); u Edytora są widoczne, ale wyłączone z podpowiedzią „Korektę płatności może wykonać tylko administrator.”; rola Tylko odczyt nie widzi żadnej akcji. **Żadna akcja płatności nie ma „Cofnij”** — każda ma dialog z podsumowaniem (§ 4.11).
 
 | Status transzy | Akcja | Przejście / operacja | A | E | R |
 |---|---|---|---|---|---|

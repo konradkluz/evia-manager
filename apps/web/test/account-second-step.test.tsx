@@ -6,6 +6,7 @@ import { json, parseBody, problem, type Handler } from './api-fake.ts';
 import {
   accountApi,
   ADMINISTRATOR_ACCOUNT,
+  ASSERTION_OPTIONS,
   CODES_ROUTE,
   CREDENTIAL,
   EDITOR_ACCOUNT,
@@ -21,6 +22,7 @@ import {
   REMOVE_TOTP,
   resetAccountTest,
   SECOND_PASSKEY_ID,
+  STEP_UP_OPTIONS,
   stubWebAuthn,
   TOTP_CONFIRM,
   TOTP_START,
@@ -116,23 +118,47 @@ describe('W-15 Drugi krok logowania — lista (EVM-028 AC3, AC4)', () => {
     expect(screen.getByRole('button', { name: 'Usuń klucz dostępu Laptop w biurze' }).getAttribute('aria-disabled')).toBeNull();
   });
 
-  it('EVM-028 AC4 an Administrator with one passkey cannot remove it (the code of the app does not count), and is told to add a second one', async () => {
+  it('EVM-134 AC3 an Administrator with one passkey and a code of the app may remove either; nothing says the passkey is obligatory', async () => {
     await openCard({
       ...ADMINISTRATOR_ACCOUNT,
       secondStep: { ...ADMINISTRATOR_ACCOUNT.secondStep, passkeys: [LAPTOP], totp: { addedAt: '2026-10-03T11:00:00Z' } },
     });
-    expect(screen.getByRole('button', { name: 'Usuń klucz dostępu Laptop w biurze' }).getAttribute('aria-disabled')).toBe('true');
-    expect(screen.getByText('Konto administratora musi mieć klucz dostępu — najpierw dodaj drugi.')).toBeTruthy();
-    expect(screen.getByText('Dodaj drugi klucz dostępu, np. w telefonie — bez niego utrata komputera blokuje logowanie.')).toBeTruthy();
-    // The code of the app of an Administrator is only for the phone: it may be removed and has no "add" in the panel.
-    expect(screen.getByText('Służy tylko do logowania w aplikacji na telefonie.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Usuń klucz dostępu Laptop w biurze' }).getAttribute('aria-disabled')).toBeNull();
     expect(screen.getByRole('button', { name: 'Usuń kod z aplikacji uwierzytelniającej' }).getAttribute('aria-disabled')).toBeNull();
+    expect(screen.queryByText('To jedyna metoda — najpierw dodaj inną.')).toBeNull();
+    expect(screen.queryByText(/administratora musi mieć klucz|Służy tylko do logowania w aplikacji na telefonie/)).toBeNull();
+    // Two methods: no hint to add a second one.
+    expect(screen.queryByText(/Dodaj drugą metodę/)).toBeNull();
+    expect(await axeViolations(document.body, { bestPractice: true })).toEqual([]);
   });
 
-  it('EVM-028 AC3 an Administrator without a code of the app has no "Dodaj kod z aplikacji" (the API does not offer it in the panel)', async () => {
+  it('EVM-134 AC3 an Administrator whose only method is the code of the app cannot remove it: the rule of the last method stands beside the button', async () => {
+    await openCard({
+      ...ADMINISTRATOR_ACCOUNT,
+      secondStep: { ...ADMINISTRATOR_ACCOUNT.secondStep, passkeys: [], totp: { addedAt: '2026-10-03T11:00:00Z' } },
+    });
+    const remove = screen.getByRole('button', { name: 'Usuń kod z aplikacji uwierzytelniającej' });
+    expect(remove.getAttribute('aria-disabled')).toBe('true');
+    const reason = screen.getByText('To jedyna metoda — najpierw dodaj inną.');
+    expect(remove.getAttribute('aria-describedby')).toBe(reason.id);
+    expect(screen.getByRole('button', { name: 'Dodaj klucz dostępu' })).toBeTruthy();
+  });
+
+  it('EVM-134 AC3 an Administrator with one passkey alone cannot remove it and is told to add a second method', async () => {
+    await openCard({ ...ADMINISTRATOR_ACCOUNT, secondStep: { ...ADMINISTRATOR_ACCOUNT.secondStep, passkeys: [LAPTOP], totp: null } });
+    const remove = screen.getByRole('button', { name: 'Usuń klucz dostępu Laptop w biurze' });
+    expect(remove.getAttribute('aria-disabled')).toBe('true');
+    expect(remove.getAttribute('aria-describedby')).toBe(screen.getByText('To jedyna metoda — najpierw dodaj inną.').id);
+    expect(
+      screen.getByText('Dodaj drugą metodę, np. kod z aplikacji albo klucz w telefonie — bez niej utrata komputera blokuje logowanie.'),
+    ).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Dodaj kod z aplikacji' })).toBeTruthy();
+  });
+
+  it('EVM-134 AC3 an Administrator without a code of the app has "Dodaj kod z aplikacji" like every role', async () => {
     await openCard(ADMINISTRATOR_ACCOUNT);
     expect(screen.getByText('Nie dodano.')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Dodaj kod z aplikacji' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Dodaj kod z aplikacji' }).getAttribute('aria-disabled')).toBeNull();
   });
 
   it('EVM-028 AC5 the recovery codes: how many are left, a warning at 3 or fewer, none yet — a warning with "Wygeneruj kody"', async () => {
@@ -228,19 +254,45 @@ describe('W-15 usunięcie klucza dostępu i kodu z aplikacji (EVM-028 AC3, AC4)'
     expect(document.body.innerHTML).not.toContain(PASSWORD);
   });
 
-  it('EVM-028 AC4 the server refuses the last key of an Administrator: the AlertDialog says what to add first and stays', async () => {
+  it('EVM-134 AC3 the server refuses the last method of an Administrator (409 method_required): the AlertDialog tells the one rule of every role and stays', async () => {
     const { reauth, operation } = marked(() => new Response(null, { status: 204 }));
     await openCard(ADMINISTRATOR_ACCOUNT, {
       [REAUTH]: reauth,
-      [REMOVE_PHONE]: () => problem(409, 'last_second_step_method', { errors: [{ pointer: '/passkeyId', code: 'passkey_required' }] }),
+      [REMOVE_PHONE]: () => problem(409, 'last_second_step_method', { errors: [{ pointer: '/passkeyId', code: 'method_required' }] }),
       [REMOVE_LAPTOP]: operation,
     });
     await userEvent.click(screen.getByRole('button', { name: 'Usuń klucz dostępu Telefon' }));
     await userEvent.click(await screen.findByRole('button', { name: 'Usuń klucz' }));
     const alert = await screen.findByRole('alertdialog');
-    expect((await within(alert).findByRole('alert')).textContent).toBe(
-      'Konto administratora musi mieć klucz dostępu — najpierw dodaj drugi.',
+    expect((await within(alert).findByRole('alert')).textContent).toBe('To jedyna metoda — najpierw dodaj inną.');
+  });
+
+  it('EVM-134 AC3 an Administrator removes the code of the app: W-04 with the password and the code, the delete and the toast; a parallel removal refused with 409 is told', async () => {
+    let refuse = false;
+    const { reauth, operation } = marked(() =>
+      refuse
+        ? problem(409, 'last_second_step_method', { errors: [{ pointer: '/totp', code: 'method_required' }] })
+        : new Response(null, { status: 204 }),
     );
+    const withCode: Account = {
+      ...ADMINISTRATOR_ACCOUNT,
+      secondStep: { ...ADMINISTRATOR_ACCOUNT.secondStep, totp: { addedAt: '2026-10-03T11:00:00Z' } },
+    };
+    const api = await openCard(withCode, { [REAUTH]: reauth, [REMOVE_TOTP]: operation });
+    await userEvent.click(screen.getByRole('button', { name: 'Usuń kod z aplikacji uwierzytelniającej' }));
+    const alert = await screen.findByRole('alertdialog', { name: 'Usunąć kod z aplikacji uwierzytelniającej?' });
+    await userEvent.click(within(alert).getByRole('button', { name: 'Usuń kod' }));
+    await confirmIdentity('Potwierdź tożsamość, aby usunąć kod z aplikacji');
+    expect(await screen.findByText('Usunięto kod z aplikacji.')).toBeTruthy();
+    expect(api.calls(REMOVE_TOTP)).toHaveLength(2);
+    expect(parseBody(api.calls(REAUTH)[0]?.body ?? '')).toMatchObject({ method: 'totp', code: '123456' });
+    // The same, when another tab removed the keys meanwhile: the server decides under the lock of the account.
+    refuse = true;
+    await userEvent.click(screen.getByRole('button', { name: 'Usuń kod z aplikacji uwierzytelniającej' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Usuń kod' }));
+    await confirmIdentity('Potwierdź tożsamość, aby usunąć kod z aplikacji');
+    const refused = await screen.findByRole('alertdialog');
+    expect((await within(refused).findByRole('alert')).textContent).toBe('To jedyna metoda — najpierw dodaj inną.');
   });
 
   it('EVM-028 AC4 the server refuses the last method of an Editor: the other text of the rule', async () => {
@@ -266,7 +318,9 @@ describe('W-15 usunięcie klucza dostępu i kodu z aplikacji (EVM-028 AC3, AC4)'
     const api = await openCard(EDITOR_ACCOUNT, { [REAUTH]: reauth, [REMOVE_TOTP]: operation });
     await userEvent.click(screen.getByRole('button', { name: 'Usuń kod z aplikacji uwierzytelniającej' }));
     const alert = await screen.findByRole('alertdialog', { name: 'Usunąć kod z aplikacji uwierzytelniającej?' });
-    expect(within(alert).getByText('Bez niego nie zalogujesz się w aplikacji na telefonie.')).toBeTruthy();
+    expect(
+      within(alert).getByText('Bez niego nie zalogujesz się w aplikacji na telefonie ani, jeśli to Twoja metoda, w panelu.'),
+    ).toBeTruthy();
     await userEvent.click(within(alert).getByRole('button', { name: 'Usuń kod' }));
     await confirmIdentity('Potwierdź tożsamość, aby usunąć kod z aplikacji');
     expect(await screen.findByText('Usunięto kod z aplikacji.')).toBeTruthy();
@@ -409,6 +463,32 @@ describe('W-15 dodanie kodu z aplikacji (EVM-028 AC3)', () => {
     expect(parseBody(api.calls(TOTP_CONFIRM)[0]?.body ?? '')).toEqual({ code: '654321' });
     expect(api.calls(TOTP_START)).toHaveLength(2);
     // The secret is not left in the page.
+    expect(document.body.innerHTML).not.toContain(SETUP.secret);
+  });
+
+  it('EVM-134 AC3 an Administrator adds the code of the app: W-04 with the password and the passkey, then the QR dialog and the code confirms the method', async () => {
+    const spies = stubWebAuthn();
+    const { reauth, operation } = marked(() => json(200, SETUP));
+    const api = await openCard(ADMINISTRATOR_ACCOUNT, {
+      [REAUTH]: reauth,
+      [STEP_UP_OPTIONS]: () => json(200, ASSERTION_OPTIONS),
+      [TOTP_START]: operation,
+      [TOTP_CONFIRM]: () => json(200, { state: 'active', csrfToken: 'csrf-active' }),
+    });
+    await userEvent.click(screen.getByRole('button', { name: 'Dodaj kod z aplikacji' }));
+    const identity = await screen.findByRole('dialog', { name: 'Potwierdź tożsamość, aby dodać kod z aplikacji' });
+    await userEvent.type(within(identity).getByLabelText('Hasło'), PASSWORD);
+    await userEvent.click(within(identity).getByRole('button', { name: 'Dalej' }));
+    // The Administrator has both ways in W-04 now: the key and the field of the code.
+    expect(within(identity).getByLabelText('Kod z aplikacji uwierzytelniającej')).toBeTruthy();
+    await userEvent.click(within(identity).getByRole('button', { name: 'Użyj klucza dostępu' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Dodaj kod z aplikacji' });
+    await userEvent.type(within(dialog).getByLabelText('Kod z aplikacji uwierzytelniającej'), '654321');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Potwierdź kod' }));
+    expect(await screen.findByText('Dodano kod z aplikacji.')).toBeTruthy();
+    expect(spies.get).toHaveBeenCalledTimes(1);
+    expect(api.calls(TOTP_START)).toHaveLength(2);
+    expect(parseBody(api.calls(TOTP_CONFIRM)[0]?.body ?? '')).toEqual({ code: '654321' });
     expect(document.body.innerHTML).not.toContain(SETUP.secret);
   });
 

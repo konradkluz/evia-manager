@@ -42,34 +42,23 @@ describe('names of the account (EVM-028 AC1, AC3)', () => {
 });
 
 describe('the rule of the last method (EVM-028 AC4)', () => {
-  it('EVM-028 AC4 an Administrator keeps one passkey; the code of the app never counts and is always removable', () => {
-    expect(lastMethodRule('administrator', 1, true)).toEqual({ passkey: true, totp: false });
-    expect(lastMethodRule('administrator', 2, false)).toEqual({ passkey: false, totp: false });
-  });
-
-  it.each(['editor', 'read_only'] as const)('EVM-028 AC4 %s keeps one method of any kind', (role) => {
-    expect(lastMethodRule(role, 1, false)).toEqual({ passkey: true, totp: true });
-    expect(lastMethodRule(role, 0, true)).toEqual({ passkey: true, totp: true });
-    expect(lastMethodRule(role, 1, true)).toEqual({ passkey: false, totp: false });
-    expect(lastMethodRule(role, 2, false)).toEqual({ passkey: false, totp: false });
+  it('EVM-028 AC4 EVM-134 AC3 every role keeps one method of any kind: the Administrator has no rule of a passkey any more', () => {
+    expect(lastMethodRule(1, false)).toEqual({ passkey: true, totp: true });
+    expect(lastMethodRule(0, true)).toEqual({ passkey: true, totp: true });
+    expect(lastMethodRule(1, true)).toEqual({ passkey: false, totp: false });
+    expect(lastMethodRule(2, false)).toEqual({ passkey: false, totp: false });
   });
 });
 
 describe('the failures of the operations of the account (EVM-028 AC3, AC4, AC8)', () => {
-  it('EVM-028 AC4 the last method says what to add first (passkey for an Administrator, any method for the rest)', () => {
-    expect(
-      describeAccountFailure(problem(409, 'last_second_step_method', { errors: [{ pointer: '/passkeyId', code: 'passkey_required' }] })),
-    ).toEqual({
-      kind: 'lastMethod',
-      required: 'passkey',
-    });
+  it('EVM-028 AC4 EVM-134 AC3 the last method is one failure for every role and every method (method_required at /passkeyId or /totp)', () => {
     expect(
       describeAccountFailure(problem(409, 'last_second_step_method', { errors: [{ pointer: '/passkeyId', code: 'method_required' }] })),
-    ).toEqual({
-      kind: 'lastMethod',
-      required: 'method',
-    });
-    expect(describeAccountFailure(problem(409, 'last_second_step_method'))).toEqual({ kind: 'lastMethod', required: 'method' });
+    ).toEqual({ kind: 'lastMethod' });
+    expect(
+      describeAccountFailure(problem(409, 'last_second_step_method', { errors: [{ pointer: '/totp', code: 'method_required' }] })),
+    ).toEqual({ kind: 'lastMethod' });
+    expect(describeAccountFailure(problem(409, 'last_second_step_method'))).toEqual({ kind: 'lastMethod' });
   });
 
   it("EVM-028 AC8 404 is one thing for a stranger's and a missing object; the others have their kinds", () => {
