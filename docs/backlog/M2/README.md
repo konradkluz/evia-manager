@@ -140,7 +140,7 @@ Fazy 1–3 (EVM-090…107) — wpisy, komentarze, lista, szczegóły, szybkie zl
 
 ## Epik E15 — Wizja lokalna (plan z 2026-11-16; EVM-135…141 `ready` po uzgodnieniu z ADR-0024 i akceptacji Konrada „wg rekomendacji”)
 
-**Stan 2026-11-17:** EVM-135, 136, 137, 138 i 141 — `in-review` (jeden wspólny PR); EVM-140 i EVM-139 — `ready`, następny PR po scaleniu.
+**Stan 2026-11-17:** EVM-135, 136, 137, 138 i 141 — `in-review` (PR #148 scalony 2026-11-17; demo i akceptacja Konrada); EVM-140 i EVM-139 — `in-review` (drugi PR; EVM-139 AC6 częściowo, usuwanie w trybie `report`).
 
 **Cel:** technik (w aplikacji, także offline) i biuro (w panelu) zakładają **wizję lokalną** samym adresem — zdjęcia, filmy i wpisy z oględzin trafiają do systemu przed ofertą, bez zbierania danych klienta, który może nie zostać klientem; po akceptacji oferty biuro przypisuje klienta i wizja staje się zwykłym zleceniem (te same media, numer, wpisy). Wizje bez klienta znikają automatycznie (90 dni; odrzucona 14 dni) — to realny zysk prywatności.
 

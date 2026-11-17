@@ -4,7 +4,7 @@ title: "API i worker: wizja lokalna — automatyczne trwałe usuwanie (90 / 14 d
 type: story
 milestone: M2
 epic: E15 Wizja lokalna
-status: in-progress
+status: in-review
 priority: P1
 path: pelna             # pierwsze automatyczne usuwanie danych biznesowych, art. 17 RODO, nowy sekret
 owner: backend-developer
@@ -65,8 +65,22 @@ Przypomnienia, przedłużenie, limit (EVM-140); ekrany; anonimizacja zamiast usu
 
 ## Notatki
 Rozmiar wg ADR-0024: **L**. Ostatnia w kolejności (po 138); do tego czasu wszystkie wizje są testowe (decyzja 16).
+- **AC6 spełnione częściowo — decyzja Konrada:** osobne poświadczenie `worker` do rejestru usunięć (wyłącznie `PutObject`; manifest sekretów, polityka bucketu) NIE jest w kodzie infrastruktury — nowy plik w manifeście sekretów zatrzymałby kanał wdrożeń do czasu utworzenia sekretu na VM. Jest opis kroków w `docs/ops/runbooks/retencja.md` („Włączenie `enforce` — kroki”). W trybie `report` rejestr nie jest używany; w `enforce` bez poświadczenia zadanie odmawia bezpiecznie (wizja nietknięta, audyt i alert). Rekomendacja security i Tech Leada: wydzielić część IaC do osobnej historyjki (sesja IaC z Konradem) i zamknąć EVM-139 z tą adnotacją.
+- **Warunki konieczne przed włączeniem `enforce` (osobny PR zatwierdzony przez Konrada):** (1) działające kopie zapasowe (RR-91) i test odtworzenia obejmujący wpisy `site_survey_purged` (narzędzie odtwarzania z EVM-062 wymaga rozszerzenia — `docs/ops/runbooks/rejestr-usuniec.md` pkt 4); (2) własny klucz `worker` do rejestru + wynik `bucket-verify.sh`; (3) tydzień zgodnych liczb kandydatów w trybie `report`; (4) decyzja w sprawie wyścigu z zapisami potomnymi (niżej); (5) aktualizacja RR-55 i RR-102.
+- **Rozstrzygnięcia z delegacji (do potwierdzenia przy demo):**
+  1. „Lokalizacja założona dla wizji” nie ma znacznika w danych — reguła: ten sam twórca, utworzona do 24 h przed wizją, niewskazywana przez inne zlecenie ani dokument; starsze lokalizacje zostają (adres może zostać w bazie).
+  2. Rejestr działa „co najmniej raz”: transakcja wycofana po zapisie do rejestru zostawia osierocony wpis (także przy przerwaniu z powodu medium dodanego w trakcie usuwania — licznik `changedDuringPurge`, ponowienie w następnym przebiegu).
+  3. `media_assets.deleted_by` = autor uploadu (klucz obcy do użytkowników nie przyjmuje aktora systemowego) — w danych wygląda na usunięcie przez człowieka; do opisania w runbooku audytu.
+  4. Znacznik redakcji wpisów dziennika zostaje „…przez administratora” (wyzwalacz przyjmuje tylko ten wzorzec).
+  5. Usuwanie zeruje także notatki pozycji zakresu, „powód blokady” i „notatki” etapów procesu, a nazwę etapu dopisanego ręcznie zmienia na „Etap” (ustalenie major z przeglądu security, `810906ca`).
+  6. Tryb w `infra/runtime/compose.staging.yaml`: `SITE_SURVEY_PURGE_MODE: report`; pusta lub błędna wartość zatrzymuje start zadania.
+- **Ryzyka rezydualne (security / przegląd kodu) — do decyzji przed `enforce`:** wpis potomny (medium, notatka, pozycja) dodany dokładnie w trakcie usuwania może zostać przy nagrobku (propozycja: wyzwalacz odrzucający wstawienia do zlecenia z `site_survey_purged_at`); okno milisekund między ponownym odczytem mediów a ich oznaczeniem nie jest zamknięte blokadą; przy 50 lub więcej trwale błędnych najstarszych kandydatach limit 50 na przebieg blokuje pozostałe.
+- **Minor / nit z przeglądów — zostają:** przywrócenie nagrobka z kosza kończy się `500` zamiast `409` (i nagrobki są widoczne w „Koszu”); odwrotna kolejność blokad „pliki → medium” względem reszty modułu mediów (możliwe zakleszczenie = ponowienie); powtarzalny błąd po zapisie do rejestru dopisuje kolejny osierocony wpis i alert przy każdym przebiegu; zapytanie o kandydatów nie korzysta z indeksu częściowego; tytuł jednego testu w `deploy-agent.test.ts` niezgodny z zachowaniem; dowód „bez `DELETE`” dotyczy roli `evia_app` (osobnej roli `worker` nie ma).
 
 ## Dziennik
 - 2026-11-16 — szkic (product-owner)
 - 2026-11-16 — uzgodniono z ADR-0024, wpisano decyzje Konrada („akceptuję wg rekomendacji”); **status ready** (product-owner)
 - 2026-11-17 — start realizacji w kolejce `/noc-2026-11-16` (tor E, klon n1, gałąź `feature/queue-2026-11-17-wizja-lokalna-usuwanie` od części API EVM-140 `75050884`); **status `in-progress`** (Tech Lead)
+- 2026-11-17 — implementacja (backend-developer): zadanie `work-orders.site-survey-purge`, tryby `report` / `enforce`, uczestnicy `media` / `timeline`, fasada `sites`, migracja `0068` `a6c2f01a`; dokumenty i tryb `report` we wdrożeniu `414b5ac9`; akcje audytu w kontrakcie `fb5560a2`; etykiety audytu w panelu `8d13a9ba` (Tech Lead)
+- 2026-11-17 — przeglądy: security-engineer **APPROVE z uwagami** (tylko dla trybu `report`) z jednym major (wolny tekst pozycji zakresu i etapów procesu) — poprawione `810906ca`; QA **PASS z uwagami**, AC6 częściowo (raport `docs/qa/EVM-139/raport-qa.md`, ścisły test AC4 i testy brzegowe `7f8742f3`); code-reviewer **APPROVE z uwagami** z jednym major (medium dodane w trakcie usuwania) — poprawione `040d4ae2`
+- 2026-11-17 — bramka lokalna na gałęzi zintegrowanej z `main` po scaleniu PR #148: `pnpm run gate` — 68/68 zadań, pokrycie zmienionego kodu (natywne) linie 96,4%, gałęzie 97,4% po dopisaniu testów `681908ef`; `npm run test:tools`, `npm run docs:check` (0 błędów), `pnpm run gate:deploy` — kody wyjścia 0; pełna integracja API, E2E Linux i skany — w CI PR-u. **Status `in-review`** — PR wspólny z EVM-140; AC6 częściowo — decyzja Konrada (Tech Lead)
