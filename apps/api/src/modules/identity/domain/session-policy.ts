@@ -4,6 +4,7 @@
  * very deadline the session is already over (`now >= deadline`), which is the same boundary the SQL conditions use
  * (`deadline > now`).
  */
+import type { UserRole } from '@evia/contracts';
 import { SESSION_ABSOLUTE_MS, SESSION_IDLE_MS, SESSION_TOUCH_INTERVAL_MS, STEP_UP_WINDOW_MS } from './constants.ts';
 
 export interface SessionDeadlines {
@@ -46,6 +47,16 @@ export function lastStepUpAuthentication(session: {
   if (passkeyAuthenticatedAt === null) return totpAuthenticatedAt;
   if (totpAuthenticatedAt === null) return passkeyAuthenticatedAt;
   return passkeyAuthenticatedAt > totpAuthenticatedAt ? passkeyAuthenticatedAt : totpAuthenticatedAt;
+}
+
+/**
+ * Does a sign-in to the panel with this method open the window of step-up operations (K1 of ADR-0023; SR-SESS-08, TM-90, RR-101)? A passkey does for
+ * every role, a code of the app for the Editor and the Read-only user — but not for the Administrator: a code is phishable in real time, so the first
+ * sensitive operation after such a sign-in asks for a NEW code (another time step — the step of the sign-in is spent) or a passkey. Decided with the role
+ * read from the database at the sign-in.
+ */
+export function signInOpensStepUpWindow(role: UserRole, method: 'passkey' | 'totp'): boolean {
+  return method === 'passkey' || role !== 'administrator';
 }
 
 /**

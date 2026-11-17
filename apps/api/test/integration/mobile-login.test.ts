@@ -6,7 +6,9 @@ import { SLEEPER } from '../../src/platform/tokens.ts';
 import { PATHS } from '../support/flows.ts';
 import { createIdentityApp, type IdentityApp } from '../support/identity-app.ts';
 import { auditActions, emailHarness, outboxRows } from '../support/invitation-fixtures.ts';
+import { ACCOUNT, reauthWithKey, signedInWithKey } from '../support/account-flows.ts';
 import { enrolledAccount } from '../support/login-flows.ts';
+import { STEP_UP } from '../support/step-up-flows.ts';
 import {
   APP_HEADERS,
   deviceRow,
@@ -20,7 +22,17 @@ import {
   wrongCode,
 } from '../support/mobile-flows.ts';
 import { CountingHasher, InspectingSleeper, WRONG, wrongPasswords } from '../support/throttle-flows.ts';
-import { addTotp, codeNow, everythingWritten, nextStep, sendLoginTotp, startLogin, totpAccount } from '../support/totp-flows.ts';
+import {
+  addTotp,
+  codeNow,
+  everythingWritten,
+  nextStep,
+  SECOND_STEP,
+  sendLoginTotp,
+  startLogin,
+  totpAccount,
+  type TotpAccount,
+} from '../support/totp-flows.ts';
 
 let current: IdentityApp;
 let hasher: CountingHasher;
@@ -219,6 +231,45 @@ describe('sign-in of the phone in two steps (EVM-094 AC1; SR-AUTH-07, ASVS V6.3.
     expect((await outboxRows(current, { recipient: admin.user.id, kind: 'administrator_alert' })).map((row) => row.variant)).toEqual([
       'administrator_new_device',
     ]);
+  });
+});
+
+describe('the Administrator with a code of the app on the phone (EVM-134 AC6; ADR-0023, SR-AUTHZ-12)', () => {
+  it('EVM-134 AC6 an Administrator who added the code in the panel (Konto → Drugi krok logowania) signs in on the phone with it, unchanged; the code spent on the phone does not sign in to the panel', async () => {
+    const admin = await signedInWithKey(current);
+    expect((await reauthWithKey(admin.panel, admin.authenticator, 'second_step_change', admin.password)).status).toBe(204);
+    const setup = await admin.panel.post(ACCOUNT.totpEnrolment);
+    expect(setup.status).toBe(200);
+    const { secret } = setup.body as { secret: string };
+    expect((await admin.panel.post(ACCOUNT.totpConfirm, { code: codeNow(current, secret) })).status).toBe(200);
+    const account = { ...admin, secret } as unknown as TotpAccount;
+
+    const phone = newPhone(current);
+    const { second } = await signInPhone(current, phone, account);
+    expect(second.status).toBe(200);
+    expect(second.body).toMatchObject({ user: { role: 'administrator' } });
+    const spent = codeNow(current, secret);
+    const web = current.panel();
+    const refused = await sendLoginTotp(web, await startLogin(web, account), spent);
+    expect(refused.status).toBe(401);
+    expect(problemOf(refused)).toBe('totp_failed');
+  });
+
+  it('EVM-134 AC6 SR-AUTHZ-12 the phone of an Administrator still has no function of the administration: its token opens no operation of the panel nor of its second step (401)', async () => {
+    const account = await totpAccount(current, { role: 'administrator' });
+    const phone = await signedInPhone(current, account);
+    const calls: Array<[string, () => PromiseLike<{ status: number; body: unknown }>]> = [
+      ['listUsers', () => phone.get('/api/v1/users', phone.authorised())],
+      ['listAuditEvents', () => phone.get(STEP_UP.audit, phone.authorised())],
+      ['stepUp', () => phone.post(SECOND_STEP.stepUp, { method: 'totp', code: '123456' }, phone.authorised())],
+      ['startTotpEnrolment', () => phone.post(SECOND_STEP.setup, undefined, phone.authorised())],
+    ];
+    const answers: Record<string, string> = {};
+    for (const [label, call] of calls) {
+      const response = await call();
+      answers[label] = `${response.status} ${problemOf(response)}`;
+    }
+    expect(answers).toEqual(Object.fromEntries(calls.map(([label]) => [label, '401 unauthenticated'])));
   });
 });
 

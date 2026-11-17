@@ -308,28 +308,57 @@ describe('W-16 Zmień rolę (EVM-027 AC1, AC5, AC7)', () => {
     expect(within(dialog).queryByText('Wszyscy administratorzy dostaną alert bezpieczeństwa.')).toBeNull();
   });
 
-  it('EVM-027 AC1 an account without a passkey is told to add one first and nothing is sent (a code from the app is not enough)', async () => {
+  it('EVM-134 AC3 an account with only a code of the app can be made an Administrator: the change is sent, nothing asks for a passkey', async () => {
     const jan = { ...JAN, secondStepMethods: ['totp'] } satisfies User;
-    const api = accessApi(ok([ANNA, jan]));
+    const api = accessApi(ok([ANNA, jan]), { [ROLE]: () => json(200, { ...jan, role: 'administrator', version: 4 }) });
     const dialog = await open(api, jan);
     await userEvent.click(within(dialog).getByRole('radio', { name: /^Administrator/ }));
     await userEvent.click(within(dialog).getByRole('button', { name: 'Zmień rolę' }));
-    expect(within(dialog).getByRole('alert').textContent).toBe(
-      'To konto musi najpierw dodać klucz dostępu (Konto → Drugi krok logowania).',
-    );
-    expect(api.calls(ROLE)).toHaveLength(0);
-    // The message goes with the next choice.
-    await userEvent.click(within(dialog).getByRole('radio', { name: /^Tylko odczyt/ }));
-    expect(within(dialog).queryByRole('alert')).toBeNull();
+    expect(await screen.findByText('Zmieniono rolę.')).toBeTruthy();
+    expect(parseBody(api.calls(ROLE)[0]?.body ?? '')).toEqual({ role: 'administrator' });
+    expect(screen.queryByText(/musi najpierw dodać klucz dostępu/)).toBeNull();
   });
 
-  it('EVM-027 AC1 when the server refuses with administrator_passkey_required the dialog says the same and keeps the choice', async () => {
+  it('EVM-134 AC3 a 409 the panel no longer knows (administrator_passkey_required) is a failure with a code to report, the choice stays', async () => {
     const api = accessApi(ok([ANNA, JAN]), { [ROLE]: () => problem(409, 'administrator_passkey_required') });
     const dialog = await open(api);
     await userEvent.click(within(dialog).getByRole('radio', { name: /^Administrator/ }));
     await userEvent.click(within(dialog).getByRole('button', { name: 'Zmień rolę' }));
-    expect(await within(dialog).findByText('To konto musi najpierw dodać klucz dostępu (Konto → Drugi krok logowania).')).toBeTruthy();
+    expect((await within(dialog).findByRole('alert')).textContent).toContain('(kod: abcdef01)');
+    expect(within(dialog).queryByText(/klucz dostępu/)).toBeNull();
     expect(within(dialog).getByRole('radio', { name: /^Administrator/, checked: true })).toBeTruthy();
+  });
+
+  it('EVM-134 AC4 after a login with the code the first change of a role asks for a NEW code: the code of the login is refused, a new one confirms and the change goes once more', async () => {
+    let stepped = false;
+    const codes: string[] = [];
+    const api = accessApi(ok([ANNA, JAN]), {
+      [ROLE]: () => (stepped ? json(200, { ...JAN, role: 'read_only', version: 4 }) : stepUpRequired()),
+      [STEP_UP]: (request) => {
+        const { code } = parseBody(request.body) as { code: string };
+        codes.push(code);
+        // The code of the login (the same step of time) is refused like a wrong one (K1, anti-replay).
+        if (code === '111111') return problem(401, 'totp_failed');
+        stepped = true;
+        return json(200, { csrfToken: 'csrf-rotated' });
+      },
+    });
+    const dialog = await open(api);
+    await userEvent.click(within(dialog).getByRole('radio', { name: /^Tylko odczyt/ }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Zmień rolę' }));
+    const confirm = await screen.findByRole('alertdialog', { name: 'Potwierdź tożsamość, aby zmienić rolę użytkownika' });
+    const field = within(confirm).getByLabelText<HTMLInputElement>('Kod z aplikacji uwierzytelniającej');
+    expect(within(confirm).getByText(/Wpisz nowy kod z aplikacji — ten sam kod nie zadziała drugi raz\./)).toBeTruthy();
+    await userEvent.type(field, '111111');
+    await userEvent.click(within(confirm).getByRole('button', { name: 'Potwierdź' }));
+    expect((await within(confirm).findByRole('alert')).textContent).toBe('Kod jest nieprawidłowy lub wygasł. Wpisz nowy kod z aplikacji.');
+    expect(document.activeElement).toBe(field);
+    expect(api.calls(ROLE)).toHaveLength(1);
+    await userEvent.type(field, '222222');
+    await userEvent.click(within(confirm).getByRole('button', { name: 'Potwierdź' }));
+    expect(await screen.findByText('Zmieniono rolę.')).toBeTruthy();
+    expect(codes).toEqual(['111111', '222222']);
+    expect(api.calls(ROLE)).toHaveLength(2);
   });
 });
 
@@ -491,10 +520,10 @@ describe('W-16 Zresetuj drugi krok logowania (EVM-027 AC4, AC7)', () => {
     expect(parseBody(api.calls(RESET)[0]?.body ?? '')).toEqual({ identityVerification: 'in_person' });
   });
 
-  it('EVM-027 AC7 for an Administrator the dialog says that only a key can be set up and that all Administrators are alerted', async () => {
+  it('EVM-027 AC7 EVM-134 AC2 for an Administrator the dialog says that all Administrators are alerted, and nothing about a key only', async () => {
     const jan = { ...JAN, role: 'administrator' } as const;
     const dialog = await open(accessApi(ok([ANNA, jan])), jan);
-    expect(within(dialog).getByText('Konto administratora skonfiguruje wyłącznie klucz dostępu.')).toBeTruthy();
+    expect(within(dialog).queryByText(/wyłącznie klucz dostępu/)).toBeNull();
     expect(within(dialog).getByText('Wszyscy administratorzy dostaną alert bezpieczeństwa.')).toBeTruthy();
   });
 });

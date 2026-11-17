@@ -3,6 +3,7 @@ import {
   deadlinesAt,
   isExpired,
   lastStepUpAuthentication,
+  signInOpensStepUpWindow,
   slidIdleDeadline,
   stepUpFresh,
   touchDue,
@@ -84,5 +85,19 @@ describe('the window of step-up opened by a passkey or by a code of the app (EVM
       stepUpFresh(lastStepUpAuthentication({ passkeyAuthenticatedAt: null, totpAuthenticatedAt: earlier }), at('2026-10-07T08:15:00.000Z')),
     ).toBe(false);
     expect(stepUpFresh(lastStepUpAuthentication({ passkeyAuthenticatedAt: null, totpAuthenticatedAt: null }), now)).toBe(false);
+  });
+});
+
+describe('signing in to the panel and the window of step-up (EVM-134 AC4 K1; ADR-0023, SR-SESS-08, TM-90)', () => {
+  it('EVM-134 AC4 K1 signing in with a code of the app opens no step-up window for the Administrator; a passkey does', () => {
+    expect(signInOpensStepUpWindow('administrator', 'totp')).toBe(false);
+    expect(signInOpensStepUpWindow('administrator', 'passkey')).toBe(true);
+  });
+
+  it('EVM-134 AC4 K1 the Editor and the Read-only user are unchanged: a code or a passkey at sign-in opens the window', () => {
+    for (const role of ['editor', 'read_only'] as const) {
+      expect(signInOpensStepUpWindow(role, 'totp'), role).toBe(true);
+      expect(signInOpensStepUpWindow(role, 'passkey'), role).toBe(true);
+    }
   });
 });

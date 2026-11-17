@@ -37,9 +37,9 @@ test.describe('accessibility of the operations of W-16 in the browser, with colo
       const role = page.getByRole('dialog', { name: 'Zmienić rolę konta „Biuro Testowe”?' });
       await expect(role).toBeVisible();
       expect(await violations(page)).toEqual([]);
-      await role.getByRole('radio', { name: /^Administrator/ }).check();
+      // EVM-134 AC3: the role Administrator needs no passkey any more — the error of the dialog is the unchanged role.
       await role.getByRole('button', { name: 'Zmień rolę' }).click();
-      await expect(role.getByRole('alert')).toBeVisible();
+      await expect(role.getByRole('alert')).toContainText('Wybierz rolę inną niż obecna.');
       expect(await violations(page)).toEqual([]);
       await role.getByRole('button', { name: 'Anuluj' }).click();
       await page.getByRole('button', { name: /^Akcje konta: Jan Przykładowy/ }).click();

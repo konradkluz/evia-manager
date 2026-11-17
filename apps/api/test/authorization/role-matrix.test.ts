@@ -432,7 +432,7 @@ describe('the step-up in the matrix (EVM-029 AC7; SR-AUTHZ-05, SR-AUTHZ-11, SR-S
     expect(expect_('adminThing', withKey('administrator', 'web', 'fresh'))).toEqual({ outcome: 'allowed' });
   });
 
-  it('EVM-029 AC7 the audit log in the real contract: Administrator after a fresh key only, Editor and Read-only forbidden in every variant, never a step-up', () => {
+  it('EVM-029 AC7 EVM-134 AC4 the audit log in the real contract: Administrator after a fresh step-up only (the matrix models a fresh passkey; a new code of the app is the same window), Editor and Read-only forbidden in every variant, never a step-up', () => {
     const cells = buildMatrix(AUTHZ_MANIFEST, lists).filter((cell) => cell.operationId === 'listAuditEvents');
     const allowed = cells.filter((cell) => cell.expectation.outcome === 'allowed');
     expect(allowed.map((cell) => JSON.stringify(cell.caller))).toEqual([JSON.stringify(withKey('administrator', 'web', 'fresh'))]);

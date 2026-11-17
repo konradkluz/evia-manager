@@ -131,8 +131,7 @@ export const pl = {
       remainingOther: 'Pozostało {{count}} kodu.',
       last: 'To był ostatni kod.',
       emailSent: 'Wysłaliśmy e-mail z informacją o tym logowaniu.',
-      hintAdministrator:
-        'Bez klucza dostępu kolejne logowanie znów wymaga kodu. Poproś innego administratora o reset drugiego kroku logowania.',
+      hintAdministrator: 'Jeśli nie masz już żadnej metody, poproś innego administratora o reset drugiego kroku logowania.',
       hintOther: 'Jeśli nie masz już żadnej metody, poproś administratora o reset drugiego kroku logowania.',
       continue: 'Przejdź dalej',
     },
@@ -228,7 +227,6 @@ export const pl = {
     offlineBanner: 'Brak połączenia. Konfiguracja wymaga połączenia z internetem. Postęp zostaje na tej karcie.',
     done: 'Drugi krok logowania jest skonfigurowany.',
     step: 'Krok {{current}} z {{total}}',
-    passkeyRequired: 'Klucz dostępu jest obowiązkowy.',
     method: {
       legend: 'Wybierz metodę',
       passkey: 'Klucz dostępu — Windows Hello, klucz bezpieczeństwa albo telefon (zalecane w panelu)',
@@ -2202,7 +2200,6 @@ export const pl = {
       intro: 'Każda zmiana wymaga hasła i drugiego kroku.',
     },
     rules: {
-      administratorKey: 'Konto administratora musi mieć klucz dostępu — najpierw dodaj drugi.',
       lastMethod: 'To jedyna metoda — najpierw dodaj inną.',
     },
     passkeys: {
@@ -2218,7 +2215,7 @@ export const pl = {
       failed: 'Nie udało się dodać klucza dostępu. Spróbuj ponownie.',
       addedToast: 'Dodano klucz dostępu.',
       notFound: 'Nie znaleziono klucza.',
-      secondKey: 'Dodaj drugi klucz dostępu, np. w telefonie — bez niego utrata komputera blokuje logowanie.',
+      secondKey: 'Dodaj drugą metodę, np. kod z aplikacji albo klucz w telefonie — bez niej utrata komputera blokuje logowanie.',
     },
     totp: {
       title: 'Kod z aplikacji uwierzytelniającej',
@@ -2227,7 +2224,6 @@ export const pl = {
       addTitle: 'Dodaj kod z aplikacji',
       added: 'Dodano {{date}}',
       addedToast: 'Dodano kod z aplikacji.',
-      administratorOnly: 'Służy tylko do logowania w aplikacji na telefonie.',
       notFound: 'Nie znaleziono kodu z aplikacji. Lista została odświeżona.',
     },
     remove: {
@@ -2239,7 +2235,7 @@ export const pl = {
       passkeyDone: 'Usunięto klucz dostępu.',
       totpLabel: 'Usuń kod z aplikacji uwierzytelniającej',
       totpTitle: 'Usunąć kod z aplikacji uwierzytelniającej?',
-      totpBody: 'Bez niego nie zalogujesz się w aplikacji na telefonie.',
+      totpBody: 'Bez niego nie zalogujesz się w aplikacji na telefonie ani, jeśli to Twoja metoda, w panelu.',
       totpBodyReadOnly: 'Tym kodem nie zalogujesz się już do panelu.',
       totpSubmit: 'Usuń kod',
       totpDone: 'Usunięto kod z aplikacji.',
@@ -2356,6 +2352,7 @@ export const pl = {
     code: {
       label: 'Kod z aplikacji uwierzytelniającej',
       hint: '6 cyfr z aplikacji uwierzytelniającej.',
+      hintFresh: '6 cyfr z aplikacji uwierzytelniającej. Wpisz nowy kod z aplikacji — ten sam kod nie zadziała drugi raz.',
       submit: 'Potwierdź',
       invalid: 'Kod jest nieprawidłowy lub wygasł. Wpisz nowy kod z aplikacji.',
     },
@@ -2363,7 +2360,9 @@ export const pl = {
     rateLimited: 'Zbyt wiele prób. Spróbuj ponownie za {{minutes}} min.',
     serverError: 'Nie udało się potwierdzić tożsamości. Spróbuj ponownie za chwilę. Jeśli problem się powtarza, zgłoś go (kod: {{code}}).',
     offline: 'Brak połączenia. Potwierdzenie wymaga połączenia z internetem.',
-    resetHint: 'Nie masz klucza dostępu? Poproś innego administratora o reset drugiego kroku logowania.',
+    noCode: 'Twoje konto nie ma kodu z aplikacji. Użyj klucza dostępu.',
+    noKey: 'Twoje konto nie ma klucza dostępu. Wpisz kod z aplikacji.',
+    resetHint: 'Nie masz dostępu do metody? Poproś innego administratora o reset drugiego kroku logowania.',
     resetHintOther: 'Nie masz dostępu do metody? Poproś administratora o reset drugiego kroku logowania.',
   },
   administration: {
@@ -2378,7 +2377,7 @@ export const pl = {
     title: 'Użytkownicy',
     invite: 'Zaproś użytkownika',
     soleAdministrator:
-      'Jesteś jedynym aktywnym administratorem. Zaproś drugą osobę z rolą Administrator — bez niej utrata klucza dostępu zablokuje zarządzanie systemem.',
+      'Jesteś jedynym aktywnym administratorem. Zaproś drugą osobę z rolą Administrator — bez niej utrata drugiego kroku logowania zablokuje zarządzanie systemem.',
     offlineHint: 'Zmienisz po powrocie połączenia.',
     stale: 'Dane mogą być nieaktualne (z {{time}}).',
     table: {
@@ -2432,7 +2431,6 @@ export const pl = {
         summary: 'Sesje tego konta zakończą się — nowa rola zadziała po ponownym zalogowaniu.',
         submit: 'Zmień rolę',
         same: 'Wybierz rolę inną niż obecna.',
-        passkeyRequired: 'To konto musi najpierw dodać klucz dostępu (Konto → Drugi krok logowania).',
         devicesWarning:
           'Rola Tylko odczyt wyczyści dane firmowe w aplikacji na telefonach tego konta (liczba telefonów: {{devices}}). Niewysłane elementy ostatnio zgłoszone przez telefony: {{pending}} — zostaną utracone.',
         devicesUnknown: 'Nie udało się sprawdzić telefonów tego konta. Aby zmienić rolę mimo to, wybierz „Zmień rolę” jeszcze raz.',
@@ -2468,7 +2466,6 @@ export const pl = {
           'Usuniemy wszystkie metody drugiego kroku i kody odzyskiwania tego konta, a jego sesje zakończą się. Przy następnym logowaniu konto skonfiguruje drugi krok od nowa. Wyślemy e-mail na adres konta.',
         window:
           'Drugi krok trzeba skonfigurować w ciągu 24 godzin — najlepiej od razu, w trakcie tej rozmowy. Po tym czasie potrzebny będzie ponowny reset.',
-        administratorKey: 'Konto administratora skonfiguruje wyłącznie klucz dostępu.',
         password:
           'Jeśli ta osoba zapomniała hasła albo hasło mogło trafić w niepowołane ręce (np. było zapisane na zgubionym telefonie), niech najpierw ustawi nowe hasło z innego urządzenia („Nie pamiętasz hasła?” w logowaniu) — dopiero potem zresetuj drugi krok.',
         submit: 'Zresetuj drugi krok',
@@ -2573,7 +2570,7 @@ export const pl = {
     title: 'Urządzenia',
     confirm: {
       title: 'Potwierdź tożsamość, aby zobaczyć urządzenia.',
-      description: 'Urządzenia pokazujemy po ponownym potwierdzeniu tożsamości kluczem dostępu.',
+      description: 'Urządzenia pokazujemy po ponownym potwierdzeniu tożsamości.',
       action: 'Potwierdź tożsamość',
     },
     filters: {
@@ -2668,7 +2665,7 @@ export const pl = {
     },
     confirm: {
       title: 'Potwierdź tożsamość, aby zobaczyć dziennik audytu.',
-      description: 'Dziennik pokazujemy po ponownym potwierdzeniu tożsamości kluczem dostępu.',
+      description: 'Dziennik pokazujemy po ponownym potwierdzeniu tożsamości.',
       action: 'Potwierdź tożsamość',
       hidden: 'Czas potwierdzenia tożsamości minął — dane dziennika zostały ukryte.',
     },

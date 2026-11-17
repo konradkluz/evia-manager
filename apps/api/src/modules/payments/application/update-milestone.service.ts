@@ -19,7 +19,7 @@
  *      checks below. The key is bound to the ORDER and the MILESTONE: the same key and body elsewhere is `422 idempotency_mismatch`;
  *   5. a closed order (settled or cancelled, PO-8) is `409 work_order_closed`;
  *   6. an amount of an `invoiced` or `paid` milestone is a correction of the Administrator with a step-up (EVM-057 AC3, AC5, AC6; P2;
- *      SR-AUTHZ-10, SR-SESS-08): every other role is `403 forbidden`, the Administrator without an authentication with a passkey in the
+ *      SR-AUTHZ-10, SR-SESS-08): every other role is `403 forbidden`, the Administrator without a step-up in the
  *      last 15 minutes `403 step_up_required` (the role first; `stepUpFresh` of `identity` with the injected clock); an amount of a
  *      `cancelled` milestone is `403 forbidden` for every caller — also together with other fields, and before the 409 below. A `403`
  *      rolls back and leaves no idempotency record, so a retry with the same key after the step-up performs the correction;

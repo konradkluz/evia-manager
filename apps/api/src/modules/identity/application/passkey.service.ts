@@ -1,5 +1,5 @@
 /**
- * Passkey enrolment of the Administrator (AC4; SR-AUTH-06, SR-AUTH-09; P1) — the only MFA method until EVM-023.
+ * Passkey enrolment (AC4; SR-AUTH-06, SR-AUTH-09; P1) — the first MFA method; a code of the app is the other one for every role (EVM-023, EVM-134).
  *
  * Registration options store a one-time challenge (SHA-256 only, 5 minutes) tied to the session, the user and the
  * purpose. The response is verified before any transaction (origin and RP ID from the configuration, user verification

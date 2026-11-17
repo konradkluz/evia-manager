@@ -76,7 +76,7 @@ workOrderDocuments:
     description: >-
       EVM-050: opcjonalne `anchor` (`work_order` domyślnie, `site`, `customer`) - dokument lokalizacji albo klienta ZLECENIA ze ścieżki (serwer bierze `siteId`/`customerId`
       ze zlecenia; w treści - `400 read_only_field`); `anchor=site` z klasą `identity_data` - `400` (`/anchor`, `identity_data_not_on_site`, SR-AUTHZ-08, AB-19);
-      `anchor=customer` bez klienta zlecenia - `400` (`no_customer`); etap przy kotwicy innej niż zlecenie - `400` (`requires_work_order_anchor`).
+      `anchor=customer` przy zleceniu bez klienta (wizja lokalna) - `409` (`customer_required`); etap przy kotwicy innej niż zlecenie - `400` (`requires_work_order_anchor`).
       Idempotencja: skrót treści obejmuje `anchor` (ten sam klucz z inną kotwicą - `422 idempotency_mismatch`). Plik kotwicy lokalizacji i klienta wgrywa się
       ścieżką zlecenia (`upload-sessions`), z którego dokument powstał.
       Utworzenie dokumentu, jego wersji 1 i rekordu pliku w stanie `pending_upload` (EVM-047 AC1-AC4, AC6, AC7; SR-AUTHZ-02, SR-AUTHZ-05, SR-AUTHZ-07,

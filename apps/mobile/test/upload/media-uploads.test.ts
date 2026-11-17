@@ -1242,3 +1242,40 @@ describe('a failing adoption of rejections (EVM-137 W10)', () => {
     expect(r.native.armed).toHaveLength(1);
   });
 });
+
+describe('the discard of a file tells the queue it changed (EVM-137 AC6, W10)', () => {
+  it('EVM-137 AC6 W10: "Usuń z telefonu" of a file with a rejected command removes the command AND tells the owner of the counters, once', async () => {
+    let told = 0;
+    const r = await rig();
+    const uploads = r.setup({
+      onQueueChanged: () => {
+        told += 1;
+      },
+    });
+    hold(r, 1);
+    await uploads.add(photo(1));
+    const [row] = await r.store.media.list();
+    await r.queue.update(row?.mutationId ?? '', { state: 'needs_attention', attempts: 1, lastCode: 'target_unavailable' });
+    await uploads.refresh();
+    await uploads.settled();
+    expect(await uploads.discard(asset(1))).toBe(true);
+    expect(told).toBe(1);
+  });
+
+  it('EVM-137 AC6: the discard of a file whose command was not rejected does not touch the queue and tells nobody', async () => {
+    let told = 0;
+    const r = await rig();
+    const uploads = r.setup({
+      onQueueChanged: () => {
+        told += 1;
+      },
+    });
+    hold(r, 1);
+    await uploads.add(photo(1));
+    await apply(r, 1);
+    await r.store.media.setState(asset(1), 'needs_attention', 'quarantined', 5);
+    await uploads.refresh();
+    expect(await uploads.discard(asset(1))).toBe(true);
+    expect(told).toBe(0);
+  });
+});

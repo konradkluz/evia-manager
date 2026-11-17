@@ -74,25 +74,17 @@ describe('the browser and the system of a session come out of a closed dictionar
   });
 });
 
-describe('the rules of the methods of the second step (EVM-028 AC4; SR-AUTH-10, P1)', () => {
-  it('EVM-028 AC4 an Administrator with one passkey cannot remove it; with two he can', () => {
-    expect(canRemoveMethod('administrator', { passkeys: 1, totp: false }, 'passkey')).toEqual({ allowed: false, required: 'passkey' });
-    expect(canRemoveMethod('administrator', { passkeys: 2, totp: false }, 'passkey')).toEqual({ allowed: true });
+describe('the rules of the methods of the second step (EVM-028 AC4, EVM-134 AC3; SR-AUTH-10, ADR-0023)', () => {
+  it('EVM-134 AC3 one rule for every role: the last method — a passkey or an active code of the app — cannot be removed', () => {
+    expect(canRemoveMethod({ passkeys: 1, totp: false })).toBe(false);
+    expect(canRemoveMethod({ passkeys: 0, totp: true })).toBe(false);
+    expect(canRemoveMethod({ passkeys: 0, totp: false })).toBe(false);
   });
 
-  it('EVM-028 AC4 the code of the app does not count for an Administrator: a key and a code is still one method, and the code can always go', () => {
-    expect(canRemoveMethod('administrator', { passkeys: 1, totp: true }, 'passkey')).toEqual({ allowed: false, required: 'passkey' });
-    expect(canRemoveMethod('administrator', { passkeys: 1, totp: true }, 'totp')).toEqual({ allowed: true });
-  });
-
-  it('EVM-028 AC4 an Editor and a Read-only user keep at least one method of any kind', () => {
-    for (const role of ['editor', 'read_only'] as const) {
-      expect(canRemoveMethod(role, { passkeys: 1, totp: false }, 'passkey')).toEqual({ allowed: false, required: 'method' });
-      expect(canRemoveMethod(role, { passkeys: 0, totp: true }, 'totp')).toEqual({ allowed: false, required: 'method' });
-      expect(canRemoveMethod(role, { passkeys: 1, totp: true }, 'passkey')).toEqual({ allowed: true });
-      expect(canRemoveMethod(role, { passkeys: 1, totp: true }, 'totp')).toEqual({ allowed: true });
-      expect(canRemoveMethod(role, { passkeys: 2, totp: false }, 'passkey')).toEqual({ allowed: true });
-    }
+  it('EVM-134 AC3 any one method is enough: with a key and a code either may go, and of two keys one may go (no "at least one key" for the Administrator)', () => {
+    expect(canRemoveMethod({ passkeys: 1, totp: true })).toBe(true);
+    expect(canRemoveMethod({ passkeys: 2, totp: false })).toBe(true);
+    expect(canRemoveMethod({ passkeys: 2, totp: true })).toBe(true);
   });
 });
 

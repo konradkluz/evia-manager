@@ -7,7 +7,16 @@ import { serverNow } from './server-clock.ts';
  * serves only to hide the loaded audit log when the 15 minutes end, and the rotation counter lets a request that was
  * sent with the old cookie try once more (K9).
  */
-/** The window after the last passkey authentication (ADR-0005); the server counts it, the tab only mirrors it for hiding data. */
+/**
+ * `403 forbidden` in answer to the proof of one method (the options of the key, or the code): the account has no such method
+ * (EVM-134; the server does not count it as a guess). Every role is offered both methods, so the dialogs say which one to use.
+ */
+export const isMissingMethod = (error: unknown): boolean => error instanceof ApiError && error.status === 403 && error.code === 'forbidden';
+
+/**
+ * The window after the last confirmation with a passkey or a code of the app (ADR-0005; since ADR-0023 K1 a login of an
+ * Administrator with the code does not open it); the server counts it, the tab only mirrors it for hiding data.
+ */
 export const STEP_UP_WINDOW_MS = 15 * 60_000;
 
 let rotations = 0;

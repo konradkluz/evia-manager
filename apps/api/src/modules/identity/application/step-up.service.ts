@@ -1,7 +1,7 @@
 /**
  * Step-up: renewed authentication before a sensitive operation (EVM-029 AC1–AC4, EVM-023 AC7; SR-SESS-08, SR-SESS-02, SR-AUTH-05; ASVS V7.2.4, V7.5.3, V6.3.1;
- * CWE-384, CWE-287, CWE-294, CWE-307). Two methods: a passkey, or a code of the authenticator app (Editor and Read-only; never the Administrator in the
- * panel — P1). A recovery code is not accepted (decision 16).
+ * CWE-384, CWE-287, CWE-294, CWE-307). Two methods: a passkey, or a code of the authenticator app (every role — EVM-134, ADR-0023; after an Administrator's
+ * sign-in with a code the code must be a NEW one, K1). A recovery code is not accepted (decision 16).
  *
  * Passkey. The options store a one-time challenge (SHA-256 only, 5 minutes) of the purpose `passkey_step_up`, tied to the session of the request and to its
  * user; a registration challenge and a sign-in challenge can never serve (the database CHECK and the conditions of the queries). The proof itself — the key,

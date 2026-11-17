@@ -27,7 +27,7 @@ export interface TransitionRule {
   /** `resume` — the status the order was held from (`resumeStatus`). */
   readonly to: WorkOrderStatus | typeof RESUME;
   readonly roles: readonly UserRole[];
-  /** A restoration needs a passkey authentication of the session within 15 minutes (SR-SESS-08). */
+  /** A restoration needs a step-up (a passkey or a code of the app; not a sign-in of an Administrator with a code, K1) within the last 15 minutes (SR-SESS-08). */
   readonly stepUp: boolean;
   /** The reason (`statusReason`) is required; where it is not, it is refused. */
   readonly reason: boolean;

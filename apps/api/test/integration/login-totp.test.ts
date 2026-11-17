@@ -278,34 +278,52 @@ describe('failed codes and the loginToken (EVM-023 AC2, AC8; SR-AUTH-05; B3)', (
   });
 });
 
-describe('the methods of the account and the Administrator in the panel (EVM-023 AC3; P1; B2, C3)', () => {
-  it('EVM-023 AC3 an Administrator with a passkey AND a saved code of the app is offered the key only; the code is refused by the API (403) and counted', async () => {
+describe('the methods of the account and the Administrator in the panel (EVM-023 AC3; EVM-134 AC1, AC4; ADR-0023; B2, C3)', () => {
+  it('EVM-134 AC1 an Administrator with a passkey AND a code of the app is offered both and signs in with the code; K1: the session opens no window of step-up', async () => {
     const account = await enrolledAccount(current, { role: 'administrator' });
     const { secret } = await insertTotpFactor(current, account.user.id);
     const panel = current.panel();
     const first = await firstStep(panel, account.email, account.password);
-    expect(first.body).toMatchObject({ state: 'second_step', methods: ['passkey'] });
+    expect(first.body).toMatchObject({ state: 'second_step', methods: ['passkey', 'totp'] });
     const { loginToken } = first.body as { loginToken: string };
     const response = await sendLoginTotp(panel, loginToken, codeNow(current, secret));
-    expect(response.status).toBe(403);
-    expect(response.body).toMatchObject({ code: 'forbidden' });
-    expect(response.headers['set-cookie']).toBeUndefined();
-    expect((await sessionsOf(account.user.id)).filter((session) => session.revoked_at === null).length).toBe(1);
-    expect((await failures()).map((row) => row.reason_code)).toEqual(['totp_failed']);
-    // the sixth refused try ends the attempt as well
-    for (let attempt = 0; attempt < 4; attempt += 1) await sendLoginTotp(panel, loginToken, codeNow(current, secret));
-    expect((await sendLoginTotp(panel, loginToken, codeNow(current, secret))).body).toMatchObject({ code: 'unauthenticated' });
+    expect(response.status).toBe(200);
+    expect(response.headers['set-cookie']).toBeDefined();
+    const signedIn = (await sessionsOf(account.user.id)).filter((session) => session.revoked_at === null).at(-1);
+    expect(signedIn).toMatchObject({ state: 'active', passkey_authenticated_at: null, totp_authenticated_at: null });
+    expect(await failures()).toEqual([]);
   });
 
-  it('EVM-023 AC3 B2 EVM-027 D2 an Administrator whose only factor is a code of the app has no method in the panel: no loginToken, and — with no window opened by a reset — no session either (403 mfa_setup_expired)', async () => {
+  it('EVM-134 AC1 an Administrator whose only factor is a code of the app is offered the code and signs in with it', async () => {
     const account = await enrolledAccount(current, { role: 'administrator' });
-    await insertTotpFactor(current, account.user.id);
+    const { secret } = await insertTotpFactor(current, account.user.id);
     await sql`delete from identity.passkeys where user_id = ${account.user.id}`.execute(current.database.admin);
-    const first = await firstStep(current.panel(), account.email, account.password);
-    expect(first.status).toBe(403);
-    expect(first.body).toMatchObject({ code: 'mfa_setup_expired' });
-    expect((first.body as { loginToken?: string }).loginToken).toBeUndefined();
-    expect(first.headers['set-cookie']).toBeUndefined();
+    const panel = current.panel();
+    const first = await firstStep(panel, account.email, account.password);
+    expect(first.status).toBe(200);
+    expect(first.body).toMatchObject({ state: 'second_step', methods: ['totp'] });
+    const { loginToken } = first.body as { loginToken: string };
+    expect((await sendLoginTotp(panel, loginToken, codeNow(current, secret))).status).toBe(200);
+  });
+
+  it("EVM-134 AC1 a wrong or a replayed code of an Administrator is 401 totp_failed like an Editor's (never 403 forbidden) and counted on the loginToken: the fifth ends the attempt", async () => {
+    const account = await totpAccount(current, { role: 'administrator' });
+    const used = await signInWithTotp(current, account);
+    expect(used.response.status).toBe(200);
+    const usedCode = codeNow(current, account.secret);
+    const panel = current.panel();
+    const loginToken = await startLogin(panel, account);
+    const replayed = await sendLoginTotp(panel, loginToken, usedCode);
+    expect(replayed.status).toBe(401);
+    expect(replayed.body).toMatchObject({ code: 'totp_failed' });
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      const wrong = await sendLoginTotp(panel, loginToken, wrongCode(account.secret));
+      expect(wrong.body, `attempt ${attempt}`).toMatchObject({ code: 'totp_failed' });
+    }
+    expect((await sendLoginTotp(panel, loginToken, codeNow(current, account.secret, 1))).body).toMatchObject({ code: 'unauthenticated' });
+    expect((await failures()).filter((row) => row.actor_user_id === account.user.id).map((row) => row.reason_code)).toEqual(
+      Array.from({ length: 5 }, () => 'totp_failed'),
+    );
   });
 
   it('EVM-023 AC2 B2 EVM-027 D2 an Editor whose only factor is a code of the app is offered the code, and a pending factor is no method at all (the account still has to enrol: no session without a window)', async () => {
@@ -323,14 +341,15 @@ describe('the methods of the account and the Administrator in the panel (EVM-023
     expect(active.body).toMatchObject({ state: 'second_step', methods: ['totp'] });
   });
 
-  it('EVM-023 AC3 C3 the role is read from the database when the code arrives, not remembered: an Editor promoted after the first step gets 403', async () => {
+  it('EVM-134 AC4 C3 the role is read from the database when the code arrives, not remembered: an Editor promoted after the first step signs in, but with no window of step-up (K1)', async () => {
     const account = await totpAccount(current);
     const panel = current.panel();
     const loginToken = await startLogin(panel, account);
     await sql`update identity.users set role = 'administrator' where id = ${account.user.id}`.execute(current.database.admin);
     const response = await sendLoginTotp(panel, loginToken, codeNow(current, account.secret));
-    expect(response.status).toBe(403);
-    expect(response.body).toMatchObject({ code: 'forbidden' });
+    expect(response.status).toBe(200);
+    const signedIn = (await sessionsOf(account.user.id)).filter((session) => session.revoked_at === null).at(-1);
+    expect(signedIn).toMatchObject({ passkey_authenticated_at: null, totp_authenticated_at: null });
   });
 
   it('EVM-023 AC8 a Read-only user signs in with a code of the app like the others', async () => {

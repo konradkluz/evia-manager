@@ -32,6 +32,8 @@ test.describe('accessibility of W-13, W-03 and the account menu in the browser, 
       await page.goto('/mfa-setup');
       await expect(page.getByRole('heading', { level: 1, name: 'Skonfiguruj drugi krok logowania' })).toBeVisible();
       expect(await violations(page)).toEqual([]);
+      // EVM-134 AC2: the Administrator chooses the method first (the passkey is the default choice).
+      await page.getByRole('button', { name: 'Dalej' }).click();
       await page.getByRole('button', { name: 'Dodaj klucz dostępu' }).click();
       await expect(page.getByRole('alert')).toBeVisible();
       expect(await violations(page)).toEqual([]);

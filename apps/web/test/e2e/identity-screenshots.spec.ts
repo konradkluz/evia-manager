@@ -45,6 +45,7 @@ test.describe('UX review screenshots (EVM-016) @screenshots', () => {
       await expect(page.getByRole('heading', { level: 1, name: 'Skonfiguruj drugi krok logowania' })).toBeFocused();
       await shot(`w03-${String(width)}`);
       api.failNext.set('POST /api/v1/account/passkeys/registration-options', { status: 500, code: 'internal_error' });
+      await page.getByRole('button', { name: 'Dalej' }).click();
       await page.getByRole('button', { name: 'Dodaj klucz dostępu' }).click();
       await expect(page.getByRole('alert')).toBeVisible();
       await shot(`w03-error-${String(width)}`);
@@ -67,6 +68,7 @@ test.describe('UX review screenshots (EVM-016) @screenshots', () => {
     await page.setViewportSize({ width: 360, height: 800 });
     await page.goto('/mfa-setup');
     await expect(page.getByRole('heading', { level: 1, name: 'Skonfiguruj drugi krok logowania' })).toBeVisible();
+    await page.getByRole('button', { name: 'Dalej' }).click();
     await context.setOffline(true);
     await expect(page.getByText('Dodasz klucz po powrocie połączenia.')).toBeVisible();
     await shot('w03-offline-360');

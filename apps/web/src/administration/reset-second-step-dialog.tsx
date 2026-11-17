@@ -14,7 +14,8 @@ import { useAccountCall } from './use-account-call.ts';
  * "Zresetować drugi krok logowania konta „…”?" (EVM-027 AC4, AC7; SR-AUTH-13; W-16 dialog 7): the Administrator must say how the
  * identity of the person was confirmed — in person or by video, no default and no free text (the choice goes to the audit as a
  * code, never a note). The summary says what is removed, that the account sets the second step up again within 24 hours and that
- * an e-mail goes to the address of the account; for an Administrator only a passkey can be set up, and everybody is alerted.
+ * an e-mail goes to the address of the account; for an Administrator every Administrator is alerted (the account chooses a passkey
+ * or a code of the app again, as every role — EVM-134 AC2).
  * A person who forgot the password or whose password may have fallen into the wrong hands changes it first, from another device
  * (the window after a reset needs the password only — RR-27).
  */
@@ -94,7 +95,6 @@ export function ResetSecondStepDialog({ user, onClose, onDone, onRefreshAccount,
         <div id={`${id}-summary`} className="flex flex-col gap-stack-sm text-body text-text-secondary">
           <p>{t('users.account.reset.summary')}</p>
           <p>{t('users.account.reset.window')}</p>
-          {user.role === 'administrator' ? <p>{t('users.account.reset.administratorKey')}</p> : null}
           <p>{t('users.account.reset.password')}</p>
         </div>
         {alertsAdministrators('reset', user) ? <InlineAlert tone="info">{t('users.dialog.administratorAlert')}</InlineAlert> : null}

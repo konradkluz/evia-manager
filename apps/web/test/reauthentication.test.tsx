@@ -120,15 +120,16 @@ describe('W-04 pełne ponowne uwierzytelnienie (EVM-028 AC2, AC3, AC5)', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
-  it('EVM-028 AC3 an Administrator has the passkey only; the key is checked against the challenge of the step-up and sent with the password', async () => {
+  it('EVM-028 AC3 EVM-134 AC3 an Administrator has the passkey and the code; the key is checked against the challenge of the step-up and sent with the password', async () => {
     const spies = stubWebAuthn();
     const { fake, dialog } = await open(ACTIVE_SESSION, { [STEP_UP_OPTIONS]: () => json(200, ASSERTION_OPTIONS) });
     await userEvent.type(within(dialog).getByLabelText('Hasło'), 'obecne hasło do konta');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Dalej' }));
-    expect(within(dialog).queryByLabelText('Kod z aplikacji uwierzytelniającej')).toBeNull();
+    expect(within(dialog).getByLabelText('Kod z aplikacji uwierzytelniającej')).toBeTruthy();
     expect(
-      within(dialog).getByText('Nie masz klucza dostępu? Poproś innego administratora o reset drugiego kroku logowania.'),
+      within(dialog).getByText('Nie masz dostępu do metody? Poproś innego administratora o reset drugiego kroku logowania.'),
     ).toBeTruthy();
+    expect(within(dialog).queryByText(/klucza dostępu\?/)).toBeNull();
     await userEvent.click(within(dialog).getByRole('button', { name: 'Użyj klucza dostępu' }));
     await waitFor(() => {
       expect(result()).toBe('confirmed');
@@ -139,6 +140,46 @@ describe('W-04 pełne ponowne uwierzytelnienie (EVM-028 AC2, AC3, AC5)', () => {
       password: 'obecne hasło do konta',
       credential: ASSERTION,
     });
+  });
+
+  it('EVM-134 AC3 an Administrator confirms with the code of the app: the password and the code go in one request', async () => {
+    const { fake, dialog } = await open(ACTIVE_SESSION);
+    await userEvent.type(within(dialog).getByLabelText('Hasło'), 'obecne hasło do konta');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Dalej' }));
+    await userEvent.type(within(dialog).getByLabelText('Kod z aplikacji uwierzytelniającej'), '123 456');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Potwierdź' }));
+    await waitFor(() => {
+      expect(result()).toBe('confirmed');
+    });
+    expect(parseBody(fake.calls(REAUTH)[0]?.body ?? '')).toEqual({
+      purpose: 'second_step_change',
+      password: 'obecne hasło do konta',
+      method: 'totp',
+      code: '123456',
+    });
+  });
+
+  it('EVM-134 AC3 an account without a code of the app (403 forbidden to the code): the message says to use the key, the focus on the key, the step stays', async () => {
+    const { dialog } = await open(ACTIVE_SESSION, { [REAUTH]: () => problem(403, 'forbidden') });
+    await userEvent.type(within(dialog).getByLabelText('Hasło'), 'obecne hasło do konta');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Dalej' }));
+    await userEvent.type(within(dialog).getByLabelText('Kod z aplikacji uwierzytelniającej'), '123456');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Potwierdź' }));
+    expect((await within(dialog).findByRole('alert')).textContent).toBe('Twoje konto nie ma kodu z aplikacji. Użyj klucza dostępu.');
+    expect(document.activeElement).toBe(within(dialog).getByRole('button', { name: 'Użyj klucza dostępu' }));
+    expect(within(dialog).queryByLabelText('Hasło')).toBeNull();
+    expect(result()).toBe('none');
+    expect(await axeViolations(document.body, { bestPractice: true })).toEqual([]);
+  });
+
+  it('EVM-134 AC3 an account without a passkey (403 forbidden to the options of the key): the message says to type the code, the focus on the field', async () => {
+    const { fake, dialog } = await open(ACTIVE_SESSION, { [STEP_UP_OPTIONS]: () => problem(403, 'forbidden') });
+    await userEvent.type(within(dialog).getByLabelText('Hasło'), 'obecne hasło do konta');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Dalej' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Użyj klucza dostępu' }));
+    expect((await within(dialog).findByRole('alert')).textContent).toBe('Twoje konto nie ma klucza dostępu. Wpisz kod z aplikacji.');
+    expect(document.activeElement).toBe(within(dialog).getByLabelText('Kod z aplikacji uwierzytelniającej'));
+    expect(fake.calls(REAUTH)).toHaveLength(0);
   });
 
   it('EVM-028 AC3 ONE answer for a wrong password or a wrong second step: back to step 1, the password cleared and focused, no word about which factor', async () => {

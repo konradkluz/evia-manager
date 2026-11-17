@@ -174,6 +174,8 @@ export interface SyncControl {
    * hidden-data mode too (EVM-137 AC3: the camera starts with the category "Oględziny" for a survey).
    */
   isSurvey(workOrderId: string): Promise<boolean>;
+  /** The queue was changed behind the service (a file was discarded with its rejected command): reads the counters again. */
+  queueChanged(): void;
   /** The same by kind, for the dialog of a survey (EVM-137). */
   groupSummary(id: string): Promise<GroupSummary>;
   /** Entries that depend on this one, for the confirmation dialog. */

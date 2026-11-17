@@ -154,16 +154,21 @@ describe('the customer and the site on the list (EVM-072 AC1; SR-DATA-03, TM-18)
     const gone = await insertCustomer(admin(), { lastName: 'Usunięty', deletedAt: '2026-10-05T08:00:00Z' });
     const site = await insertSite(admin(), { city: 'Gdańsk' });
     const goneSite = await insertSite(admin(), { city: 'Sopot', deletedAt: '2026-10-05T08:00:00Z' });
+    const live = await insertCustomer(admin(), { firstName: 'Ewa', lastName: 'Testowa', phone: '+48600000002' });
     await insertWorkOrders(admin(), [
       { number: numberOf(2026, 1), siteSurveyExpiresAt: new Date('2027-02-14T08:00:00Z') },
       { number: numberOf(2026, 2), customerId: gone, siteId: site },
-      { number: numberOf(2026, 3), siteId: goneSite, siteSurveyExpiresAt: new Date('2027-02-14T08:00:00Z') },
+      { number: numberOf(2026, 3), customerId: live, siteId: goneSite },
+      { number: numberOf(2026, 4), siteId: goneSite, siteSurveyExpiresAt: new Date('2027-02-14T08:00:00Z') },
     ]);
     const list = await page(cookie, '?sort=number');
     expect(list.items[0]).toMatchObject({ customer: null, site: null });
     expect(list.items[1]?.customer).toEqual({ deleted: true });
     expect(list.items[1]?.site).toMatchObject({ id: site, city: 'Gdańsk' });
-    expect(list.items[2]).toMatchObject({ customer: null, site: null });
+    // an ordinary order with a customer and a deleted site: the site is null because it is deleted, not because of the survey rule
+    expect(list.items[2]).toMatchObject({ customer: { id: live }, site: null });
+    // a site survey (no customer) with a deleted site
+    expect(list.items[3]).toMatchObject({ customer: null, site: null });
     expect(JSON.stringify(list.items[1])).not.toContain(gone);
     expect(JSON.stringify(list)).not.toContain('Usunięty');
   });

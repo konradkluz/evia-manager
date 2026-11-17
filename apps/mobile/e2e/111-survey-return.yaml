@@ -9,6 +9,9 @@ appId: pl.eviacharge.manager
     visible: 'Zsynchr\. .*'
     timeout: 60000
 - assertNotVisible: 'Offline.*'
+# the flow before this one ended on the Queue: the number is checked on the list
+- tapOn:
+    id: 'nav-orders'
 - extendedWaitUntil:
     visible: 'ZL-E2E-3'
     timeout: 60000

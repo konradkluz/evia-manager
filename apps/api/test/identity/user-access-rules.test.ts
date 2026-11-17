@@ -17,22 +17,22 @@ const OTHER = '0198f2a0-7b1c-7c4e-8d3a-5f6b7c8d9e02';
 const ORIGIN = 'https://panel.evia.test';
 
 const facts = (
-  target: Partial<{ id: string; role: Role; status: Status; activatedAt: Date | null; hasPasskey: boolean }> = {},
+  target: Partial<{ id: string; role: Role; status: Status; activatedAt: Date | null }> = {},
   activeAdministrators = 2,
 ): AccessFacts => ({
   actorId: ACTOR,
   activeAdministrators,
-  target: { id: OTHER, role: 'editor', status: 'active', activatedAt: new Date('2026-09-01T08:00:00Z'), hasPasskey: false, ...target },
+  target: { id: OTHER, role: 'editor', status: 'active', activatedAt: new Date('2026-09-01T08:00:00Z'), ...target },
 });
 
-describe('the rules of a change of a role (EVM-027 AC1, AC5, D3; decision 10)', () => {
+describe('the rules of a change of a role (EVM-027 AC1, AC5; EVM-134 AC3; decision 10)', () => {
   it('EVM-027 AC1 an Editor becomes Read-only, and the other way round: allowed, no alert (it is not about Administrators)', () => {
     expect(decideRoleChange(facts({ role: 'editor' }), 'read_only')).toEqual({ ok: true, alert: null });
     expect(decideRoleChange(facts({ role: 'read_only' }), 'editor')).toEqual({ ok: true, alert: null });
   });
 
   it('EVM-027 AC7 whoever becomes or stops being an Administrator is an alert for all; the alert names the direction', () => {
-    expect(decideRoleChange(facts({ role: 'editor', hasPasskey: true }), 'administrator')).toEqual({
+    expect(decideRoleChange(facts({ role: 'editor' }), 'administrator')).toEqual({
       ok: true,
       alert: 'administrator_granted',
     });
@@ -62,11 +62,9 @@ describe('the rules of a change of a role (EVM-027 AC1, AC5, D3; decision 10)', 
     });
   });
 
-  it('EVM-027 D3 an account without a passkey does not become an Administrator: administrator_passkey_required', () => {
-    expect(decideRoleChange(facts({ role: 'editor', hasPasskey: false }), 'administrator')).toEqual({
-      ok: false,
-      refusal: 'administrator_passkey_required',
-    });
+  it('EVM-134 AC3 an account becomes an Administrator whatever its method of the second step (the rule D3 "a passkey first" is gone, ADR-0023)', () => {
+    for (const role of ['editor', 'read_only'] as const)
+      expect(decideRoleChange(facts({ role }), 'administrator'), role).toEqual({ ok: true, alert: 'administrator_granted' });
   });
 
   it('EVM-027 D8 the same role and a deactivated account are not a transition (invalid_state_transition) — checked before everything else', () => {

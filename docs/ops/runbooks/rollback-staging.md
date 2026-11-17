@@ -4,6 +4,7 @@
 
 ## Zasady
 - Rollback jest dozwolony **wyłącznie do commita z lokalnego rejestru wdrożeń** (`/var/lib/evia/registry/registry.json`) — weryfikator i `deploy.sh` sprawdzają to niezależnie. Obrazy 3 ostatnich wdrożeń zostają na VM (bez GHCR).
+- **Wizje lokalne (EVM-135):** przy otwartych wizjach nie wycofujemy do wersji sprzed EVM-135 — naprawa „do przodu” albo wyłączenie funkcji ([`wizja-lokalna.md` → „Wycofanie kodu”](wizja-lokalna.md#wycofanie-kodu-przy-istniejących-wizjach--naprawa-do-przodu)).
 - Rollback **nie cofa migracji**: migracje są tylko „expand” (test `tools/repo-policy/test/migrations.test.ts`), więc wersja N−1 działa na schemacie N. Przy rollbacku `deploy.sh` **nie uruchamia `migrate`** (starszy migrator odrzuciłby bazę z nieznanymi mu migracjami; test `EVM-007 AC4` w `infra/deploy-agent/test/deploy.test.mjs`). W sesji IaC: próbny rollback ponad co najmniej jedną nowszą migrację.
 - Automatyczny rollback: gdy V0 wykryje `push`/`force_push`/… w okresie już wdrożonym, weryfikator sam cofa do poprzedniego wpisu rejestru (n5) i blokuje dalsze wdrożenia — dalej [incydent „blokada V0”](incydent-blokada-v0.md).
 

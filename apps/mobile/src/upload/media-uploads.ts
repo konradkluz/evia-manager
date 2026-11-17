@@ -46,6 +46,8 @@ export interface MediaUploadsDeps {
   readonly dataVisible: () => boolean;
   /** After an event of the module (the contact of a refresh made in the background is merged, EVM-130 architect 9). */
   readonly onNativeEvent?: () => void;
+  /** The queue lost an entry behind the service of the synchronization (the rejected command of a discarded file): its counters must be read again (EVM-137 W10). */
+  readonly onQueueChanged?: () => void;
   /** The camera (EVM-108): the free space and the id generator of the session; without them a picture cannot be taken (`camera_failed`). */
   readonly capture?: { readonly disk: DiskSpace; readonly newId: () => string };
   /**
@@ -626,7 +628,10 @@ export class MediaUploads implements MediaControl {
     try {
       await store.media.discard(assetId);
       // the rejected command of the file goes with it, so that it is not shown twice and never sent again (W10); a missing one is fine
-      if (isCommandCode(file.lastCode)) await store.queue.rewrite([file.mutationId], []);
+      if (isCommandCode(file.lastCode)) {
+        await store.queue.rewrite([file.mutationId], []);
+        this.#deps.onQueueChanged?.();
+      }
     } catch {
       return false;
     }

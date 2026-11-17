@@ -7,9 +7,12 @@
  * the step is spent by a conditional UPDATE (`last_used_step` must grow — a code used before, at sign-in, at step-up or at confirmation, is refused), the
  * `loginToken` is spent by an atomic UPDATE and the session is inserted. Two parallel requests with the same code create exactly one session.
  *
- * A wrong code, a replayed code, an account without an active factor and the Administrator in the panel (no TOTP there, P1) are all counted on the
- * `loginToken` like a wrong key (the fifth ends the attempt) and audited as `login.failed` with the account; the client sees 401 `totp_failed`, and the
- * Administrator 403 `forbidden`. A failed attempt does not spend the `loginToken`.
+ * A wrong code, a replayed code and an account without an active factor are all counted on the `loginToken` like a wrong key (the fifth ends the
+ * attempt) and audited as `login.failed` with the account; the client sees 401 `totp_failed` — every role alike (EVM-134, ADR-0023). A failed attempt does
+ * not spend the `loginToken`.
+ *
+ * K1 (EVM-134 AC4; ADR-0023): the session of an ADMINISTRATOR who signed in with a code has no window of step-up operations — the first sensitive operation
+ * asks for a new code (the step of this one is spent) or a passkey. The role is the one read under the lock of the account, at this very moment.
  */
 import { Inject, Injectable } from '@nestjs/common';
 import type { LoginTotpRequestWritable } from '@evia/contracts';
@@ -20,7 +23,7 @@ import type { Database } from '../../../platform/database/database.ts';
 import { runInTransaction } from '../../../platform/database/transactional.ts';
 import type { EventBus } from '../../../platform/events/event-bus.ts';
 import { CLOCK, DATABASE, EVENT_BUS, FIELD_ENCRYPTION } from '../../../platform/tokens.ts';
-import { totpAllowedForRole } from '../domain/channel-rules.ts';
+import { signInOpensStepUpWindow } from '../domain/session-policy.ts';
 import type { IdentityEvent } from '../events.ts';
 import { claimTotpStep, findTotpFactor } from '../infrastructure/mfa-queries.ts';
 import { consumeLoginAttempt, recordLogin } from '../infrastructure/queries.ts';
@@ -33,7 +36,7 @@ import { LoginFailures } from './login-failures.ts';
 import { startSession, type SignedInSession } from './session-start.ts';
 import { openTotpSecret } from './totp-secret.ts';
 
-type Refusal = AttemptRefusal | { readonly refusal: 'totp_failed' | 'forbidden' };
+type Refusal = AttemptRefusal | { readonly refusal: 'totp_failed' };
 
 @Injectable()
 export class LoginTotpService {
@@ -95,7 +98,7 @@ export class LoginTotpService {
     if ('refusal' in opened) return opened;
     const { attempt, ticket } = opened;
     const tx = identityTables(transaction);
-    const fail = async (refusal: 'totp_failed' | 'forbidden'): Promise<Refusal> => {
+    const fail = async (refusal: 'totp_failed'): Promise<Refusal> => {
       await this.#gate.fail(transaction, attempt, ticket, 'totp_failed', now, client.context);
       return { refusal };
     };
@@ -108,7 +111,6 @@ export class LoginTotpService {
       .where('id', '=', attempt.userId)
       .forUpdate()
       .executeTakeFirstOrThrow();
-    if (!totpAllowedForRole(account.role, 'web')) return fail('forbidden');
 
     const factor = await findTotpFactor(tx, attempt.userId);
     if (factor?.state !== 'active') return fail('totp_failed');
@@ -131,7 +133,8 @@ export class LoginTotpService {
       previousSessionToken,
       client,
       now,
-      authenticatedWith: 'totp',
+      // K1: an Administrator's sign-in with a code records no authentication that opens the window (as a recovery code).
+      authenticatedWith: signInOpensStepUpWindow(account.role, 'totp') ? 'totp' : 'none',
     });
     const browser = await this.#browsers.remember(transaction, attempt.userId, deviceToken, now);
     const succeeded: IdentityEvent = {

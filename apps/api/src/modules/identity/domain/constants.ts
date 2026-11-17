@@ -10,7 +10,7 @@ export const CHALLENGE_TTL_MS = 5 * MINUTE;
 /** Session lifetimes (P1, P2; enforced since EVM-067): 60 minutes without activity, 12 hours from the sign-in. */
 export const SESSION_IDLE_MS = 60 * MINUTE;
 export const SESSION_ABSOLUTE_MS = 12 * HOUR;
-/** A passkey authentication opens the window of step-up operations for 15 minutes (ADR-0005, P2; SR-SESS-08). */
+/** A step-up (a passkey or a code of the app; not a sign-in of an Administrator with a code, K1 of ADR-0023) opens the window of step-up operations for 15 minutes (ADR-0005, P2; SR-SESS-08). */
 export const STEP_UP_WINDOW_MS = 15 * MINUTE;
 /** An authenticated request moves the idle deadline, but is written at most this often (the cost of a write per request). */
 export const SESSION_TOUCH_INTERVAL_MS = 30_000;
@@ -33,7 +33,7 @@ export const ADMINISTRATOR_LOCK_KEY = 7_016_001;
 /**
  * The window to set up a second step that a reset by an Administrator opens (EVM-027 D1; SR-AUTH-13; ASVS V6.4.4): 24 hours from the reset. It ends at
  * once with a new reset, a deactivation, the first successful enrolment and its own deadline. Anyone who knows the password may use it (RR-27) — hence the
- * short time, the single use, the e-mail to the owner and — for an Administrator — a passkey only.
+ * short time, the single use, the e-mail to the owner and the alert to the Administrators for an Administrator's account.
  */
 export const SECOND_STEP_SETUP_WINDOW_MS = 24 * HOUR;
 

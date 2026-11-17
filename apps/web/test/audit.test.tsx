@@ -159,13 +159,14 @@ describe('W-18 / W-04: step-up (EVM-029 AC1, AC2, AC3)', () => {
 });
 
 describe('W-04: methods and cancelling (EVM-029 AC4)', () => {
-  it('EVM-029 AC4 the passkey is the only method: no recovery code, no password, one hint about the reset', async () => {
+  it('EVM-029 AC4 EVM-134 AC4 the passkey and the code of the app are the methods: no recovery code, no password, one hint about the reset', async () => {
     await renderPanel(AUDIT_PATH, auditApi([stepUpRequired]));
     const dialog = await screen.findByRole('alertdialog');
     expect(within(dialog).queryByText(/kod odzyskiwania/i)).toBeNull();
-    expect(within(dialog).queryByLabelText(/hasło|kod/i)).toBeNull();
+    expect(within(dialog).queryByLabelText(/hasło/i)).toBeNull();
+    expect(within(dialog).getByLabelText('Kod z aplikacji uwierzytelniającej')).toBeTruthy();
     const key = within(dialog).getByRole('button', { name: 'Użyj klucza dostępu' });
-    const hint = 'Nie masz klucza dostępu? Poproś innego administratora o reset drugiego kroku logowania.';
+    const hint = 'Nie masz dostępu do metody? Poproś innego administratora o reset drugiego kroku logowania.';
     expect(within(dialog).getByText(hint)).toBeTruthy();
     expect(document.getElementById(key.getAttribute('aria-describedby') ?? '')?.textContent).toBe(hint);
     expect(await axeViolations(dialog)).toEqual([]);

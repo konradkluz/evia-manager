@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { pluralKey } from '../i18n/plural';
 import type { FirstPullFailure, SyncSnapshot } from '../sync/types';
 import { BottomBar, Button, InlineAlert, ProgressBar, Skeleton } from '../ui';
+import { WifiOff } from '../ui/icons';
 import { color, space, text } from '../ui/theme';
 import { QueuePreviewScreen, useBlockBack, useTitleFocus } from './DeviceStateScreen';
 
@@ -80,7 +81,9 @@ export function FirstPullScreen({ snapshot, onRetry, onHelp }: { snapshot: SyncS
           </Text>
         </View>
         {failed ? <InlineAlert tone="error" body={errorText[firstPull.failure]} testID="first-pull-error" /> : null}
-        {!snapshot.online && !failed ? <InlineAlert tone="info" body={t('firstPull.offline')} testID="first-pull-offline" /> : null}
+        {!snapshot.online && !failed ? (
+          <InlineAlert tone="info" icon={WifiOff} body={t('firstPull.offline')} testID="first-pull-offline" />
+        ) : null}
         {firstPull.slow && !failed ? <InlineAlert tone="info" body={t('firstPull.slow')} testID="first-pull-slow" /> : null}
         <Skeleton accessibilityLabel={t('shell.loading.label')} testID="first-pull-skeleton" />
         {counts.unsent > 0 ? (

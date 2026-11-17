@@ -19,6 +19,7 @@ import {
   TextField,
 } from '../src/ui';
 import { color, radius, size, text } from '../src/ui/theme';
+import { Info, WifiOff } from '../src/ui/icons';
 
 const metrics = { frame: { x: 0, y: 0, width: 360, height: 760 }, insets: { top: 24, left: 0, right: 0, bottom: 16 } };
 const inProvider = (element: ReactElement) => <SafeAreaProvider initialMetrics={metrics}>{element}</SafeAreaProvider>;
@@ -155,6 +156,19 @@ describe('mobile UI library (EVM-009 AC1; styleguide § 3, § 5)', () => {
     await render(inProvider(<AppBar title="Moje zlecenia" right={<Button label="X" onPress={() => undefined} />} />));
     expect(screen.getByRole('header', { name: 'Moje zlecenia' })).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'X' })).toBeOnTheScreen();
+  });
+
+  it('EVM-137 AC6: an info InlineAlert has the info icon, not the one of the network; the network notice asks for wifi-off explicitly', async () => {
+    await render(
+      <>
+        <InlineAlert tone="info" body="Treść" testID="default" />
+        <InlineAlert tone="info" icon={Info} body="Treść" testID="info-icon" />
+        <InlineAlert tone="info" icon={WifiOff} body="Treść" testID="wifi-icon" />
+      </>,
+    );
+    const iconOf = (id: string) => JSON.stringify((screen.getByTestId(id) as { children: unknown[] }).children[0]);
+    expect(iconOf('default')).toBe(iconOf('info-icon'));
+    expect(iconOf('default')).not.toBe(iconOf('wifi-icon'));
   });
 
   it('EVM-009 AC2: only an error InlineAlert has the alert role; its title, code and action are shown', async () => {

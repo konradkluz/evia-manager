@@ -43,7 +43,4 @@ export function alertsAdministrators(operation: AccountOperation, user: User, ta
   }
 }
 
-/** The account keeps a passkey: only an Administrator with a passkey may be made (a code from the app is not enough, P1). */
-export const hasPasskey = (user: User): boolean => user.secondStepMethods.includes('passkey');
-
 export const IDENTITY_VERIFICATIONS: readonly IdentityVerification[] = ['in_person', 'video_call'];

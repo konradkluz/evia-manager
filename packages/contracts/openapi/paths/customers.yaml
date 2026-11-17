@@ -447,7 +447,7 @@ customerAnonymize:
       (EVM-041 AC2, AC4, AC5, AC6, AC7; SR-DATA-08, SR-SESS-08, SR-PRIV-04, SR-LOG-03, SR-AUTHZ-05). Imię i nazwisko (osoba) albo nazwa
       firmy mają wartość „Klient zanonimizowany”; NIP, osoba kontaktowa, e-mail, adres i notatki są puste; telefon to stała neutralna
       `+48000000000` (nie numer) — panel pokazuje wtedy „—”. Tekst wyszukiwania jest przeliczany: stare dane nie są znajdowane (także
-      w wyszukiwaniu zleceń). Tylko Administrator, kanał `web`, z `X-CSRF-Token`, z uwierzytelnieniem kluczem dostępu w ciągu ostatnich
+      w wyszukiwaniu zleceń). Tylko Administrator, kanał `web`, z `X-CSRF-Token`, ze step-upem (klucz dostępu albo nowy kod z aplikacji; logowanie Administratora kodem nie otwiera okna — K1) w ciągu ostatnich
       15 minut (`403 step_up_required` przed jakimkolwiek odczytem, zapisem i liczeniem zleceń; rola przed step-upem — Edytor i Tylko
       odczyt dostają `403 forbidden`), z audytem (`customer.anonymized` — aktor, identyfikator klienta, wynik `success` albo `failed`,
       `traceId`; bez wartości). Wymaga `If-Match` (`428` / `400` / `412`). Bez `Idempotency-Key`: powtórka to `409 already_anonymized`

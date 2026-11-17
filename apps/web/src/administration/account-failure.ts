@@ -13,7 +13,6 @@ export type AccountFailure =
         | 'fields'
         | 'lastAdministrator'
         | 'ownAccount'
-        | 'passkeyRequired'
         | 'stateChanged'
         | 'versionConflict'
         | 'ended';
@@ -23,7 +22,7 @@ export type AccountFailure =
 
 /**
  * Maps the error of an operation on an account (EVM-027 AC5, AC8): `409` by its code (the last active Administrator, the own
- * account, an Administrator without a passkey, a state that no longer fits), `412`/`428` as a version that moved on, `404` as a
+ * account, a state that no longer fits), `412`/`428` as a version that moved on, `404` as a
  * missing account, `401` as an ended session of the person who acts; no answer or a 5xx is a failure of the network. The
  * unknown is never shown raw — only a trace code to report.
  */
@@ -50,8 +49,6 @@ export function describeAccountFailure(error: unknown): AccountFailure {
           return { kind: 'lastAdministrator' };
         case 'own_account_not_allowed':
           return { kind: 'ownAccount' };
-        case 'administrator_passkey_required':
-          return { kind: 'passkeyRequired' };
         case 'invalid_state_transition':
           return { kind: 'stateChanged' };
         default:

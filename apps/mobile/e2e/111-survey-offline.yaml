@@ -48,12 +48,16 @@ appId: pl.eviacharge.manager
     visible: 'Oczekuje na numer'
     timeout: 10000
 - assertVisible: 'Zapisano w telefonie\. Numer nadamy po synchronizacji\. Możesz już robić zdjęcia i filmy\.'
-- assertVisible: 'Brak klienta — uzupełni biuro\. Biuro przypisze klienta po akceptacji oferty\.'
 - assertVisible: 'Wygasa za 90 dni'
 - assertVisible: 'Fikcyjna 12, 05-500 Piaseczno'
-# the phone is shown as the server will store it (+48...): the node is matched as a whole
+# the phone is shown as typed while the survey waits (with the prefix once the server stored it): the node is matched as a whole
 - assertVisible: '.*600000011'
 - takeScreenshot: m03-survey-pending
+# the note about the customer is below the fold of the waiting survey
+- scrollUntilVisible:
+    element: 'Brak klienta — uzupełni biuro\. Biuro przypisze klienta po akceptacji oferty\.'
+    direction: DOWN
+    centerElement: true
 # AC3: the camera with the category "Oględziny" already chosen: no hint, the shutter works at once
 - tapOn:
     id: 'order-detail-take-photo'

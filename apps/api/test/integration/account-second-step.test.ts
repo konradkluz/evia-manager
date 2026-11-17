@@ -209,13 +209,13 @@ describe('removing a method (EVM-028 AC3, AC4; SR-AUTH-10)', () => {
     ).toEqual([]);
   });
 
-  it('EVM-028 AC4 an Administrator with one key cannot remove it: 409 last_second_step_method (passkey_required); the mark is not spent — a second key can be added with it, and then the first removed', async () => {
+  it('EVM-028 AC4 EVM-134 AC3 an Administrator with one key and nothing else cannot remove it: 409 last_second_step_method (method_required); the mark is not spent — a second key can be added with it, and then the first removed', async () => {
     const admin = await signedInWithKey(current);
     expect((await withMark(admin)).status).toBe(204);
     const [only] = await keysOf(admin.panel);
     const refused = await admin.panel.delete(`${ACCOUNT.passkeys}/${only?.id}`);
     expect(refused.status).toBe(409);
-    expect(refused.body).toMatchObject({ code: 'last_second_step_method', errors: [{ pointer: '/passkeyId', code: 'passkey_required' }] });
+    expect(refused.body).toMatchObject({ code: 'last_second_step_method', errors: [{ pointer: '/passkeyId', code: 'method_required' }] });
     expect(await keysOf(admin.panel)).toHaveLength(1);
     expect(await outboxOf(current, admin.user.id, 'mfa_changed')).toEqual([]);
     expect((await addKey(admin.panel, 'Drugi')).registered?.status).toBe(201); // the same mark
@@ -223,20 +223,25 @@ describe('removing a method (EVM-028 AC3, AC4; SR-AUTH-10)', () => {
     expect((await admin.panel.delete(`${ACCOUNT.passkeys}/${only?.id}`)).status).toBe(204);
   });
 
-  it('EVM-028 AC4 the code of the app does not count for an Administrator: a key and a code is one method, the last key stays, the code can go', async () => {
+  it('EVM-134 AC3 the code of the app counts for an Administrator: with a key and a code the key may go (204), then the code is the last method (409 method_required)', async () => {
     const admin = await signedInWithKey(current);
-    await insertTotpFactor(current, admin.user.id);
+    const { secret } = await insertTotpFactor(current, admin.user.id);
     expect(((await getAccount(admin.panel)).body as { secondStep: { totp: unknown } }).secondStep.totp).toMatchObject({
       addedAt: expect.any(String) as string,
     });
     expect((await withMark(admin)).status).toBe(204);
     const [only] = await keysOf(admin.panel);
-    expect((await admin.panel.delete(`${ACCOUNT.passkeys}/${only?.id}`)).status).toBe(409);
-    const removed = await admin.panel.delete(ACCOUNT.totp);
-    expect(removed.status).toBe(204);
-    expect(await outboxOf(current, admin.user.id, 'mfa_changed')).toEqual([{ kind: 'mfa_changed', variant: 'totp_removed' }]);
-    expect((await auditOf(current, 'mfa.totp_removed')).at(-1)).toMatchObject({ outcome: 'success', actor_user_id: admin.user.id });
-    expect(await db().selectFrom('identity.totp_factors').select('id').execute()).toEqual([]);
+    expect((await admin.panel.delete(`${ACCOUNT.passkeys}/${only?.id}`)).status).toBe(204);
+    expect(await keysOf(admin.panel)).toEqual([]);
+    nextStep(current);
+    expect((await reauthWithCode(admin.panel, 'second_step_change', codeNow(current, secret), admin.password)).status).toBe(204);
+    const refused = await admin.panel.delete(ACCOUNT.totp);
+    expect(refused.status).toBe(409);
+    expect(refused.body).toMatchObject({ code: 'last_second_step_method', errors: [{ pointer: '/totp', code: 'method_required' }] });
+    expect(await db().selectFrom('identity.totp_factors').select('state').where('user_id', '=', admin.user.id).execute()).toEqual([
+      { state: 'active' },
+    ]);
+    expect(await outboxOf(current, admin.user.id, 'mfa_changed')).toEqual([{ kind: 'mfa_changed', variant: 'passkey_removed' }]);
   });
 
   it('EVM-028 AC4 an Editor with one method cannot remove it (method_required); with a key and a code either can go', async () => {
@@ -309,6 +314,25 @@ describe('removing a method (EVM-028 AC3, AC4; SR-AUTH-10)', () => {
     expect([first.status, second.status].sort()).toEqual([204, 409]);
     expect(await db().selectFrom('identity.passkeys').select('id').where('user_id', '=', admin.user.id).execute()).toHaveLength(1);
   });
+
+  it('EVM-134 AC3 two parallel removals of the last two methods of an Administrator — the key and the code: exactly one wins under the lock of the account, one method stays', async () => {
+    const admin = await signedInWithKey(current);
+    const { secret } = await insertTotpFactor(current, admin.user.id);
+    const [key] = await keysOf(admin.panel);
+    // two sessions of the same account, each with its own mark (one by the key, one by the code)
+    const other = current.panel();
+    nextStep(current);
+    expect((await signIn(other, admin)).status).toBe(200);
+    expect((await withMark(admin)).status).toBe(204);
+    expect((await reauthWithCode(other, 'second_step_change', codeNow(current, secret), admin.password)).status).toBe(204);
+    const [byKey, byCode] = await Promise.all([admin.panel.delete(`${ACCOUNT.passkeys}/${key?.id}`), other.delete(ACCOUNT.totp)]);
+    expect([byKey.status, byCode.status].sort()).toEqual([204, 409]);
+    const loser = byKey.status === 409 ? byKey : byCode;
+    expect(loser.body).toMatchObject({ code: 'last_second_step_method', errors: [{ code: 'method_required' }] });
+    const keys = await db().selectFrom('identity.passkeys').select('id').where('user_id', '=', admin.user.id).execute();
+    const codes = await db().selectFrom('identity.totp_factors').select('id').where('user_id', '=', admin.user.id).execute();
+    expect(keys.length + codes.length).toBe(1);
+  });
 });
 
 describe('adding a code of the app from the account (EVM-028 AC3; SR-AUTH-07, SR-AUTH-10)', () => {
@@ -337,7 +361,7 @@ describe('adding a code of the app from the account (EVM-028 AC3; SR-AUTH-07, SR
     expect((await editor.panel.post(ACCOUNT.totpEnrolment)).status).toBe(403);
   });
 
-  it('EVM-028 AC3 an Editor who already has a code cannot start another setup (409, no secret); an Administrator never can (403 forbidden); without the mark it is 403 reauthentication_required', async () => {
+  it('EVM-028 AC3 EVM-134 AC3 an Editor who already has a code cannot start another setup (409, no secret); without the mark it is 403 reauthentication_required — for the Administrator too', async () => {
     const editor = await signedInCodeEditor();
     nextStep(current);
     const noMark = await editor.session.post(ACCOUNT.totpEnrolment);
@@ -348,7 +372,25 @@ describe('adding a code of the app from the account (EVM-028 AC3; SR-AUTH-07, SR
     expect(again.status).toBe(409);
     expect(JSON.stringify(again.body)).not.toContain(editor.secret);
     const admin = await signedInWithKey(current);
-    expect((await admin.panel.post(ACCOUNT.totpEnrolment)).body).toMatchObject({ code: 'forbidden' });
+    expect((await admin.panel.post(ACCOUNT.totpEnrolment)).body).toMatchObject({ code: 'reauthentication_required' });
+  });
+
+  it('EVM-134 AC3 an Administrator with a key adds a code from the account: the setup gives a secret, the right code confirms it; e-mail 5 and the alert 9 to every active Administrator', async () => {
+    const colleague = await createUser(current.database.admin, current.clock, { role: 'administrator', status: 'active' });
+    const admin = await signedInWithKey(current);
+    expect((await withMark(admin)).status).toBe(204);
+    const setup = await admin.panel.post(ACCOUNT.totpEnrolment);
+    expect(setup.status).toBe(200);
+    const { secret } = setup.body as { secret: string };
+    const confirmed = await admin.panel.post(ACCOUNT.totpConfirm, { code: codeNow(current, secret) });
+    expect(confirmed.status).toBe(200);
+    expect(((await getAccount(admin.panel)).body as { secondStep: { totp: unknown } }).secondStep.totp).toMatchObject({
+      addedAt: expect.any(String) as string,
+    });
+    expect(await outboxOf(current, admin.user.id, 'mfa_changed')).toEqual([{ kind: 'mfa_changed', variant: 'totp_enrolled' }]);
+    const alert = [{ kind: 'administrator_alert', variant: 'administrator_second_step_changed' }];
+    expect(await changeAlerts(admin.user.id)).toEqual(alert);
+    expect(await changeAlerts(colleague.id)).toEqual(alert);
   });
 
   async function signedInCodeEditor() {

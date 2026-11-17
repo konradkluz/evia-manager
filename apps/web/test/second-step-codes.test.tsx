@@ -180,7 +180,7 @@ describe('W-02 kod z aplikacji (EVM-023 AC2)', () => {
 });
 
 describe('W-02 metody z serwera (EVM-023 AC2, AC3)', () => {
-  it('EVM-023 AC3 an Administrator gets only the passkey from the server: no code field, no code link to a method he has not', async () => {
+  it('EVM-023 AC3 EVM-134 AC1 the panel shows what the server gives (here only the passkey): no code field, no code link to a method the account has not', async () => {
     await open(['passkey']);
     expect(screen.getByRole('button', { name: 'Użyj klucza dostępu' })).toBeTruthy();
     expect(screen.queryByLabelText('Kod z aplikacji uwierzytelniającej')).toBeNull();
@@ -194,7 +194,7 @@ describe('W-02 metody z serwera (EVM-023 AC2, AC3)', () => {
     expect(screen.queryByRole('button', { name: 'Użyj innej metody' })).toBeNull();
   });
 
-  it('EVM-023 AC3 a refusal of the API (403: no code for this role in the panel) is shown as a server error, not as a wrong code', async () => {
+  it('EVM-023 AC3 a refusal of the API (403) is shown as a server error, not as a wrong code', async () => {
     const { fake } = await open(['totp']);
     fake.set(TOTP_ROUTE, () => problem(403, 'forbidden'));
     await userEvent.type(screen.getByLabelText('Kod z aplikacji uwierzytelniającej'), '123456');
@@ -239,6 +239,40 @@ describe('W-02 metody z serwera (EVM-023 AC2, AC3)', () => {
     await waitFor(() => {
       expect(history.location.pathname).toBe('/mfa-setup');
     });
+  });
+});
+
+describe('W-02 Administrator z kodem z aplikacji (EVM-134 AC1)', () => {
+  it("EVM-134 AC1 an Administrator with only the code of the app signs in with it: the field first, the panel opens, the session is the Administrator's", async () => {
+    const { fake } = await open(['totp', 'recovery_code']);
+    const field = screen.getByLabelText('Kod z aplikacji uwierzytelniającej');
+    expect(document.activeElement).toBe(field);
+    expect(screen.queryByRole('button', { name: 'Użyj klucza dostępu' })).toBeNull();
+    await userEvent.type(field, '123456');
+    await userEvent.click(screen.getByRole('button', { name: 'Potwierdź' }));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Zlecenia' })).toBeTruthy();
+    expect(parseBody(fake.calls(TOTP_ROUTE)[0]?.body ?? '')).toEqual({ loginToken: LOGIN_TOKEN, code: '123456' });
+    expect(screen.getByRole('button', { name: 'Konto: Anna Testowa' })).toBeTruthy();
+  });
+
+  it('EVM-134 AC1 an Administrator with both methods chooses on W-02: the key first (order of the server), "Użyj innej metody" gives the code', async () => {
+    await open(['passkey', 'totp', 'recovery_code']);
+    expect(screen.getByRole('button', { name: 'Użyj klucza dostępu' })).toBeTruthy();
+    expect(screen.queryByLabelText('Kod z aplikacji uwierzytelniającej')).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Użyj innej metody' }));
+    expect(document.activeElement).toBe(screen.getByLabelText('Kod z aplikacji uwierzytelniającej'));
+    expect(await axeViolations(document.body, { bestPractice: true })).toEqual([]);
+  });
+
+  it('EVM-134 AC1 a wrong or used code of an Administrator (401 totp_failed, never 403) is the message of an Editor: the field cleared and focused', async () => {
+    const { fake } = await open(['totp', 'recovery_code']);
+    fake.set(TOTP_ROUTE, () => problem(401, 'totp_failed'));
+    const field = screen.getByLabelText<HTMLInputElement>('Kod z aplikacji uwierzytelniającej');
+    await userEvent.type(field, '123456');
+    await userEvent.click(screen.getByRole('button', { name: 'Potwierdź' }));
+    expect((await screen.findByRole('alert')).textContent).toContain(WRONG_TOTP);
+    expect(field.value).toBe('');
+    expect(document.activeElement).toBe(field);
   });
 });
 
@@ -288,8 +322,11 @@ describe('W-02 kod odzyskiwania (EVM-023 AC5)', () => {
     await userEvent.type(screen.getByLabelText('Kod odzyskiwania'), CODE);
     await userEvent.click(screen.getByRole('button', { name: 'Potwierdź' }));
     const status = (await screen.findByText(/Zalogowano kodem odzyskiwania\./)).closest('[role="status"]');
-    expect(status?.textContent).toContain('Bez klucza dostępu kolejne logowanie znów wymaga kodu.');
-    expect(status?.textContent).toContain('Poproś innego administratora o reset drugiego kroku logowania.');
+    // EVM-134 AC6: no word that the Administrator needs a passkey.
+    expect(status?.textContent).not.toContain('klucza dostępu');
+    expect(status?.textContent).toContain(
+      'Jeśli nie masz już żadnej metody, poproś innego administratora o reset drugiego kroku logowania.',
+    );
     expect(history.location.pathname).toBe('/login/second-step');
     await userEvent.click(screen.getByRole('button', { name: 'Przejdź dalej' }));
     expect(await screen.findByRole('heading', { level: 1, name: 'Zlecenia' })).toBeTruthy();
