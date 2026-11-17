@@ -1001,7 +1001,9 @@ workOrderTransitions:
       Kolejność (decyzje zapadają na wierszu zablokowanym `SELECT … FOR UPDATE`, w jednej transakcji): zlecenie nieistniejące albo
       usunięte — `404 not_found` (ta sama odpowiedź); `If-Match`; treść (`400`); powtórka idempotentna (zapisany wynik, bez
       ponownej kontroli wersji); brak przejścia w tabeli — `409 invalid_state_transition` (gdy wersja jest nieaktualna — `412`, bo klient
-      i tak musi pobrać zlecenie); rola; step-up; wersja (`412`); pola przejścia (`reason`, `completedOn` — `400`); warunki modułów
+      i tak musi pobrać zlecenie); rola; step-up; wersja (`412`); klient (`409 customer_required` — EVM-136: przejście do „Zaakceptowane”,
+      także wznowienie z „Wstrzymane”, zlecenia bez klienta, czyli wizji lokalnej; odpowiedź nie zawiera wartości, a klient jest
+      przypisywany komendą `assignWorkOrderCustomer`); pola przejścia (`reason`, `completedOn` — `400`); warunki modułów
       (`422 transition_condition_not_met`, `errors[]` z `/to` i kodem powodu), potem zapis, skutki modułów w tej samej transakcji i
       audyt. Błąd któregokolwiek kroku cofa całość (status, skutki modułów, audyt i rekord idempotencji).
       Skutki: wstrzymanie i anulowanie zapisują powód i status źródłowy (`resumeStatus`); wznowienie wraca do `resumeStatus` (inny

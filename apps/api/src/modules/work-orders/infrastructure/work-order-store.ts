@@ -234,6 +234,8 @@ export function lockWorkOrderForTransition(db: WorkOrdersDb, principal: Principa
       'closed_at',
       sql<string | null>`to_char(completed_on, 'YYYY-MM-DD')`.as('completed_on'),
       'version',
+      // EVM-136 AC4: the rule "a customer is needed to move on" is decided on THIS row
+      'customer_id',
     ])
     .where('id', '=', id)
     .where(visibleWorkOrders(principal))

@@ -633,7 +633,8 @@ IdempotencyInProgress:
 TransitionConflict:
   description: >-
     Przejścia nie ma w tabeli przejść z bieżącego statusu (`invalid_state_transition` — odpowiedź nie podaje bieżącego statusu; klient
-    pobiera zlecenie), albo żądanie z tym samym kluczem idempotencji jest w toku (`idempotency_in_progress`, z `Retry-After`).
+    pobiera zlecenie), albo zlecenie nie ma klienta, a przejście prowadzi do statusu, którego wizja lokalna mieć nie może — do „Zaakceptowane”
+    (`customer_required`, EVM-136; najpierw `assignWorkOrderCustomer`), albo żądanie z tym samym kluczem idempotencji jest w toku (`idempotency_in_progress`, z `Retry-After`).
   headers:
     Retry-After:
       description: Liczba sekund do ponowienia (tylko `idempotency_in_progress`).

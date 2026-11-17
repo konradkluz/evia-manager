@@ -18,6 +18,7 @@
  *      the clock of the application). This is the object policy of the use case — it depends on the status the order is in, which
  *      the guard cannot know. The order is the guard's: a role that may not use the row never learns the row is protected;
  *   6. the version (`412 version_conflict`);
+ *   6b. the customer (`409 customer_required`, EVM-136 AC4): a row whose target a work order without a customer (a site survey) may not have;
  *   7. the fields the row decides (the reason, the day of completion; `400`, a pointer and a code, never a value);
  *   8. the conditions of the participants (`422 transition_condition_not_met`, `/to` and a code);
  *   9. the update, the effects of the participants, the event for the audit trail (a cancellation or a restoration), the idempotency record.
@@ -41,7 +42,7 @@ import { CLOCK, DATABASE, EVENT_BUS } from '../../../platform/tokens.ts';
 import { lastStepUpAuthentication, stepUpFresh } from '../../identity/index.ts';
 import { businessDate } from '../domain/business-date.ts';
 import { normalizeTransitionFields, type TransitionBody } from '../domain/transition-input.ts';
-import { applyTransition, findTransition, mayUse, type TransitionState } from '../domain/work-order-transitions.ts';
+import { applyTransition, findTransition, mayUse, requiresCustomer, type TransitionState } from '../domain/work-order-transitions.ts';
 import type { WorkOrderEvent, WorkOrderStatusChangedEvent } from '../events.ts';
 import { workOrderTables } from '../infrastructure/tables.ts';
 import { lockWorkOrderForTransition, updateWorkOrderStatus, type LockedWorkOrderRow } from '../infrastructure/work-order-store.ts';
@@ -159,6 +160,9 @@ export class TransitionWorkOrderService {
     if (!mayUse(transition, principal.role)) throw new ProblemException('forbidden');
     if (transition.rule.stepUp && !stepUpFresh(lastStepUpAuthentication(principal), now)) throw new ProblemException('step_up_required');
     if (stale) throw new ProblemException('version_conflict');
+    // "Zaakceptowane" needs a customer (EVM-136 AC4): after the role, the step-up and the version - a caller who may not use the row never learns of the rule, and a
+    // caller with a stale version reads the order again first - and before the fields; the answer carries no value
+    if (requiresCustomer(transition) && locked.customer_id === null) throw new ProblemException('customer_required');
 
     const fields = normalizeTransitionFields(body, transition, businessDate(now));
     if (!fields.ok) throw new ProblemException('validation_failed', { errors: fields.errors });

@@ -9,6 +9,7 @@ import {
   applyTransition,
   findTransition,
   mayUse,
+  requiresCustomer,
   transitionsFrom,
   type ActiveStatus,
   type TransitionState,
@@ -269,5 +270,83 @@ describe('paths in the graph of transitions (EVM-030 AC7; SR-AUTHZ-05, SR-AUTHZ-
   it('EVM-030 AC7 every row with a step-up is restricted to the Administrator, so the step-up is never a way to hand a restoration to a lower role', () => {
     for (const rule of TRANSITION_TABLE.filter((candidate) => candidate.stepUp)) expect(rule.roles).toEqual(['administrator']);
     for (const rule of TRANSITION_TABLE.filter((candidate) => candidate.audit === 'work_order.restored')) expect(rule.stepUp).toBe(true);
+  });
+});
+
+/**
+ * "Zaakceptowane" needs a customer (EVM-136 AC4; ADR-0024 pt 4). A work order without a customer is a site survey, and the database lets a survey be in
+ * `quoting`, `on_hold` or `cancelled` only; the table says the same from the other side: a row whose target is anything else needs a customer.
+ */
+describe('the rule "a customer is needed to move on" in the table of transitions (EVM-136 AC4)', () => {
+  const SURVEY_STATUSES: readonly WorkOrderStatus[] = ['quoting', 'on_hold', 'cancelled'];
+
+  it('EVM-136 AC4 the move to "accepted" needs a customer from "new", from "quoting" and by the resumption of an order held from "accepted"', () => {
+    expect(requiresCustomer(findTransition(fresh('new'), 'accepted') as never)).toBe(true);
+    expect(requiresCustomer(findTransition(fresh('quoting'), 'accepted') as never)).toBe(true);
+    expect(requiresCustomer(findTransition(fresh('on_hold', 'accepted'), 'accepted') as never)).toBe(true);
+  });
+
+  it('EVM-136 AC4 the rule is by the TARGET: the resumption of an order held from "quoting" does not need a customer (a survey is held and resumed), nor does a hold or a cancellation', () => {
+    expect(requiresCustomer(findTransition(fresh('on_hold', 'quoting'), 'quoting') as never)).toBe(false);
+    for (const status of ['new', 'quoting'] as const) {
+      expect(requiresCustomer(findTransition(fresh(status), 'on_hold') as never), `${status}>on_hold`).toBe(false);
+      expect(requiresCustomer(findTransition(fresh(status), 'cancelled') as never), `${status}>cancelled`).toBe(false);
+    }
+    expect(requiresCustomer(findTransition(fresh('cancelled', 'quoting'), 'on_hold') as never)).toBe(false);
+  });
+
+  it('EVM-136 AC4 every row of the table that needs a customer has a target outside the statuses of a survey - and every other row has a target inside them', () => {
+    for (const status of ALL_STATUSES) {
+      for (const resume of [null, ...ACTIVE_STATUSES]) {
+        for (const transition of transitionsFrom({ status, resumeStatus: resume })) {
+          expect(requiresCustomer(transition), `${status}/${String(resume)}>${transition.to}`).toBe(
+            !SURVEY_STATUSES.includes(transition.to),
+          );
+        }
+      }
+    }
+  });
+
+  it('EVM-136 AC4 the graph: from every state without a customer no path - of any role, through hold, resumption, cancellation or restoration - reaches a status a survey may not have', () => {
+    const customerless: TransitionState[] = [
+      fresh('quoting'),
+      ...ACTIVE_STATUSES.flatMap((held) => [fresh('on_hold', held), fresh('cancelled', held)]),
+    ];
+    for (const role of ['editor', 'administrator'] as const) {
+      for (const start of customerless) {
+        const seen = new Map<string, TransitionState>([[key(start), start]]);
+        const queue = [start];
+        while (queue.length > 0) {
+          const state = queue.shift() as TransitionState;
+          for (const transition of transitionsFrom(state).filter((candidate) => mayUse(candidate, role))) {
+            if (requiresCustomer(transition)) continue; // the step is refused: `409 customer_required`, the order does not move
+            const next = applyTransition(state, transition, { reason: 'powód', completedOn: '2026-10-08' }, T0).state;
+            if (!seen.has(key(next))) {
+              seen.set(key(next), next);
+              queue.push(next);
+            }
+          }
+        }
+        for (const state of seen.values()) expect(SURVEY_STATUSES, `${role} ${key(start)} -> ${key(state)}`).toContain(state.status);
+      }
+    }
+  });
+
+  it('EVM-136 AC4 the test of the test: without the rule the same walk DOES reach "accepted" (the walk can see a path)', () => {
+    const reached = new Set<WorkOrderStatus>();
+    const queue = [fresh('quoting')];
+    const seen = new Set<string>([key(queue[0] as TransitionState)]);
+    while (queue.length > 0) {
+      const state = queue.shift() as TransitionState;
+      for (const transition of transitionsFrom(state)) {
+        const next = applyTransition(state, transition, { reason: 'powód', completedOn: '2026-10-08' }, T0).state;
+        reached.add(next.status);
+        if (!seen.has(key(next))) {
+          seen.add(key(next));
+          queue.push(next);
+        }
+      }
+    }
+    expect(reached.has('accepted')).toBe(true);
   });
 });
