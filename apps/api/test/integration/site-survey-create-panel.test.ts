@@ -267,7 +267,8 @@ describe('roles and channels (EVM-135 AC4; W2 deny-by-default)', () => {
     for (const role of ['administrator', 'editor'] as const) {
       const mobile = await signIn(role, 'mobile');
       const response = await create(mobile, { id: uuidv7(), siteId });
-      expect([401, 403], role).toContain(response.status);
+      // a mobile-channel session on a web-only operation: exactly 403 forbidden (as EVM-043 AC4)
+      expect([response.status, codeOf(response.body)], role).toEqual([403, 'forbidden']);
     }
     const anonymous = new PanelClient(current.app.getHttpServer(), PANEL_ORIGIN);
     expect((await anonymous.post(PATH, { id: uuidv7(), siteId })).status).toBe(401);

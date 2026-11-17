@@ -246,7 +246,7 @@ export function findReadableWorkOrder(db: WorkOrdersDb, principal: Principal, id
       'created_at',
       'created_by',
       'origin',
-      // EVM-135: the site survey of the header (the phone of the requester only in the detail - ADR-0024 pt 7)
+      // EVM-135: the site survey of the header (the list row returns requesterPhone too - EVM-135 AC6; ADR-0024 pt 7)
       'site_survey_expires_at',
       'site_survey_extensions',
       'requester_phone',

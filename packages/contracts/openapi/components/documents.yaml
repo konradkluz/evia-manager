@@ -51,7 +51,7 @@ CreateDocumentRequest:
   type: object
   description: >-
     Nowy dokument (wersja 1) z kotwicą zlecenia (domyślnie), lokalizacji albo klienta zlecenia z URL (EVM-050): serwer bierze `siteId` i `customerId` ze zlecenia,
-    klient ich nie podaje (`read_only_field`). `anchor=customer` przy zleceniu bez klienta - `400` (`/anchor`, `no_customer`); `anchor=site` z klasą
+    klient ich nie podaje (`read_only_field`). `anchor=customer` przy zleceniu bez klienta (wizja lokalna) - `409` (`customer_required`); `anchor=site` z klasą
     efektywną `identity_data` (rodzaj albo `containsIdentityData`/`confidentialityOverride`) - `400` (`/anchor`, `identity_data_not_on_site`);
     `procedureStageId` przy kotwicy innej niż zlecenie - `400` (`/procedureStageId`, `requires_work_order_anchor`). `id` (UUIDv7) nadaje klient. Rodzaj `other` wymaga `containsIdentityData` (brak - `400 validation_failed`,
     `/containsIdentityData`, `required`); `true` zapisuje klasę `identity_data` jako podniesienie. `containsIdentityData` przy innym rodzaju - `400`
