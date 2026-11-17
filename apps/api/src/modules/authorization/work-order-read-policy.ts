@@ -30,12 +30,20 @@ const deletedAtOf = (source: WorkOrderPolicySource) =>
  */
 export type WorkOrderReadMode = 'visible' | 'deleted' | 'access';
 
+/** The deadline of an open site survey (EVM-135, ADR-0024 pt 8) in the source - also a column of the authorisation, kept in the projection like `deleted_at`. */
+const siteSurveyOf = (source: WorkOrderPolicySource) =>
+  source === 'work_orders.work_orders'
+    ? sql.ref('work_orders.work_orders.site_survey_expires_at')
+    : sql.ref('overview.work_order_summaries.site_survey_expires_at');
+
 function visibleCondition(principal: Principal, source: WorkOrderPolicySource): RawBuilder<SqlBool> {
   switch (principal.role) {
     case 'administrator':
     case 'editor':
-    case 'read_only':
       return sql<SqlBool>`${deletedAtOf(source)} is null`;
+    case 'read_only':
+      // EVM-135 AC4: Read-only has no access to an open site survey - in no source (the list, the detail, the media, the journal, the search …)
+      return sql<SqlBool>`(${deletedAtOf(source)} is null and ${siteSurveyOf(source)} is null)`;
   }
 }
 

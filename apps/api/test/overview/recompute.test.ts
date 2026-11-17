@@ -17,6 +17,7 @@ const KEYS: OrderKeys = {
   customerId: null,
   siteId: null,
   sourceTemplateId: null,
+  siteSurveyExpiresAt: null,
 };
 const OSD = '01a13115-0000-7000-8000-0000000000a1';
 const MANAGER = '01a13115-0000-7000-8000-0000000000a2';
@@ -151,6 +152,17 @@ describe('the comparison of a stored row with the recomputed one (EVM-034 W2, W1
 
   it('EVM-034 a row that equals the recomputation differs in no group', () => {
     expect(differingGroups(base, computeProjection(KEYS, null, stages, KINDS, []))).toEqual([]);
+  });
+
+  it('EVM-135 AC4 the deadline of a site survey is carried into the projection and a different one is the group "authorization" (a security alert)', () => {
+    const at = new Date('2027-02-14T08:00:00.000Z');
+    const survey = computeProjection({ ...KEYS, customerId: null, siteSurveyExpiresAt: at }, null, stages, KINDS, []);
+    expect(survey.summary.siteSurveyExpiresAt).toEqual(at);
+    expect(differingGroups(base, survey)).toEqual(['authorization']);
+    expect(differingGroups(survey, base)).toEqual(['authorization']);
+    expect(
+      differingGroups(survey, computeProjection({ ...KEYS, siteSurveyExpiresAt: new Date(at.getTime() + 1) }, null, stages, KINDS, [])),
+    ).toEqual(['authorization']);
   });
 
   it('EVM-034 a different deletion time is the group "authorization" (a security alert), a different status "keys"', () => {
