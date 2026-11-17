@@ -223,6 +223,84 @@ workOrders:
         $ref: ../components/responses.yaml#/CreateWorkOrderUnprocessable
       '429':
         $ref: ../components/responses.yaml#/RateLimited
+siteSurveys:
+  post:
+    operationId: createSiteSurvey
+    tags: [work-orders]
+    summary: Założenie wizji lokalnej (zlecenie bez klienta)
+    description: >-
+      Wizja lokalna z panelu (EVM-135 AC2, ADR-0024): zlecenie bez klienta i bez szablonu, w statusie `quoting`, z numerem
+      `ZL-RRRR-NNNN` od razu i terminem wygaśnięcia (utworzenie + 90 dni). Role Administrator i Edytor (Tylko odczyt — `403 forbidden`;
+      niezalogowany — `401`), kanał `web`, z audytem (`work_order.created` — identyfikatory, bez tytułu, adresu i telefonu). Wymaga
+      `X-CSRF-Token`. Funkcja za przełącznikiem serwera (`SITE_SURVEYS_ENABLED`; stan: `CurrentSession.features.siteSurveys`) —
+      wyłączona: `404 not_found` przed walidacją treści, nic się nie zapisuje. Lokalizacja nieistniejąca, usunięta albo niewidoczna —
+      `404 not_found`; istniejące `id` (także cudzego lub usuniętego zlecenia) — `409 id_conflict` bez danych istniejącego zasobu;
+      pole serwera zlecenia (`number`, `status`, `customer`, `siteSurvey` …) — `400 read_only_field`, każde inne pole spoza schematu
+      (także `customerId`, `templateId`, `description`) — `400 unknown_field`; `assigneeUserId` spoza aktywnych użytkowników — `400`
+      (`/assigneeUserId`, `assignee_unavailable`); błędy to wskaźnik i kod, nigdy wartość (także nigdy adres ani telefon). Idempotencja jak `createWorkOrder`
+      (`Idempotency-Key`, powtórka — `201` z `Idempotent-Replayed: true`). `createWorkOrder` się nie zmienia: zwykłe zlecenie wymaga klienta.
+    x-evia-authz:
+      roles: [administrator, editor]
+      channels: [web]
+      audit: true
+    parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        description: Klucz idempotencji (UUIDv7) generowany raz na akcję użytkownika.
+        schema:
+          type: string
+          format: uuid
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+          maxLength: 36
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/work-orders.yaml#/CreateSiteSurveyRequest
+    responses:
+      '201':
+        description: >-
+          Wizja utworzona (albo powtórka wcześniejszego zapisu — wtedy nagłówek `Idempotent-Replayed: true`); `Location` wskazuje zlecenie.
+        headers:
+          Location:
+            description: Adres zlecenia (`/api/v1/work-orders/{id}`).
+            schema:
+              type: string
+              maxLength: 80
+          ETag:
+            description: Wersja zasobu (`"<version>"`).
+            schema:
+              type: string
+              maxLength: 32
+          Idempotent-Replayed:
+            description: '`true` przy powtórce żądania z tym samym `Idempotency-Key` i treścią.'
+            schema:
+              type: string
+              enum: ['true']
+        content:
+          application/json:
+            schema:
+              $ref: ../components/work-orders.yaml#/WorkOrderDetails
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/responses.yaml#/ResourceConflict
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '422':
+        $ref: ../components/responses.yaml#/IdempotencyMismatch
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
 workOrdersSearch:
   post:
     operationId: searchWorkOrders

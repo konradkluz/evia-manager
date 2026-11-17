@@ -58,6 +58,12 @@ export type ComposeFailure =
 
 export type ComposeResult = { readonly ok: true; readonly number: string } | ComposeFailure;
 
+/** The result of a site survey: no template, so never `template_unavailable` or `composition_limit`. */
+export type ComposeSurveyResult =
+  | { readonly ok: true; readonly number: string }
+  | { readonly ok: false; readonly reason: 'id_conflict' | 'target_unavailable' }
+  | { readonly ok: false; readonly reason: 'assignee_unavailable'; readonly named: boolean };
+
 @Injectable()
 export class WorkOrderComposer {
   readonly #clock: Clock;
@@ -156,7 +162,7 @@ export class WorkOrderComposer {
     survey: NewSiteSurvey,
     source: ComposeOrigin,
     context: EventContext,
-  ): Promise<ComposeResult> {
+  ): Promise<ComposeSurveyResult> {
     const site = await this.#sites.findVisible(tx, principal, survey.siteId);
     if (site === undefined) return { ok: false, reason: 'target_unavailable' };
     const assignee = survey.coordinatorUserId === null ? null : await this.#users.findActive(survey.coordinatorUserId, tx);
