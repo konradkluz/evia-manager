@@ -21,6 +21,22 @@ export interface SurveyPurgeContext {
   readonly now: Date;
 }
 
+/** What `erase` gets: the context and the identifiers the register of deletions already holds (the union over the participants). */
+export interface SurveyEraseContext extends SurveyPurgeContext {
+  readonly declaredMediaAssetIds: readonly string[];
+}
+
+/**
+ * Thrown by `erase` when the order holds something the register was not told about (a medium committed between `identify` and `erase`, while the register was written). The
+ * job rolls the survey back untouched and takes it in the next run: a transient state, no alert (SR-FILE-11).
+ */
+export class SurveyChangedDuringPurge extends Error {
+  constructor() {
+    super('site survey purge: the survey changed between the register entry and the erasure');
+    this.name = 'SurveyChangedDuringPurge';
+  }
+}
+
 export interface SurveyPurgeIdentity {
   /** The media of the order (identifiers only). */
   readonly mediaAssetIds: readonly string[];
@@ -37,7 +53,8 @@ export interface SiteSurveyPurgeParticipant {
   /** Position in the sequence; the lower runs first. */
   readonly order: number;
   identify(tx: Kysely<Database>, context: SurveyPurgeContext): Promise<SurveyPurgeIdentity>;
-  erase(tx: Kysely<Database>, context: SurveyPurgeContext): Promise<AfterCommit | undefined>;
+  /** @throws SurveyChangedDuringPurge when what it would erase is not what `identify` declared. */
+  erase(tx: Kysely<Database>, context: SurveyEraseContext): Promise<AfterCommit | undefined>;
 }
 
 /** The registry the participants announce themselves to; the job takes them in the fixed order. */

@@ -5,8 +5,10 @@ export { SiteSurveyReminderJob } from './application/site-survey-reminder.job.ts
 export { SiteSurveyPurgeJob } from './application/site-survey-purge.job.ts';
 export {
   SiteSurveyPurgeRegistry,
+  SurveyChangedDuringPurge,
   type AfterCommit,
   type SiteSurveyPurgeParticipant,
+  type SurveyEraseContext,
   type SurveyPurgeContext,
   type SurveyPurgeIdentity,
 } from './site-survey-purge-participant.ts';

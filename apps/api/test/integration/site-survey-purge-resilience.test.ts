@@ -186,6 +186,48 @@ describe('EVM-139 AC5: retries, a failure of one survey, the limit, the alert', 
     expect(await job(current).run()).toMatchObject({ purged: 1, failed: 0 });
   });
 
+  it('EVM-139 AC5 a medium committed while the register is written (after identify) is not erased half: the survey is untouched in that run, the next run erases it with the new medium, the register names it, no object is orphaned', async () => {
+    const { current, register } = await start('enforce');
+    const order = await survey(current, { deadline: inDays(current, -9) });
+    await addMedia(current, order, 1);
+    let added = false;
+    register.onRecord = async () => {
+      if (added) return;
+      added = true;
+      await addMedia(current, order, 1);
+    };
+
+    const first = await job(current).run();
+    expect(first).toMatchObject({ candidates: 1, purged: 0, failed: 0, changedDuringPurge: 1 });
+    expect(await rowOf(current, order.id)).toMatchObject({ title: TITLE, deleted_at: null, purged_at: null });
+    const live = await one<{ n: string }>(
+      current,
+      sql`select count(*)::text as n from media.media_assets where work_order_id = ${order.id} and deleted_at is null and file_purged_at is null`,
+    );
+    expect(live?.n).toBe('2');
+    expect(current.storage.currentKeys()).toHaveLength(2);
+    // the entry of the first attempt is an orphan intent (it names one medium); its replay is harmless
+    expect(register.objects).toHaveLength(1);
+    const alerts = await one<{ n: string }>(
+      current,
+      sql`select count(*)::text as n from platform.security_alert_outbox where alert_code = 'site_survey_purge_failed'`,
+    );
+    expect(alerts?.n).toBe('0');
+
+    expect(await job(current).run()).toMatchObject({ purged: 1, failed: 0, changedDuringPurge: 0 });
+    expect((await rowOf(current, order.id))?.purged_at).not.toBeNull();
+    const ids = (await sql<{ id: string }>`select id from media.media_assets where work_order_id = ${order.id}`.execute(db(current))).rows;
+    expect(ids).toHaveLength(2);
+    expect(register.objects).toHaveLength(2);
+    for (const { id } of ids) expect(register.objects[1]?.body).toContain(id);
+    const unmarked = await one<{ n: string }>(
+      current,
+      sql`select count(*)::text as n from media.media_assets where work_order_id = ${order.id} and (deleted_at is null or file_purged_at is null)`,
+    );
+    expect(unmarked?.n).toBe('0');
+    expect(current.storage.currentKeys()).toHaveLength(0);
+  });
+
   it('EVM-139 AC5 one run erases at most the limit of surveys; the rest waits for the next run', async () => {
     const { current } = await start('enforce');
     for (let index = 0; index < SITE_SURVEY_PURGE_LIMIT_PER_RUN + 1; index += 1) await survey(current, { deadline: inDays(current, -9) });

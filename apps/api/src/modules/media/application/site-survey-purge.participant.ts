@@ -16,7 +16,9 @@ import { CLOCK, DATABASE } from '../../../platform/tokens.ts';
 import {
   SiteSurveyPurgeRegistry,
   type AfterCommit,
+  SurveyChangedDuringPurge,
   type SiteSurveyPurgeParticipant,
+  type SurveyEraseContext,
   type SurveyPurgeContext,
   type SurveyPurgeIdentity,
 } from '../../work-orders/index.ts';
@@ -58,15 +60,19 @@ export class MediaSurveyPurgeParticipant implements SiteSurveyPurgeParticipant, 
     };
   }
 
-  async erase(tx: Kysely<Database>, context: SurveyPurgeContext): Promise<AfterCommit | undefined> {
+  async erase(tx: Kysely<Database>, context: SurveyEraseContext): Promise<AfterCommit | undefined> {
     const tables = mediaTables(tx);
+    // SR-FILE-11: a medium committed while the register was written is not in the register - the survey waits for the next run (the row lock of the order does not stop an insert)
+    const declared = new Set(context.declaredMediaAssetIds);
+    const current = await assetIdsOfOrder(tables, context.workOrderId);
+    if (current.some((id) => !declared.has(id))) throw new SurveyChangedDuringPurge();
     const files = await lockFilesOfOrder(tables, context.workOrderId);
     const fileIds = files.map((file) => file.id);
     const keys = [...files.map((file) => file.objectKey), ...(await derivativeKeysOf(tables, fileIds))];
     const uploads = await uploadIdsOf(tables, fileIds);
     await closeSessionsOf(tables, fileIds, context.now);
     await markFilesErased(tables, fileIds, context.now);
-    await purgeAssetsOfOrder(tables, context.workOrderId, context.now);
+    await purgeAssetsOfOrder(tables, context.workOrderId, current, context.now);
     // SR-PRIV-04, SR-DATA-07: a ZIP export of the order may hold the erased photo - it ends now, the sweep of the worker removes its object
     await expireExportsOfOrder(tables, context.workOrderId);
 

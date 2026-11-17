@@ -38,7 +38,8 @@ export async function lockFilesOfOrder(db: MediaDb, workOrderId: string): Promis
  * the system is none, so the column names the uploader of the medium (`created_by`, a pseudonymous identifier that is already in the row); `updated_by` is left as it is. The
  * audit trail and the register of deletions say that the SYSTEM erased the media - these two columns are internal and never part of an answer.
  */
-export async function purgeAssetsOfOrder(db: MediaDb, workOrderId: string, now: Date): Promise<void> {
+export async function purgeAssetsOfOrder(db: MediaDb, workOrderId: string, assetIds: readonly string[], now: Date): Promise<void> {
+  if (assetIds.length === 0) return;
   await db
     .updateTable('media.media_assets')
     .set({
@@ -50,5 +51,6 @@ export async function purgeAssetsOfOrder(db: MediaDb, workOrderId: string, now: 
       version: sql<number>`version + 1`,
     })
     .where('work_order_id', '=', workOrderId)
+    .where('id', 'in', assetIds)
     .execute();
 }

@@ -12,6 +12,8 @@
  *     5. the participants erase (the files of the media - rows marked, the entries of the journal redacted, the free text of the stages); the location anonymized; the survey becomes the TOMBSTONE (neutral
  *        title, no description, no phone, no free text of the reason, soft deleted, `site_survey_purged_at`), the number stays; the event `work_order.site_survey_purged`
  *        (audit, projection) - identifiers only. The free text of the scope items (`notes`) is cleared here; the reasons, notes and typed names of the stages by `procedures` (a participant). The trigger of `sync.change_log` writes the `delete` markers (identifiers only).
+ *        A medium committed while the register was written (the lock of the order does not stop an insert) makes `erase` of the media throw `SurveyChangedDuringPurge`: the
+ *        transaction rolls back, the survey is untouched, the next run takes it (counted as `changedDuringPurge`, no alert, no failure). The media are marked by identifier.
  *     COMMIT; THEN the objects of the files are removed from the storage. A storage that fails there leaves `erased_at` set and `objects_erased_at` empty: the sweep of
  *     `ErasureCompletionJob` (EVM-051) finishes the removal, so nothing is orphaned and the survey - already purged - is never a candidate again (no second register entry).
  *
@@ -50,7 +52,13 @@ import {
   tombstoneSurvey,
 } from '../infrastructure/site-survey-purge-store.ts';
 import { workOrderTables } from '../infrastructure/tables.ts';
-import { SiteSurveyPurgeRegistry, type AfterCommit, type SurveyPurgeContext } from '../site-survey-purge-participant.ts';
+import {
+  SiteSurveyPurgeRegistry,
+  SurveyChangedDuringPurge,
+  type AfterCommit,
+  type SurveyEraseContext,
+  type SurveyPurgeContext,
+} from '../site-survey-purge-participant.ts';
 
 export const SITE_SURVEY_PURGE_JOB = 'work-orders.site-survey-purge';
 export const SITE_SURVEY_PURGE_FAILED = 'site_survey_purge_failed';
@@ -134,6 +142,7 @@ export class SiteSurveyPurgeJob {
     let purged = 0;
     let failed = 0;
     let objectsPending = 0;
+    let changed = 0;
     for (const id of ids) {
       try {
         const outcome = await runInTransaction(this.#db, (tx) => this.#purgeOne(tx, id, now));
@@ -143,6 +152,11 @@ export class SiteSurveyPurgeJob {
           objectsPending += await this.#removeObjects(outcome.afterCommit);
         }
       } catch (error) {
+        if (error instanceof SurveyChangedDuringPurge) {
+          // transient: a medium arrived while the register was written; the survey is untouched and is taken by the next run (no alert)
+          changed += 1;
+          continue;
+        }
         failed += 1;
         const reason = error instanceof DeletionRegisterUnavailable ? 'register_unavailable' : 'error';
         this.#failures.increment({ reason });
@@ -150,7 +164,7 @@ export class SiteSurveyPurgeJob {
         await this.#recordFailure(id);
       }
     }
-    const counts: JobCounts = { candidates, taken: ids.length, purged, failed, objectsPending };
+    const counts: JobCounts = { candidates, taken: ids.length, purged, failed, objectsPending, changedDuringPurge: changed };
     this.#logger.info({ job: SITE_SURVEY_PURGE_JOB, mode: 'enforce', ...counts }, 'site survey purge: done');
     if (failed > 0) {
       await this.#alert(now);
@@ -200,8 +214,9 @@ export class SiteSurveyPurgeJob {
     });
 
     const afterCommit: AfterCommit[] = [];
+    const eraseContext: SurveyEraseContext = { ...context, declaredMediaAssetIds: mediaAssetIds };
     for (const participant of participants) {
-      const step = await participant.erase(tx, context);
+      const step = await participant.erase(tx, eraseContext);
       if (step !== undefined) afterCommit.push(step);
     }
     await clearScopeItemNotes(tables, survey.id, SYSTEM_ACTOR_ID, now);
