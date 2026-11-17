@@ -15,6 +15,7 @@ import {
   createSyncCore,
   QueueError,
   attentionPlan,
+  parseClientConfig,
   type Clock,
   type EnqueueInput,
   type EngineEvent,
@@ -80,6 +81,12 @@ export interface SyncServiceStore {
     writeTemplates(set: TemplateSet): Promise<void>;
     /** The customers and places of the active generation for the form of a quick work order (EVM-106); never called in the hidden-data mode. */
     readQuickOrderSource(): Promise<QuickOrderSource>;
+    /** The stored client config as it came (EVM-137: the switch of the site survey); `null` = never downloaded. */
+    readClientConfig(): Promise<unknown>;
+    /** The ids of the open site surveys of the active generation, and the durable marks "this order was a survey" (EVM-137 W10). */
+    readSurveyOrderIds(): Promise<string[]>;
+    readSurveyMarks(): Promise<string[]>;
+    addSurveyMarks(ids: readonly string[]): Promise<void>;
   };
   takeSettled(): Promise<{ mutationId: string; info: SettledInfo }[]>;
 }
@@ -348,6 +355,7 @@ export class SyncService implements SyncControl {
     const status = await this.#core.engine.status();
     await this.#refreshCounts();
     await this.#collectSettled();
+    await this.#markSurveys();
     const retry = status.nextAttemptAt;
     if (paused !== undefined && paused !== 'replica_stale') {
       this.#pausedReason = paused;
@@ -556,17 +564,18 @@ export class SyncService implements SyncControl {
     }
     const descendants = (id: string): number => (children.get(id) ?? []).reduce((sum, c) => sum + 1 + descendants(c.mutationId), 0);
     const syncing = this.#snapshot.syncing;
+    const surveyOrderIds = await this.#surveyOrderIds(records);
     const items: QueueItem[] = records
       .filter((r) => r.parentMutationId === undefined || !ids.has(r.parentMutationId))
       .map((r): QueueItem => {
-        const plan = r.state === 'needs_attention' ? attentionPlan(r) : null;
+        const plan = r.state === 'needs_attention' ? attentionPlan(r, { surveyOrderIds }) : null;
         const state = r.state === 'needs_attention' ? 'attention' : r.state === 'blocked' ? 'blocked' : syncing ? 'sending' : 'pending';
         return {
           id: r.mutationId,
           type: r.type,
           state,
           createdAt: r.createdAt,
-          targetId: r.type === 'CreateQuickWorkOrder' ? null : r.orderingKey,
+          targetId: r.type === 'CreateQuickWorkOrder' || r.type === 'CreateSiteSurvey' ? null : r.orderingKey,
           code: r.lastCode ?? null,
           attempts: r.attempts,
           reason: plan?.reason ?? null,
@@ -604,12 +613,44 @@ export class SyncService implements SyncControl {
     ]);
     if (source !== null) return buildOrderDetail(source, records, userId ?? '');
     // not on the server yet: a quick work order that waits in the queue (EVM-106 AC2)
-    if (!records.some((record) => record.type === 'CreateQuickWorkOrder' && record.objectId === workOrderId)) return null;
+    if (
+      !records.some(
+        (record) => (record.type === 'CreateQuickWorkOrder' || record.type === 'CreateSiteSurvey') && record.objectId === workOrderId,
+      )
+    )
+      return null;
     const [places, templates] = await Promise.all([
       this.#deps.store.replicaExtras.readQuickOrderSource().catch(() => EMPTY_QUICK_SOURCE),
       this.templates(),
     ]);
     return buildPendingOrderDetail(workOrderId, records, places, templates);
+  }
+
+  /** The feature switches of the server as the phone last heard them (the replica, offline too); anything unknown is off (EVM-137 AC1). */
+  async features(): Promise<{ readonly siteSurveys: boolean }> {
+    try {
+      return parseClientConfig(await this.#deps.store.replicaExtras.readClientConfig()).features;
+    } catch {
+      return { siteSurveys: false };
+    }
+  }
+
+  /** The orders that are or were site surveys: commands of the queue, the replica and the durable marks (EVM-137 W10). */
+  async #surveyOrderIds(records: readonly QueueRecord[]): Promise<ReadonlySet<string>> {
+    const extras = this.#deps.store.replicaExtras;
+    const [replica, marks] = await Promise.all([extras.readSurveyOrderIds().catch(() => []), extras.readSurveyMarks().catch(() => [])]);
+    return new Set([...records.filter((r) => r.type === 'CreateSiteSurvey').map((r) => r.objectId), ...replica, ...marks]);
+  }
+
+  /** After a cycle: the surveys the replica now holds are marked, so that their items are safe after the server deletes them. */
+  async #markSurveys(): Promise<void> {
+    if (this.#disposed) return;
+    try {
+      const ids = await this.#deps.store.replicaExtras.readSurveyOrderIds();
+      if (ids.length > 0) await this.#deps.store.replicaExtras.addSurveyMarks(ids);
+    } catch {
+      // a failure of the marks never fails a cycle; they are written again after the next one
+    }
   }
 
   /** The templates kept on the phone (replica only); a damaged or missing document is `null`. */
@@ -653,6 +694,8 @@ export class SyncService implements SyncControl {
   enqueue(input: EnqueueInput): Promise<AttentionResult> {
     return this.#op(async () => {
       const record = await this.#core.queue.enqueue(input);
+      // the mark outlives the survey in the replica (W10): written with the command, a failure of it never loses the command
+      if (record.type === 'CreateSiteSurvey') await this.#deps.store.replicaExtras.addSurveyMarks([record.objectId]).catch(() => undefined);
       return { mutationId: record.mutationId };
     });
   }
@@ -711,7 +754,12 @@ export class SyncService implements SyncControl {
   retarget(id: string, workOrderId: string): Promise<AttentionResult> {
     return this.#op(async () => {
       const visible = new Set((await this.#deps.store.replicaExtras.listWorkOrders(500)).map((w) => w.id));
-      await this.#core.attention.retarget(id, { workOrderId, isVisibleWorkOrder: (candidate) => visible.has(candidate) });
+      const surveys = await this.#surveyOrderIds(await this.#records());
+      await this.#core.attention.retarget(id, {
+        workOrderId,
+        isVisibleWorkOrder: (candidate) => visible.has(candidate),
+        isSurveyOrder: (candidate) => surveys.has(candidate),
+      });
       return undefined;
     });
   }
@@ -738,6 +786,8 @@ const text = (value: unknown): string | null => (typeof value === 'string' && va
 type Patch = { -readonly [K in keyof SyncSnapshot]?: SyncSnapshot[K] };
 
 function labelOf(record: QueueRecord): string | null {
+  // the data of a survey (the address, the phone) are never a label of the queue (W5)
+  if (record.type === 'CreateSiteSurvey') return null;
   const value = text(record.payload['body']) ?? text(record.payload['title']);
   return value === null ? null : value.slice(0, LABEL_MAX);
 }
@@ -745,6 +795,8 @@ function labelOf(record: QueueRecord): string | null {
 /** What "Kopiuj treść" puts on the clipboard: the text of a note or comment; for a quick work order the data the technician typed. */
 export function copyTextOf(record: QueueRecord): string | null {
   const p = record.payload;
+  // nothing of a survey is copied: its data name a place (W5)
+  if (record.type === 'CreateSiteSurvey') return null;
   if (record.type !== 'CreateQuickWorkOrder') return text(p['body']);
   const customer = typeof p['newCustomer'] === 'object' && p['newCustomer'] !== null ? (p['newCustomer'] as Record<string, unknown>) : {};
   const site = typeof p['newSite'] === 'object' && p['newSite'] !== null ? (p['newSite'] as Record<string, unknown>) : {};

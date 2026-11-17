@@ -449,6 +449,7 @@ export const pl = {
       CreateNote: 'Wpis',
       CreateComment: 'Komentarz',
       CreateQuickWorkOrder: 'Nowe zlecenie',
+      CreateSiteSurvey: 'Wizja lokalna',
 
       other: 'Element',
     },
@@ -477,6 +478,18 @@ export const pl = {
       quota_exceeded:
         'Dziś założono zbyt wiele nowych klientów i lokalizacji z tego telefonu. Spróbuj ponownie jutro albo usuń zlecenie z telefonu.',
       unknown: 'Serwer nie przyjął tego elementu. Możesz skopiować treść albo usunąć element z telefonu.',
+      // EVM-137 (flow 17, M-07): a site survey and what belongs to it; none of the texts carries an address or a phone number
+      validation_failed_survey: 'Wizja lokalna nie została utworzona — sprawdź adres i numer telefonu.',
+      id_conflict_survey: 'Ta wizja nie mogła zostać zapisana — załóż ją ponownie.',
+      feature_disabled: 'Wizja lokalna nie została utworzona — funkcja jest wyłączona. Zapytaj administratora.',
+      quota_exceeded_survey:
+        'Dziś założono zbyt wiele nowych lokalizacji z tego telefonu. Spróbuj ponownie jutro albo usuń wizję z telefonu.',
+      site_survey_limit: 'Masz za dużo otwartych wizji — przypisz klienta, odrzuć lub poczekaj na wygaśnięcie.',
+      survey_unavailable: 'Wizja lokalna została usunięta — biuro mogło ją odrzucić albo minął jej termin.',
+      survey_photo_unavailable: 'Wizja została usunięta — zdjęcie nie zostało wysłane.',
+      survey_video_unavailable: 'Wizja została usunięta — film nie został wysłany.',
+      survey_entry_unavailable: 'Wizja została usunięta — wpis nie został wysłany.',
+      unknown_survey: 'Serwer nie przyjął tej wizji. Możesz usunąć ją z telefonu.',
     },
     actions: { retarget: 'Dodaj do innego zlecenia', copy: 'Kopiuj treść', recreate: 'Utwórz ponownie', discard: 'Usuń z telefonu' },
     details: 'Szczegóły techniczne',

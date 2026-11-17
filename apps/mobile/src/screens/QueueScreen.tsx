@@ -61,6 +61,7 @@ export function QueueScreen({
     CreateNote: t('queue.types.CreateNote'),
     CreateComment: t('queue.types.CreateComment'),
     CreateQuickWorkOrder: t('queue.types.CreateQuickWorkOrder'),
+    CreateSiteSurvey: t('queue.types.CreateSiteSurvey'),
   };
   const states: Readonly<Record<string, string>> = {
     pending: t('queue.states.pending'),
@@ -76,6 +77,16 @@ export function QueueScreen({
     template_unavailable: t('attention.reasons.template_unavailable'),
     quota_exceeded: t('attention.reasons.quota_exceeded'),
     unknown: t('attention.reasons.unknown'),
+    validation_failed_survey: t('attention.reasons.validation_failed_survey'),
+    id_conflict_survey: t('attention.reasons.id_conflict_survey'),
+    feature_disabled: t('attention.reasons.feature_disabled'),
+    quota_exceeded_survey: t('attention.reasons.quota_exceeded_survey'),
+    site_survey_limit: t('attention.reasons.site_survey_limit'),
+    survey_unavailable: t('attention.reasons.survey_unavailable'),
+    survey_photo_unavailable: t('attention.reasons.survey_photo_unavailable'),
+    survey_video_unavailable: t('attention.reasons.survey_video_unavailable'),
+    survey_entry_unavailable: t('attention.reasons.survey_entry_unavailable'),
+    unknown_survey: t('attention.reasons.unknown_survey'),
   };
   const actionLabels: Readonly<Record<string, string>> = {
     retarget: t('attention.actions.retarget'),

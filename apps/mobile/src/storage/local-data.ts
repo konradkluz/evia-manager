@@ -10,6 +10,7 @@ import { SqlMediaFileStore, type MediaFileStore } from './media-file-store';
 import { cipherVersionSupported, generateKeyHex, keyCheckValue, keyPragma } from './key';
 import type { AppFiles, CryptoSource, DeviceSecrets, InstallationIdentity, KeyVault, StorageDiagnostic } from './ports';
 import { SqlQueueStore, type PendingMediaRegistry } from './queue-store';
+import { SqlSurveyMarks } from './survey-marks';
 import { SqlReplicaStore } from './replica-store';
 import { SCHEMA, isNewerThan, latest, migrate, readVersions, type SchemaPlan } from './schema';
 import type { SqlEngine } from './sql';
@@ -69,6 +70,11 @@ export interface UnlockedStore {
     readMediaServerStates(
       ids: readonly string[],
     ): Promise<ReadonlyMap<string, { readonly fileState: string; readonly reasonCode: string | null }>>;
+    /** The stored client config (EVM-137: the switch of the site survey) and the marks of surveys (W10); see `SyncServiceStore`. */
+    readClientConfig(): Promise<unknown>;
+    readSurveyOrderIds(): Promise<string[]>;
+    readSurveyMarks(): Promise<string[]>;
+    addSurveyMarks(ids: readonly string[]): Promise<void>;
   };
   /** The files of the queue of this owner (EVM-130): identifiers, digest, state — see `media-file-store.ts`. */
   readonly media: MediaFileStore;
@@ -378,6 +384,7 @@ export class LocalDataHost {
     const access = db.gated(() => this.#unlocked === userId && this.#db === db && !db.closed);
     const queue = new SqlQueueStore(access);
     const replica = new SqlReplicaStore(access);
+    const surveyMarks = new SqlSurveyMarks(access);
     const allowed = async (): Promise<void> => {
       await access.read(() => Promise.resolve());
     };
@@ -406,6 +413,10 @@ export class LocalDataHost {
         writeTemplates: (set) => replica.writeTemplates(set),
         readQuickOrderSource: () => replica.readQuickOrderSource(),
         readMediaServerStates: (ids) => replica.readMediaServerStates(ids),
+        readClientConfig: () => replica.readClientConfig(),
+        readSurveyOrderIds: () => replica.readSurveyOrderIds(),
+        readSurveyMarks: () => surveyMarks.read(),
+        addSurveyMarks: (ids) => surveyMarks.add(ids),
       },
       media: new SqlMediaFileStore(access, userId),
       takeSettled: () => queue.takeSettled(),

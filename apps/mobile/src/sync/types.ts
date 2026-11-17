@@ -150,6 +150,11 @@ export interface SyncControl {
    * hidden-data mode; the caller keeps the result in memory only for as long as the form is open.
    */
   quickOrderSource(): Promise<QuickOrderSource>;
+  /**
+   * The feature switches the server last announced (the replica, so offline too); anything unknown is off. `siteSurveys` = the action
+   * "Wizja lokalna" is offered (EVM-137 AC1); an existing survey and the camera work whatever it says.
+   */
+  features(): Promise<{ readonly siteSurveys: boolean }>;
   /** Entries that depend on this one, for the confirmation dialog. */
   dependentsOf(id: string): Promise<number>;
   discard(id: string): Promise<AttentionResult>;

@@ -196,6 +196,10 @@ export class FakeHost {
         writeTemplates: () => Promise.resolve(),
         readQuickOrderSource: () => Promise.resolve({ customers: [], sites: [] }),
         readMediaServerStates: () => Promise.resolve(new Map()),
+        readClientConfig: () => Promise.resolve(null),
+        readSurveyOrderIds: () => Promise.resolve([]),
+        readSurveyMarks: () => Promise.resolve([]),
+        addSurveyMarks: () => Promise.resolve(),
       },
       media: {
         register: () => Promise.resolve(),

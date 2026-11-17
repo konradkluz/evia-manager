@@ -1051,3 +1051,47 @@ describe('films that wait for Wi-Fi (EVM-110 AC4, AC5)', () => {
     expect(await r.uploads.setVideoWifiOnly(true)).toBe(false);
   });
 });
+
+describe('a file whose order the server deleted (EVM-137 AC6, W10)', () => {
+  /** A file that waits in the queue (row `pending`); the server answered its command `rejected` with `code`. */
+  const rejected = async (code: string, state: 'needs_attention' | 'blocked' = 'needs_attention'): Promise<Rig> => {
+    const r = await rig();
+    hold(r, 1);
+    await r.uploads.add(photo(1));
+    const [row] = await r.store.media.list();
+    await r.queue.update(row?.mutationId ?? '', { state, attempts: 1, lastCode: code });
+    await r.uploads.refresh();
+    await idle(r);
+    return r;
+  };
+
+  it.each(['target_unavailable', 'forbidden'])(
+    'EVM-137 AC6 W10: the command rejected with %s turns the file into "Wymaga uwagi" with only "Usuń z telefonu" (no "Ponów": nothing to retry)',
+    async (code) => {
+      const r = await rejected(code);
+      expect(await states(r)).toEqual(['01:needs_attention']);
+      expect(r.uploads.getSnapshot().files).toMatchObject([{ status: 'attention', code, actions: ['discard'] }]);
+    },
+  );
+
+  it('EVM-137 AC6 W10: it is not retried and not armed - the module never gets a job for it, however many times the phone reconciles', async () => {
+    const r = await rejected('target_unavailable');
+    for (let i = 0; i < 3; i += 1) await r.uploads.reconcile();
+    expect(r.native.armed).toEqual([]);
+    expect(await r.uploads.retry(asset(1))).toBe(false);
+  });
+
+  it('EVM-137 AC6: a file behind a command that only waits or is blocked stays "waiting" (the survey may still be created)', async () => {
+    expect(await states(await rejected('parent_unavailable', 'blocked'))).toEqual(['01:pending']);
+    expect(await states(await rejected('validation_failed'))).toEqual(['01:pending']);
+  });
+
+  it('EVM-137 AC6 W10: "Usuń z telefonu" removes the original, the row AND the rejected command - nothing of the file stays and nothing is resent', async () => {
+    const r = await rejected('target_unavailable');
+    const row = (await r.store.media.list())[0];
+    expect(await r.uploads.discard(asset(1))).toBe(true);
+    expect(await r.store.media.list()).toEqual([]);
+    expect((await r.queue.readAll()).some((entry) => (entry as { mutationId?: string }).mutationId === row?.mutationId)).toBe(false);
+    expect(r.uploads.getSnapshot().files).toEqual([]);
+  });
+});

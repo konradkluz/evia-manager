@@ -176,8 +176,15 @@ describe('reader of server data (EVM-092 AC6)', () => {
       closedWorkOrdersInScopeDays: 45,
       periodicResyncDays: 14,
       scopeRuleVersion: '12',
+      features: { siteSurveys: false },
     });
-    const d = { offlineContactWindowDays: 7, closedWorkOrdersInScopeDays: 30, periodicResyncDays: 7, scopeRuleVersion: '' };
+    const d = {
+      offlineContactWindowDays: 7,
+      closedWorkOrdersInScopeDays: 30,
+      periodicResyncDays: 7,
+      scopeRuleVersion: '',
+      features: { siteSurveys: false },
+    };
     expect(parseClientConfig(null)).toEqual(d);
     expect(parseClientConfig([])).toEqual(d);
     expect(
@@ -189,14 +196,14 @@ describe('reader of server data (EVM-092 AC6)', () => {
   });
 });
 
-describe('an order of a newer server in the app in the field (EVM-135 AC5; ADR-0024 pt 5)', () => {
-  it('EVM-135 AC5 the reader of this version (N-1 for the site survey) reads a work order with siteSurvey and customerId null: an upsert without the new field, no resync', () => {
+describe('a site survey in the replica (EVM-135 AC5 became EVM-137 AC4; ADR-0024 pt 5)', () => {
+  it('EVM-135 AC5 / EVM-137 AC4: the reader of this version reads a work order with siteSurvey and customerId null: an upsert that now carries the survey, no resync', () => {
     const siteSurvey = { expiresAt: iso(SERVER_NOW), extensionCount: 0, requesterPhone: '+48600700800' };
     const parsed = parseChange(upsert('work_order', 1, 2, { customerId: null, status: 'quoting', siteSurvey }));
     expect(parsed.kind).toBe('upsert');
     if (parsed.kind !== 'upsert') return;
-    expect(parsed.entity.fields).not.toHaveProperty('siteSurvey');
-    expect(JSON.stringify(parsed)).not.toContain('+48600700800');
+    expect(parsed.entity.fields['customerId']).toBeNull();
+    expect(parsed.entity.fields['siteSurvey']).toEqual({ expiresAt: iso(SERVER_NOW), extensionCount: 0, requesterPhone: '+48600700800' });
     expect(parseSnapshotEntity(upsert('work_order', 1, 2, { customerId: null, siteSurvey })['entity']).kind).toBe('upsert');
   });
 });

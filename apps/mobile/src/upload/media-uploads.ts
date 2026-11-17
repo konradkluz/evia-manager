@@ -73,7 +73,13 @@ export const SWEEP_MIN_AGE_MS = 10 * 60 * 1000;
 const EMPTY: MediaUploadsSnapshot = { files: [], notifications: 'granted' };
 
 /** The codes of "Wymaga uwagi" for which "Usuń z telefonu" is offered (EVM-108 AC6, decision of Konrad 2026-11-15). */
-const DISCARDABLE_CODES: readonly string[] = ['quarantined', 'id_conflict', 'missing_original'];
+const DISCARDABLE_CODES: readonly string[] = ['quarantined', 'id_conflict', 'missing_original', 'target_unavailable', 'forbidden'];
+/**
+ * The codes of a REJECTED `CreateMediaAsset` that end the file (EVM-137 AC6, W10): the order is gone (a site survey the office rejected or the
+ * server deleted) or no longer ours. The row of the file leaves `pending` for "Wymaga uwagi" with only "Usuń z telefonu": nothing is armed,
+ * nothing is retried, and the file never goes to another order.
+ */
+const ORDER_GONE_CODES: readonly string[] = ['target_unavailable', 'forbidden'];
 const isDiscardable = (code: string | null): boolean => code !== null && DISCARDABLE_CODES.includes(code);
 
 const mimeOf = (mediaType: unknown): string => (mediaType === 'video' ? 'video/mp4' : 'image/jpeg');
@@ -392,6 +398,7 @@ export class MediaUploads implements MediaControl {
     }
     try {
       await this.#repairOrphans(store);
+      await this.#adoptRejections(store);
       if (sweep) await this.#sweep(store);
       await this.#arm(store);
       await this.#syncStatuses(store);
@@ -400,6 +407,21 @@ export class MediaUploads implements MediaControl {
       // a failing store or module leaves the rows as they are; the next run starts again
     }
     await this.#rebuild();
+  }
+
+  /** A file whose command the server rejected because the order is gone: the row is "Wymaga uwagi" with the code (a code, never a message). */
+  async #adoptRejections(store: UnlockedStore): Promise<void> {
+    const waiting = new Map((await store.media.list()).filter((file) => file.state === 'pending').map((file) => [file.mutationId, file]));
+    if (waiting.size === 0) return;
+    const at = this.#deps.now();
+    for (const raw of await store.queue.readAll()) {
+      if (typeof raw !== 'object' || raw === null) continue;
+      const { mutationId, state, lastCode, ownerUserId } = raw as Record<string, unknown>;
+      if (typeof mutationId !== 'string' || state !== 'needs_attention' || ownerUserId !== store.userId) continue;
+      const file = waiting.get(mutationId);
+      if (file === undefined || typeof lastCode !== 'string' || !ORDER_GONE_CODES.includes(lastCode)) continue;
+      await store.media.setState(file.assetId, 'needs_attention', lastCode, at);
+    }
   }
 
   /** Commands of the queue whose row is missing (the process died between the two writes of `add`): the row is written again. */
@@ -520,7 +542,12 @@ export class MediaUploads implements MediaControl {
     const store = this.#deps.store();
     if (store === null) return false;
     const file = (await store.media.list()).find((row) => row.assetId === assetId);
-    if (file === undefined || (file.state !== 'failed' && file.state !== 'needs_attention') || file.lastCode === 'quarantined')
+    if (
+      file === undefined ||
+      (file.state !== 'failed' && file.state !== 'needs_attention') ||
+      file.lastCode === 'quarantined' ||
+      (file.lastCode !== null && ORDER_GONE_CODES.includes(file.lastCode))
+    )
       return false;
     const result = await this.#deps.native.retryUpload(assetId).catch(() => 'failed' as const);
     if (result !== 'armed_user_initiated' && result !== 'armed' && result !== 'already_armed') return false;
@@ -548,6 +575,8 @@ export class MediaUploads implements MediaControl {
     if (!removed) return false;
     try {
       await store.media.discard(assetId);
+      // the rejected command of the file goes with it, so that it is not shown twice and never sent again (W10); a missing one is fine
+      if (file.lastCode !== null && ORDER_GONE_CODES.includes(file.lastCode)) await store.queue.rewrite([file.mutationId], []);
     } catch {
       return false;
     }
@@ -657,7 +686,9 @@ function viewOf(row: MediaFileRecord, status: UploadStatus | undefined): MediaFi
         status: 'attention',
         percent: null,
         actions: [
-          ...(row.lastCode === 'quarantined' ? [] : (['retry'] as const)),
+          ...(row.lastCode === 'quarantined' || (row.lastCode !== null && ORDER_GONE_CODES.includes(row.lastCode))
+            ? []
+            : (['retry'] as const)),
           ...(isDiscardable(row.lastCode) ? (['discard'] as const) : []),
         ],
       };

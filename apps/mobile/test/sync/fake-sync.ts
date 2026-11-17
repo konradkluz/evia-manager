@@ -118,6 +118,11 @@ export class FakeSync implements SyncRuntime {
   templateSet: TemplateSet | null = null;
   quickSource: QuickOrderSource = { customers: [], sites: [] };
   readonly quickSourceRequests: number[] = [];
+  /** The switches the server announced (EVM-137); the site survey is on by default in the fake, the tests of the switch turn it off. */
+  featureSet: { siteSurveys: boolean } = { siteSurveys: true };
+  features(): Promise<{ readonly siteSurveys: boolean }> {
+    return Promise.resolve(this.featureSet);
+  }
   templates(): Promise<TemplateSet | null> {
     return Promise.resolve(this.templateSet);
   }

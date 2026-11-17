@@ -59,6 +59,27 @@ const siteOf = (entity: ReplicaEntity): string | null => {
   return typeof value === 'string' ? value : null;
 };
 
+/** The term of an open survey from the two keys read of the projection; `null` = an ordinary order (or a value that is not a term). */
+function surveyOf(expiresAt: unknown, extensions: unknown): { expiresAt: number; extensionCount: number } | null {
+  const at = typeof expiresAt === 'string' ? Date.parse(expiresAt) : NaN;
+  if (!Number.isFinite(at)) return null;
+  return { expiresAt: at, extensionCount: typeof extensions === 'number' && Number.isInteger(extensions) ? extensions : 0 };
+}
+
+/** The key `survey` exists only on a survey: an ordinary order keeps the shape it always had. */
+function optionalSurvey<T extends object>(survey: T | null): { survey?: T } {
+  return survey === null ? {} : { survey };
+}
+
+function detailSurveyOf(
+  expiresAt: unknown,
+  extensions: unknown,
+  phone: unknown,
+): { expiresAt: number; extensionCount: number; requesterPhone: string | null } | null {
+  const term = surveyOf(expiresAt, extensions);
+  return term === null ? null : { ...term, requesterPhone: typeof phone === 'string' ? phone : null };
+}
+
 /**
  * `ReplicaStore` on the encrypted database (EVM-093 AC2, AC3; port and conformance suite of EVM-092). Server data lives in replica
  * tables with a generation number; nothing here touches a queue table. Reads of a page are bulk (chunks of ≤ 500 parameters, no N+1);
@@ -337,6 +358,24 @@ export class SqlReplicaStore implements ReplicaStore {
     });
   }
 
+  /** The ids of the open site surveys of the active generation (EVM-137): the host marks them, so that what belongs to a survey is never moved to another order. */
+  async readSurveyOrderIds(): Promise<string[]> {
+    return this.#db.read(async (tx) => {
+      const rows = await tx.all(
+        "SELECT e.id AS id FROM replica_entities e JOIN replica_generations g ON g.generation = e.generation AND g.role = 'active' WHERE e.type = 'work_order' AND json_extract(e.fields, '$.siteSurvey.expiresAt') IS NOT NULL ORDER BY e.id LIMIT 500",
+      );
+      return rows.map((row) => String(row['id']));
+    });
+  }
+
+  /** The stored client config as it came (validated by the reader of the core); `null` = never downloaded. */
+  async readClientConfig(): Promise<unknown> {
+    return this.#db.read(async (tx) => {
+      const row = await tx.get("SELECT value FROM replica_meta WHERE key = 'config'");
+      return typeof row?.['value'] === 'string' ? parse(row['value']) : null;
+    });
+  }
+
   async writeLastSuccess(at: number): Promise<void> {
     await this.#db.transaction((tx) => SqlReplicaStore.#setMeta(tx, 'last_success_at', Math.trunc(at)));
   }
@@ -440,7 +479,7 @@ export class SqlReplicaStore implements ReplicaStore {
     return this.#db.read(async (tx) => {
       const orderRows = await tx.all(
         withData
-          ? `SELECT e.id AS id, json_extract(e.fields, '$.number') AS number, json_extract(e.fields, '$.status') AS status, json_extract(e.fields, '$.createdAt') AS created_at, json_extract(e.fields, '$.customerId') AS customer_id, json_extract(e.fields, '$.siteId') AS site_id FROM replica_entities e ${active} WHERE e.type = 'work_order'`
+          ? `SELECT e.id AS id, json_extract(e.fields, '$.number') AS number, json_extract(e.fields, '$.status') AS status, json_extract(e.fields, '$.createdAt') AS created_at, json_extract(e.fields, '$.customerId') AS customer_id, json_extract(e.fields, '$.siteId') AS site_id, json_extract(e.fields, '$.siteSurvey.expiresAt') AS survey_expires_at, json_extract(e.fields, '$.siteSurvey.extensionCount') AS survey_extensions FROM replica_entities e ${active} WHERE e.type = 'work_order'`
           : `SELECT e.id AS id, json_extract(e.fields, '$.number') AS number, json_extract(e.fields, '$.status') AS status, json_extract(e.fields, '$.createdAt') AS created_at FROM replica_entities e ${active} WHERE e.type = 'work_order'`,
       );
       const orders: SourceOrder[] = orderRows.map((row) => {
@@ -452,6 +491,8 @@ export class SqlReplicaStore implements ReplicaStore {
           createdAt: Number.isFinite(created) ? created : 0,
           customerId: nullable(row['customer_id']),
           siteId: nullable(row['site_id']),
+          // the term of an open survey (EVM-137): read only with the data, never in the hidden-data mode
+          ...optionalSurvey(surveyOf(row['survey_expires_at'], row['survey_extensions'])),
         };
       });
       if (!withData) return { orders, customers: [], sites: [], stages: [] };
@@ -504,7 +545,7 @@ export class SqlReplicaStore implements ReplicaStore {
     const num = (value: unknown): number | null => (typeof value === 'number' && Number.isFinite(value) ? value : null);
     return this.#db.read(async (tx) => {
       const orderRow = await tx.get(
-        `SELECT e.id AS id, json_extract(e.fields, '$.number') AS number, json_extract(e.fields, '$.title') AS title, json_extract(e.fields, '$.status') AS status, json_extract(e.fields, '$.customerId') AS customer_id, json_extract(e.fields, '$.siteId') AS site_id FROM replica_entities e ${active} WHERE e.type = 'work_order' AND e.id = ?`,
+        `SELECT e.id AS id, json_extract(e.fields, '$.number') AS number, json_extract(e.fields, '$.title') AS title, json_extract(e.fields, '$.status') AS status, json_extract(e.fields, '$.customerId') AS customer_id, json_extract(e.fields, '$.siteId') AS site_id, json_extract(e.fields, '$.siteSurvey.expiresAt') AS survey_expires_at, json_extract(e.fields, '$.siteSurvey.extensionCount') AS survey_extensions, json_extract(e.fields, '$.siteSurvey.requesterPhone') AS survey_phone FROM replica_entities e ${active} WHERE e.type = 'work_order' AND e.id = ?`,
         [workOrderId],
       );
       if (orderRow === undefined) return null;
@@ -620,6 +661,7 @@ export class SqlReplicaStore implements ReplicaStore {
           status: text(orderRow['status']),
           customerId,
           siteId,
+          ...optionalSurvey(detailSurveyOf(orderRow['survey_expires_at'], orderRow['survey_extensions'], orderRow['survey_phone'])),
         },
         customer:
           customerRow === undefined

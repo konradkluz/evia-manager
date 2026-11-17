@@ -230,7 +230,7 @@ describe('readOrderDetailSource (EVM-104)', () => {
     ]) {
       expect(sql).not.toContain(`'$.${key}'`);
     }
-    expect([...sql.matchAll(/e\.fields/g)]).toHaveLength([...sql.matchAll(/json_extract\(e\.fields, '\$\.[A-Za-z]+'\)/g)].length);
+    expect([...sql.matchAll(/e\.fields/g)]).toHaveLength([...sql.matchAll(/json_extract\(e\.fields, '\$\.[A-Za-z.]+'\)/g)].length);
     expect(sql).not.toMatch(/payment|media|document/i);
   });
 

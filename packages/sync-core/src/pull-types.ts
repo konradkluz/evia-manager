@@ -20,7 +20,7 @@ export type EntityType = (typeof ENTITY_TYPES)[number];
 export type EntityKey = `${EntityType}:${string}`;
 export const entityKey = (type: EntityType, id: string): EntityKey => `${type}:${id}`;
 
-export type FieldValue = string | number | boolean | null | Readonly<Record<string, string | number | boolean>>;
+export type FieldValue = string | number | boolean | null | Readonly<Record<string, string | number | boolean | null>>;
 
 /** An object of the replica: only fields of its projection, copied one by one (never a spread of server data). */
 export interface ReplicaEntity {
@@ -95,6 +95,8 @@ export interface ClientConfig {
   readonly closedWorkOrdersInScopeDays: number;
   readonly periodicResyncDays: number;
   readonly scopeRuleVersion: string;
+  /** Feature switches of the server (EVM-135/EVM-137); anything the server does not state as `true` is `false`. */
+  readonly features: { readonly siteSurveys: boolean };
 }
 
 export const DEFAULT_CLIENT_CONFIG: ClientConfig = {
@@ -102,6 +104,7 @@ export const DEFAULT_CLIENT_CONFIG: ClientConfig = {
   closedWorkOrdersInScopeDays: 30,
   periodicResyncDays: 7,
   scopeRuleVersion: '',
+  features: { siteSurveys: false },
 };
 
 export type ReplicaOp =

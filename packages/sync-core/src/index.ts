@@ -3,7 +3,7 @@ export type { EngineDeps, EngineOptions, EngineStatus, FlushOptions, FlushResult
 export { MutationQueue } from './queue.ts';
 export type { DiscardResult, EnqueueInput, QueueDeps, QueueEntry, RecreateInput, RetargetInput } from './queue.ts';
 export { attentionPlan } from './attention.ts';
-export type { AttentionAction, AttentionPlan, AttentionReason } from './attention.ts';
+export type { AttentionAction, AttentionContext, AttentionPlan, AttentionReason } from './attention.ts';
 export { createUuidV7 } from './uuidv7.ts';
 export { createSyncCore } from './core.ts';
 export type { AttentionOperations, SyncCore, SyncCoreDeps, SyncOptions } from './core.ts';

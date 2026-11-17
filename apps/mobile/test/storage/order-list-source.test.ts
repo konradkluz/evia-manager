@@ -115,7 +115,7 @@ describe('readOrderListSource (EVM-103)', () => {
       expect(sql).not.toContain(`'$.${key}'`);
     }
     // every use of the column is inside json_extract with a fixed path
-    expect([...sql.matchAll(/e\.fields/g)]).toHaveLength([...sql.matchAll(/json_extract\(e\.fields, '\$\.[A-Za-z]+'\)/g)].length);
+    expect([...sql.matchAll(/e\.fields/g)]).toHaveLength([...sql.matchAll(/json_extract\(e\.fields, '\$\.[A-Za-z.]+'\)/g)].length);
   });
 
   it('EVM-103 AC6: nothing the projection holds besides the allow-listed keys reaches the result', async () => {
