@@ -28,6 +28,8 @@ export interface SurveyServer {
   rejections: string[];
   /** The assignment bodies as the server saw them. */
   assignments: Array<{ customerId: string; version: number }>;
+  /** The bodies of the extensions (`POST …/site-survey/extensions`, EVM-140 AC6) as the server saw them. */
+  extensions: Array<{ reason: string; version: number }>;
   /** The bodies of POST /site-surveys as the server saw them, with the key of idempotency (EVM-138 AC2). */
   creations: Array<{ body: Record<string, unknown>; key: string | undefined }>;
 }
@@ -49,6 +51,7 @@ export function newSurveyServer(daysLeft = 80): SurveyServer {
     conflictOnce: false,
     rejections: [],
     assignments: [],
+    extensions: [],
     creations: [],
   };
 }
@@ -170,6 +173,23 @@ export function answerSurveyRoute(server: SurveyServer, input: SurveyInput): Ans
     server.customer = customer;
     server.expiresAt = null;
     server.requesterPhone = null;
+    server.version += 1;
+    return details(server, input);
+  }
+  if (part === '/site-survey/extensions' && input.method === 'POST') {
+    // EVM-140 AC2, AC3: an open survey only (a rejected one is restored, one with a customer is an ordinary order), twice at most,
+    // 90 days from the present deadline; the version is in the body.
+    const sent = input.body() as { reason: string; version: number };
+    server.extensions.push(sent);
+    if (server.customer !== null || server.status === 'cancelled' || server.expiresAt === null)
+      return problem(409, 'invalid_state_transition');
+    if (!['awaiting_client_decision', 'awaiting_community_decision', 'second_visit_needed'].includes(sent.reason)) {
+      return problem(400, 'validation_failed', { errors: [{ pointer: '/reason', code: 'invalid_value' }] });
+    }
+    if (server.extensionCount >= 2) return problem(409, 'extension_limit_reached');
+    if (sent.version !== server.version) return problem(412, 'version_conflict');
+    server.expiresAt = new Date(Date.parse(server.expiresAt) + 90 * DAY_MS).toISOString();
+    server.extensionCount += 1;
     server.version += 1;
     return details(server, input);
   }
