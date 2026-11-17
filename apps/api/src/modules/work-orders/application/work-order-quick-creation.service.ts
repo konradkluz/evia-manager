@@ -18,7 +18,7 @@ import type {
   SiteSurveyInput,
   WorkOrderQuickCreation,
 } from '../system-ports.ts';
-import { WorkOrderComposer, type ComposeResult } from './work-order-composer.ts';
+import { WorkOrderComposer, type ComposeResult, type ComposeSurveyResult } from './work-order-composer.ts';
 
 @Injectable()
 export class WorkOrderQuickCreationService implements WorkOrderQuickCreation {
@@ -104,7 +104,7 @@ export class WorkOrderQuickCreationService implements WorkOrderQuickCreation {
 }
 
 /** The result of the composer in the language of the phone: nothing here throws a problem of the panel. */
-function quickResult(result: ComposeResult): QuickCreationResult {
+function quickResult(result: ComposeResult | ComposeSurveyResult): QuickCreationResult {
   if (result.ok) return result;
   switch (result.reason) {
     case 'composition_limit':

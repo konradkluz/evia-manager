@@ -1511,6 +1511,7 @@ export const pl = {
         mediaAssetsAdded: 'Dodano zdjęcia lub filmy',
         documentAdded: 'Dodano dokument',
         customerAssigned: 'Przypisano klienta',
+        siteSurveyExtended: 'Przedłużono wizję lokalną',
         unknown: 'Zdarzenie w zleceniu.',
       },
       correction: {

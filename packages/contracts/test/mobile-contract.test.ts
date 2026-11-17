@@ -739,6 +739,8 @@ describe('EVM-090 AC4 sending mutations', () => {
       'quota_exceeded',
       // EVM-135 AC3: the site survey is switched off on the server
       'feature_disabled',
+      // EVM-140 AC4: the limit of open site surveys
+      'site_survey_limit_exceeded',
     ]);
     expect(result.properties.warnings.items['x-extensible-enum']).toEqual(['captured_at_out_of_range', 'idempotency_expired']);
     expect(result.properties.outcome.enum).toBeUndefined();

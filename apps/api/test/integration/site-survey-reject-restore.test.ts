@@ -6,6 +6,7 @@ import { insertCustomer } from '../support/customer-fixtures.ts';
 import { BASE, useDeletionApp, type Browser } from '../support/deletion-harness.ts';
 import { insertSite } from '../support/site-fixtures.ts';
 import { insertWorkOrders } from '../support/work-order-fixtures.ts';
+import { SiteSurveyReminderJob } from '../../src/modules/work-orders/index.ts';
 import type { WorkOrderStatus } from '../../src/modules/work-orders/domain/work-order-status.ts';
 
 /**
@@ -211,6 +212,54 @@ describe('the restoration of a rejected site survey (EVM-136 AC5)', () => {
     const assigned = await editor.panel.put(`${BASE}/${id}/customer`, { customerId, version: 4 });
     expect(assigned.status, JSON.stringify(assigned.body)).toBe(200);
     expect(await rowOf(id)).toMatchObject({ status: 'quoting', customer_id: customerId, site_survey_expires_at: null });
+  });
+
+  const reminders = async (id: string): Promise<number> =>
+    Number(
+      (
+        await sql<{ n: string }>`
+          select count(*)::text as n from platform.email_outbox where kind = 'site_survey_expiring' and subject_id = ${id}`.execute(admin())
+      ).rows[0]?.n,
+    );
+  const remind = () => app().app.get(SiteSurveyReminderJob, { strict: false }).run();
+
+  it('EVM-140 AC1 a survey reminded, rejected and restored with a later deadline gets exactly ONE new reminder as the new deadline comes near (the move of the deadline clears the mark)', async () => {
+    const editor = await harness.signIn('editor');
+    const administrator = await harness.administrator();
+    const id = await survey({ createdDaysAgo: 20, expiresInDays: 10 });
+    await remind();
+    const first = await reminders(id);
+    expect(first).toBeGreaterThan(0);
+
+    // the rejection leaves the nearer deadline as it is: the mark stays, so the same date is not announced twice
+    expect((await reject(editor, id)).status).toBe(200);
+    expect(await expiresMs(id)).toBe(inDays(10).getTime());
+    expect(await reminders(id)).toBe(first);
+    expect((await restore(administrator, id)).status).toBe(200);
+    expect(await expiresMs(id)).toBe(inDays(70).getTime());
+    await remind();
+    expect(await reminders(id)).toBe(first);
+
+    app().clock.set(inDays(56));
+    await remind();
+    expect(await reminders(id)).toBe(first * 2);
+    await remind();
+    expect(await reminders(id)).toBe(first * 2);
+  });
+
+  it('EVM-140 AC1 a rejection that SHORTENS the deadline of a reminded survey clears the mark: the reminder of the nearer date can go out', async () => {
+    const editor = await harness.signIn('editor');
+    await harness.administrator();
+    const id = await survey({ createdDaysAgo: 20, expiresInDays: 12 });
+    await sql`update work_orders.work_orders set site_survey_expires_at = ${inDays(60)}, site_survey_reminded_at = ${inDays(-1)} where id = ${id}`.execute(
+      admin(),
+    );
+    expect((await reject(editor, id)).status).toBe(200);
+    expect(await expiresMs(id)).toBe(inDays(14).getTime());
+    const marks = await sql<{ r: Date | null }>`select site_survey_reminded_at as r from work_orders.work_orders where id = ${id}`.execute(
+      admin(),
+    );
+    expect(marks.rows[0]?.r).toBeNull();
   });
 
   it('EVM-136 AC5 an ordinary order is restored as before and gets no deadline', async () => {

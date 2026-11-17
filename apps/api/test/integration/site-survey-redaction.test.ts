@@ -72,6 +72,18 @@ beforeAll(async () => {
   refusals.push(await push(survey({ newSite: newSite(), requesterPhone: PHONE })));
   expect(JSON.stringify(refusals)).toContain('quota_exceeded');
 
+  // EVM-140 AC4: the account has 20 open surveys now (the limit of open surveys): the rejection of one of the fillers (not the survey under test) leaves a place for the panel
+  const filler = (
+    await sql<{ id: string }>`select id from work_orders.work_orders where id <> ${surveyFromPhone} order by number desc limit 1`.execute(
+      current.database.admin,
+    )
+  ).rows[0]?.id;
+  const rejected = await account.panel.post(
+    `/api/v1/work-orders/${filler ?? ''}/transitions`,
+    { to: 'cancelled', reasonCode: 'offer_rejected' },
+    { 'If-Match': '"1"' },
+  );
+  expect(rejected.status, JSON.stringify(rejected.body)).toBe(200);
   // the panel: a survey of an existing site, the refusals, the reads
   const siteId = await insertSite(current.database.admin, { street: STREET, city: CITY, postalCode: POSTAL, buildingNumber: BUILDING });
   surveyFromPanel = uuidv7();

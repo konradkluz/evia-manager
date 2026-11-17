@@ -163,6 +163,8 @@ paths:
     $ref: paths/work-orders.yaml#/workOrderScopeItem
   /api/v1/work-orders/{workOrderId}/customer:
     $ref: paths/work-orders.yaml#/workOrderCustomer
+  /api/v1/work-orders/{workOrderId}/site-survey/extensions:
+    $ref: paths/work-orders.yaml#/workOrderSiteSurveyExtensions
   /api/v1/work-orders/{workOrderId}/site:
     $ref: paths/work-orders.yaml#/workOrderSite
   /api/v1/work-orders/{workOrderId}/site-orders:

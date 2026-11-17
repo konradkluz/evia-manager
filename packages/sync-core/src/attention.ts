@@ -40,7 +40,7 @@ const SURVEY_REASONS: Readonly<Record<string, AttentionReason>> = {
   id_conflict: 'id_conflict_survey',
   feature_disabled: 'feature_disabled',
   quota_exceeded: 'quota_exceeded_survey',
-  // not in `KNOWN_REJECTION_CODES` until the contract of EVM-140 has it: read from the raw code
+  // EVM-140 AC4: the limit of open site surveys (a known code since the contract of EVM-140)
   site_survey_limit_exceeded: 'site_survey_limit',
   target_unavailable: 'survey_unavailable',
   forbidden: 'survey_unavailable',

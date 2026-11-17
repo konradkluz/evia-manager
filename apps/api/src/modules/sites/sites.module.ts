@@ -15,6 +15,8 @@ import { SiteDirectoryService } from './application/site-directory.service.ts';
 import { UpdateSiteService } from './application/update-site.service.ts';
 import { SitesController } from './http/sites.controller.ts';
 import { SITE_DIRECTORY } from './site-directory.ts';
+import { SiteAnonymizationService } from './application/site-anonymization.service.ts';
+import { SITE_ANONYMIZATION } from './site-anonymization.ts';
 import { SiteProjectionSourceService } from './infrastructure/projection-source.ts';
 import { SiteSyncSourceService } from './infrastructure/sync-source.ts';
 import { SiteQuickCreationService } from './application/site-quick-creation.service.ts';
@@ -29,10 +31,11 @@ import { SITE_PROJECTION_SOURCE, SITE_QUICK_CREATION, SITE_SYNC_SOURCE } from '.
     ReadSiteService,
     UpdateSiteService,
     { provide: SITE_DIRECTORY, useClass: SiteDirectoryService },
+    { provide: SITE_ANONYMIZATION, useClass: SiteAnonymizationService },
     { provide: SITE_PROJECTION_SOURCE, useClass: SiteProjectionSourceService },
     { provide: SITE_SYNC_SOURCE, useClass: SiteSyncSourceService },
     { provide: SITE_QUICK_CREATION, useClass: SiteQuickCreationService },
   ],
-  exports: [SITE_DIRECTORY, SITE_PROJECTION_SOURCE, SITE_SYNC_SOURCE, SITE_QUICK_CREATION],
+  exports: [SITE_DIRECTORY, SITE_ANONYMIZATION, SITE_PROJECTION_SOURCE, SITE_SYNC_SOURCE, SITE_QUICK_CREATION],
 })
 export class SitesModule {}

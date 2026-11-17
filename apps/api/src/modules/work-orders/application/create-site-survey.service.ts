@@ -103,6 +103,8 @@ export class CreateSiteSurveyService {
         throw new ProblemException('not_found');
       case 'id_conflict':
         throw new ProblemException('id_conflict');
+      case 'site_survey_limit_exceeded':
+        throw new ProblemException('site_survey_limit_exceeded');
       case 'assignee_unavailable':
         throw new ProblemException('validation_failed', { errors: [{ pointer: '/assigneeUserId', code: 'assignee_unavailable' }] });
     }

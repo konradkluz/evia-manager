@@ -1,5 +1,17 @@
 /** Public API of the `work-orders` module (other modules reach it only through this file — ADR-0001). */
 export { WorkOrdersModule } from './work-orders.module.ts';
+export { SiteSurveyReminderComposer } from './application/site-survey-reminder.composer.ts';
+export { SiteSurveyReminderJob } from './application/site-survey-reminder.job.ts';
+export { SiteSurveyPurgeJob } from './application/site-survey-purge.job.ts';
+export {
+  SiteSurveyPurgeRegistry,
+  SurveyChangedDuringPurge,
+  type AfterCommit,
+  type SiteSurveyPurgeParticipant,
+  type SurveyEraseContext,
+  type SurveyPurgeContext,
+  type SurveyPurgeIdentity,
+} from './site-survey-purge-participant.ts';
 export {
   WORK_ORDER_EVENT_TYPES,
   WORK_ORDER_JOURNAL_EVENT_TYPES,
@@ -10,6 +22,7 @@ export {
   type WorkOrderEvent,
   type WorkOrderFieldsChangedEvent,
   type WorkOrderJournalChangeEvent,
+  type WorkOrderSiteSurveyExtendedEvent,
   type WorkOrderStatusChangedEvent,
 } from './events.ts';
 export type { ScopeItemField } from './domain/scope-item-rules.ts';

@@ -58,6 +58,7 @@ import { PwnedPasswordsCheck } from './infrastructure/pwned-passwords.ts';
 import { SimpleWebAuthnPasskeys } from './infrastructure/simplewebauthn-passkeys.ts';
 import { OtpauthTotpEngine, TOTP_ENGINE } from './infrastructure/totp-engine.ts';
 
+import { EmailRecipientDirectory } from './application/email-recipient-directory.ts';
 import { UserSyncSourceService } from './infrastructure/sync-source.ts';
 import { DevicePendingItemsService } from './infrastructure/pending-items.ts';
 import { DEVICE_PENDING_ITEMS, USER_SYNC_SOURCE } from './system-ports.ts';
@@ -82,6 +83,7 @@ import { DEVICE_PENDING_ITEMS, USER_SYNC_SOURCE } from './system-ports.ts';
     PurgeLoginSecurityJob,
     PurgeSessionsJob,
     AdministratorDirectory,
+    EmailRecipientDirectory,
     LoginPasskeyService,
     LoginRecoveryCodeService,
     LoginService,
@@ -130,6 +132,7 @@ import { DEVICE_PENDING_ITEMS, USER_SYNC_SOURCE } from './system-ports.ts';
     PurgeLoginSecurityJob,
     PurgeSessionsJob,
     AdministratorDirectory,
+    EmailRecipientDirectory,
     USER_SYNC_SOURCE,
     DEVICE_PENDING_ITEMS,
   ],

@@ -168,3 +168,77 @@ test.describe('site survey in W-06 (EVM-138)', () => {
     await expect(page.getByRole('alertdialog')).toHaveCount(0);
   });
 });
+
+// EVM-140 AC6: "Przedłuż o 90 dni" — roles and keyboard through the whole stack of the browser (the rules of the server belong to the API tests).
+test.describe('site survey: "Przedłuż o 90 dni" (EVM-140)', () => {
+  const EXTEND = 'Przedłuż o 90 dni';
+
+  test('EVM-140 AC6 the Administrator extends with the keyboard: the reason is required, Esc returns the focus, two extensions disable the action with the hint', async ({
+    page,
+    api,
+  }) => {
+    await open(page);
+    const banner = page.getByRole('region', { name: BANNER });
+    const action = banner.getByRole('button', { name: EXTEND });
+    await action.focus();
+    await page.keyboard.press('Enter');
+    const dialog = page.getByRole('alertdialog', { name: 'Przedłuż wizję o 90 dni' });
+    await expect(dialog.getByText('To przedłużenie 1 z 2 — po drugim nie przedłużysz wizji ponownie.')).toBeVisible();
+    await expect(dialog.getByRole('radio', { name: 'Czeka na decyzję klienta' })).toBeFocused();
+    // Esc closes without a request and the focus returns to the button that opened the dialog
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(action).toBeFocused();
+    expect(api.surveys.extensions).toHaveLength(0);
+
+    // the first extension: no reason -> a message; ArrowDown chooses the second reason; Enter on the button sends it
+    await page.keyboard.press('Enter');
+    await dialog.getByRole('button', { name: EXTEND }).focus();
+    await page.keyboard.press('Enter');
+    await expect(dialog.getByText('Wybierz powód przedłużenia.')).toBeVisible();
+    await expect(dialog.getByRole('radio', { name: 'Czeka na decyzję klienta' })).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await expect(dialog.getByRole('radio', { name: 'Czeka na uchwałę wspólnoty lub zarządcy' })).toBeChecked();
+    await dialog.getByRole('button', { name: EXTEND }).focus();
+    await page.keyboard.press('Enter');
+    await expect(dialog).toBeHidden();
+    await expect(page.getByText(/Przedłużono wizję do \d{2}\.\d{2}\.\d{4}\./)).toBeVisible();
+    await expect(banner.getByText(/Wizja zostanie trwale usunięta dnia \d{2}\.\d{2}\.\d{4} \(za 170 dni\)/)).toBeVisible();
+    await expect(banner.getByText(/Przedłużono 1 z 2 razy\./)).toBeVisible();
+    await expect(banner.getByText(BANNER, { exact: true })).toBeFocused();
+    expect(api.surveys.extensions).toEqual([{ reason: 'awaiting_community_decision', version: 5 }]);
+
+    // the second one is the last: the dialog says so; afterwards the action is disabled and described by the hint
+    await action.click();
+    await expect(dialog.getByText('To ostatnie przedłużenie — potem zostaje przypisanie klienta albo odrzucenie wizji.')).toBeVisible();
+    await dialog.getByRole('radio', { name: 'Wymaga drugiej wizyty' }).check();
+    await dialog.getByRole('button', { name: EXTEND }).click();
+    await expect(banner.getByText(/Przedłużono 2 z 2 razy\./)).toBeVisible();
+    await expect(action).toHaveAttribute('aria-disabled', 'true');
+    await expect(action).toHaveAccessibleDescription('Przypisz klienta albo odrzuć wizję.');
+    await action.click({ force: true });
+    await expect(page.getByRole('alertdialog')).toHaveCount(0);
+    expect(api.surveys.extensions.map((entry) => entry.version)).toEqual([5, 6]);
+  });
+
+  test('EVM-140 AC6 the Editor sees the action too; a lost race ends with a message and a refreshed banner', async ({ page, api }) => {
+    api.role = 'editor';
+    api.surveys.extensionCount = 2;
+    await open(page);
+    // the page opened with the counter 2 and the action is disabled ...
+    const action = page.getByRole('region', { name: BANNER }).getByRole('button', { name: EXTEND });
+    await expect(action).toHaveAttribute('aria-disabled', 'true');
+    // ... and the same survey, before the counter was read, answers `409 extension_limit_reached`
+    api.surveys.extensionCount = 1;
+    await page.reload();
+    await expect(action).not.toHaveAttribute('aria-disabled', 'true');
+    api.surveys.extensionCount = 2;
+    await action.click();
+    const dialog = page.getByRole('alertdialog', { name: 'Przedłuż wizję o 90 dni' });
+    await dialog.getByRole('radio', { name: 'Wymaga drugiej wizyty' }).check();
+    await dialog.getByRole('button', { name: EXTEND }).click();
+    await expect(dialog.getByRole('alert')).toContainText('Ta wizja była już dwukrotnie przedłużona. Przypisz klienta albo odrzuć wizję.');
+    await dialog.getByRole('button', { name: 'Anuluj' }).click();
+    await expect(action).toHaveAttribute('aria-disabled', 'true');
+  });
+});

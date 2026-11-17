@@ -12,6 +12,7 @@
  * "Przejścia audytowane").
  */
 import type { DomainEvent } from '../../platform/events/event-bus.ts';
+import type { SiteSurveyExtensionReason } from './domain/site-survey-extension.ts';
 import type { WorkOrderStatus } from './domain/work-order-status.ts';
 import type { WorkOrderField } from './domain/work-order-patch.ts';
 import type { ScopeItemField } from './domain/scope-item-rules.ts';
@@ -24,6 +25,9 @@ export const WORK_ORDER_EVENT_TYPES = [
   'work_order.undeleted',
   'work_order.updated',
   'work_order.customer_assigned',
+  'work_order.site_survey_extended',
+  'work_order.site_survey_purged',
+  'work_order.site_survey_purge_failed',
   'scope_item.created',
   'scope_item.updated',
   'scope_item.deleted',
@@ -31,8 +35,10 @@ export const WORK_ORDER_EVENT_TYPES = [
 
 export interface WorkOrderEvent extends DomainEvent {
   readonly type: (typeof WORK_ORDER_EVENT_TYPES)[number];
-  readonly actor: { readonly type: 'user'; readonly userId: string };
-  readonly outcome: 'success';
+  /** The system for the automatic purge of a site survey (EVM-139); a person for everything else. */
+  readonly actor: { readonly type: 'user'; readonly userId: string } | { readonly type: 'system' };
+  /** `failed` only for `work_order.site_survey_purge_failed` (the purge could not be done; an identifier and nothing else). */
+  readonly outcome: 'success' | 'failed';
   /** `scope_item` for the three events of the scope: the object is the item (its order is a column of the item). */
   readonly objectType: 'work_order' | 'scope_item';
   readonly objectId: string;
@@ -40,7 +46,17 @@ export interface WorkOrderEvent extends DomainEvent {
    * `step_up_verified` on `work_order.deleted` when the deletion needed (and had) a fresh step-up (EVM-060 AC3; SR-AUTHZ-10). A code,
    * never a reason typed by a person.
    */
-  readonly reasonCode?: 'step_up_verified';
+  readonly reasonCode?: 'step_up_verified' | SiteSurveyExtensionReason;
+}
+
+/**
+ * A site survey was extended by 90 days (EVM-140 AC2; ADR-0024 pt 9): audited AND written to the journal of the order by `timeline`. The audit trail keeps the
+ * actor, the order and the CODE of the reason (a closed list, never free text); never the address, the phone or the title.
+ */
+export interface WorkOrderSiteSurveyExtendedEvent extends WorkOrderEvent {
+  readonly type: 'work_order.site_survey_extended';
+  readonly actor: { readonly type: 'user'; readonly userId: string };
+  readonly reasonCode: SiteSurveyExtensionReason;
 }
 
 /**
@@ -50,6 +66,7 @@ export interface WorkOrderEvent extends DomainEvent {
  */
 export interface WorkOrderCustomerAssignedEvent extends WorkOrderEvent {
   readonly type: 'work_order.customer_assigned';
+  readonly actor: { readonly type: 'user'; readonly userId: string };
   readonly customerId: string;
 }
 

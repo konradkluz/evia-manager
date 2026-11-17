@@ -27,6 +27,7 @@ import { JournalEventRecorder } from './application/record-journal-event.ts';
 import { ReadEntryService } from './application/read-entry.service.ts';
 import { RedactEntryService } from './application/redact-entry.service.ts';
 import { RestoreEntryService } from './application/restore-entry.service.ts';
+import { TimelineSurveyPurgeParticipant } from './application/site-survey-purge.participant.ts';
 import { TimelineController } from './http/timeline.controller.ts';
 import { TimelineEntrySyncSourceService } from './infrastructure/sync-source.ts';
 import { MOBILE_ENTRY_COMMANDS, TIMELINE_ENTRY_SYNC_SOURCE } from './system-ports.ts';
@@ -44,6 +45,7 @@ import { MOBILE_ENTRY_COMMANDS, TIMELINE_ENTRY_SYNC_SOURCE } from './system-port
     DeleteEntryService,
     RestoreEntryService,
     RedactEntryService,
+    TimelineSurveyPurgeParticipant,
     { provide: TIMELINE_ENTRY_SYNC_SOURCE, useClass: TimelineEntrySyncSourceService },
     { provide: MOBILE_ENTRY_COMMANDS, useClass: MobileEntryCommandsService },
   ],

@@ -18,10 +18,12 @@ export const DELETION_OPERATION_CODES = [
   'customer_anonymized',
   'media_file_purged',
   'document_file_purged',
+  // EVM-139: the automatic purge of a site survey by the worker (the order, its media and the location made for it; the actor is the system)
+  'site_survey_purged',
 ] as const;
 export type DeletionOperationCode = (typeof DELETION_OPERATION_CODES)[number];
 
-export const DELETION_SUBJECT_TYPES = ['timeline_entry', 'customer', 'media_asset', 'document'] as const;
+export const DELETION_SUBJECT_TYPES = ['timeline_entry', 'customer', 'media_asset', 'document', 'work_order'] as const;
 export type DeletionSubjectType = (typeof DELETION_SUBJECT_TYPES)[number];
 
 /** What a caller says; the identifier of the operation and the time are made by the register itself (never a value of a request). */
@@ -33,7 +35,11 @@ export interface DeletionRecord {
   readonly workOrderId: string | null;
   /** The anchor of a document of a site or a customer (EVM-051: such a document has no order); absent otherwise. Identifiers only. */
   readonly anchor?: { readonly type: 'site' | 'customer'; readonly id: string };
-  /** The pseudonymous identifier of the person who erased: the replay needs it for the columns of the redaction (`redacted_by`). */
+  /** The media of the order the record erases (EVM-139: a survey is purged with all its media in ONE record; identifiers only, never a name or a description). */
+  readonly mediaAssetIds?: readonly string[];
+  /** The location the record anonymizes (EVM-139: the one made for the survey, when nothing else points at it); an identifier only. */
+  readonly siteId?: string;
+  /** The pseudonymous identifier of the person who erased - for the automatic purge the constant of the system: the replay needs it for the columns of the redaction (`redacted_by`). */
   readonly actorUserId: string;
 }
 

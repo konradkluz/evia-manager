@@ -30,12 +30,19 @@ import { UserDirectory } from '../../identity/index.ts';
 import { SITE_DIRECTORY, type SiteDirectory } from '../../sites/index.ts';
 import { CompositionRejectedError, WorkOrderCompositionRegistry } from '../composition-contributor.ts';
 import { resolveTitle, type NewWorkOrder } from '../domain/new-work-order.ts';
-import { SITE_SURVEY_DEFAULT_TITLE, siteSurveyExpiry } from '../domain/site-survey.ts';
+import { SITE_SURVEY_DEFAULT_TITLE, siteSurveyExpiry, surveyLimitExceeded } from '../domain/site-survey.ts';
 import { businessYear, formatWorkOrderNumber } from '../domain/work-order-number.ts';
 import type { WorkOrderEvent } from '../events.ts';
 import { takeNextNumber } from '../infrastructure/number-counter.ts';
 import { workOrderTables } from '../infrastructure/tables.ts';
-import { insertCoordinator, insertScopeItems, insertSiteSurvey, insertWorkOrder } from '../infrastructure/work-order-store.ts';
+import {
+  countOpenSurveys,
+  insertCoordinator,
+  insertScopeItems,
+  insertSiteSurvey,
+  insertWorkOrder,
+  lockSurveyCreation,
+} from '../infrastructure/work-order-store.ts';
 
 /** A new site survey (EVM-135): the site, the normalised title (`null` - the default), the phone of the requester in E.164 and the coordinator (`null` - nobody). */
 export interface NewSiteSurvey {
@@ -61,7 +68,7 @@ export type ComposeResult = { readonly ok: true; readonly number: string } | Com
 /** The result of a site survey: no template, so never `template_unavailable` or `composition_limit`. */
 export type ComposeSurveyResult =
   | { readonly ok: true; readonly number: string }
-  | { readonly ok: false; readonly reason: 'id_conflict' | 'target_unavailable' }
+  | { readonly ok: false; readonly reason: 'id_conflict' | 'target_unavailable' | 'site_survey_limit_exceeded' }
   | { readonly ok: false; readonly reason: 'assignee_unavailable'; readonly named: boolean };
 
 @Injectable()
@@ -168,8 +175,11 @@ export class WorkOrderComposer {
     const assignee = survey.coordinatorUserId === null ? null : await this.#users.findActive(survey.coordinatorUserId, tx);
     if (assignee === undefined) return { ok: false, reason: 'assignee_unavailable', named: true };
 
-    const now = this.#clock.now();
     const tables = workOrderTables(tx);
+    await lockSurveyCreation(tables);
+    if (surveyLimitExceeded(await countOpenSurveys(tables, principal.userId))) return { ok: false, reason: 'site_survey_limit_exceeded' };
+
+    const now = this.#clock.now();
     const sequence = await takeNextNumber(tables, businessYear(now));
     const number = formatWorkOrderNumber(businessYear(now), sequence);
     const inserted = await insertSiteSurvey(

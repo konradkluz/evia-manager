@@ -232,6 +232,10 @@ describe('the site survey from the phone (EVM-135 AC1)', () => {
     expect(await pushOne(phone, extra)).toEqual({ mutationId: extra.mutationId, outcome: 'rejected', code: 'quota_exceeded' });
     expect(await state()).toEqual(before);
     expect((await auditOf('sync.quota_exceeded')).map((event) => event['quota_kind'])).toEqual(['site']);
+    // EVM-140 AC4: the phone has 20 open surveys now (the limit of open surveys); one is deleted here, so only the limit of NEW SITES is under test below
+    await sql`update work_orders.work_orders set deleted_at = now() where id = (select id from work_orders.work_orders order by number limit 1)`.execute(
+      admin(),
+    );
     // a survey of an existing site is not limited, and the number of the refused command was not used
     const existing = survey({ siteId: await insertSite(admin(), {}) });
     expect(await pushOne(phone, existing)).toMatchObject({ outcome: 'applied', workOrderNumber: 'ZL-2026-0021' });

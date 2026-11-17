@@ -28,14 +28,14 @@ class CountingHasher implements PasswordHasher {
   readonly real = new Argon2PasswordHasher();
   verifications = 0;
   /** Runs while a verification is under way — the moment the world can change between the first look at the token and the decision. */
-  during: (() => void) | undefined;
+  during: (() => void | Promise<void>) | undefined;
   hash(password: string): Promise<string> {
     return this.real.hash(password);
   }
   async verify(hash: string, password: string): Promise<boolean> {
     this.verifications += 1;
     const result = await this.real.verify(hash, password);
-    this.during?.();
+    await this.during?.();
     return result;
   }
 }
@@ -353,13 +353,12 @@ describe('sign-in with a recovery code (EVM-023 AC5; SR-AUTH-08, SR-AUTH-15)', (
     const panel = current.panel();
     const loginToken = await startLogin(panel, account);
     const deactivate = sql`update identity.users set status = 'deactivated', deactivated_at = ${current.clock.now()} where id = ${account.user.id}`;
-    let done: Promise<unknown> | undefined;
-    hasher.during = () => {
-      done = deactivate.execute(current.database.admin);
+    // awaited inside the verification: the deactivation is committed before the decision starts, so the test does not depend on how fast the pool serves a fire-and-forget update
+    hasher.during = async () => {
+      await deactivate.execute(current.database.admin);
     };
     const response = await sendLoginRecoveryCode(panel, loginToken, account.codes[0] ?? '');
     hasher.during = undefined;
-    await done;
     expect(response.status).toBe(401);
     expect(response.body).toMatchObject({ code: 'unauthenticated' });
     expect((await codeRows(account.user.id)).every((row) => row.used_at === null)).toBe(true);

@@ -17,7 +17,13 @@ import { MEDIA_JOURNAL_EVENT_TYPES, type DocumentAddedEvent, type MediaAssetsAdd
 import { PAYMENT_MILESTONE_JOURNAL_EVENT_TYPES, type PaymentMilestoneJournalEvent } from '../../payments/index.ts';
 import { PROCEDURE_JOURNAL_EVENT_TYPES, type StageJournalChangeEvent } from '../../procedures/index.ts';
 import { WORK_ORDER_JOURNAL_EVENT_TYPES, type WorkOrderJournalChangeEvent } from '../../work-orders/index.ts';
-import { toJournalEvent, type AssignedEvent, type CreatedEvent, type JournalSourceEvent } from '../domain/event-payload.ts';
+import {
+  toJournalEvent,
+  type AssignedEvent,
+  type CreatedEvent,
+  type ExtendedEvent,
+  type JournalSourceEvent,
+} from '../domain/event-payload.ts';
 import { timelineTables } from '../infrastructure/tables.ts';
 import { insertEvent } from '../infrastructure/timeline-store.ts';
 
@@ -35,6 +41,7 @@ export class JournalEventRecorder implements OnModuleInit {
     const handle = (tx: Kysely<Database>, event: JournalSourceEvent) => this.record(tx, event);
     this.#events.subscribe<CreatedEvent>('work_order.created', handle);
     this.#events.subscribe<AssignedEvent>('work_order.customer_assigned', handle);
+    this.#events.subscribe<ExtendedEvent>('work_order.site_survey_extended', handle);
     for (const type of WORK_ORDER_JOURNAL_EVENT_TYPES) this.#events.subscribe<WorkOrderJournalChangeEvent>(type, handle);
     for (const type of PROCEDURE_JOURNAL_EVENT_TYPES) this.#events.subscribe<StageJournalChangeEvent>(type, handle);
     for (const type of PAYMENT_MILESTONE_JOURNAL_EVENT_TYPES) this.#events.subscribe<PaymentMilestoneJournalEvent>(type, handle);

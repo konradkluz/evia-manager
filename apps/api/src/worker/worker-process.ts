@@ -36,6 +36,7 @@ import {
   SignatureMonitorJob,
 } from '../modules/media/index.ts';
 import { VerifyProjectionJob } from '../modules/overview/index.ts';
+import { SiteSurveyPurgeJob, SiteSurveyReminderComposer, SiteSurveyReminderJob } from '../modules/work-orders/index.ts';
 import { PurgeIdempotencyJob } from '../platform/idempotency/purge-idempotency.job.ts';
 import type { Kysely } from 'kysely';
 import { loadWorkerConfig, type EmailConfig } from '../platform/config/config.ts';
@@ -113,6 +114,10 @@ export async function runWorkerFromProcess(
       // EVM-051: the completion of the erasure of files and the nightly reconciliation of the storage with the database
       app.get(ErasureCompletionJob, { strict: false }).definition(),
       app.get(StorageReconciliationJob, { strict: false }).definition(),
+      // EVM-140: the daily reminder that a site survey will be deleted (the messages go through the outbox below)
+      app.get(SiteSurveyReminderJob, { strict: false }).definition(),
+      // EVM-139: the automatic purge of site surveys (mode `report` by default: it only counts)
+      app.get(SiteSurveyPurgeJob, { strict: false }).definition(),
     ];
     const db = app.get<Kysely<Database>>(DATABASE, { strict: false });
     const clock = app.get<Clock>(CLOCK, { strict: false });
@@ -176,6 +181,7 @@ export async function runWorkerFromProcess(
         app.get(PasswordEmailComposer, { strict: false }),
         app.get(MfaEmailComposer, { strict: false }),
         app.get(LoginSecurityEmailComposer, { strict: false }),
+        app.get(SiteSurveyReminderComposer, { strict: false }),
       ];
       jobs.push(new SendEmailJob({ db, clock, logger, sender, composers }).definition());
       const relay = new EmailRelay(db, queue, clock, logger);

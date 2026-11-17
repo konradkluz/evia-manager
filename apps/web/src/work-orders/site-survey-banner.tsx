@@ -7,7 +7,7 @@ import { useNow } from '../shell/use-now.ts';
 import { useOnline } from '../shell/use-online.ts';
 import { HintedButton } from './hinted-button.tsx';
 import { bannerBody, rejectedBannerBody, rejectText, surveyText } from './site-survey-labels.ts';
-import { expiryOf, isSurvey } from './site-survey.ts';
+import { expiryOf, isSurvey, SURVEY_EXTENSIONS_MAX } from './site-survey.ts';
 
 /**
  * The banner "Wizja lokalna — brak klienta" of W-06 (EVM-138 AC3; flows/17): the date of the deletion with the days left, and the main
@@ -20,12 +20,14 @@ export function SiteSurveyBanner({
   order,
   onAssign,
   onReject,
+  onExtend,
   onRestore,
   titleRef,
 }: {
   readonly order: WorkOrderDetails;
   readonly onAssign: () => void;
   readonly onReject: () => void;
+  readonly onExtend: () => void;
   readonly onRestore: () => void;
   /** The title of the banner takes the focus after an operation that keeps the banner (flows/17: "fokus … na nagłówku banera"). */
   readonly titleRef?: Ref<HTMLParagraphElement>;
@@ -35,6 +37,7 @@ export function SiteSurveyBanner({
   const now = useNow(60_000);
   if (!isSurvey(order)) return null;
   const expiry = expiryOf(order.siteSurvey, serverNow(now));
+  const limitReached = order.siteSurvey.extensionCount >= SURVEY_EXTENSIONS_MAX;
   const acts = role === 'administrator' || role === 'editor';
   if (order.status === 'cancelled') {
     // A rejected survey: the one action is "Przywróć wizję…" (the Administrator; the Editor sees it disabled with the reason).
@@ -72,6 +75,14 @@ export function SiteSurveyBanner({
         <div className="flex flex-wrap items-start gap-inline-md">
           <HintedButton hint={online ? undefined : surveyText.offlineAssign} aria-haspopup="dialog" onClick={onAssign}>
             {surveyText.assign}
+          </HintedButton>
+          <HintedButton
+            variant="secondary"
+            aria-haspopup="dialog"
+            hint={limitReached ? surveyText.extendLimitHint : online ? undefined : surveyText.offlineExtend}
+            onClick={onExtend}
+          >
+            {surveyText.extend}
           </HintedButton>
           <HintedButton
             variant="tertiary-danger"

@@ -61,6 +61,11 @@ export async function workOrderObjects(app: IdentityApp): Promise<Record<string,
     // are the same 404 as for an order that does not exist.
     // EVM-136: the assignment of a customer - the same pair as the status command (a live order, and an EXISTING order that is soft deleted)
     assignWorkOrderCustomer: { own: () => `${WORK_ORDERS}/${own}/customer`, foreign: () => `${WORK_ORDERS}/${foreign}/customer` },
+    // EVM-140: the extension of a site survey - the same pair (a live order, and an EXISTING order that is soft deleted)
+    extendSiteSurvey: {
+      own: () => `${WORK_ORDERS}/${own}/site-survey/extensions`,
+      foreign: () => `${WORK_ORDERS}/${foreign}/site-survey/extensions`,
+    },
     deleteWorkOrder: { own: () => `${WORK_ORDERS}/${own}`, foreign: () => `${WORK_ORDERS}/${foreign}` },
     // EVM-097: the snapshot of an order for the phone - a live order is served, an EXISTING order that is soft deleted is the same 404 as one that does not exist
     getSyncWorkOrder: { own: () => `/api/v1/sync/work-orders/${own}`, foreign: () => `/api/v1/sync/work-orders/${foreign}` },

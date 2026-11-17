@@ -50,6 +50,9 @@ const footer = (panelOrigin: string): string =>
     'wpisz adres panelu samodzielnie i skontaktuj się z administratorem.',
   ].join('\n');
 
+/** The footer of every e-mail (also of the messages of other modules: one text, one place). */
+export const emailFooter = footer;
+
 /** The one-time link of an activation: the token only in the fragment. */
 export const activationLink = (panelOrigin: string, token: string): string => `${panelOrigin}${ACTIVATION_PATH}#${token}`;
 

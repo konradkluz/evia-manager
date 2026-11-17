@@ -18,6 +18,9 @@ export const surveyText = {
   needsDecision: 'Wymaga decyzji.',
   assign: 'Przypisz klienta',
   reject: 'Odrzuć wizję…',
+  extend: 'Przedłuż o 90 dni',
+  extendLimitHint: 'Przypisz klienta albo odrzuć wizję.',
+  offlineExtend: 'Przedłużysz po powrocie połączenia.',
   restore: 'Przywróć wizję…',
   restoreEditorHint: 'Przywrócić wizję może tylko administrator.',
   offlineAssign: 'Przypiszesz po powrocie połączenia.',
@@ -150,6 +153,36 @@ export const restoreText = {
     stepUp: 'Przywrócenie wymaga potwierdzenia tożsamości. Spróbuj ponownie i potwierdź tożsamość.',
     network: 'Nie udało się przywrócić wizji. Spróbuj ponownie.',
     server: (code: string) => `Nie udało się przywrócić wizji. Spróbuj ponownie. Kod błędu: ${code}.`,
+    rate: (seconds: number) => `Zbyt wiele prób. Spróbuj ponownie za ${String(seconds)} s.`,
+  },
+} as const;
+
+/** "Przedłuż o 90 dni" (EVM-140 AC6; flows/17 → "Dialog „Przedłuż wizję”"): the reason comes from a closed list (never a free text). */
+export const extendText = {
+  title: 'Przedłuż wizję o 90 dni',
+  reasonLegend: 'Powód przedłużenia',
+  reasons: {
+    awaiting_client_decision: 'Czeka na decyzję klienta',
+    awaiting_community_decision: 'Czeka na uchwałę wspólnoty lub zarządcy',
+    second_visit_needed: 'Wymaga drugiej wizyty',
+  },
+  reasonRequired: 'Wybierz powód przedłużenia.',
+  dates: (from: string, to: string) => `Termin usunięcia zmieni się z ${from} na ${to}.`,
+  nth: (count: number) => `To przedłużenie ${String(count)} z ${String(SURVEY_EXTENSIONS_MAX)} — po drugim nie przedłużysz wizji ponownie.`,
+  last: 'To ostatnie przedłużenie — potem zostaje przypisanie klienta albo odrzucenie wizji.',
+  cancel: 'Anuluj',
+  confirm: 'Przedłuż o 90 dni',
+  extended: (date: string) => `Przedłużono wizję do ${date}.`,
+  extendedNoDate: 'Przedłużono wizję.',
+  failure: {
+    conflict: 'Tę wizję zmieniono w międzyczasie. Sprawdź jej aktualny stan i spróbuj ponownie.',
+    refresh: 'Odśwież zlecenie',
+    limit: 'Ta wizja była już dwukrotnie przedłużona. Przypisz klienta albo odrzuć wizję.',
+    unavailable: 'Tej wizji nie można już przedłużyć. Odśwież stronę.',
+    forbidden: 'Nie możesz przedłużyć wizji. Poproś administratora.',
+    retry: 'Spróbuj ponownie',
+    network: 'Nie udało się przedłużyć wizji. Spróbuj ponownie.',
+    server: (code: string) => `Nie udało się przedłużyć wizji. Spróbuj ponownie. Kod błędu: ${code}.`,
     rate: (seconds: number) => `Zbyt wiele prób. Spróbuj ponownie za ${String(seconds)} s.`,
   },
 } as const;

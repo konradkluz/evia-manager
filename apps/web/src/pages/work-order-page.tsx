@@ -18,6 +18,7 @@ import { useMediaUpload } from '../work-orders/use-media.ts';
 import { JournalSection } from '../work-orders/journal-section.tsx';
 import { AcceptNeedsCustomerDialog } from '../work-orders/accept-needs-customer-dialog.tsx';
 import { AssignCustomerDialog } from '../work-orders/assign-customer-dialog.tsx';
+import { ExtendSiteSurveyDialog } from '../work-orders/extend-site-survey-dialog.tsx';
 import { RejectSiteSurveyDialog } from '../work-orders/reject-site-survey-dialog.tsx';
 import { RestoreSiteSurveyDialog } from '../work-orders/restore-site-survey-dialog.tsx';
 import { ClosedBanner } from '../work-orders/closed-banner.tsx';
@@ -71,7 +72,7 @@ export function WorkOrderPage() {
   const [gone, setGone] = useState(false);
   const [tab, setTab] = useState(OVERVIEW_TAB);
   const [siteEditSignal, setSiteEditSignal] = useState(0);
-  const [dialog, setDialog] = useState<'accept' | 'assign' | 'reject' | 'restore' | null>(null);
+  const [dialog, setDialog] = useState<'accept' | 'assign' | 'extend' | 'reject' | 'restore' | null>(null);
   const bannerTitle = useRef<HTMLParagraphElement>(null);
   const [bannerTick, setBannerTick] = useState(0);
   const [focusTick, setFocusTick] = useState(0);
@@ -188,10 +189,25 @@ export function WorkOrderPage() {
         onReject={() => {
           setDialog('reject');
         }}
+        onExtend={() => {
+          setDialog('extend');
+        }}
         onRestore={() => {
           setDialog('restore');
         }}
       />
+      {dialog === 'extend' ? (
+        <ExtendSiteSurveyDialog
+          order={order}
+          onClose={() => {
+            setDialog(null);
+          }}
+          onDone={() => {
+            setDialog(null);
+            setBannerTick((count) => count + 1);
+          }}
+        />
+      ) : null}
       {dialog === 'reject' ? (
         <RejectSiteSurveyDialog
           order={order}

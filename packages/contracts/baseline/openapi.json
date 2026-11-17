@@ -575,6 +575,33 @@
           }
         }
       },
+      "ExtendSiteSurveyConflict": {
+        "content": {
+          "application/problem+json": {
+            "example": {
+              "code": "extension_limit_reached",
+              "status": 409,
+              "title": "The site survey was extended the most it can be",
+              "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+              "type": "/problems/extension_limit_reached"
+            },
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "Wizja była już dwa razy przedłużona (`extension_limit_reached` — łącznie najwyżej 270 dni), albo zlecenie nie jest otwartą wizją (ma klienta) — `invalid_state_transition`, albo wizja jest anulowana (`invalid_state_transition` — nie przedłuża się jej, przywraca ją Administrator ze step-upem), albo żądanie z tym samym kluczem idempotencji jest w toku (`idempotency_in_progress`, z `Retry-After`).",
+        "headers": {
+          "Retry-After": {
+            "description": "Liczba sekund do ponowienia (tylko `idempotency_in_progress`).",
+            "schema": {
+              "maximum": 3600,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        }
+      },
       "Forbidden": {
         "content": {
           "application/problem+json": {
@@ -1800,6 +1827,33 @@
         },
         "description": "Brak sesji (`unauthenticated`), sesja unieważniona (`session_revoked`) albo wygasła z powodu bezczynności lub limitu 12 godzin (`session_expired`)."
       },
+      "SiteSurveyCreateConflict": {
+        "content": {
+          "application/problem+json": {
+            "example": {
+              "code": "site_survey_limit_exceeded",
+              "status": 409,
+              "title": "Too many open site surveys",
+              "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+              "type": "/problems/site_survey_limit_exceeded"
+            },
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "Identyfikator zajęty (`id_conflict` — bez danych istniejącego zasobu), albo limit otwartych wizji (`site_survey_limit_exceeded` — 20 na twórcę i 100 łącznie; przypisanie klienta albo odrzucenie wizji zwalnia miejsce), albo żądanie z tym samym kluczem idempotencji jest w toku (`idempotency_in_progress`, z `Retry-After`).",
+        "headers": {
+          "Retry-After": {
+            "description": "Liczba sekund do ponowienia (tylko `idempotency_in_progress`).",
+            "schema": {
+              "maximum": 3600,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        }
+      },
       "StageConflict": {
         "content": {
           "application/problem+json": {
@@ -1974,7 +2028,7 @@
             }
           }
         },
-        "description": "Przejścia nie ma w tabeli przejść z bieżącego statusu (`invalid_state_transition` — odpowiedź nie podaje bieżącego statusu; klient pobiera zlecenie), albo żądanie z tym samym kluczem idempotencji jest w toku (`idempotency_in_progress`, z `Retry-After`).",
+        "description": "Przejścia nie ma w tabeli przejść z bieżącego statusu (`invalid_state_transition` — odpowiedź nie podaje bieżącego statusu; klient pobiera zlecenie), albo zlecenie nie ma klienta, a przejście prowadzi do statusu, którego wizja lokalna mieć nie może — do „Zaakceptowane” (`customer_required`, EVM-136; najpierw `assignWorkOrderCustomer`), albo żądanie z tym samym kluczem idempotencji jest w toku (`idempotency_in_progress`, z `Retry-After`).",
         "headers": {
           "Retry-After": {
             "description": "Liczba sekund do ponowienia (tylko `idempotency_in_progress`).",
@@ -2607,6 +2661,9 @@
           "work_order.undeleted",
           "work_order.updated",
           "work_order.customer_assigned",
+          "work_order.site_survey_extended",
+          "work_order.site_survey_purged",
+          "work_order.site_survey_purge_failed",
           "scope_item.created",
           "scope_item.updated",
           "scope_item.deleted",
@@ -2924,7 +2981,10 @@
           "totp_not_configured",
           "mfa_enrollment_required",
           "session_revoked",
-          "manual"
+          "manual",
+          "awaiting_client_decision",
+          "awaiting_community_decision",
+          "second_visit_needed"
         ],
         "type": "string"
       },
@@ -3244,7 +3304,7 @@
       },
       "CreateDocumentRequest": {
         "additionalProperties": false,
-        "description": "Nowy dokument (wersja 1) z kotwicą zlecenia (domyślnie), lokalizacji albo klienta zlecenia z URL (EVM-050): serwer bierze `siteId` i `customerId` ze zlecenia, klient ich nie podaje (`read_only_field`). `anchor=customer` przy zleceniu bez klienta - `400` (`/anchor`, `no_customer`); `anchor=site` z klasą efektywną `identity_data` (rodzaj albo `containsIdentityData`/`confidentialityOverride`) - `400` (`/anchor`, `identity_data_not_on_site`); `procedureStageId` przy kotwicy innej niż zlecenie - `400` (`/procedureStageId`, `requires_work_order_anchor`). `id` (UUIDv7) nadaje klient. Rodzaj `other` wymaga `containsIdentityData` (brak - `400 validation_failed`, `/containsIdentityData`, `required`); `true` zapisuje klasę `identity_data` jako podniesienie. `containsIdentityData` przy innym rodzaju - `400` (`not_applicable`). `confidentialityOverride` musi być ściśle wyższe od klasy rodzaju (`not_higher`). Rodzaj nieistniejący albo nieaktywny - `400` (`/kindCode`, `unknown_kind`). Pola serwera (`versionNumber`, `fileState`, `confidentiality`, `workOrderId`, `kindName`, `canDownload`, `createdAt`, `version`) - `400 read_only_field`; nieznane - `400 unknown_field`. Tytuł 1 … 200 znaków, opis do 2000, bez znaków sterujących.",
+        "description": "Nowy dokument (wersja 1) z kotwicą zlecenia (domyślnie), lokalizacji albo klienta zlecenia z URL (EVM-050): serwer bierze `siteId` i `customerId` ze zlecenia, klient ich nie podaje (`read_only_field`). `anchor=customer` przy zleceniu bez klienta (wizja lokalna) - `409` (`customer_required`); `anchor=site` z klasą efektywną `identity_data` (rodzaj albo `containsIdentityData`/`confidentialityOverride`) - `400` (`/anchor`, `identity_data_not_on_site`); `procedureStageId` przy kotwicy innej niż zlecenie - `400` (`/procedureStageId`, `requires_work_order_anchor`). `id` (UUIDv7) nadaje klient. Rodzaj `other` wymaga `containsIdentityData` (brak - `400 validation_failed`, `/containsIdentityData`, `required`); `true` zapisuje klasę `identity_data` jako podniesienie. `containsIdentityData` przy innym rodzaju - `400` (`not_applicable`). `confidentialityOverride` musi być ściśle wyższe od klasy rodzaju (`not_higher`). Rodzaj nieistniejący albo nieaktywny - `400` (`/kindCode`, `unknown_kind`). Pola serwera (`versionNumber`, `fileState`, `confidentiality`, `workOrderId`, `kindName`, `canDownload`, `createdAt`, `version`) - `400 read_only_field`; nieznane - `400 unknown_field`. Tytuł 1 … 200 znaków, opis do 2000, bez znaków sterujących.",
         "properties": {
           "anchor": {
             "$ref": "#/components/schemas/DocumentAnchor"
@@ -3680,7 +3740,7 @@
       },
       "CreateSiteSurveyPayload": {
         "additionalProperties": false,
-        "description": "Wizja lokalna z telefonu (EVM-135 AC1, ADR-0024): zlecenie bez klienta i bez szablonu, w statusie `quoting`, numer nadaje serwer, termin wygaśnięcia = utworzenie + 90 dni, opiekun = zalogowany użytkownik. Istniejąca lokalizacja (`siteId`) ALBO nowa (`newSite`, w limicie 20 nowych lokalizacji urządzenia na dobę wspólnym z `CreateQuickWorkOrder`) — dokładnie jedno (inaczej `rejected validation_failed`). `title` opcjonalny (domyślnie „Wizja lokalna”) — nie wpisuj imion ani telefonów. `requesterPhone` opcjonalny (jak telefon nowego klienta; zapis E.164). Klient, szablon i notatka nie występują (`rejected validation_failed`). Funkcja wyłączona na serwerze — `rejected feature_disabled` (bez zapisu). Adres i telefon nie trafiają do logów, audytu ani dziennika zmian.",
+        "description": "Wizja lokalna z telefonu (EVM-135 AC1, ADR-0024): zlecenie bez klienta i bez szablonu, w statusie `quoting`, numer nadaje serwer, termin wygaśnięcia = utworzenie + 90 dni, opiekun = zalogowany użytkownik. Istniejąca lokalizacja (`siteId`) ALBO nowa (`newSite`, w limicie 20 nowych lokalizacji urządzenia na dobę wspólnym z `CreateQuickWorkOrder`) — dokładnie jedno (inaczej `rejected validation_failed`). `title` opcjonalny (domyślnie „Wizja lokalna”) — nie wpisuj imion ani telefonów. `requesterPhone` opcjonalny (jak telefon nowego klienta; zapis E.164). Klient, szablon i notatka nie występują (`rejected validation_failed`). Funkcja wyłączona na serwerze — `rejected feature_disabled` (bez zapisu). Limit otwartych wizji (EVM-140 AC4: 20 na twórcę i 100 łącznie; wizja bez klienta i nieanulowana) — `rejected site_survey_limit_exceeded` (bez zapisu; telefon pokazuje „Wymaga uwagi”). Adres i telefon nie trafiają do logów, audytu ani dziennika zmian.",
         "properties": {
           "newSite": {
             "$ref": "#/components/schemas/SyncNewSite"
@@ -3705,6 +3765,50 @@
         },
         "required": [
           "workOrderId"
+        ],
+        "type": "object"
+      },
+      "CreateSiteSurveyRequest": {
+        "additionalProperties": false,
+        "description": "Nowa wizja lokalna z panelu (EVM-135 AC2, ADR-0024): samą lokalizacją, bez klienta i bez szablonu (pusta kompozycja), w statusie `quoting`, z terminem wygaśnięcia = utworzenie + 90 dni. `id` (UUIDv7) nadaje klient. `title` opcjonalny (domyślnie „Wizja lokalna”; zwykły tekst, NFC, przycięty) — nie wpisuj imion ani telefonów. `requesterPhone` opcjonalny: 9 cyfr, `+48…`, `0048…`, ze spacjami lub łącznikami — serwer zapisuje E.164 (zły — `400` `/requesterPhone` `invalid_format`). `assigneeUserId` (opiekun) opcjonalny: brak = wizja BEZ opiekuna (inaczej niż `createWorkOrder`); musi to być aktywny użytkownik (`400` `assignee_unavailable`).",
+        "properties": {
+          "assigneeUserId": {
+            "description": "Opiekun wizji (aktywny użytkownik); brak = bez opiekuna.",
+            "format": "uuid",
+            "maxLength": 36,
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "id": {
+            "description": "Identyfikator UUIDv7 nadany przez klienta (ponowienie zapisu używa tego samego `id`).",
+            "format": "uuid",
+            "maxLength": 36,
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "requesterPhone": {
+            "description": "Telefon zamawiającego (opcjonalny; zapisywany w E.164).",
+            "maxLength": 32,
+            "minLength": 7,
+            "pattern": "^[0-9+() -]{7,32}$",
+            "type": "string"
+          },
+          "siteId": {
+            "description": "Lokalizacja (musi istnieć, być widoczna i nieusunięta — inaczej `404 not_found`).",
+            "format": "uuid",
+            "maxLength": 36,
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "title": {
+            "description": "Tytuł (pole swobodne; domyślnie „Wizja lokalna”). Nie wpisuj imion ani telefonów.",
+            "maxLength": 200,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "siteId"
         ],
         "type": "object"
       },
@@ -4986,6 +5090,26 @@
         },
         "required": [
           "ended"
+        ],
+        "type": "object"
+      },
+      "ExtendSiteSurveyRequest": {
+        "additionalProperties": false,
+        "description": "Przedłużenie wizji lokalnej o 90 dni (EVM-140 AC2; ADR-0024 pkt 9): `reason` — kod powodu z zamkniętej listy (trafia do audytu i dziennika, nie ma pola swobodnego tekstu); `version` — wersja zlecenia, na której użytkownik podjął decyzję (z `ETag` odczytu; jak w `assignWorkOrderCustomer`). Pola serwera w treści — `400 read_only_field`, inne — `400 unknown_field`.",
+        "properties": {
+          "reason": {
+            "$ref": "#/components/schemas/SiteSurveyExtensionReason"
+          },
+          "version": {
+            "description": "Wersja zlecenia (`ETag`/`version` z odczytu).",
+            "maximum": 2147483647,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "reason",
+          "version"
         ],
         "type": "object"
       },
@@ -8704,6 +8828,16 @@
         ],
         "type": "object"
       },
+      "SiteSurveyExtensionReason": {
+        "description": "Powód przedłużenia wizji lokalnej (EVM-140 AC2; zamknięta lista, bez wolnego tekstu): `awaiting_client_decision` — czeka na decyzję klienta, `awaiting_community_decision` — czeka na uchwałę wspólnoty lub zarządcy, `second_visit_needed` — wymaga drugiej wizyty. Nieznany kod — `400`.",
+        "enum": [
+          "awaiting_client_decision",
+          "awaiting_community_decision",
+          "second_visit_needed"
+        ],
+        "maxLength": 40,
+        "type": "string"
+      },
       "SiteType": {
         "description": "Typ obiektu (słownik domeny; etykiety w panelu).",
         "enum": [
@@ -9216,7 +9350,8 @@
               "idempotency_in_progress",
               "template_unavailable",
               "quota_exceeded",
-              "feature_disabled"
+              "feature_disabled",
+              "site_survey_limit_exceeded"
             ]
           },
           "errors": {
@@ -10443,7 +10578,7 @@
       },
       "TimelineEvent": {
         "additionalProperties": false,
-        "description": "Zdarzenie automatyczne (`kind = event`; EVM-038) — kod i dane strukturalne, bez treści: tekst panel składa sam, w formie bezosobowej. `code` to jeden z `work_order_created`, `work_order_status_changed`, `stage_status_changed`, `stage_waiting_on_changed`, `stage_updated`, `work_order_fields_changed`, `scope_item_added`, `scope_item_updated`, `scope_item_removed` (EVM-035), `procedure_added`, `procedure_removed`, `procedure_restored`, `stage_added`, `stage_removed`, `stage_restored` (EVM-042: kod procesu w `procedureCodes`, bez nazw; nazwę usuniętego etapu daje `procedureStageName` wpisu), `work_order_customer_assigned` (EVM-136 — do wizji lokalnej przypisano klienta; odczyt nie niesie klienta ani statusu; etykieta panelu: „Przypisano klienta”), `payment_milestone_status_changed` (EVM-054 — zmiana statusu transzy, także skutek anulowania zlecenia; bez kwoty, numeru faktury i powodu), `payment_milestone_deleted` (EVM-057 — usunięcie transzy korektą Administratora; bez kwoty, numeru faktury i nazwy), `media_assets_added` (EVM-044 — do zlecenia dodano partię zdjęć w jednym wpisie; odczyt nie niesie liczby, identyfikatorów ani nazw plików, a zdarzenie nie ma statusu ani etapu; etykieta panelu: „Dodano zdjęcia”), `document_added` (EVM-047 — do zlecenia dodano dokument; odczyt nie niesie tytułu, nazwy pliku ani rodzaju, a zdarzenie nie ma statusu ani etapu; etykieta panelu: „Dodano dokument”) — lista rośnie z E6 i E7, klient pokazuje nieznany kod neutralnym tekstem; zapis, którego serwer nie potrafi odczytać, ma kod `unknown_event` i puste pola. `fromStatus` / `toStatus` to kody statusów zlecenia, etapu albo transzy (`null`, gdy zdarzenie nie dotyczy statusu); `waitingOn` i `waitingOnParty` — na kogo czekamy (`null` poza zdarzeniami „Czekamy na…”); `changedFields` — nazwy zmienionych pól etapu (etapu: `responsibleUserId`, `dueDate`; zlecenia: `title`, `description`, `plannedDate`, `coordinator`; pozycji: `parameters`, `notes`; wartości NIE są zapisane). Etap zdarzenia to `procedureStageId` / `procedureStageName` wpisu.",
+        "description": "Zdarzenie automatyczne (`kind = event`; EVM-038) — kod i dane strukturalne, bez treści: tekst panel składa sam, w formie bezosobowej. `code` to jeden z `work_order_created`, `work_order_status_changed`, `stage_status_changed`, `stage_waiting_on_changed`, `stage_updated`, `work_order_fields_changed`, `scope_item_added`, `scope_item_updated`, `scope_item_removed` (EVM-035), `procedure_added`, `procedure_removed`, `procedure_restored`, `stage_added`, `stage_removed`, `stage_restored` (EVM-042: kod procesu w `procedureCodes`, bez nazw; nazwę usuniętego etapu daje `procedureStageName` wpisu), `work_order_customer_assigned` (EVM-136 — do wizji lokalnej przypisano klienta; odczyt nie niesie klienta ani statusu; etykieta panelu: „Przypisano klienta”), `work_order_site_survey_extended` (EVM-140 — wizję lokalną przedłużono o 90 dni; odczyt nie niesie powodu ani terminu, zdarzenie nie ma statusu ani etapu; etykieta panelu: „Przedłużono wizję lokalną”), `payment_milestone_status_changed` (EVM-054 — zmiana statusu transzy, także skutek anulowania zlecenia; bez kwoty, numeru faktury i powodu), `payment_milestone_deleted` (EVM-057 — usunięcie transzy korektą Administratora; bez kwoty, numeru faktury i nazwy), `media_assets_added` (EVM-044 — do zlecenia dodano partię zdjęć w jednym wpisie; odczyt nie niesie liczby, identyfikatorów ani nazw plików, a zdarzenie nie ma statusu ani etapu; etykieta panelu: „Dodano zdjęcia”), `document_added` (EVM-047 — do zlecenia dodano dokument; odczyt nie niesie tytułu, nazwy pliku ani rodzaju, a zdarzenie nie ma statusu ani etapu; etykieta panelu: „Dodano dokument”) — lista rośnie z E6 i E7, klient pokazuje nieznany kod neutralnym tekstem; zapis, którego serwer nie potrafi odczytać, ma kod `unknown_event` i puste pola. `fromStatus` / `toStatus` to kody statusów zlecenia, etapu albo transzy (`null`, gdy zdarzenie nie dotyczy statusu); `waitingOn` i `waitingOnParty` — na kogo czekamy (`null` poza zdarzeniami „Czekamy na…”); `changedFields` — nazwy zmienionych pól etapu (etapu: `responsibleUserId`, `dueDate`; zlecenia: `title`, `description`, `plannedDate`, `coordinator`; pozycji: `parameters`, `notes`; wartości NIE są zapisane). Etap zdarzenia to `procedureStageId` / `procedureStageName` wpisu.",
         "properties": {
           "changedFields": {
             "items": {
@@ -10720,7 +10855,7 @@
       },
       "TransitionWorkOrderRequest": {
         "additionalProperties": false,
-        "description": "Komenda przejścia statusu zlecenia (EVM-030). `to` — docelowy status z listy (tabela przejść w `domain-model.md`; przejścia spoza tabeli — `409 invalid_state_transition`). `reason` jest wymagany przy wstrzymaniu i anulowaniu (zwykły tekst, NFC, przycięty, 1–500 znaków; kody `required`, `too_long`, `invalid_characters`) i niedozwolony w pozostałych przejściach (`not_allowed`); to pole swobodne, które może zawierać dane osobowe — nie trafia do audytu, logów ani odpowiedzi. `completedOn` (dzień zakończenia prac, `Europe/Warsaw`, nie z przyszłości, od 2000-01-01; kod `out_of_range`) tylko przy „Zakończ”; domyślnie dziś. Pola serwera (`status`, `resumeStatus`, `closedAt`, `statusChangedAt` …) w treści — `400 read_only_field`, inne — `400 unknown_field`.",
+        "description": "Komenda przejścia statusu zlecenia (EVM-030). `to` — docelowy status z listy (tabela przejść w `domain-model.md`; przejścia spoza tabeli — `409 invalid_state_transition`). `reason` jest wymagany przy wstrzymaniu i anulowaniu (zwykły tekst, NFC, przycięty, 1–500 znaków; kody `required`, `too_long`, `invalid_characters`) i niedozwolony w pozostałych przejściach (`not_allowed`); to pole swobodne, które może zawierać dane osobowe — nie trafia do audytu, logów ani odpowiedzi. `completedOn` (dzień zakończenia prac, `Europe/Warsaw`, nie z przyszłości, od 2000-01-01; kod `out_of_range`) tylko przy „Zakończ”; domyślnie dziś. Odrzucenie wizji lokalnej (EVM-136; anulowanie zlecenia bez klienta, z terminem wygaśnięcia): zamiast `reason` jest wymagany `reasonCode` — `offer_rejected` („Oferta odrzucona”) albo `customer_withdrew` („Rezygnacja klienta”), wartość stała, nie tekst; `reason` jest tam niedozwolony (`not_allowed`), a `reasonCode` poza odrzuceniem wizji — też (`not_allowed`; brak martwego zapisu). Pola serwera (`status`, `resumeStatus`, `closedAt`, `statusChangedAt` …) w treści — `400 read_only_field`, inne — `400 unknown_field`.",
         "properties": {
           "completedOn": {
             "description": "Dzień zakończenia prac, `RRRR-MM-DD` (tylko przy przejściu „Zakończ”).",
@@ -10731,6 +10866,14 @@
           "reason": {
             "description": "Powód wstrzymania albo anulowania (pole swobodne — może zawierać dane osobowe).",
             "maxLength": 500,
+            "type": "string"
+          },
+          "reasonCode": {
+            "description": "Powód odrzucenia wizji lokalnej (EVM-136): `offer_rejected` — „Oferta odrzucona”, `customer_withdrew` — „Rezygnacja klienta”. Tylko przy anulowaniu wizji, zamiast `reason`.",
+            "enum": [
+              "offer_rejected",
+              "customer_withdrew"
+            ],
             "type": "string"
           },
           "to": {
@@ -12218,8 +12361,16 @@
         ],
         "type": "string"
       },
+      "WorkOrderSiteSurveyFilter": {
+        "description": "Filtr wizji lokalnych (EVM-135, ADR-0024): `only` — tylko otwarte wizje, `exclude` — bez otwartych wizji. Brak parametru — wizje razem ze zwykłymi zleceniami (z etykietą `siteSurvey`).",
+        "enum": [
+          "only",
+          "exclude"
+        ],
+        "type": "string"
+      },
       "WorkOrderSort": {
-        "description": "Sortowanie: `-number` (numer malejąco, domyślne), `number`, `-createdAt`, `createdAt`, `longestWaitingSince` („Najdłużej czekamy”: najstarszy `waitingSince` oczekujących etapów rosnąco, zlecenia bez oczekiwań na końcu) i `nextDueDate` („Termin”: najbliższy termin niezakończonego etapu rosnąco, bez terminu na końcu) — oba tylko rosnąco, remis rozstrzyga identyfikator. `urgency` („Najpilniejsze”, EVM-056; tylko rosnąco, ADR-0017 D9): pierwsza pasująca grupa, w grupie klucz rosnąco, remis — identyfikator: 1) zlecenie niezamknięte z transzą albo etapem po terminie (klucz: najstarszy miniony termin), 2) zlecenie niezamknięte czekające dłużej niż 14 dni (klucz: `waitingSince` najdłuższego oczekiwania), 3) zlecenie niezamknięte z terminem etapu od dziś (klucz: najbliższy termin), 4) pozostałe, także zamknięte. Rola bez odczytu płatności dostaje kolejność bez składowej płatności (grupa 1 tylko z etapów). Serwer odrzuca wartość spoza listy (`400 validation_failed`).",
+        "description": "Sortowanie: `-number` (numer malejąco, domyślne), `number`, `-createdAt`, `createdAt`, `longestWaitingSince` („Najdłużej czekamy”: najstarszy `waitingSince` oczekujących etapów rosnąco, zlecenia bez oczekiwań na końcu) i `nextDueDate` („Termin”: najbliższy termin niezakończonego etapu rosnąco, bez terminu na końcu) — oba tylko rosnąco, remis rozstrzyga identyfikator. `urgency` („Najpilniejsze”, EVM-056; tylko rosnąco, ADR-0017 D9): pierwsza pasująca grupa, w grupie klucz rosnąco, remis — identyfikator: 1) zlecenie niezamknięte z transzą albo etapem po terminie (klucz: najstarszy miniony termin), 2) zlecenie niezamknięte czekające dłużej niż 14 dni (klucz: `waitingSince` najdłuższego oczekiwania), 3) zlecenie niezamknięte z terminem etapu od dziś (klucz: najbliższy termin), 4) pozostałe, także zamknięte. Rola bez odczytu płatności dostaje kolejność bez składowej płatności (grupa 1 tylko z etapów). Serwer odrzuca wartość spoza listy (`400 validation_failed`). `siteSurveyExpiresAt` (EVM-135): termin wygaśnięcia wizji lokalnej rosnąco, remis — identyfikator; tylko w `listWorkOrders` razem z `siteSurvey=only` (bez niego, także w `searchWorkOrders`, `400 validation_failed` na `/sort`).",
         "enum": [
           "-number",
           "number",
@@ -12227,7 +12378,8 @@
           "createdAt",
           "longestWaitingSince",
           "nextDueDate",
-          "urgency"
+          "urgency",
+          "siteSurveyExpiresAt"
         ],
         "type": "string"
       },
@@ -16533,6 +16685,114 @@
         }
       }
     },
+    "/api/v1/site-surveys": {
+      "post": {
+        "description": "Wizja lokalna z panelu (EVM-135 AC2, ADR-0024): zlecenie bez klienta i bez szablonu, w statusie `quoting`, z numerem `ZL-RRRR-NNNN` od razu i terminem wygaśnięcia (utworzenie + 90 dni). Role Administrator i Edytor (Tylko odczyt — `403 forbidden`; niezalogowany — `401`), kanał `web`, z audytem (`work_order.created` — identyfikatory, bez tytułu, adresu i telefonu). Wymaga `X-CSRF-Token`. Funkcja za przełącznikiem serwera (`SITE_SURVEYS_ENABLED`; stan: `CurrentSession.features.siteSurveys`) — wyłączona: `404 not_found` przed walidacją treści, nic się nie zapisuje. Lokalizacja nieistniejąca, usunięta albo niewidoczna — `404 not_found`; istniejące `id` (także cudzego lub usuniętego zlecenia) — `409 id_conflict` bez danych istniejącego zasobu; pole serwera zlecenia (`number`, `status`, `customer`, `siteSurvey` …) — `400 read_only_field`, każde inne pole spoza schematu (także `customerId`, `templateId`, `description`) — `400 unknown_field`; `assigneeUserId` spoza aktywnych użytkowników — `400` (`/assigneeUserId`, `assignee_unavailable`); błędy to wskaźnik i kod, nigdy wartość (także nigdy adres ani telefon). Idempotencja jak `createWorkOrder` (`Idempotency-Key`, powtórka — `201` z `Idempotent-Replayed: true`). `createWorkOrder` się nie zmienia: zwykłe zlecenie wymaga klienta. Limit otwartych wizji (EVM-140 AC4; stałe w kodzie): 20 otwartych wizji (bez klienta, nieanulowanych) na twórcę i 100 łącznie — kolejna to `409 site_survey_limit_exceeded` (przypisanie klienta albo odrzucenie zwalnia miejsce; limit nie dotyczy zwykłych zleceń); dwa równoległe założenia przy granicy zajmują ostatnie miejsce najwyżej raz (blokada doradcza w transakcji).",
+        "operationId": "createSiteSurvey",
+        "parameters": [
+          {
+            "description": "Klucz idempotencji (UUIDv7) generowany raz na akcję użytkownika.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "maxLength": 36,
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSiteSurveyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkOrderDetails"
+                }
+              }
+            },
+            "description": "Wizja utworzona (albo powtórka wcześniejszego zapisu — wtedy nagłówek `Idempotent-Replayed: true`); `Location` wskazuje zlecenie.",
+            "headers": {
+              "ETag": {
+                "description": "Wersja zasobu (`\"<version>\"`).",
+                "schema": {
+                  "maxLength": 32,
+                  "type": "string"
+                }
+              },
+              "Idempotent-Replayed": {
+                "description": "`true` przy powtórce żądania z tym samym `Idempotency-Key` i treścią.",
+                "schema": {
+                  "enum": [
+                    "true"
+                  ],
+                  "type": "string"
+                }
+              },
+              "Location": {
+                "description": "Adres zlecenia (`/api/v1/work-orders/{id}`).",
+                "schema": {
+                  "maxLength": 80,
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/SiteSurveyCreateConflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/IdempotencyMismatch"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "summary": "Założenie wizji lokalnej (zlecenie bez klienta)",
+        "tags": [
+          "work-orders"
+        ],
+        "x-evia-authz": {
+          "audit": true,
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor"
+          ]
+        }
+      }
+    },
     "/api/v1/sites": {
       "post": {
         "description": "Role Administrator i Edytor (Tylko odczyt — `403 forbidden`), kanał `web`, z audytem (`site.created`, bez wartości danych adresowych). Lokalizacja jest niezależna od klienta (`customerId` — `unknown_field`). `id` (UUIDv7) nadaje klient; istniejące `id` (także lokalizacji usuniętej) — `409 id_conflict` bez żadnych danych istniejącego zasobu. Pole spoza schematu — `400 validation_failed` (`unknown_field`), pole kontrolowane przez serwer — `400` z kodem `read_only_field`, błąd reguły — `400` z `errors[]` (wskaźnik i kod, nigdy wartość): `not_allowed_for_site_type` (miejsce lub poziom poza garażem), `invalid_format` (moc z więcej niż 2 miejscami po przecinku), `wrong_party_kind` (strona innego rodzaju niż wymaga pole `…PartyId`) i `unknown_party` (strona nie istnieje albo jest usunięta — ten sam kod dla każdej roli). Rodzaj strony jest sprawdzany w tej samej transakcji co zapis. Idempotencja (api-guidelines.md → Idempotencja): `Idempotency-Key` (UUIDv7) jest opcjonalny; panel wysyła go zawsze, a przy ponowieniu używa tego samego `id` i klucza. Powtórka (ten sam klucz i treść) — ten sam status i `id`, bieżąca reprezentacja i `Idempotent-Replayed: true`, bez nowego zdarzenia audytu; ten sam klucz z inną treścią albo na innej operacji — `422 idempotency_mismatch`; równoległe żądanie z tym samym kluczem — `409 idempotency_in_progress` z `Retry-After`. Klucz obowiązuje 30 dni, osobno dla każdego użytkownika. Wymaga `X-CSRF-Token`.",
@@ -18076,7 +18336,7 @@
     },
     "/api/v1/work-orders": {
       "get": {
-        "description": "Role Administrator, Edytor i Tylko odczyt, kanał `web` (mobile — M2), bez audytu odczytu (masowy odczyt pilnuje licznik poniżej). Zlecenia usunięte (soft delete) nie występują w wyniku — warunek jest w zapytaniu, nie w odsiewaniu strony. Wszystkie filtry łączą się przez AND: `status` (lista po przecinku, do 8 różnych wartości z zamkniętej listy), `view` (`all_open` albo `mine`; brak = bez predykatu widoku), `coordinatorId` (UUID; nieistniejący identyfikator daje pustą listę), `customerId` (UUID klienta — „Historia zleceń” w W-14, EVM-039; ta sama polityka odczytu i paginacja; nieistniejący klient daje pustą listę, bo filtr nie jest sprawdzeniem istnienia klienta; zlecenia usuniętego klienta pozostają widoczne jak na liście zleceń — decyzja w EVM-041). `mine` bierze opiekuna wyłącznie z sesji — parametru z identyfikatorem użytkownika nie ma. `sort`: `-number` (domyślne), `number`, `-createdAt`, `createdAt`, `longestWaitingSince`, `nextDueDate`, `urgency` (trzy ostatnie tylko rosnąco); wartość spoza listy, zły `limit` (1–100, domyślnie 25) albo zły format `status` — `400 validation_failed`; nieznany parametr — `400 unknown_parameter`, powtórzony — `400 duplicate_parameter`. „Czekamy na…” (EVM-034): `waitingOn` (`customer` albo `party`), `waitingOnPartyKind` (rodzaj strony; bez `waitingOn` oznacza `party`, razem z `waitingOn=customer` — `400 validation_failed` na `/waitingOnPartyKind`) i `waitingLongerThanDays` (1–365; zlecenie ma etap oczekujący dłużej niż tyle dni). Widok `waiting_on_dso_over_14_days` to „Czekamy na OSD > 14 dni” (niezamknięte; łączy się przez AND z pozostałymi filtrami). Dzień „dziś” to dzień `Europe/Warsaw` z zegara serwera; kolejne strony liczą go z kursora (`asOf`), więc zmiana dnia nie miesza stron. Parametry w adresie to wyłącznie kody i liczby. Element listy ma pola tylko do odczytu `waiting`, `nextDueDate` i `hasOverdueStage` oraz (EVM-072) `customer` i `site` (adres i, od EVM-043, kod typu obiektu `siteType`). `siteType` (typ obiektu) i `templateId` (szablon) zawężają listę przez AND; to kody i UUID katalogu, nie dane osobowe. Płatności (EVM-056): widoki `overdue_payments` i `unpaid`, sortowanie `urgency` („Najpilniejsze”) i pole elementu `payment` wymagają prawa odczytu płatności (`restrictedParams` w `x-evia-authz`; v1: wszystkie trzy role). Bez niego widok płatności daje `403 forbidden` (po walidacji, przed odczytem), `urgency` liczy kolejność bez składowej płatności, a pole `payment` nie występuje. Domyślne sortowanie API się nie zmienia (`-number`); panel wysyła `sort=urgency` jawnie. Frazy wyszukiwania w adresie nie ma (SR-API-04): do tego służy `searchWorkOrders`. Lista czyta model odczytu (`overview`), kontrakt operacji — ścieżka, `operationId`, tag i `x-evia-authz` — jest bez zmian. Paginacja kursorem nieprzezroczystym (`nextCursor`; bez licznika wyników): zmieniony, wygasły (30 minut), wydany komu innemu albo użyty z innymi filtrami lub sortowaniem — `400 invalid_cursor`. Masowy odczyt (P10): gdy użytkownik dostał w ostatnich 10 minutach co najmniej 2000 rekordów, powstaje alert bezpieczeństwa; od 10 000 rekordów — `429 rate_limited` z `Retry-After` (sekundy) do chwili, gdy suma spadnie poniżej progu. Odrzucone żądania nie są liczone.",
+        "description": "Role Administrator, Edytor i Tylko odczyt, kanał `web` (mobile — M2), bez audytu odczytu (masowy odczyt pilnuje licznik poniżej). Zlecenia usunięte (soft delete) nie występują w wyniku — warunek jest w zapytaniu, nie w odsiewaniu strony. Wszystkie filtry łączą się przez AND: `status` (lista po przecinku, do 8 różnych wartości z zamkniętej listy), `view` (`all_open` albo `mine`; brak = bez predykatu widoku), `coordinatorId` (UUID; nieistniejący identyfikator daje pustą listę), `customerId` (UUID klienta — „Historia zleceń” w W-14, EVM-039; ta sama polityka odczytu i paginacja; nieistniejący klient daje pustą listę, bo filtr nie jest sprawdzeniem istnienia klienta; zlecenia usuniętego klienta pozostają widoczne jak na liście zleceń — decyzja w EVM-041). `mine` bierze opiekuna wyłącznie z sesji — parametru z identyfikatorem użytkownika nie ma. `sort`: `-number` (domyślne), `number`, `-createdAt`, `createdAt`, `longestWaitingSince`, `nextDueDate`, `urgency` (trzy ostatnie tylko rosnąco); wartość spoza listy, zły `limit` (1–100, domyślnie 25) albo zły format `status` — `400 validation_failed`; nieznany parametr — `400 unknown_parameter`, powtórzony — `400 duplicate_parameter`. „Czekamy na…” (EVM-034): `waitingOn` (`customer` albo `party`), `waitingOnPartyKind` (rodzaj strony; bez `waitingOn` oznacza `party`, razem z `waitingOn=customer` — `400 validation_failed` na `/waitingOnPartyKind`) i `waitingLongerThanDays` (1–365; zlecenie ma etap oczekujący dłużej niż tyle dni). Widok `waiting_on_dso_over_14_days` to „Czekamy na OSD > 14 dni” (niezamknięte; łączy się przez AND z pozostałymi filtrami). Dzień „dziś” to dzień `Europe/Warsaw` z zegara serwera; kolejne strony liczą go z kursora (`asOf`), więc zmiana dnia nie miesza stron. Parametry w adresie to wyłącznie kody i liczby. Element listy ma pola tylko do odczytu `waiting`, `nextDueDate` i `hasOverdueStage` oraz (EVM-072) `customer` i `site` (adres i, od EVM-043, kod typu obiektu `siteType`). `siteType` (typ obiektu) i `templateId` (szablon) zawężają listę przez AND; to kody i UUID katalogu, nie dane osobowe. Płatności (EVM-056): widoki `overdue_payments` i `unpaid`, sortowanie `urgency` („Najpilniejsze”) i pole elementu `payment` wymagają prawa odczytu płatności (`restrictedParams` w `x-evia-authz`; v1: wszystkie trzy role). Bez niego widok płatności daje `403 forbidden` (po walidacji, przed odczytem), `urgency` liczy kolejność bez składowej płatności, a pole `payment` nie występuje. Domyślne sortowanie API się nie zmienia (`-number`); panel wysyła `sort=urgency` jawnie. Wizje lokalne (EVM-135, ADR-0024): domyślnie na liście razem ze zleceniami, z obiektem `siteSurvey` (`customer: null`, `site: null` — adres wizji tylko w szczegółach); `siteSurvey=only` — tylko otwarte wizje (wtedy także sortowanie `siteSurveyExpiresAt` — termin rosnąco), `siteSurvey=exclude` — bez nich. Widoki raportowe `waiting_on_dso_over_14_days`, `overdue_payments` i `unpaid` pomijają otwarte wizje. Tylko odczyt nie widzi otwartych wizji w żadnym widoku. Frazy wyszukiwania w adresie nie ma (SR-API-04): do tego służy `searchWorkOrders`. Lista czyta model odczytu (`overview`), kontrakt operacji — ścieżka, `operationId`, tag i `x-evia-authz` — jest bez zmian. Paginacja kursorem nieprzezroczystym (`nextCursor`; bez licznika wyników): zmieniony, wygasły (30 minut), wydany komu innemu albo użyty z innymi filtrami lub sortowaniem — `400 invalid_cursor`. Masowy odczyt (P10): gdy użytkownik dostał w ostatnich 10 minutach co najmniej 2000 rekordów, powstaje alert bezpieczeństwa; od 10 000 rekordów — `429 rate_limited` z `Retry-After` (sekundy) do chwili, gdy suma spadnie poniżej progu. Odrzucone żądania nie są liczone.",
         "operationId": "listWorkOrders",
         "parameters": [
           {
@@ -18119,6 +18379,15 @@
               "format": "uuid",
               "maxLength": 36,
               "type": "string"
+            }
+          },
+          {
+            "description": "Filtr wizji lokalnych (`only` albo `exclude`; EVM-135).",
+            "in": "query",
+            "name": "siteSurvey",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/WorkOrderSiteSurveyFilter"
             }
           },
           {
@@ -18943,7 +19212,7 @@
         }
       },
       "post": {
-        "description": "EVM-050: opcjonalne `anchor` (`work_order` domyślnie, `site`, `customer`) - dokument lokalizacji albo klienta ZLECENIA ze ścieżki (serwer bierze `siteId`/`customerId` ze zlecenia; w treści - `400 read_only_field`); `anchor=site` z klasą `identity_data` - `400` (`/anchor`, `identity_data_not_on_site`, SR-AUTHZ-08, AB-19); `anchor=customer` bez klienta zlecenia - `400` (`no_customer`); etap przy kotwicy innej niż zlecenie - `400` (`requires_work_order_anchor`). Idempotencja: skrót treści obejmuje `anchor` (ten sam klucz z inną kotwicą - `422 idempotency_mismatch`). Plik kotwicy lokalizacji i klienta wgrywa się ścieżką zlecenia (`upload-sessions`), z którego dokument powstał. Utworzenie dokumentu, jego wersji 1 i rekordu pliku w stanie `pending_upload` (EVM-047 AC1-AC4, AC6, AC7; SR-AUTHZ-02, SR-AUTHZ-05, SR-AUTHZ-07, SR-INPUT-01, SR-FILE-01, SR-FILE-03, SR-API-05, SR-LOG-03). Role Administrator i Edytor (Tylko odczyt - `403 forbidden` przed treścią; niezalogowany - `401`; token mobilny - `403 channel_not_allowed`), kanał `web`, z audytem (`document.created` - aktor, identyfikator, kod klasy, wynik, `traceId`; bez tytułu, opisu i nazwy pliku). Wymaga `X-CSRF-Token` i `Idempotency-Key` (UUIDv7); ten sam klucz albo `id` z inną treścią - `422 idempotency_mismatch` / `409 id_conflict`. Jedna transakcja: zlecenie przez politykę odczytu (`404`), nagłówek i treść schematem (`400`; pola serwera - `read_only_field`), rodzaj z katalogu (nieistniejący lub nieaktywny - `400`), klasa (AC3/AC4), plik (typ, rozszerzenie, rozmiar - `400` ze wskaźnikiem `/file/…`), zapis, JEDEN wpis dziennika zlecenia (`document_added`: identyfikator dokumentu i kod rodzaju - bez tytułu i nazwy) i audyt. Klasa efektywna jest liczona przez serwer. Klucz obiektu nadaje serwer (`documents/{rok}/{miesiąc}/{id pliku}/original`, bez nazwy pliku i numeru zlecenia). Brak konfiguracji magazynu - `503 media_storage_unavailable`. Komunikaty błędów nie powtarzają wartości (tytuł i nazwa pliku mogą być danymi osobowymi).",
+        "description": "EVM-050: opcjonalne `anchor` (`work_order` domyślnie, `site`, `customer`) - dokument lokalizacji albo klienta ZLECENIA ze ścieżki (serwer bierze `siteId`/`customerId` ze zlecenia; w treści - `400 read_only_field`); `anchor=site` z klasą `identity_data` - `400` (`/anchor`, `identity_data_not_on_site`, SR-AUTHZ-08, AB-19); `anchor=customer` przy zleceniu bez klienta (wizja lokalna) - `409` (`customer_required`); etap przy kotwicy innej niż zlecenie - `400` (`requires_work_order_anchor`). Idempotencja: skrót treści obejmuje `anchor` (ten sam klucz z inną kotwicą - `422 idempotency_mismatch`). Plik kotwicy lokalizacji i klienta wgrywa się ścieżką zlecenia (`upload-sessions`), z którego dokument powstał. Utworzenie dokumentu, jego wersji 1 i rekordu pliku w stanie `pending_upload` (EVM-047 AC1-AC4, AC6, AC7; SR-AUTHZ-02, SR-AUTHZ-05, SR-AUTHZ-07, SR-INPUT-01, SR-FILE-01, SR-FILE-03, SR-API-05, SR-LOG-03). Role Administrator i Edytor (Tylko odczyt - `403 forbidden` przed treścią; niezalogowany - `401`; token mobilny - `403 channel_not_allowed`), kanał `web`, z audytem (`document.created` - aktor, identyfikator, kod klasy, wynik, `traceId`; bez tytułu, opisu i nazwy pliku). Wymaga `X-CSRF-Token` i `Idempotency-Key` (UUIDv7); ten sam klucz albo `id` z inną treścią - `422 idempotency_mismatch` / `409 id_conflict`. Jedna transakcja: zlecenie przez politykę odczytu (`404`), nagłówek i treść schematem (`400`; pola serwera - `read_only_field`), rodzaj z katalogu (nieistniejący lub nieaktywny - `400`), klasa (AC3/AC4), plik (typ, rozszerzenie, rozmiar - `400` ze wskaźnikiem `/file/…`), zapis, JEDEN wpis dziennika zlecenia (`document_added`: identyfikator dokumentu i kod rodzaju - bez tytułu i nazwy) i audyt. Klasa efektywna jest liczona przez serwer. Klucz obiektu nadaje serwer (`documents/{rok}/{miesiąc}/{id pliku}/original`, bez nazwy pliku i numeru zlecenia). Brak konfiguracji magazynu - `503 media_storage_unavailable`. Komunikaty błędów nie powtarzają wartości (tytuł i nazwa pliku mogą być danymi osobowymi).",
         "operationId": "createDocument",
         "parameters": [
           {
@@ -22819,6 +23088,104 @@
         }
       }
     },
+    "/api/v1/work-orders/{workOrderId}/site-survey/extensions": {
+      "post": {
+        "description": "Przedłużenie otwartej wizji lokalnej (EVM-140 AC2, AC3; ADR-0024 pkt 9; SR-AUTHZ-02, SR-AUTHZ-05, SR-PRIV-01, SR-API-06, SR-LOG-03; CWE-639): `{ \"reason\": \"awaiting_client_decision\", \"version\": 3 }`. Termin wygaśnięcia przesuwa się o 90 dni (od dotychczasowego terminu), licznik przedłużeń rośnie, znacznik przypomnienia jest zerowany (kolejne przypomnienie 15 dni przed nowym terminem), `version + 1`, nowy `ETag`. Najwyżej dwa razy (łącznie do 270 dni od założenia): trzecie — `409 extension_limit_reached`. Role Administrator i Edytor (Tylko odczyt — `403 forbidden`, niezalogowany — `401`; token mobilny — `403 channel_not_allowed`), kanał `web` (aplikacja nie przedłuża), z audytem (`work_order.site_survey_extended` — aktor, identyfikator zlecenia i kod powodu; bez adresu, telefonu, tytułu i tekstu swobodnego) i wpisem dziennika (`work_order_site_survey_extended`). Wymaga `X-CSRF-Token`; wersja jest w TREŚCI (nie w `If-Match`), jak w `assignWorkOrderCustomer`. Kolejność (decyzje zapadają na wierszu zlecenia zablokowanym `SELECT … FOR NO KEY UPDATE` z polityką odczytu w zapytaniu, w jednej transakcji): guard (rola, CSRF, kanał), ścieżka i `Idempotency-Key` (`400`), zlecenie (`404` — brak, usunięte i niewidoczne to jedna odpowiedź, przed treścią), treść (`400`: nieznany kod powodu, brak pola, pole serwera `read_only_field`), powtórka idempotentna, zlecenie które nie jest otwartą wizją (ma klienta) albo wizja anulowana — `409 invalid_state_transition` (anulowanej nie przedłuża się — przywraca ją Administrator ze step-upem), limit przedłużeń — `409 extension_limit_reached`, nieaktualna wersja — `412 version_conflict`, potem zapis, zdarzenia i rekord idempotencji; błąd któregokolwiek kroku cofa całość. Dwa równoległe przedłużenia na tej samej wersji dają jeden sukces i jeden `412`. Idempotencja (api-guidelines.md → Idempotencja): `Idempotency-Key` (UUIDv7) opcjonalny, panel wysyła go zawsze; klucz związany z użytkownikiem, metodą, szablonem ścieżki I zleceniem. Powtórka — `200` z `Idempotent-Replayed: true`.",
+        "operationId": "extendSiteSurvey",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExtendSiteSurveyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkOrderDetails"
+                }
+              }
+            },
+            "description": "Wizja z nowym terminem (`siteSurvey.expiresAt`, `siteSurvey.extensionCount`) albo powtórka z tym samym kluczem idempotencji (wtedy `Idempotent-Replayed: true`).",
+            "headers": {
+              "ETag": {
+                "description": "Nowa wersja zasobu (`\"<version>\"`).",
+                "schema": {
+                  "maxLength": 32,
+                  "type": "string"
+                }
+              },
+              "Idempotent-Replayed": {
+                "description": "`true` przy powtórce żądania z tym samym `Idempotency-Key`, zleceniem i treścią.",
+                "schema": {
+                  "enum": [
+                    "true"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/ExtendSiteSurveyConflict"
+          },
+          "412": {
+            "$ref": "#/components/responses/PreconditionFailed"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/IdempotencyMismatch"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "summary": "Wizja lokalna — przedłużenie o 90 dni (z powodem)",
+        "tags": [
+          "work-orders"
+        ],
+        "x-evia-authz": {
+          "audit": true,
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor"
+          ]
+        }
+      }
+    },
     "/api/v1/work-orders/{workOrderId}/timeline": {
       "get": {
         "description": "Oś czasu „Dziennik” W-06 / W-08 (EVM-037 AC6; SR-AUTHZ-02, SR-AUTHZ-05, SR-DATA-03, SR-API-02, SR-API-04). Role Administrator, Edytor i Tylko odczyt, kanał `web` (token mobilny — `403 channel_not_allowed`; telefon dostanie dziennik z synchronizacją, M2), bez audytu odczytu. Zlecenie jest rozwiązywane najpierw, przez politykę odczytu w zapytaniu: nieistniejące i usunięte (także dla Administratora) — jedna odpowiedź `404 not_found`. Wpisy zlecenia w kolejności `createdAt` serwera malejąco, potem `id` malejąco; wpisy usunięte nie występują (warunek w zapytaniu, nie w odsiewaniu strony) — poza `includeDeleted=true` Administratora (EVM-040), który widzi je z `deletedAt`. Filtry łączą się przez AND: `kind` (`note` albo `comment`) i `procedureStageId` (UUID etapu; etap innego zlecenia albo nieistniejący daje pustą listę — filtr nie jest sprawdzeniem istnienia). `limit` 1–100 (domyślnie 25), zły `limit` albo `kind` spoza listy — `400 validation_failed`; nieznany parametr — `400 unknown_parameter`, powtórzony — `400 duplicate_parameter`. Paginacja kursorem nieprzezroczystym (`nextCursor`; bez licznika wyników): zmieniony, wygasły (30 minut), wydany komu innemu albo użyty z innymi filtrami lub dla innego zlecenia — `400 invalid_cursor`. Pozycja ma autora jako `{id, displayName}` i nazwę etapu (nazwy ze wsadowych zapytań, stała liczba zapytań na stronę), `supersededByEntryId` i `redactedAt`. Treść wpisu może zawierać dane osobowe — panel wyświetla ją jako tekst. `Cache-Control: no-store`.",
@@ -23344,7 +23711,7 @@
     },
     "/api/v1/work-orders/{workOrderId}/transitions": {
       "post": {
-        "description": "Jedyna droga zmiany statusu (`PATCH` pola `status` jest odrzucany, EVM-035): `{ \"to\": \"on_hold\", \"reason\": \"…\" }` wg tabeli przejść z `domain-model.md`. Role Administrator i Edytor (Tylko odczyt — `403 forbidden`, niezalogowany — `401`), kanał `web`, z audytem (`work_order.cancelled`, `work_order.restored` — identyfikatory, bez powodu). Wymaga `X-CSRF-Token` i `If-Match` (silny ETag `\"<version>\"`): brak — `428 precondition_required`; słaby (`W/`), lista, `*` albo zniekształcony — `400 validation_failed` (`/headers/If-Match`); nieaktualna wersja — `412 version_conflict`. Przywrócenie (`settled → completed`, `cancelled → on_hold`) tylko Administrator i tylko ze step-upem (klucz dostępu albo nowy kod z aplikacji; logowanie Administratora kodem nie otwiera okna — K1) w ostatnich 15 minutach: Edytor — `403 forbidden`, Administrator bez świeżego uwierzytelnienia — `403 step_up_required` (po roli; to kontrola obiektowa przypadku użycia, bo zależy od statusu źródłowego, a nie od operacji — dlatego `stepUp` operacji jest `false`). Operacja jest tylko dla kanału `web`, bo step-up istnieje tylko w panelu (SR-AUTHZ-12). Kolejność (decyzje zapadają na wierszu zablokowanym `SELECT … FOR UPDATE`, w jednej transakcji): zlecenie nieistniejące albo usunięte — `404 not_found` (ta sama odpowiedź); `If-Match`; treść (`400`); powtórka idempotentna (zapisany wynik, bez ponownej kontroli wersji); brak przejścia w tabeli — `409 invalid_state_transition` (gdy wersja jest nieaktualna — `412`, bo klient i tak musi pobrać zlecenie); rola; step-up; wersja (`412`); pola przejścia (`reason`, `completedOn` — `400`); warunki modułów (`422 transition_condition_not_met`, `errors[]` z `/to` i kodem powodu), potem zapis, skutki modułów w tej samej transakcji i audyt. Błąd któregokolwiek kroku cofa całość (status, skutki modułów, audyt i rekord idempotencji). Skutki: wstrzymanie i anulowanie zapisują powód i status źródłowy (`resumeStatus`); wznowienie wraca do `resumeStatus` (inny cel — `409`); anulowanie i rozliczenie ustawiają `closedAt`, przywrócenie je czyści; „Zakończ” ustawia `completedOn` (domyślnie dziś w `Europe/Warsaw`), ponowne otwarcie czyści. `reason` jest polem swobodnym i nigdy nie trafia do audytu, logów, odpowiedzi ani komunikatów błędów (tylko kody). Idempotencja (api-guidelines.md → Idempotencja): `Idempotency-Key` (UUIDv7) jest opcjonalny, panel wysyła go zawsze. Klucz jest związany z użytkownikiem, metodą, szablonem ścieżki I identyfikatorem zlecenia: ten sam klucz z tą samą treścią na innym zleceniu — `422 idempotency_mismatch`. Powtórka (ten sam klucz, zlecenie i treść) — `200` z bieżącą reprezentacją i `Idempotent-Replayed: true`, bez drugiego przejścia i drugiego zdarzenia audytu, także gdy `If-Match` jest już nieaktualny. Odpowiedź `200` ma nowy `ETag`. Limit żądań: ogólny limit na adres IP (`429 rate_limited` z `Retry-After`).",
+        "description": "Jedyna droga zmiany statusu (`PATCH` pola `status` jest odrzucany, EVM-035): `{ \"to\": \"on_hold\", \"reason\": \"…\" }` wg tabeli przejść z `domain-model.md`. Role Administrator i Edytor (Tylko odczyt — `403 forbidden`, niezalogowany — `401`), kanał `web`, z audytem (`work_order.cancelled`, `work_order.restored` — identyfikatory, bez powodu). Wymaga `X-CSRF-Token` i `If-Match` (silny ETag `\"<version>\"`): brak — `428 precondition_required`; słaby (`W/`), lista, `*` albo zniekształcony — `400 validation_failed` (`/headers/If-Match`); nieaktualna wersja — `412 version_conflict`. Przywrócenie (`settled → completed`, `cancelled → on_hold`) tylko Administrator i tylko ze step-upem (klucz dostępu albo nowy kod z aplikacji; logowanie Administratora kodem nie otwiera okna — K1) w ostatnich 15 minutach: Edytor — `403 forbidden`, Administrator bez świeżego uwierzytelnienia — `403 step_up_required` (po roli; to kontrola obiektowa przypadku użycia, bo zależy od statusu źródłowego, a nie od operacji — dlatego `stepUp` operacji jest `false`). Operacja jest tylko dla kanału `web`, bo step-up istnieje tylko w panelu (SR-AUTHZ-12). Kolejność (decyzje zapadają na wierszu zablokowanym `SELECT … FOR UPDATE`, w jednej transakcji): zlecenie nieistniejące albo usunięte — `404 not_found` (ta sama odpowiedź); `If-Match`; treść (`400`); powtórka idempotentna (zapisany wynik, bez ponownej kontroli wersji); brak przejścia w tabeli — `409 invalid_state_transition` (gdy wersja jest nieaktualna — `412`, bo klient i tak musi pobrać zlecenie); rola; step-up; wersja (`412`); klient (`409 customer_required` — EVM-136: przejście do „Zaakceptowane”, także wznowienie z „Wstrzymane”, zlecenia bez klienta, czyli wizji lokalnej; odpowiedź nie zawiera wartości, a klient jest przypisywany komendą `assignWorkOrderCustomer`); pola przejścia (`reason`, `completedOn` — `400`); warunki modułów (`422 transition_condition_not_met`, `errors[]` z `/to` i kodem powodu), potem zapis, skutki modułów w tej samej transakcji i audyt. Błąd któregokolwiek kroku cofa całość (status, skutki modułów, audyt i rekord idempotencji). Wizja lokalna (EVM-136 AC5): anulowanie wizji to jej odrzucenie — zamiast `reason` wymaga `reasonCode` (`offer_rejected`, `customer_withdrew`), zapisanego jako powód; termin wygaśnięcia wizji (`siteSurvey.expiresAt`) staje się mniejszą z wartości (obecny termin, teraz + 14 dni), a audyt (`work_order.cancelled`) zostaje bez treści i bez kodu powodu. Przywrócenie odrzuconej wizji (`cancelled → on_hold`, tylko Administrator ze step-upem jak każde przywrócenie, Edytor — `403 forbidden`) ustawia termin na większą z wartości (utworzenie + 90 dni × (1 + `extensionCount`), teraz + 14 dni). Zwykłe zlecenie anuluje się jak dotąd (`reason`); `reasonCode` jest tam `400 not_allowed`. Skutki: wstrzymanie i anulowanie zapisują powód i status źródłowy (`resumeStatus`); wznowienie wraca do `resumeStatus` (inny cel — `409`); anulowanie i rozliczenie ustawiają `closedAt`, przywrócenie je czyści; „Zakończ” ustawia `completedOn` (domyślnie dziś w `Europe/Warsaw`), ponowne otwarcie czyści. `reason` jest polem swobodnym i nigdy nie trafia do audytu, logów, odpowiedzi ani komunikatów błędów (tylko kody). Idempotencja (api-guidelines.md → Idempotencja): `Idempotency-Key` (UUIDv7) jest opcjonalny, panel wysyła go zawsze. Klucz jest związany z użytkownikiem, metodą, szablonem ścieżki I identyfikatorem zlecenia: ten sam klucz z tą samą treścią na innym zleceniu — `422 idempotency_mismatch`. Powtórka (ten sam klucz, zlecenie i treść) — `200` z bieżącą reprezentacją i `Idempotent-Replayed: true`, bez drugiego przejścia i drugiego zdarzenia audytu, także gdy `If-Match` jest już nieaktualny. Odpowiedź `200` ma nowy `ETag`. Limit żądań: ogólny limit na adres IP (`429 rate_limited` z `Retry-After`).",
         "operationId": "transitionWorkOrder",
         "parameters": [
           {

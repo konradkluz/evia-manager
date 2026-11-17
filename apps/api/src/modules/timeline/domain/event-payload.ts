@@ -24,11 +24,13 @@ import type {
   WorkOrderEvent,
   WorkOrderField,
   WorkOrderJournalChangeEvent,
+  WorkOrderSiteSurveyExtendedEvent,
 } from '../../work-orders/index.ts';
 
 export const JOURNAL_EVENT_CODES = [
   'work_order_created',
   'work_order_customer_assigned',
+  'work_order_site_survey_extended',
   'work_order_status_changed',
   'stage_status_changed',
   'stage_waiting_on_changed',
@@ -79,6 +81,8 @@ const SHAPES = {
   work_order_created: workOrderObject,
   // EVM-136: a customer was assigned to a site survey - the identifier of the customer only (never a name, a phone or an address)
   work_order_customer_assigned: { ...workOrderObject, customerId: z.uuid() },
+  // EVM-140: a site survey was extended by 90 days - the order only (the reason is in the audit trail; never an address, a phone or a deadline)
+  work_order_site_survey_extended: workOrderObject,
   work_order_status_changed: { ...workOrderObject, fromStatus: zWorkOrderStatus, toStatus: zWorkOrderStatus },
   stage_status_changed: {
     ...stageObject,
@@ -128,6 +132,7 @@ const SHAPES = {
 const STRICT = {
   work_order_created: z.strictObject(SHAPES.work_order_created),
   work_order_customer_assigned: z.strictObject(SHAPES.work_order_customer_assigned),
+  work_order_site_survey_extended: z.strictObject(SHAPES.work_order_site_survey_extended),
   work_order_status_changed: z.strictObject(SHAPES.work_order_status_changed),
   stage_status_changed: z.strictObject(SHAPES.stage_status_changed),
   stage_waiting_on_changed: z.strictObject(SHAPES.stage_waiting_on_changed),
@@ -149,11 +154,16 @@ const STRICT = {
 } as const;
 
 /** The source events `timeline` turns into entries (`work_order.created` is the creation event of the order, already audited). */
-export type CreatedEvent = WorkOrderEvent & { readonly type: 'work_order.created' };
+export type CreatedEvent = WorkOrderEvent & {
+  readonly type: 'work_order.created';
+  readonly actor: { readonly type: 'user'; readonly userId: string };
+};
 export type AssignedEvent = WorkOrderCustomerAssignedEvent;
+export type ExtendedEvent = WorkOrderSiteSurveyExtendedEvent;
 export type JournalSourceEvent =
   | CreatedEvent
   | AssignedEvent
+  | ExtendedEvent
   | WorkOrderJournalChangeEvent
   | StageJournalChangeEvent
   | PaymentMilestoneJournalEvent
@@ -190,6 +200,13 @@ function candidateOf(event: JournalSourceEvent): Candidate {
       return {
         code: 'work_order_customer_assigned',
         payload: { objectType: 'work_order', objectId: event.objectId, customerId: event.customerId },
+        workOrderId: event.objectId,
+        procedureStageId: null,
+      };
+    case 'work_order.site_survey_extended':
+      return {
+        code: 'work_order_site_survey_extended',
+        payload: { objectType: 'work_order', objectId: event.objectId },
         workOrderId: event.objectId,
         procedureStageId: null,
       };

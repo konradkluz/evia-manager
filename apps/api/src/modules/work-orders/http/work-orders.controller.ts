@@ -26,6 +26,7 @@ import { AssignCustomerService } from '../application/assign-customer.service.ts
 import { CreateScopeItemService } from '../application/create-scope-item.service.ts';
 import { CreateSiteSurveyService } from '../application/create-site-survey.service.ts';
 import { CreateWorkOrderService } from '../application/create-work-order.service.ts';
+import { ExtendSiteSurveyService } from '../application/extend-site-survey.service.ts';
 import { DeleteWorkOrderService } from '../application/delete-work-order.service.ts';
 import { DeleteScopeItemService } from '../application/delete-scope-item.service.ts';
 import { ListSiteOrdersService } from '../application/list-site-orders.service.ts';
@@ -55,6 +56,7 @@ export class WorkOrdersController {
   readonly #restorations: RestoreWorkOrderService;
   readonly #assignments: AssignCustomerService;
   readonly #surveys: CreateSiteSurveyService;
+  readonly #extensions: ExtendSiteSurveyService;
 
   constructor(
     @Inject(CreateWorkOrderService) creations: CreateWorkOrderService,
@@ -69,8 +71,10 @@ export class WorkOrdersController {
     @Inject(RestoreWorkOrderService) restorations: RestoreWorkOrderService,
     @Inject(AssignCustomerService) assignments: AssignCustomerService,
     @Inject(CreateSiteSurveyService) surveys: CreateSiteSurveyService,
+    @Inject(ExtendSiteSurveyService) extensions: ExtendSiteSurveyService,
   ) {
     this.#surveys = surveys;
+    this.#extensions = extensions;
     this.#creations = creations;
     this.#reads = reads;
     this.#transitions = transitions;
@@ -340,6 +344,28 @@ export class WorkOrdersController {
     @Res({ passthrough: true }) response: Response,
   ): Promise<WorkOrderDetails> {
     const { workOrder, replayed } = await this.#assignments.assign(
+      requirePrincipal(request),
+      params,
+      body,
+      idempotencyKey,
+      webEventContext(request, response),
+    );
+    response.set('ETag', entityTag(workOrder.version));
+    if (replayed) response.set('Idempotent-Replayed', 'true');
+    return workOrder;
+  }
+
+  @Post('/api/v1/work-orders/:workOrderId/site-survey/extensions')
+  @OperationId('extendSiteSurvey')
+  @HttpCode(200)
+  async extendSiteSurvey(
+    @Param() params: unknown,
+    @Body() body: unknown,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<WorkOrderDetails> {
+    const { workOrder, replayed } = await this.#extensions.extend(
       requirePrincipal(request),
       params,
       body,
