@@ -685,6 +685,10 @@ export class SyncService implements SyncControl {
     return this.#deps.store.replicaExtras.readQuickOrderSource();
   }
 
+  queueChanged(): void {
+    void this.#refreshCounts();
+  }
+
   /** The members of the group of an entry (itself and everything that waits behind it), in the order of the queue. */
   #groupOf(records: readonly QueueRecord[], id: string): QueueRecord[] {
     const seen = new Set([id]);

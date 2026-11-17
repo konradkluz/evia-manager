@@ -136,6 +136,9 @@ export class FakeSync implements SyncRuntime {
     return Promise.resolve(this.quickSource);
   }
   summary: { photos: number; videos: number; entries: number; total: number } = { photos: 0, videos: 0, entries: 0, total: 0 };
+  queueChanged(): void {
+    this.calls.push('queueChanged');
+  }
   groupSummary(id: string): Promise<{ photos: number; videos: number; entries: number; total: number }> {
     this.calls.push(`groupSummary:${id}`);
     return Promise.resolve(this.summary);

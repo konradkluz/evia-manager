@@ -178,3 +178,30 @@ describe('a file of a survey that waits is its dependent (EVM-137 AC3, AC6)', ()
     expect(media?.parentMutationId).toBeUndefined();
   });
 });
+
+describe('the counter "Wymaga uwagi" follows the queue (EVM-137 AC6, W10)', () => {
+  it('EVM-137 AC6 W10: a command removed from the queue behind the service (the discard of a file) is gone from the counters once the service is told - nothing counts what has no row', async () => {
+    const { server, service } = await offlineService();
+    const built = buildSurveyInput(DRAFT, newId);
+    if (!built.ok) throw new Error('draft');
+    await service.enqueue(built.input);
+    const file = await service.enqueue({
+      type: 'CreateMediaAsset',
+      commandVersion: 1,
+      payload: { id: newId(), workOrderId: '0194c2a0-0000-7000-8000-0000000000ee', mediaType: 'photo', category: 'other' },
+    });
+    phone.online = true;
+    rejectAll(server, 'target_unavailable');
+    service.setOnline(true);
+    await settle();
+    expect(service.getSnapshot().counts.attention).toBeGreaterThan(0);
+    // the discard of the row of the file removes its rejected command from the queue (MediaUploads), not through the service
+    const fileId = idOf(file);
+    await phone.queue.rewrite([fileId], []);
+    const before = service.getSnapshot().counts;
+    service.queueChanged();
+    await settle();
+    expect(service.getSnapshot().counts.unsent).toBe(before.unsent - 1);
+    expect(service.getSnapshot().counts.attention).toBeLessThan(before.attention);
+  });
+});

@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { View } from 'react-native';
 import { useStartup } from '../startup';
 import { Button, InlineAlert } from '../ui';
+import { WifiOff } from '../ui/icons';
 import { space } from '../ui/theme';
 
 /**
@@ -16,7 +17,7 @@ export function ConnectionNotices() {
   if (state.kind === 'offline') {
     return (
       <View style={{ padding: space.inset.md }}>
-        <InlineAlert tone="info" body={t('shell.offlineBanner')} testID="offline-banner" />
+        <InlineAlert tone="info" icon={WifiOff} body={t('shell.offlineBanner')} testID="offline-banner" />
       </View>
     );
   }

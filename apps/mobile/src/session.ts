@@ -168,6 +168,10 @@ export function createSessionPorts(
     onNativeEvent: () => {
       void owner.mergeNativeContact();
     },
+    // the discard of a file removes its rejected command: the counters of the queue ("Wymaga uwagi · n") are read again
+    onQueueChanged: () => {
+      sync.queueChanged();
+    },
     // the camera (EVM-108): the free space of the phone and the ids of the session (UUIDv7, CSPRNG)
     capture: { disk: expoDiskSpace, newId },
     // EVM-110 AC3: the marker of a recording in progress (a tiny file in the files of the app; nothing sensitive in it)
