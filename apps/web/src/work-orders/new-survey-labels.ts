@@ -35,6 +35,7 @@ export const newSurveyText = {
     forbidden: 'Nie możesz zakładać wizji lokalnych. Poproś administratora.',
     notFound:
       'Nie udało się założyć wizji lokalnej: lokalizacja jest niedostępna albo wizje lokalne są teraz wyłączone. Odśwież stronę, załóż zwykłe zlecenie albo zapytaj administratora.',
+    limit: 'Masz za dużo otwartych wizji — przypisz klienta, odrzuć lub poczekaj na wygaśnięcie.',
     rate: (seconds: number) => `Zbyt wiele prób. Spróbuj ponownie za ${String(seconds)} s.`,
     server: (code: string) => `Nie udało się założyć wizji. Spróbuj ponownie — nie założymy jej dwa razy. Kod błędu: ${code}.`,
   },

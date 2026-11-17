@@ -32,6 +32,9 @@ import {
 import { ASSIGNABLE_USERS_KEY, useAssignableUsers } from './use-order-lookups.ts';
 import { WORK_ORDER_HEADER_KEY, WORK_ORDERS_KEY } from './query-keys.ts';
 
+/** The failures of a save, and the refusal of the limit of open surveys (EVM-140 AC4: `409 site_survey_limit_exceeded`). */
+type SurveyFailure = SaveFailure | { readonly kind: 'limit' };
+
 export interface NewSurveyFormProps {
   readonly userId: string;
   readonly userName: string;
@@ -62,7 +65,7 @@ export function NewSurveyForm({ userId, userName, kindChoice, notice, onUnavaila
   const [draft, setDraft] = useState<SurveyDraft>(() => restoreSurveyDraft(userId));
   const [phone, setPhone] = useState('');
   const [errors, setErrors] = useState<SurveyFieldErrors>({});
-  const [failure, setFailure] = useState<SaveFailure | null>(null);
+  const [failure, setFailure] = useState<SurveyFailure | null>(null);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [focusRequest, setFocusRequest] = useState(0);
   const summary = useRef<HTMLDivElement>(null);
@@ -155,6 +158,14 @@ export function NewSurveyForm({ userId, userName, kindChoice, notice, onUnavaila
             onUnavailable();
             return;
           }
+          if (error instanceof ApiError && error.status === 409 && error.code === 'site_survey_limit_exceeded') {
+            // EVM-140 AC4: nothing was created, so the next try is a new one; the form stays filled.
+            attempt.forget();
+            setErrors({});
+            setFailure({ kind: 'limit' });
+            setFocusRequest((current) => current + 1);
+            return;
+          }
           if (refusesAttempt(error)) attempt.forget();
           const hasFields = Object.keys(mapped).length > 0;
           setErrors(mapped);
@@ -165,8 +176,10 @@ export function NewSurveyForm({ userId, userName, kindChoice, notice, onUnavaila
     );
   };
 
-  const failureText = (current: SaveFailure): string => {
+  const failureText = (current: SurveyFailure): string => {
     switch (current.kind) {
+      case 'limit':
+        return text.failure.limit;
       case 'fields':
         return text.failure.fields;
       case 'network':

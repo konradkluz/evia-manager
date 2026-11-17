@@ -105,3 +105,14 @@ describe('W-08 Dziennik: klient przypisany do wizji lokalnej (EVM-138)', () => {
     expect(item.textContent).not.toContain('Zdarzenie w zleceniu');
   });
 });
+
+describe('W-08 Dziennik: przedłużenie wizji lokalnej (EVM-140)', () => {
+  it('EVM-140 AC6 the event work_order_site_survey_extended is told "Przedłużono wizję lokalną", not as an unknown event', async () => {
+    await renderPanel(PATH, journalApi({ entries: [eventEntry(1, { code: 'work_order_site_survey_extended', objectType: null })] }));
+    await screen.findByRole('heading', { level: 1, name: 'ZL-2026-0042' });
+    await userEvent.click(await screen.findByRole('tab', { name: 'Dziennik' }));
+    const item = await screen.findByRole('listitem', { name: /^Zmiana w zleceniu:/ });
+    expect(item.textContent).toContain('Przedłużono wizję lokalną');
+    expect(item.textContent).not.toContain('Zdarzenie w zleceniu');
+  });
+});

@@ -219,6 +219,8 @@ function compose(t: TFunction, event: TimelineEvent, stageName: string | null, n
       return { text: t('workOrder.journal.event.documentAdded') };
     case 'work_order_customer_assigned':
       return { text: t('workOrder.journal.event.customerAssigned') };
+    case 'work_order_site_survey_extended':
+      return { text: t('workOrder.journal.event.siteSurveyExtended') };
     default:
       return { text: t('workOrder.journal.event.unknown') };
   }

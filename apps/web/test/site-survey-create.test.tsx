@@ -302,6 +302,32 @@ describe('W-05 "Wizja lokalna" — validation and errors (EVM-138 AC2)', () => {
     expect(await screen.findByText('Nie możesz zakładać wizji lokalnych. Poproś administratora.')).toBeTruthy();
   });
 
+  it('EVM-140 AC4 409 site_survey_limit_exceeded: the message about too many open surveys, the form stays filled, a retry works', async () => {
+    let limited = true;
+    const api = surveyCreateApi({
+      [CREATE]: (request) => {
+        if (limited) return problem(409, 'site_survey_limit_exceeded');
+        const body = parseBody(request.body) as { id: string };
+        return json(201, surveyOrder({ id: body.id, number: 'ZL-2026-0051' }), { ETag: '"5"' });
+      },
+    });
+    await renderPanel(NEW_SURVEY, api);
+    await pickSite();
+    await userEvent.type(phoneField(), PHONE);
+    await submit();
+    const alert = await screen.findByText('Masz za dużo otwartych wizji — przypisz klienta, odrzuć lub poczekaj na wygaśnięcie.');
+    expect(alert.closest('[role="alert"]')).not.toBeNull();
+    expect(phoneField().value).toBe(PHONE);
+    expect(screen.getByText(/ul\. Testowa 7/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Załóż wizję lokalną' })).toBeTruthy();
+    limited = false;
+    await submit();
+    await waitFor(() => {
+      expect(api.calls(CREATE)).toHaveLength(2);
+    });
+    expect(api.calls(CREATE)[1]?.headers.get('Idempotency-Key')).not.toBe(api.calls(CREATE)[0]?.headers.get('Idempotency-Key'));
+  });
+
   it('EVM-138 AC2 offline: the banner, the data stay, the button is disabled with an explanation, nothing is sent', async () => {
     const api = surveyCreateApi();
     await renderPanel(NEW_SURVEY, api);

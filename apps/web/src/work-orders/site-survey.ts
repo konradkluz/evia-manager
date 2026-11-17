@@ -18,6 +18,9 @@ export const SURVEY_WARNING_DAYS = 15;
 /** The survey may be extended at most this many times (EVM-140 shows it; here only "Przedłużono N z 2 razy"). */
 export const SURVEY_EXTENSIONS_MAX = 2;
 
+/** One extension moves the deadline by this many days (EVM-140). */
+export const SURVEY_EXTENSION_DAYS = 90;
+
 /** An open survey (also a rejected one: `cancelled` keeps the marker until the deletion). */
 export const isSurvey = (order: SurveyOrder): order is SurveyOrder & { readonly siteSurvey: SiteSurvey } =>
   order.siteSurvey !== null && order.siteSurvey !== undefined;
@@ -42,6 +45,13 @@ export function daysLeft(expiresAt: string, nowMs: number): number {
 export const expiryDate = (expiresAt: string): string => {
   const [year, month, day] = todayWarsaw(new Date(expiresAt).getTime()).split('-');
   return `${day ?? ''}.${month ?? ''}.${year ?? ''}`;
+};
+
+/** The deadline after one more extension: 90 days from the present deadline (the server extends from it, not from today), as `DD.MM.RRRR`. */
+export const extendedExpiryDate = (expiresAt: string): string => {
+  const instant = new Date(expiresAt);
+  instant.setUTCDate(instant.getUTCDate() + SURVEY_EXTENSION_DAYS);
+  return expiryDate(instant.toISOString());
 };
 
 /** The days as a word: `za 1 dzień`, `za 5 dni`, `dziś` (Polish plural, styleguide § 6.3). */
