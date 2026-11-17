@@ -2,6 +2,14 @@
 export { WorkOrdersModule } from './work-orders.module.ts';
 export { SiteSurveyReminderComposer } from './application/site-survey-reminder.composer.ts';
 export { SiteSurveyReminderJob } from './application/site-survey-reminder.job.ts';
+export { SiteSurveyPurgeJob } from './application/site-survey-purge.job.ts';
+export {
+  SiteSurveyPurgeRegistry,
+  type AfterCommit,
+  type SiteSurveyPurgeParticipant,
+  type SurveyPurgeContext,
+  type SurveyPurgeIdentity,
+} from './site-survey-purge-participant.ts';
 export {
   WORK_ORDER_EVENT_TYPES,
   WORK_ORDER_JOURNAL_EVENT_TYPES,

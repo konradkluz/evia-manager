@@ -94,7 +94,11 @@ describe('migration 0066 - the site survey (EVM-135 AC7; expand only)', () => {
 
   it('EVM-135 AC7 once the order has a customer, 0066 applies and every constraint is validated', async () => {
     await sql`update work_orders.work_orders set customer_id = ${customerId} where id = ${orderWithoutCustomer}`.execute(db);
-    expect((await migrateToLatest(db, MIGRATIONS)).applied).toEqual(['0066_site_survey', '0067_email_outbox_site_survey']);
+    expect((await migrateToLatest(db, MIGRATIONS)).applied).toEqual([
+      '0066_site_survey',
+      '0067_email_outbox_site_survey',
+      '0068_site_survey_purge',
+    ]);
     const constraints = await sql<{ conname: string; convalidated: boolean }>`
       select conname, convalidated from pg_constraint
       where conrelid = 'work_orders.work_orders'::regclass and contype = 'c' and (conname like 'work_orders_site_survey%' or conname in
@@ -105,6 +109,7 @@ describe('migration 0066 - the site survey (EVM-135 AC7; expand only)', () => {
       { conname: 'work_orders_requester_phone_format', convalidated: true },
       { conname: 'work_orders_site_survey_extensions_range', convalidated: true },
       { conname: 'work_orders_site_survey_fields', convalidated: true },
+      { conname: 'work_orders_site_survey_purged_neutral', convalidated: true }, // 0068 (EVM-139): the tombstone of a purged survey
       { conname: 'work_orders_site_survey_shape', convalidated: true },
     ]);
   });

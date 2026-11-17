@@ -136,6 +136,28 @@ describe('EVM-040 AC3 the object of a record (SR-PRIV-04): identifiers and codes
     expect(object.key).not.toContain(customerRecord.subjectId);
   });
 
+  it('EVM-139 AC2 the object of the purge of a site survey names the order, the location and the media by identifier - and the system as the actor, no text', () => {
+    const system = '00000000-0000-7000-8000-000000000000';
+    const mediaAssetIds = ['0190a1b2-0000-7000-8000-0000000000a1', '0190a1b2-0000-7000-8000-0000000000a2'];
+    const siteId = '0190a1b2-0000-7000-8000-0000000000b1';
+    const object = registerObjectOf(
+      { ...record, operationCode: 'site_survey_purged', subjectType: 'work_order', mediaAssetIds, siteId, actorUserId: system },
+      new Date(NOW),
+    );
+    expect(JSON.parse(object.body)).toEqual({
+      schemaVersion: 1,
+      operationId: object.operationId,
+      operationCode: 'site_survey_purged',
+      subjectType: 'work_order',
+      subjectId: record.subjectId,
+      workOrderId: record.workOrderId,
+      siteId,
+      mediaAssetIds,
+      actorUserId: system,
+      occurredAt: NOW,
+    });
+  });
+
   it('EVM-051 AC3 the object of a purge of a file holds the identifiers, the code, the owner (the order or the anchor) and the time - no name, no title', () => {
     const media = registerObjectOf({ ...record, operationCode: 'media_file_purged', subjectType: 'media_asset' }, new Date(NOW));
     expect(JSON.parse(media.body)).toEqual({

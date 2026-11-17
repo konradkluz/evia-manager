@@ -26,6 +26,8 @@ export const WORK_ORDER_EVENT_TYPES = [
   'work_order.updated',
   'work_order.customer_assigned',
   'work_order.site_survey_extended',
+  'work_order.site_survey_purged',
+  'work_order.site_survey_purge_failed',
   'scope_item.created',
   'scope_item.updated',
   'scope_item.deleted',
@@ -33,8 +35,10 @@ export const WORK_ORDER_EVENT_TYPES = [
 
 export interface WorkOrderEvent extends DomainEvent {
   readonly type: (typeof WORK_ORDER_EVENT_TYPES)[number];
-  readonly actor: { readonly type: 'user'; readonly userId: string };
-  readonly outcome: 'success';
+  /** The system for the automatic purge of a site survey (EVM-139); a person for everything else. */
+  readonly actor: { readonly type: 'user'; readonly userId: string } | { readonly type: 'system' };
+  /** `failed` only for `work_order.site_survey_purge_failed` (the purge could not be done; an identifier and nothing else). */
+  readonly outcome: 'success' | 'failed';
   /** `scope_item` for the three events of the scope: the object is the item (its order is a column of the item). */
   readonly objectType: 'work_order' | 'scope_item';
   readonly objectId: string;
@@ -51,6 +55,7 @@ export interface WorkOrderEvent extends DomainEvent {
  */
 export interface WorkOrderSiteSurveyExtendedEvent extends WorkOrderEvent {
   readonly type: 'work_order.site_survey_extended';
+  readonly actor: { readonly type: 'user'; readonly userId: string };
   readonly reasonCode: SiteSurveyExtensionReason;
 }
 
@@ -61,6 +66,7 @@ export interface WorkOrderSiteSurveyExtendedEvent extends WorkOrderEvent {
  */
 export interface WorkOrderCustomerAssignedEvent extends WorkOrderEvent {
   readonly type: 'work_order.customer_assigned';
+  readonly actor: { readonly type: 'user'; readonly userId: string };
   readonly customerId: string;
 }
 

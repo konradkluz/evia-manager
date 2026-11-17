@@ -33,6 +33,9 @@ export interface SitesTable {
   deleted_by: string | null;
   /** The device of the session that created the site from the phone (EVM-099; 0058); `NULL` for the panel. */
   created_via_device_id: Generated<string | null>;
+  /** The anonymization of a location created for a purged site survey (EVM-139; migration 0068): both or neither, written once (trigger). */
+  anonymized_at: Generated<Date | null>;
+  anonymized_by: Generated<string | null>;
 }
 
 export type SiteTables = { 'sites.sites': SitesTable };

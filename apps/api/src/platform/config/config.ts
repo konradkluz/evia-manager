@@ -62,6 +62,12 @@ export interface AppConfig {
    * off unless exactly `true`). Off stops the creation only; the surveys that exist are read, listed and synchronised as before.
    */
   readonly features: { readonly siteSurveys: boolean };
+  /**
+   * The mode of the automatic purge of site surveys (EVM-139; ADR-0024 pt 9; SR-PRIV-11): `report` (the default - the job only counts the candidates) or `enforce` (the job erases
+   * them for good). Exactly one of the two words; anything else stops the start. `enforce` is the decision of the owner after the backups run (RR-91), made by one change of the
+   * deployment configuration - never by default.
+   */
+  readonly siteSurveyPurgeMode: 'report' | 'enforce';
   /** The synchronisation of the phones (EVM-096; ADR-0021). The keys of the cursors are secrets: never logged. */
   readonly sync: SyncSettings;
 }
@@ -191,6 +197,8 @@ const schema = z
     SYNC_PAGE_MAX_BYTES: z.coerce.number().int().min(10_000).max(1_000_000).default(900_000),
     // EVM-135: exactly `true` or `false`; absent is off (deny by default) - any other value stops the start
     SITE_SURVEYS_ENABLED: z.enum(['true', 'false']).default('false'),
+    // EVM-139: the purge of site surveys counts (`report`, the default) or erases (`enforce`)
+    SITE_SURVEY_PURGE_MODE: z.enum(['report', 'enforce']).default('report'),
     // Empty (an image built without the argument, the example file) is the same as absent.
     EVIA_RELEASE_COMMIT: releaseValue(/^[0-9a-f]{40}$/),
     EVIA_RELEASE_MANIFEST_SHA256: releaseValue(/^[0-9a-f]{64}$/),
@@ -343,6 +351,7 @@ export function loadConfig(env: Env, read: ReadConfigFile = readConfigFile): App
     ...(media === undefined ? {} : { media: { ...media, processorRequired: value.NODE_ENV === 'production' } }),
     deletionRegister: resolveDeletionRegisterSettings(value, value.NODE_ENV !== 'production'),
     features: { siteSurveys: value.SITE_SURVEYS_ENABLED === 'true' },
+    siteSurveyPurgeMode: value.SITE_SURVEY_PURGE_MODE,
     sync: {
       cursorKeys: syncCursorKeysOf(value),
       closedOrdersInScopeDays: value.SYNC_CLOSED_ORDERS_IN_SCOPE_DAYS,

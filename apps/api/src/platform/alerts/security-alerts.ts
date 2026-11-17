@@ -29,7 +29,9 @@ export type SecurityAlertCode =
   // EVM-099 AB-08: a device tried to create more than 20 customers or 20 sites in 24 hours (once per device, kind and hour; the device and the kind are in the audit event of the same trace)
   | 'sync_quick_create_quota_exceeded'
   // EVM-052 AB-07: a ZIP export of the photos of an order was ordered (the person is in the audit event of the same trace, never in the alert)
-  | 'media_export_started';
+  | 'media_export_started'
+  // EVM-139: the automatic purge of site surveys could not erase a survey (the register of deletions refused or another step failed); once per run, the surveys are untouched and retried
+  | 'site_survey_purge_failed';
 
 export interface SecurityAlertsTable {
   id: string;

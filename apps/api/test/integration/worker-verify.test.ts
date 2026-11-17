@@ -15,6 +15,7 @@ import { ERASURE_COMPLETION_JOB } from '../../src/modules/media/application/eras
 import { QUARANTINE_RETENTION_JOB } from '../../src/modules/media/application/quarantine-retention.job.ts';
 import { STORAGE_RECONCILIATION_JOB } from '../../src/modules/media/application/storage-reconciliation.job.ts';
 import { SIGNATURE_MONITOR_JOB } from '../../src/modules/media/application/signature-monitor.job.ts';
+import { SITE_SURVEY_PURGE_JOB } from '../../src/modules/work-orders/application/site-survey-purge.job.ts';
 import { SITE_SURVEY_REMINDER_JOB } from '../../src/modules/work-orders/application/site-survey-reminder.job.ts';
 import { PURGE_IDEMPOTENCY_JOB } from '../../src/platform/idempotency/purge-idempotency.job.ts';
 import { runWorkerFromProcess } from '../../src/worker/worker-process.ts';
@@ -95,6 +96,7 @@ describe('the worker with the nightly verify (EVM-034 W11; ADR-0010, ADR-0017 W1
       { name: STORAGE_RECONCILIATION_JOB, cron: '30 3 * * *', timezone: 'Europe/Warsaw' }, // EVM-051 AC5
       { name: VERIFY_PROJECTION_JOB, cron: '30 3 * * *', timezone: 'Europe/Warsaw' },
       { name: PURGE_IDEMPOTENCY_JOB, cron: '10 4 * * *', timezone: 'Europe/Warsaw' }, // EVM-079 AC2
+      { name: SITE_SURVEY_PURGE_JOB, cron: '20 3 * * *', timezone: 'Europe/Warsaw' }, // EVM-139 AC1
       { name: SITE_SURVEY_REMINDER_JOB, cron: '10 7 * * *', timezone: 'Europe/Warsaw' }, // EVM-140 AC1
     ]);
 

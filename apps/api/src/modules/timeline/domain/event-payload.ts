@@ -154,7 +154,10 @@ const STRICT = {
 } as const;
 
 /** The source events `timeline` turns into entries (`work_order.created` is the creation event of the order, already audited). */
-export type CreatedEvent = WorkOrderEvent & { readonly type: 'work_order.created' };
+export type CreatedEvent = WorkOrderEvent & {
+  readonly type: 'work_order.created';
+  readonly actor: { readonly type: 'user'; readonly userId: string };
+};
 export type AssignedEvent = WorkOrderCustomerAssignedEvent;
 export type ExtendedEvent = WorkOrderSiteSurveyExtendedEvent;
 export type JournalSourceEvent =
