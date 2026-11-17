@@ -4,7 +4,7 @@ title: "Wizja lokalna: przypomnienie przed usunięciem, przedłużenie z powodem
 type: story
 milestone: M2
 epic: E15 Wizja lokalna
-status: ready
+status: in-progress
 priority: P1
 path: pelna             # audyt, e-mail, limity nadużyć, zadanie w workerze
 owner: backend-developer
@@ -69,3 +69,4 @@ Rozmiar wg ADR-0024: M. Odstępstwo od grafu ADR-0024 (tam 140 równolegle z 136
 ## Dziennik
 - 2026-11-16 — szkic (product-owner)
 - 2026-11-16 — uzgodniono z ADR-0024, wpisano decyzje Konrada („akceptuję wg rekomendacji”); **status ready** (product-owner)
+- 2026-11-17 — start realizacji w kolejce `/noc-2026-11-16` (tor E, klon n2, gałąź `feature/queue-2026-11-17-wizja-lokalna-wygasanie` od głowy PR #148 `f139ba05`); **status `in-progress`** (Tech Lead)
