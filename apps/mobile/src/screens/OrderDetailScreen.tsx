@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AccessibilityInfo, FlatList, Text, View } from 'react-native';
 import type { JournalItem, OrderDetail } from '../orders/order-detail-model';
-import { AppBar, Ban, BottomBar, Button, Clock, EmptyState, Inbox, InlineAlert, Skeleton, StatusBadge } from '../ui';
+import { AppBar, BottomBar, Button, Clock, EmptyState, Inbox, InlineAlert, Skeleton, StatusBadge, ThumbsDown } from '../ui';
 import { color, space, text } from '../ui/theme';
 import { ConnectionNotices } from './ConnectionNotices';
 import { HiddenDataNotice } from './DeviceNotices';
@@ -36,7 +36,7 @@ function DetailHeader({ detail }: { detail: OrderDetail }) {
         )}
         {detail.status === 'cancelled' ? (
           <StatusBadge
-            icon={Ban}
+            icon={ThumbsDown}
             label={t('shell.orders.surveyRejected')}
             tone={color.status.order.cancelled}
             testID="order-detail-survey-rejected"

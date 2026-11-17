@@ -17,7 +17,9 @@ import {
   Icon,
   Inbox,
   StatusBadge,
+  ThumbsDown,
   ThumbsUp,
+  TriangleAlert,
   Wrench,
 } from '../ui';
 import type { BadgeTone } from '../ui';
@@ -89,9 +91,14 @@ function SurveyCard({ row, onOpen }: { row: OrderRow; onOpen?: (id: string) => v
     ? t('shell.orders.surveyA11ySaved', { time: formatClock(row.createdAt) })
     : t('shell.orders.surveyA11yCreated', { date: formatDate(row.createdAt) });
   const unsent = row.unsent && !row.awaitingNumber ? t('shell.orders.unsent') : '';
+  const needsAttention = row.awaitingNumber && row.attention;
   const label = [
     t('orderDetail.surveyBadge'),
-    row.awaitingNumber ? t('shell.orders.surveyA11yPending') : (row.number ?? ''),
+    needsAttention
+      ? t('shell.orders.surveyA11yAttentionRejected')
+      : row.awaitingNumber
+        ? t('shell.orders.surveyA11yPending')
+        : (row.number ?? ''),
     row.awaitingNumber ? '' : statusLabel,
     rejected ? t('shell.orders.surveyA11yRejected') : '',
     dateA11y,
@@ -106,7 +113,14 @@ function SurveyCard({ row, onOpen }: { row: OrderRow; onOpen?: (id: string) => v
   const content = (
     <>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: space.inline.sm }}>
-        {row.awaitingNumber ? (
+        {needsAttention ? (
+          <StatusBadge
+            icon={TriangleAlert}
+            label={t('shell.orders.surveyAttention')}
+            tone={color.sync.error}
+            testID={`order-attention-${row.id}`}
+          />
+        ) : row.awaitingNumber ? (
           <StatusBadge icon={Clock} label={t('shell.orders.awaitingNumber')} tone={color.sync.queued} testID={`order-awaiting-${row.id}`} />
         ) : (
           <>
@@ -129,7 +143,7 @@ function SurveyCard({ row, onOpen }: { row: OrderRow; onOpen?: (id: string) => v
         />
         {rejected ? (
           <StatusBadge
-            icon={Ban}
+            icon={ThumbsDown}
             label={t('shell.orders.surveyRejected')}
             tone={color.status.order.cancelled}
             testID={`order-survey-rejected-${row.id}`}

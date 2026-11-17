@@ -89,6 +89,11 @@ export interface OrderRow {
    * the search key; the card of the list has nothing to print. `null` = an ordinary order and every row of the hidden-data mode.
    */
   readonly survey: SurveyInfo | null;
+  /**
+   * A survey that has not been sent and that the server rejected (the command waits in the queue for "Usuń z telefonu"): it will never get a number, so
+   * the card says "Wymaga uwagi" instead of "Oczekuje na numer" (EVM-137 AC6; flow 17, M-05). Always `false` outside a survey and in the hidden-data mode.
+   */
+  readonly attention: boolean;
   readonly keys: SearchKeys;
 }
 
@@ -145,6 +150,7 @@ interface RowFacts {
   readonly spot: string;
   readonly stage: string;
   readonly survey?: SurveyInfo | null;
+  readonly attention?: boolean;
 }
 
 function row(id: string, facts: RowFacts): OrderRow {
@@ -157,7 +163,7 @@ function row(id: string, facts: RowFacts): OrderRow {
   const survey = facts.survey ?? null;
   // a survey is found by its address, but the row never carries it for display (W5)
   const shown = survey === null ? facts : { ...facts, street: '', city: '', spot: '' };
-  return { id, awaitingNumber: facts.number === null, ...shown, survey, keys };
+  return { id, awaitingNumber: facts.number === null, ...shown, survey, attention: survey !== null && facts.attention === true, keys };
 }
 
 const addressOf = (site: { street: string; buildingNumber: string } | undefined): string =>
@@ -209,6 +215,7 @@ export function buildOrderList(source: OrderListSource, facts: readonly QueueFac
         // a survey waits for its number as a quote without a client; its term is 90 days from the save (EVM-137 AC2)
         status: fact.type === 'CreateSiteSurvey' ? 'quoting' : 'new',
         survey: fact.type === 'CreateSiteSurvey' ? pendingSurveyExpiry(fact.createdAt) : null,
+        attention: fact.type === 'CreateSiteSurvey' && fact.state === 'needs_attention',
         createdAt: fact.createdAt,
         unsent: true,
         customer: fact.customerName ?? (fact.customerId === undefined ? '' : (customers.get(fact.customerId) ?? '')),
@@ -237,6 +244,7 @@ export function redactRows(rows: readonly OrderRow[]): OrderRow[] {
     spot: '',
     stage: '',
     survey: null,
+    attention: false,
     keys: NO_KEYS,
   }));
 }

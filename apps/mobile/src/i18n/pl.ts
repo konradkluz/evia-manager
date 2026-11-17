@@ -48,6 +48,8 @@ export const pl = {
       surveyA11yOn: 'dnia {{date}}',
       surveyA11yAttention: 'wymaga decyzji biura',
       surveyA11yRejected: 'odrzucona',
+      surveyAttention: 'Wymaga uwagi',
+      surveyA11yAttentionRejected: 'wymaga uwagi',
       unsent: 'Niewysłane',
       spot: 'Miejsce {{spot}}',
       stage: 'Etap: {{stage}}',

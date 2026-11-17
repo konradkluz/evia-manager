@@ -39,6 +39,7 @@ export { default as Inbox } from 'lucide-react-native/icons/inbox';
 export { default as Trash } from 'lucide-react-native/icons/trash';
 export { default as Search } from 'lucide-react-native/icons/search';
 export { default as TriangleAlert } from 'lucide-react-native/icons/triangle-alert';
+export { default as ThumbsDown } from 'lucide-react-native/icons/thumbs-down';
 export { default as ThumbsUp } from 'lucide-react-native/icons/thumbs-up';
 export { default as HardDrive } from 'lucide-react-native/icons/hard-drive';
 export { default as Square } from 'lucide-react-native/icons/square';

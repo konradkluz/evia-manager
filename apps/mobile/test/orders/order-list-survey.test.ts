@@ -140,6 +140,27 @@ describe('a survey that waits in the queue (EVM-137 AC2)', () => {
   });
 });
 
+describe('a rejected survey that was not sent (EVM-137 AC6)', () => {
+  it('EVM-137 AC6: a survey command in needs_attention is a row that needs attention; pending and retrying ones are not', () => {
+    const rejected = { ...surveyCommand(S1), state: 'needs_attention' as const };
+    const waiting = { ...surveyCommand(S2), state: 'retrying' as const };
+    const rows = buildOrderList(source([]), [queueFact(rejected, true), queueFact(waiting, true)]);
+    expect(rows.find((r) => r.id === S1)).toMatchObject({ awaitingNumber: true, unsent: true, attention: true, street: '', city: '' });
+    expect(rows.find((r) => r.id === S2)).toMatchObject({ awaitingNumber: true, attention: false });
+  });
+
+  it('EVM-137 AC6: a rejected quick work order is not marked (the same fact type is the only one the mechanism looks at)', () => {
+    const quick = { ...record('CreateQuickWorkOrder', O1, { workOrderId: O1 }), state: 'needs_attention' as const };
+    expect(buildOrderList(source([]), [queueFact(quick, true)])[0]).toMatchObject({ attention: false, awaitingNumber: true });
+  });
+
+  it('EVM-137 AC6: the hidden-data mode keeps the plain row - no mark of attention either', () => {
+    const rejected = { ...surveyCommand(S1), state: 'needs_attention' as const };
+    const redacted = redactRows(buildOrderList(source([]), [queueFact(rejected, false)]));
+    expect(redacted[0]).toMatchObject({ attention: false, survey: null, awaitingNumber: true });
+  });
+});
+
 describe('the hidden-data mode (EVM-137 AC5, W9)', () => {
   it('EVM-137 AC5: redactRows leaves a survey as a plain row - number, status, the unsent flag - with no mark, term, address or key', () => {
     const rows = buildOrderList(source([order(S1, { siteId: SITE, survey: { expiresAt: NOW + 80 * DAY, extensionCount: 0 } })]), [

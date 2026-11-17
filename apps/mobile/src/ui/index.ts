@@ -78,6 +78,7 @@ export {
   ShieldOff,
   Smartphone,
   Square,
+  ThumbsDown,
   ThumbsUp,
   Video,
   VolumeOff,

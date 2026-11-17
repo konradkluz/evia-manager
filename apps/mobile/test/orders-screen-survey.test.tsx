@@ -2,6 +2,8 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react-n
 import { App } from '../src/App';
 import { buildOrderList, queueFact, type OrderListSource, type OrderRow, type SourceOrder } from '../src/orders/order-list-model';
 import { type StartupChecker } from '../src/startup';
+import type { LucideIcon } from 'lucide-react-native';
+import { Ban, ThumbsDown, Trash, TriangleAlert } from '../src/ui/icons';
 
 import { stubPorts, type PortsRig } from './session-helpers';
 
@@ -34,6 +36,14 @@ const whole = (): string => {
     }
     return typeof value === 'function' ? undefined : value;
   });
+};
+/** The drawing (the `d` of the paths) of an icon - what tells one lucide glyph from another in the rendered tree. */
+const drawing = (json: unknown): string => (JSON.stringify(json).match(/"d":"[^"]+"/g) ?? []).join('|');
+const glyph = async (Glyph: LucideIcon): Promise<string> => {
+  const view = await render(<Glyph />);
+  const out = drawing(view.toJSON());
+  await view.unmount();
+  return out;
 };
 const NOW = Date.now();
 const ADDRESS = /Fikcyjna|Piaseczno|Tajna|Gdziestam|05-500/;
@@ -105,6 +115,44 @@ describe('the card of a survey (EVM-137 AC4)', () => {
     expect(screen.getByTestId(`order-survey-rejected-${ids.a}`)).toHaveTextContent('Odrzucona');
     expect(screen.getByTestId(`order-survey-term-${ids.a}`)).toHaveTextContent('Usunięcie za 9 dni');
     expect(screen.getByTestId(`order-row-${ids.a}`).props.accessibilityLabel).toContain('odrzucona');
+  });
+
+  it('EVM-137 AC4: the mark "Odrzucona" has its own icon (thumbs-down), not that of "Anulowane" (ban); the removal term has trash', async () => {
+    const [down, ban, trash] = [await glyph(ThumbsDown), await glyph(Ban), await glyph(Trash)];
+    await open(rowsOf([order(ids.a, { status: 'cancelled', survey: survey(9) })]));
+    const mark = screen.getByTestId(`order-survey-rejected-${ids.a}`);
+    expect(mark).toHaveTextContent('Odrzucona');
+    const markDrawing = drawing(mark);
+    expect(markDrawing).toBe(down);
+    expect(markDrawing).not.toBe(ban);
+    expect(drawing(screen.getByTestId(`order-status-${ids.a}`))).toBe(ban);
+    expect(drawing(screen.getByTestId(`order-survey-term-${ids.a}`))).toBe(trash);
+  });
+
+  it('EVM-137 AC6: a rejected survey that was never sent says "Wymaga uwagi" with triangle-alert instead of "Oczekuje na numer", still without an address', async () => {
+    const record = {
+      mutationId: 'm-2',
+      type: 'CreateSiteSurvey',
+      commandVersion: 1,
+      payload: { workOrderId: 'o-rej', newSite: { street: 'ul. Tajna', buildingNumber: '9', city: 'Gdziestam', postalCode: '05-500' } },
+      objectId: 'o-rej',
+      orderingKey: 'o-rej',
+      createdAt: NOW,
+      ownerUserId: 'u1',
+      state: 'needs_attention',
+      attempts: 1,
+    } as const;
+    const alert = await glyph(TriangleAlert);
+    await open(rowsOf([], [queueFact(record, true)]));
+    const card = screen.getByTestId('order-row-o-rej');
+    const badge = within(card).getByTestId('order-attention-o-rej');
+    expect(badge).toHaveTextContent('Wymaga uwagi');
+    expect(drawing(badge)).toBe(alert);
+    expect(within(card).queryByText('Oczekuje na numer')).toBeNull();
+    expect(within(card).queryByTestId('order-awaiting-o-rej')).toBeNull();
+    expect(within(card).getByTestId('order-survey-mark-o-rej')).toBeOnTheScreen();
+    expect(String(card.props.accessibilityLabel)).toMatch(/^Wizja lokalna, wymaga uwagi, zapisano w telefonie/);
+    expect(whole()).not.toMatch(ADDRESS);
   });
 
   it('EVM-137 AC2: a survey that waits for its number says so and when it was saved on the phone (no number, no address)', async () => {
@@ -192,6 +240,7 @@ describe('the hidden-data mode (EVM-137 AC5, W9)', () => {
     expect(screen.queryByTestId('orders-chip-survey')).toBeNull();
     expect(screen.queryByTestId(`order-survey-mark-${ids.a}`)).toBeNull();
     expect(screen.queryByText(/Wygasa/)).toBeNull();
+    expect(screen.queryByText('Wymaga uwagi')).toBeNull();
     expect(whole()).not.toMatch(ADDRESS);
   });
 });
