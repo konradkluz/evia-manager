@@ -320,7 +320,14 @@ export async function updateWorkOrderStatus(
       status_changed_at: now,
       closed_at: columns.closedAt,
       completed_on: columns.completedOn,
-      ...(columns.siteSurveyExpiresAt === undefined ? {} : { site_survey_expires_at: columns.siteSurveyExpiresAt }),
+      ...(columns.siteSurveyExpiresAt === undefined
+        ? {}
+        : {
+            // a deadline that MOVES (the restoration, a rejection that shortens it) clears the mark of the reminder - the reminder of the new date may go out (EVM-140 AC1, as the
+            // extension of AC2); a rejection that leaves the deadline as it is keeps the mark (no second reminder of the same date). The right side of both uses the OLD row.
+            site_survey_reminded_at: sql<Date | null>`case when site_survey_expires_at is distinct from ${columns.siteSurveyExpiresAt} then null else site_survey_reminded_at end`,
+            site_survey_expires_at: columns.siteSurveyExpiresAt,
+          }),
       updated_at: now,
       updated_by: actorUserId,
       version: sql<number>`version + 1`,
