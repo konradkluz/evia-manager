@@ -697,11 +697,14 @@ export class MediaUploads implements MediaControl {
     const open = rows.filter((row) => row.state !== 'clean');
     // the orders whose site survey is still only a command of the queue: their files wait for the survey (EVM-137)
     const surveys = new Set<string>();
+    // only a file that waits can carry the mark, so the queue is read only then (not on every progress event)
     try {
-      for (const raw of await store.queue.readAll()) {
-        if (typeof raw === 'object' && raw !== null && (raw as Record<string, unknown>)['type'] === 'CreateSiteSurvey') {
-          const id = (raw as Record<string, unknown>)['objectId'];
-          if (typeof id === 'string') surveys.add(id);
+      if (rows.some((row) => row.state === 'pending')) {
+        for (const raw of await store.queue.readAll()) {
+          if (typeof raw === 'object' && raw !== null && (raw as Record<string, unknown>)['type'] === 'CreateSiteSurvey') {
+            const id = (raw as Record<string, unknown>)['objectId'];
+            if (typeof id === 'string') surveys.add(id);
+          }
         }
       }
     } catch {

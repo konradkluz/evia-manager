@@ -1189,6 +1189,23 @@ describe('files that wait for a site survey (EVM-137 AC3)', () => {
     expect(r.uploads.getSnapshot().files[0]).not.toHaveProperty('awaitsSurvey');
   });
 
+  it('EVM-137 AC3: progress events of an ordinary upload (no file waiting) do not read the queue', async () => {
+    const r = await rig();
+    hold(r, 1);
+    await r.uploads.add(photo(1));
+    await idle(r);
+    await apply(r, 1);
+    await r.uploads.reconcile();
+    r.uploads.start();
+    const reads = jest.spyOn(r.queue, 'readAll');
+    for (const percent of [10, 40, 80]) {
+      r.native.emit('onUploadProgress', { assetId: asset(1), state: 'uploading', partsDone: 1, partCount: 4, percent, sizeBytes: 1001 });
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    expect(r.uploads.getSnapshot().files).toMatchObject([{ status: 'uploading', percent: 80 }]);
+    expect(reads).not.toHaveBeenCalled();
+  });
+
   it('EVM-137 AC3: a file of an ordinary order never carries the mark', async () => {
     const r = await rig();
     hold(r, 1);
