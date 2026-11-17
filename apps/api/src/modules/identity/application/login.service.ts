@@ -13,8 +13,8 @@
  * try the answer waits 1, 2, 4, 8 and 10 s, OUTSIDE a transaction and BEFORE the verification. The tenth failure is still the `401`. A correct password
  * gives back only its own reservation — it does not zero the counter (RR-26).
  *
- * A correct password of an active account with a second step it may use here (a passkey, an active code of the authenticator app — never an
- * Administrator's TOTP in the panel) gives a single-use `loginToken` (256 bits, only its SHA-256 is stored, 5 minutes) for the second step; an
+ * A correct password of an active account with a second step it may use here (a passkey or an active code of the authenticator app — every
+ * role, EVM-134, ADR-0023) gives a single-use `loginToken` (256 bits, only its SHA-256 is stored, 5 minutes) for the second step; an
  * active account without any gets a session in `mfa_enrollment` that is not tied to a link and therefore cannot register a factor (AB-01: only
  * an administrator's one-time link may; EVM-023 B1).
  */

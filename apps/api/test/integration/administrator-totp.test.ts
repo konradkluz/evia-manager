@@ -250,7 +250,7 @@ describe('the matrix of roles and channels of the code path, without any looseni
     expect((await anonymous.post(SECOND_STEP.loginTotp, { loginToken: 'C'.repeat(43), code: '123456' })).status).toBe(401);
   });
 
-  it("EVM-134 AC5 SR-AUTHZ-12 the phone: the Administrator and the Editor sign in with the code, Tylko odczyt gets 403 channel_not_allowed; the Administrator's token opens no operation of the panel nor of its second step (401)", async () => {
+  it('EVM-134 AC5 SR-AUTHZ-12 the phone: the Administrator and the Editor sign in with the code; the sign-in of Tylko odczyt is 403 channel_not_allowed (the rule role × channel); the token of the Administrator on an operation of the panel or of its second step is 401 unauthenticated (a web operation does not read the Bearer token)', async () => {
     const phones: Record<string, ReturnType<typeof newPhone>> = {};
     for (const role of ['administrator', 'editor', 'read_only'] as const) {
       const account = await totpAccount(current, { role });

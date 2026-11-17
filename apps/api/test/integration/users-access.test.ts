@@ -135,6 +135,8 @@ describe('a change of a role (EVM-027 AC1; SR-AUTHZ-09, SR-SESS-02)', () => {
 describe('the method of the second step does not decide the role (EVM-134 AC3; ADR-0023 — D3 of EVM-027 is gone)', () => {
   it('EVM-134 AC3 an Editor whose only method is a code of the app becomes an Administrator: 200, version + 1, the sessions end (role_changed), every active Administrator is alerted, the audit event', async () => {
     const admin = await browserOf(current);
+    const colleague = await browserOf(current, { role: 'administrator' });
+    const inactive = await accountWithSessions(current, { role: 'administrator', status: 'deactivated', count: 0 });
     const anna = await accountWithSessions(current, { role: 'editor', count: 1, key: false });
     await insertTotpFactor(current, anna.user.id);
 
@@ -144,7 +146,10 @@ describe('the method of the second step does not decide the role (EVM-134 AC3; A
     expect(response.body).toMatchObject({ role: 'administrator', secondStepMethods: ['totp'] });
     expect(await userRow(current, anna.user.id)).toMatchObject({ role: 'administrator', version: 2 });
     expect(await sessionAnswer(anna.sessions[0]?.panel ?? current.panel())).toEqual(REVOKED);
-    expect((await alertRows(current)).length).toBeGreaterThan(0);
+    const alerts = await alertRows(current);
+    expect(alerts.map((row) => row.variant)).toEqual(alerts.map(() => 'administrator_granted'));
+    expect(alerts.map((row) => row.recipient_user_id).sort()).toEqual([admin.user.id, colleague.user.id, anna.user.id].sort());
+    expect(alerts.map((row) => row.recipient_user_id)).not.toContain(inactive.user.id);
     expect(await auditOf(current, 'user.role_changed')).toHaveLength(1);
   });
 
