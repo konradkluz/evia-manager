@@ -387,7 +387,8 @@ describe('W-05 "Wizja lokalna" — the phone is personal data (EVM-138 AC2)', ()
     expect(draft).toContain(GARAGE.id);
     expect(draft).toContain(PIOTR);
     for (const place of [draft, history.location.href, document.title, browserStorageText()]) {
-      expect(place).not.toContain('600');
+      // the whole number in any spelling (spaces, dashes, none, with the prefix) - a bare '600' also matches a timestamp or an identifier
+      expect(place).not.toMatch(/600[\s-]?123[\s-]?456/);
       expect(place).not.toContain('123 456');
     }
     expect(JSON.stringify([log.mock.calls, error.mock.calls, warn.mock.calls])).not.toContain('123 456');
