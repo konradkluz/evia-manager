@@ -15,14 +15,16 @@ import type {
   WorkOrder,
   WorkOrderDetails,
 } from '@evia/contracts';
-import { Body, Controller, Delete, Get, Headers, HttpCode, Inject, Param, Patch, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, HttpCode, Inject, Param, Patch, Post, Put, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { entityTag } from '../../../platform/http/if-match.ts';
 import { OperationId } from '../../../platform/http/operation-id.ts';
 import { principalOf, type Principal } from '../../../platform/http/principal.ts';
 import { ProblemException } from '../../../platform/http/problem.ts';
 import { requestEventContext, webEventContext } from '../../../platform/http/request-context.ts';
+import { AssignCustomerService } from '../application/assign-customer.service.ts';
 import { CreateScopeItemService } from '../application/create-scope-item.service.ts';
+import { CreateSiteSurveyService } from '../application/create-site-survey.service.ts';
 import { CreateWorkOrderService } from '../application/create-work-order.service.ts';
 import { DeleteWorkOrderService } from '../application/delete-work-order.service.ts';
 import { DeleteScopeItemService } from '../application/delete-scope-item.service.ts';
@@ -51,6 +53,8 @@ export class WorkOrdersController {
   readonly #scopeDeletions: DeleteScopeItemService;
   readonly #deletions: DeleteWorkOrderService;
   readonly #restorations: RestoreWorkOrderService;
+  readonly #assignments: AssignCustomerService;
+  readonly #surveys: CreateSiteSurveyService;
 
   constructor(
     @Inject(CreateWorkOrderService) creations: CreateWorkOrderService,
@@ -63,7 +67,10 @@ export class WorkOrdersController {
     @Inject(DeleteScopeItemService) scopeDeletions: DeleteScopeItemService,
     @Inject(DeleteWorkOrderService) deletions: DeleteWorkOrderService,
     @Inject(RestoreWorkOrderService) restorations: RestoreWorkOrderService,
+    @Inject(AssignCustomerService) assignments: AssignCustomerService,
+    @Inject(CreateSiteSurveyService) surveys: CreateSiteSurveyService,
   ) {
+    this.#surveys = surveys;
     this.#creations = creations;
     this.#reads = reads;
     this.#transitions = transitions;
@@ -74,6 +81,7 @@ export class WorkOrdersController {
     this.#scopeDeletions = scopeDeletions;
     this.#deletions = deletions;
     this.#restorations = restorations;
+    this.#assignments = assignments;
   }
 
   @Get('/api/v1/work-orders/:workOrderId')
@@ -275,6 +283,28 @@ export class WorkOrdersController {
     return workOrder;
   }
 
+  /** EVM-135 AC2: the site survey of the panel - `201` with `Location` of the order and its detail. */
+  @Post('/api/v1/site-surveys')
+  @OperationId('createSiteSurvey')
+  @HttpCode(201)
+  async createSiteSurvey(
+    @Body() body: unknown,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<WorkOrderDetails> {
+    const { workOrder, replayed } = await this.#surveys.create(
+      requirePrincipal(request),
+      body,
+      idempotencyKey,
+      webEventContext(request, response),
+    );
+    response.set('Location', `/api/v1/work-orders/${workOrder.id}`);
+    response.set('ETag', entityTag(workOrder.version));
+    if (replayed) response.set('Idempotent-Replayed', 'true');
+    return workOrder;
+  }
+
   @Post('/api/v1/work-orders/:workOrderId/transitions')
   @OperationId('transitionWorkOrder')
   @HttpCode(200)
@@ -290,6 +320,28 @@ export class WorkOrdersController {
       requirePrincipal(request),
       params,
       ifMatch,
+      body,
+      idempotencyKey,
+      webEventContext(request, response),
+    );
+    response.set('ETag', entityTag(workOrder.version));
+    if (replayed) response.set('Idempotent-Replayed', 'true');
+    return workOrder;
+  }
+
+  @Put('/api/v1/work-orders/:workOrderId/customer')
+  @OperationId('assignWorkOrderCustomer')
+  @HttpCode(200)
+  async assignWorkOrderCustomer(
+    @Param() params: unknown,
+    @Body() body: unknown,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<WorkOrderDetails> {
+    const { workOrder, replayed } = await this.#assignments.assign(
+      requirePrincipal(request),
+      params,
       body,
       idempotencyKey,
       webEventContext(request, response),

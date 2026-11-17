@@ -4,7 +4,7 @@
  * Dates (`date`) are read as `YYYY-MM-DD` through `to_char` and written as such (the driver would turn a `date` into a local midnight).
  * `platform` does not know module tables: the module narrows a handle with `db.$extendTables<OverviewTables>()`.
  */
-import type { Kysely } from 'kysely';
+import type { Generated, Kysely } from 'kysely';
 import type { Database } from '../../../platform/database/database.ts';
 
 export interface WorkOrderSummariesTable {
@@ -14,6 +14,8 @@ export interface WorkOrderSummariesTable {
   created_at: Date;
   /** The authorisation column (W2). */
   deleted_at: Date | null;
+  /** The deadline of an open site survey (EVM-135, migration 0066) - a column of the read policy too (Read-only does not see open surveys). */
+  site_survey_expires_at: Generated<Date | null>;
   coordinator_user_id: string | null;
   customer_id: string | null;
   site_id: string | null;

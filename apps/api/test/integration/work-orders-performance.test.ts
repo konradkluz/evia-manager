@@ -120,7 +120,8 @@ describe('performance and N+1 on 10 000 synthetic orders (EVM-017 AC4)', () => {
     expect(counts['5']).toEqual(counts['100']);
     expect(counts['1']).toEqual(counts['100']);
     expect(counts['25']).toEqual(counts['100']);
-    expect(counts['100']).toMatchObject({ orders: 1, names: 1 });
+    // since 0066 (EVM-135) every order has a customer: one batch for the coordinators and ONE for the customers of the page
+    expect(counts['100']).toMatchObject({ orders: 1, names: 2 });
   });
 
   it('EVM-017 AC4 the plan of the default sorts walks an index (no sort of the 10 000 rows) — the indexes of the migration are the ones used', async () => {

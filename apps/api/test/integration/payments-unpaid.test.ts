@@ -38,7 +38,10 @@ async function signIn(role: Role = 'editor', channel: 'web' | 'mobile' = 'web') 
 }
 
 let numbering = 0;
-async function order(milestones: MilestoneSpec[], options: { customerId?: string | undefined; deleted?: boolean; title?: string } = {}) {
+async function order(
+  milestones: MilestoneSpec[],
+  options: { customerId?: string | undefined; deleted?: boolean; title?: string; siteSurveyExpiresAt?: Date } = {},
+) {
   numbering += 1;
   const ids = await insertWorkOrders(admin(), [
     {
@@ -46,6 +49,7 @@ async function order(milestones: MilestoneSpec[], options: { customerId?: string
       title: options.title ?? `Zlecenie syntetyczne ${numbering}`,
       ...(options.customerId === undefined ? {} : { customerId: options.customerId }),
       ...(options.deleted === true ? { deletedAt: new Date('2026-10-02T08:00:00Z') } : {}),
+      ...(options.siteSurveyExpiresAt === undefined ? {} : { siteSurveyExpiresAt: options.siteSurveyExpiresAt }),
     },
   ]);
   const id = [...ids.values()][0] ?? '';
@@ -332,12 +336,14 @@ describe('the filters of the summary (EVM-055 AC4; SR-API-04)', () => {
     expect((await page(reader, `customerId=${shared}`)).body.items).toHaveLength(2);
   });
 
-  it('EVM-055 AC1 the customer of an order whose customer was deleted is {deleted: true} — no identifier, no name; an order without a customer has null', async () => {
+  it('EVM-055 AC1 the customer of an order whose customer was deleted is {deleted: true} — no identifier, no name; an order without a customer (an open site survey) is not in the report', async () => {
     const gone = await insertCustomer(admin(), { lastName: 'Usunięta-nazwa', deletedAt: '2026-10-05T08:00:00Z' });
     await order([invoiced('2026-09-01', 100_000)], { customerId: gone });
-    await order([invoiced('2026-09-02', 100_000)]);
+    // since 0066 (EVM-135) the only order without a customer is a site survey (a fixture: the API refuses its payments from EVM-135 AC7 on)
+    await order([invoiced('2026-09-02', 100_000)], { siteSurveyExpiresAt: new Date('2027-02-14T08:00:00Z') });
     const { body } = await page(await signIn('editor'));
-    expect(body.items.map((item) => item.customer)).toEqual([{ deleted: true }, null]);
+    // EVM-135 AC6: the reports leave the open site surveys out - the only order without a customer
+    expect(body.items.map((item) => item.customer)).toEqual([{ deleted: true }]);
     expect(JSON.stringify(body)).not.toContain('Usunięta-nazwa');
     expect(JSON.stringify(body)).not.toContain(gone);
   });

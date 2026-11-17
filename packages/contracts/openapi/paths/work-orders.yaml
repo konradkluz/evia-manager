@@ -26,6 +26,10 @@ workOrders:
       wymagają prawa odczytu płatności (`restrictedParams` w `x-evia-authz`; v1: wszystkie trzy role). Bez niego widok płatności
       daje `403 forbidden` (po walidacji, przed odczytem), `urgency` liczy kolejność bez składowej płatności, a pole `payment` nie
       występuje. Domyślne sortowanie API się nie zmienia (`-number`); panel wysyła `sort=urgency` jawnie.
+      Wizje lokalne (EVM-135, ADR-0024): domyślnie na liście razem ze zleceniami, z obiektem `siteSurvey` (`customer: null`,
+      `site: null` — adres wizji tylko w szczegółach); `siteSurvey=only` — tylko otwarte wizje (wtedy także sortowanie
+      `siteSurveyExpiresAt` — termin rosnąco), `siteSurvey=exclude` — bez nich. Widoki raportowe `waiting_on_dso_over_14_days`,
+      `overdue_payments` i `unpaid` pomijają otwarte wizje. Tylko odczyt nie widzi otwartych wizji w żadnym widoku.
       Frazy wyszukiwania w adresie nie ma (SR-API-04): do tego służy `searchWorkOrders`. Lista czyta model odczytu (`overview`),
       kontrakt operacji — ścieżka, `operationId`, tag i `x-evia-authz` — jest bez zmian.
       Paginacja kursorem nieprzezroczystym (`nextCursor`; bez licznika wyników): zmieniony, wygasły (30 minut), wydany komu innemu
@@ -72,6 +76,12 @@ workOrders:
           type: string
           format: uuid
           maxLength: 36
+      - name: siteSurvey
+        in: query
+        required: false
+        description: Filtr wizji lokalnych (`only` albo `exclude`; EVM-135).
+        schema:
+          $ref: ../components/work-orders.yaml#/WorkOrderSiteSurveyFilter
       - name: siteType
         in: query
         required: false
@@ -221,6 +231,84 @@ workOrders:
         $ref: ../components/responses.yaml#/UnsupportedMediaType
       '422':
         $ref: ../components/responses.yaml#/CreateWorkOrderUnprocessable
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+siteSurveys:
+  post:
+    operationId: createSiteSurvey
+    tags: [work-orders]
+    summary: Założenie wizji lokalnej (zlecenie bez klienta)
+    description: >-
+      Wizja lokalna z panelu (EVM-135 AC2, ADR-0024): zlecenie bez klienta i bez szablonu, w statusie `quoting`, z numerem
+      `ZL-RRRR-NNNN` od razu i terminem wygaśnięcia (utworzenie + 90 dni). Role Administrator i Edytor (Tylko odczyt — `403 forbidden`;
+      niezalogowany — `401`), kanał `web`, z audytem (`work_order.created` — identyfikatory, bez tytułu, adresu i telefonu). Wymaga
+      `X-CSRF-Token`. Funkcja za przełącznikiem serwera (`SITE_SURVEYS_ENABLED`; stan: `CurrentSession.features.siteSurveys`) —
+      wyłączona: `404 not_found` przed walidacją treści, nic się nie zapisuje. Lokalizacja nieistniejąca, usunięta albo niewidoczna —
+      `404 not_found`; istniejące `id` (także cudzego lub usuniętego zlecenia) — `409 id_conflict` bez danych istniejącego zasobu;
+      pole serwera zlecenia (`number`, `status`, `customer`, `siteSurvey` …) — `400 read_only_field`, każde inne pole spoza schematu
+      (także `customerId`, `templateId`, `description`) — `400 unknown_field`; `assigneeUserId` spoza aktywnych użytkowników — `400`
+      (`/assigneeUserId`, `assignee_unavailable`); błędy to wskaźnik i kod, nigdy wartość (także nigdy adres ani telefon). Idempotencja jak `createWorkOrder`
+      (`Idempotency-Key`, powtórka — `201` z `Idempotent-Replayed: true`). `createWorkOrder` się nie zmienia: zwykłe zlecenie wymaga klienta.
+    x-evia-authz:
+      roles: [administrator, editor]
+      channels: [web]
+      audit: true
+    parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        description: Klucz idempotencji (UUIDv7) generowany raz na akcję użytkownika.
+        schema:
+          type: string
+          format: uuid
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+          maxLength: 36
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/work-orders.yaml#/CreateSiteSurveyRequest
+    responses:
+      '201':
+        description: >-
+          Wizja utworzona (albo powtórka wcześniejszego zapisu — wtedy nagłówek `Idempotent-Replayed: true`); `Location` wskazuje zlecenie.
+        headers:
+          Location:
+            description: Adres zlecenia (`/api/v1/work-orders/{id}`).
+            schema:
+              type: string
+              maxLength: 80
+          ETag:
+            description: Wersja zasobu (`"<version>"`).
+            schema:
+              type: string
+              maxLength: 32
+          Idempotent-Replayed:
+            description: '`true` przy powtórce żądania z tym samym `Idempotency-Key` i treścią.'
+            schema:
+              type: string
+              enum: ['true']
+        content:
+          application/json:
+            schema:
+              $ref: ../components/work-orders.yaml#/WorkOrderDetails
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/responses.yaml#/ResourceConflict
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '422':
+        $ref: ../components/responses.yaml#/IdempotencyMismatch
       '429':
         $ref: ../components/responses.yaml#/RateLimited
 workOrdersSearch:
@@ -875,6 +963,83 @@ workOrderCustomer:
         $ref: ../components/responses.yaml#/NotFound
       '429':
         $ref: ../components/responses.yaml#/RateLimited
+  put:
+    operationId: assignWorkOrderCustomer
+    tags: [work-orders]
+    summary: Wizja lokalna — przypisanie klienta (jednorazowe)
+    description: >-
+      Przypisanie klienta do otwartej wizji lokalnej (EVM-136 AC1–AC3; ADR-0024 pkt 3; SR-AUTHZ-02, SR-AUTHZ-05, SR-API-05, SR-API-06,
+      SR-LOG-03; CWE-639): `{ "customerId": "…", "version": 3 }`. Po przypisaniu wizja jest zwykłym zleceniem — ten sam numer,
+      identyfikatory mediów i wpisów, lokalizacja bez zmian. Role Administrator i Edytor (Tylko odczyt — `403 forbidden`, niezalogowany
+      — `401`; token mobilny — `403 channel_not_allowed`), kanał `web`, z audytem (`work_order.customer_assigned` — aktor i
+      identyfikator zlecenia, bez klienta, adresu i telefonu) i wpisem dziennika (`work_order_customer_assigned`). Wymaga
+      `X-CSRF-Token`; wersja jest w TREŚCI (nie w `If-Match`).
+      Jedno `UPDATE` ustawia `customerId` i zeruje termin wygaśnięcia, licznik przedłużeń, znacznik przypomnienia i telefon zamawiającego
+      (kolumny wizji wiąże CHECK bazy: bez terminu wizji nie ma telefonu, przedłużeń ani przypomnienia); status zostaje (Wycena albo
+      Wstrzymane), `version + 1`, nowy `ETag`.
+      Kolejność (decyzje zapadają na wierszu zlecenia zablokowanym `SELECT … FOR NO KEY UPDATE`, a klient jest blokowany `FOR KEY SHARE`
+      dopiero po nim, w jednej transakcji): guard (rola, CSRF, kanał), ścieżka i `Idempotency-Key` (`400`), zlecenie (`404` — brak,
+      usunięte i niewidoczne to jedna odpowiedź, przed treścią), treść (`400`), powtórka idempotentna, TEN SAM klient — `200` bez zmian
+      (PRZED wersją: powtórka po sukcesie niesie wersję sprzed niego), inny klient albo zlecenie z klientem —
+      `409 customer_already_set`, wizja anulowana — `409 invalid_state_transition` (najpierw przywraca ją Administrator ze step-upem;
+      Edytor nie omija przywrócenia ani 14-dniowego terminu odrzucenia), nieaktualna wersja — `412 version_conflict` (ten sam kod i
+      status co wszędzie w API; AC2 EVM-136 mówi „409 jak dziś”, a dziś to `412`), klient niedostępny — `422 customer_unavailable`
+      (nieistniejący, usunięty, zanonimizowany i niewidoczny — jedna odpowiedź), potem zapis, zdarzenia i rekord idempotencji; błąd
+      któregokolwiek kroku cofa całość, a dwa równoległe przypisania różnych klientów dają jeden sukces i jeden `409`.
+      Idempotencja (api-guidelines.md → Idempotencja): `Idempotency-Key` (UUIDv7) opcjonalny, panel wysyła go zawsze; klucz związany z
+      użytkownikiem, metodą, szablonem ścieżki I zleceniem. Powtórka — `200` z `Idempotent-Replayed: true`.
+    x-evia-authz:
+      roles: [administrator, editor]
+      channels: [web]
+      audit: true
+    parameters:
+      - $ref: '#/WorkOrderIdParameter'
+      - $ref: '#/IdempotencyKeyHeader'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/work-orders.yaml#/AssignWorkOrderCustomerRequest
+    responses:
+      '200':
+        description: >-
+          Zlecenie z klientem (albo powtórka: ten sam klient, albo ten sam klucz idempotencji — wtedy `Idempotent-Replayed: true`).
+        headers:
+          ETag:
+            description: Nowa wersja zasobu (`"<version>"`).
+            schema:
+              type: string
+              maxLength: 32
+          Idempotent-Replayed:
+            description: '`true` przy powtórce żądania z tym samym `Idempotency-Key`, zleceniem i treścią.'
+            schema:
+              type: string
+              enum: ['true']
+        content:
+          application/json:
+            schema:
+              $ref: ../components/work-orders.yaml#/WorkOrderDetails
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/responses.yaml#/AssignCustomerConflict
+      '412':
+        $ref: ../components/responses.yaml#/PreconditionFailed
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '422':
+        $ref: ../components/responses.yaml#/AssignCustomerUnprocessable
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
 workOrderSite:
   get:
     operationId: getWorkOrderSite
@@ -924,9 +1089,17 @@ workOrderTransitions:
       Kolejność (decyzje zapadają na wierszu zablokowanym `SELECT … FOR UPDATE`, w jednej transakcji): zlecenie nieistniejące albo
       usunięte — `404 not_found` (ta sama odpowiedź); `If-Match`; treść (`400`); powtórka idempotentna (zapisany wynik, bez
       ponownej kontroli wersji); brak przejścia w tabeli — `409 invalid_state_transition` (gdy wersja jest nieaktualna — `412`, bo klient
-      i tak musi pobrać zlecenie); rola; step-up; wersja (`412`); pola przejścia (`reason`, `completedOn` — `400`); warunki modułów
+      i tak musi pobrać zlecenie); rola; step-up; wersja (`412`); klient (`409 customer_required` — EVM-136: przejście do „Zaakceptowane”,
+      także wznowienie z „Wstrzymane”, zlecenia bez klienta, czyli wizji lokalnej; odpowiedź nie zawiera wartości, a klient jest
+      przypisywany komendą `assignWorkOrderCustomer`); pola przejścia (`reason`, `completedOn` — `400`); warunki modułów
       (`422 transition_condition_not_met`, `errors[]` z `/to` i kodem powodu), potem zapis, skutki modułów w tej samej transakcji i
       audyt. Błąd któregokolwiek kroku cofa całość (status, skutki modułów, audyt i rekord idempotencji).
+      Wizja lokalna (EVM-136 AC5): anulowanie wizji to jej odrzucenie — zamiast `reason` wymaga `reasonCode` (`offer_rejected`,
+      `customer_withdrew`), zapisanego jako powód; termin wygaśnięcia wizji (`siteSurvey.expiresAt`) staje się mniejszą z wartości
+      (obecny termin, teraz + 14 dni), a audyt (`work_order.cancelled`) zostaje bez treści i bez kodu powodu. Przywrócenie
+      odrzuconej wizji (`cancelled → on_hold`, tylko Administrator ze step-upem jak każde przywrócenie, Edytor — `403 forbidden`)
+      ustawia termin na większą z wartości (utworzenie + 90 dni × (1 + `extensionCount`), teraz + 14 dni). Zwykłe zlecenie
+      anuluje się jak dotąd (`reason`); `reasonCode` jest tam `400 not_allowed`.
       Skutki: wstrzymanie i anulowanie zapisują powód i status źródłowy (`resumeStatus`); wznowienie wraca do `resumeStatus` (inny
       cel — `409`); anulowanie i rozliczenie ustawiają `closedAt`, przywrócenie je czyści; „Zakończ” ustawia `completedOn` (domyślnie
       dziś w `Europe/Warsaw`), ponowne otwarcie czyści. `reason` jest polem swobodnym i nigdy nie trafia do audytu, logów, odpowiedzi

@@ -75,7 +75,10 @@ ClientConfig:
     - scopeRuleVersion
     - minSupportedVersion
     - recommendedVersion
+    - features
   properties:
+    features:
+      $ref: identity.yaml#/ServerFeatures
     offlineContactWindowDays:
       type: integer
       description: Okno braku kontaktu z serwerem (dni), po którym aplikacja ukrywa dane (domyślnie 7).

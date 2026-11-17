@@ -149,6 +149,8 @@ paths:
     $ref: paths/work-orders.yaml#/workOrders
   /api/v1/work-orders/search:
     $ref: paths/work-orders.yaml#/workOrdersSearch
+  /api/v1/site-surveys:
+    $ref: paths/work-orders.yaml#/siteSurveys
   /api/v1/work-orders/{workOrderId}:
     $ref: paths/work-orders.yaml#/workOrder
   /api/v1/work-orders/{workOrderId}/transitions:

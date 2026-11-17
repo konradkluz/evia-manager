@@ -41,7 +41,7 @@ import { parseInput, readOnlyKeys, strictObjects } from '../../../platform/http/
 import { requestHash } from '../../../platform/idempotency/canonical-json.ts';
 import { IDEMPOTENCY, type Idempotency } from '../../../platform/idempotency/idempotency.ts';
 import { CLOCK, DATABASE, EVENT_BUS } from '../../../platform/tokens.ts';
-import { WORK_ORDER_DIRECTORY, type WorkOrderDirectory, type WorkOrderRef } from '../../work-orders/index.ts';
+import { awaitsCustomer, WORK_ORDER_DIRECTORY, type WorkOrderDirectory, type WorkOrderRef } from '../../work-orders/index.ts';
 import { MAX_MILESTONES_PER_ORDER, normalizeMilestoneName } from '../domain/milestone-rules.ts';
 import type { Money } from '../domain/money.ts';
 import type { PaymentMilestoneEvent } from '../events.ts';
@@ -135,6 +135,8 @@ export class CreateMilestoneService {
     return runInTransaction(this.#db, async (tx) => {
       const order = await this.#orders.lockVisible(tx, principal, workOrderId);
       if (order === undefined) throw new ProblemException('not_found');
+      // EVM-135 AC7: the payment plan of an open site survey waits for its customer (nothing is written, no record of idempotency)
+      if (awaitsCustomer(order)) throw new ProblemException('customer_required');
       const key = keyOf(rawKey);
       const input = parseCreateInput(rawBody);
 

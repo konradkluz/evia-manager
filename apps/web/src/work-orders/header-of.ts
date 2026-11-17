@@ -19,5 +19,7 @@ export function headerOf(order: WorkOrder): WorkOrderDetails {
     createdAt: order.createdAt,
     // the answer of the creation names the origin; the detail that replaces this header confirms it (EVM-099)
     origin: order.origin ?? 'office',
+    // an order created with a customer is never a site survey (EVM-135); the detail that replaces this header confirms it
+    siteSurvey: null,
   };
 }

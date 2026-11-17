@@ -3,10 +3,32 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Linking, Text, View } from 'react-native';
 import { formatDateTime } from '../i18n/format';
-import type { DetailCustomerView, DetailLocationView, DetailProcessView, JournalItem, OrderDetail } from '../orders/order-detail-model';
-import { Ban, Button, CircleAlert, CircleCheck, CirclePause, CircleQuestionMark, Clock, Inbox, StatusBadge, Wrench } from '../ui';
+import type {
+  DetailCustomerView,
+  DetailLocationView,
+  DetailProcessView,
+  DetailSurveyView,
+  JournalItem,
+  OrderDetail,
+} from '../orders/order-detail-model';
+import { expiryOf } from '../orders/site-survey-model';
+import {
+  Ban,
+  Binoculars,
+  Button,
+  CircleAlert,
+  CircleCheck,
+  CirclePause,
+  CircleQuestionMark,
+  Clock,
+  Inbox,
+  InlineAlert,
+  StatusBadge,
+  Wrench,
+} from '../ui';
 import type { BadgeTone } from '../ui';
 import { borderWidth, color, radius, space, text } from '../ui/theme';
+import { SurveyTerm } from './survey-term';
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -103,6 +125,46 @@ export function CustomerCard({ customer }: { customer: DetailCustomerView | null
       {customer.dial === null ? null : <CallButton name={customer.name} dial={customer.dial} />}
     </View>
   );
+}
+
+/**
+ * The part of the details that is only for a site survey (EVM-137 AC4; flow 17, M-03): the mark, the term as a text with an icon (never a colour
+ * alone), the phone of the requester and "Brak klienta". The address is the location card the screen draws next; nothing of this part is
+ * ever in a title, a list row or a message (W5).
+ */
+export function SurveyHeader({ survey, rejected = false }: { survey: DetailSurveyView; rejected?: boolean }) {
+  const { t } = useTranslation();
+  const expiry = expiryOf(survey.expiresAt, Date.now());
+  return (
+    <View style={{ rowGap: space.stack.sm }}>
+      <View accessible accessibilityRole="header" testID="order-detail-header">
+        <StatusBadge icon={Binoculars} label={t('orderDetail.surveyBadge')} tone={color.feedback.info} testID="order-detail-survey-badge" />
+      </View>
+      <SurveyTerm expiresAt={survey.expiresAt} rejected={rejected} testID="order-detail-survey-expiry" />
+      {rejected || expiry.state === 'normal' ? null : (
+        <Text style={{ ...text.bodySm, color: color.text.secondary }} testID="order-detail-survey-office">
+          {t('orderDetail.surveyOfficeExtends')}
+        </Text>
+      )}
+    </View>
+  );
+}
+
+/** "Telefon zamawiającego" with "Zadzwoń" - the only place of the app that shows it (W5); no name goes with it. */
+export function SurveyPhoneCard({ survey }: { survey: DetailSurveyView }) {
+  const { t } = useTranslation();
+  if (survey.requesterPhone === null) return null;
+  return (
+    <View style={card} testID="order-detail-survey-phone">
+      <Field label={t('orderDetail.surveyPhone')} value={survey.requesterPhone} />
+      {survey.dial === null ? null : <CallButton name={t('orderDetail.surveyPhoneName')} dial={survey.dial} />}
+    </View>
+  );
+}
+
+export function SurveyNoCustomer() {
+  const { t } = useTranslation();
+  return <InlineAlert tone="info" body={t('orderDetail.surveyNoCustomer')} testID="order-detail-no-customer" />;
 }
 
 export function LocationCard({ location }: { location: DetailLocationView | null }) {

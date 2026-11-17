@@ -40,6 +40,8 @@ export type { SearchOptions, SecureToggle, TextFieldProps } from './TextField';
 export type { SyncIndicatorProps, SyncState } from './SyncIndicator';
 export {
   Ban,
+  Binoculars,
+  CalendarX,
   BellOff,
   Banknote,
   Calculator,
@@ -61,6 +63,7 @@ export {
   Clock,
   Download,
   Ellipsis,
+  EyeOff,
   HardDrive,
   Inbox,
   Info,
@@ -71,9 +74,11 @@ export {
   Plus,
   RefreshCw,
   Search,
+  Trash,
   ShieldOff,
   Smartphone,
   Square,
+  ThumbsDown,
   ThumbsUp,
   Video,
   VolumeOff,

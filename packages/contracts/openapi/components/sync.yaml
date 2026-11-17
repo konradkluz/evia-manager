@@ -48,7 +48,23 @@ SyncWorkOrder:
   type: object
   description: Zlecenie (projekcja dla telefonu; bez płatności i kolumn technicznych).
   additionalProperties: false
-  required: [type, id, version, number, title, status, customerId, siteId, coordinatorUserId, description, plannedDate, createdAt, closedAt]
+  required:
+    [
+      type,
+      id,
+      version,
+      number,
+      title,
+      status,
+      customerId,
+      siteId,
+      coordinatorUserId,
+      description,
+      plannedDate,
+      createdAt,
+      closedAt,
+      siteSurvey,
+    ]
   properties:
     type:
       type: string
@@ -95,6 +111,29 @@ SyncWorkOrder:
       format: date-time
       description: Chwila zamknięcia (`settled`, `cancelled`) — podstawa reguły N dni w zakresie.
       maxLength: 40
+    siteSurvey:
+      description: >-
+        Wizja lokalna (EVM-135, ADR-0024): obiekt przy otwartej wizji (zlecenie bez klienta, `customerId: null`), `null` przy zwykłym
+        zleceniu. Pole addytywne — starsza wersja aplikacji je pomija. Otwarta wizja trafia tylko na telefon jej twórcy i opiekuna.
+      oneOf:
+        - $ref: '#/SyncSiteSurvey'
+        - type: 'null'
+SyncSiteSurvey:
+  type: object
+  description: Wizja lokalna na telefonie — termin wygaśnięcia, liczba przedłużeń i telefon zamawiającego (E.164 albo `null`).
+  additionalProperties: false
+  required: [expiresAt, extensionCount, requesterPhone]
+  properties:
+    expiresAt:
+      $ref: '#/SyncTimestamp'
+    extensionCount:
+      type: integer
+      minimum: 0
+      maximum: 2
+    requesterPhone:
+      type: [string, 'null']
+      pattern: '^\+[1-9][0-9]{7,14}$'
+      maxLength: 16
 SyncCustomer:
   type: object
   description: Klient — bez e-maila, NIP, adresu korespondencyjnego i notatek.
@@ -810,6 +849,33 @@ CreateQuickWorkOrderPayload:
     note:
       type: string
       maxLength: 2000
+CreateSiteSurveyPayload:
+  type: object
+  description: >-
+    Wizja lokalna z telefonu (EVM-135 AC1, ADR-0024): zlecenie bez klienta i bez szablonu, w statusie `quoting`, numer nadaje serwer,
+    termin wygaśnięcia = utworzenie + 90 dni, opiekun = zalogowany użytkownik. Istniejąca lokalizacja (`siteId`) ALBO nowa (`newSite`,
+    w limicie 20 nowych lokalizacji urządzenia na dobę wspólnym z `CreateQuickWorkOrder`) — dokładnie jedno (inaczej `rejected
+    validation_failed`). `title` opcjonalny (domyślnie „Wizja lokalna”) — nie wpisuj imion ani telefonów. `requesterPhone` opcjonalny
+    (jak telefon nowego klienta; zapis E.164). Klient, szablon i notatka nie występują (`rejected validation_failed`). Funkcja wyłączona
+    na serwerze — `rejected feature_disabled` (bez zapisu). Adres i telefon nie trafiają do logów, audytu ani dziennika zmian.
+  additionalProperties: false
+  required: [workOrderId]
+  properties:
+    workOrderId:
+      $ref: '#/SyncClientId'
+    siteId:
+      $ref: '#/SyncId'
+    newSite:
+      $ref: '#/SyncNewSite'
+    title:
+      type: string
+      minLength: 1
+      maxLength: 200
+    requesterPhone:
+      type: string
+      pattern: '^[0-9+() -]{7,32}$'
+      minLength: 7
+      maxLength: 32
 CreateMediaAssetPayload:
   type: object
   description: >-
@@ -885,6 +951,20 @@ CreateQuickWorkOrderMutation:
       $ref: '#/CommandVersion'
     payload:
       $ref: '#/CreateQuickWorkOrderPayload'
+CreateSiteSurveyMutation:
+  type: object
+  additionalProperties: false
+  required: [mutationId, type, commandVersion, payload]
+  properties:
+    mutationId:
+      $ref: '#/SyncClientId'
+    type:
+      type: string
+      const: CreateSiteSurvey
+    commandVersion:
+      $ref: '#/CommandVersion'
+    payload:
+      $ref: '#/CreateSiteSurveyPayload'
 CreateMediaAssetMutation:
   type: object
   additionalProperties: false
@@ -909,6 +989,7 @@ SyncMutation:
     - $ref: '#/CreateCommentMutation'
     - $ref: '#/CreateQuickWorkOrderMutation'
     - $ref: '#/CreateMediaAssetMutation'
+    - $ref: '#/CreateSiteSurveyMutation'
   discriminator:
     propertyName: type
     mapping:
@@ -916,6 +997,7 @@ SyncMutation:
       CreateComment: '#/CreateCommentMutation'
       CreateQuickWorkOrder: '#/CreateQuickWorkOrderMutation'
       CreateMediaAsset: '#/CreateMediaAssetMutation'
+      CreateSiteSurvey: '#/CreateSiteSurveyMutation'
 SyncMutationsRequest:
   type: object
   description: Partia mutacji w kolejności kolejki (1–50). Treść najwyżej 1 MB; `400 validation_failed` tylko dla złej koperty lub partii.
@@ -971,12 +1053,13 @@ SyncMutationResult:
         - idempotency_in_progress
         - template_unavailable
         - quota_exceeded
+        - feature_disabled
       maxLength: 64
     errors:
       type: array
       description: >-
-        Błędy walidacji — wskaźnik pola (JSON Pointer w ładunku) i kod, NIGDY wartość. Tylko przy `rejected` `validation_failed` komendy
-        `CreateQuickWorkOrder` (EVM-099 AC5); pozostałe komendy nie dostają pola.
+        Błędy walidacji — wskaźnik pola (JSON Pointer w ładunku) i kod, NIGDY wartość. Tylko przy `rejected` `validation_failed` komend
+        `CreateQuickWorkOrder` (EVM-099 AC5) i `CreateSiteSurvey` (EVM-135); pozostałe komendy nie dostają pola.
       maxItems: 20
       items:
         $ref: '#/SyncMutationFieldError'
@@ -990,7 +1073,7 @@ SyncMutationResult:
         maxLength: 64
     workOrderNumber:
       type: string
-      description: Numer nadany przez serwer — tylko przy `applied` i `duplicate` komendy `CreateQuickWorkOrder`.
+      description: Numer nadany przez serwer — tylko przy `applied` i `duplicate` komend `CreateQuickWorkOrder` i `CreateSiteSurvey`.
       maxLength: 32
 SyncMutationsResponse:
   type: object

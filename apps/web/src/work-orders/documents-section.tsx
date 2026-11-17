@@ -29,6 +29,9 @@ import { confidentialityLabel, documentText, higherClasses } from './document-la
 import type { DocumentItem } from './document-upload-engine.ts';
 import { startDownload } from './media-viewer.tsx';
 import { SectionLoading } from './section-states.tsx';
+import { HintedButton } from './hinted-button.tsx';
+import { surveyText } from './site-survey-labels.ts';
+import { isSurvey } from './site-survey.ts';
 import { documentRequestFailure, useDocumentDownload, useDocumentKinds, useDocumentList, type DocumentUpload } from './use-documents.ts';
 
 /** The file of a document as the list shows it (flows/06 → "Stany pliku"); the reason of a quarantine is never shown here. */
@@ -85,6 +88,8 @@ export function DocumentsSection({ order, upload }: { readonly order: WorkOrderD
   const canEdit = role === 'administrator' || role === 'editor';
   const administrator = role === 'administrator';
   const { engine, items } = upload;
+  // EVM-138 AC4: a survey without a customer has no documents — the button is disabled and says why.
+  const blockedHint = isSurvey(order) ? surveyText.documentsHint : undefined;
   const sending = items.some((item) => item.status !== 'done' && item.status !== 'failed');
   const list = useDocumentList(order.id, sending);
   const kinds = useDocumentKinds(canEdit);
@@ -260,15 +265,16 @@ export function DocumentsSection({ order, upload }: { readonly order: WorkOrderD
           {documentText.heading(total)}
         </h2>
         {canEdit && !(list.isSuccess && documents.length === 0) ? (
-          <Button
+          <HintedButton
             icon={FileText}
+            hint={blockedHint}
             disabled={!online}
             onClick={() => {
               setAdding(true);
             }}
           >
             {documentText.add}
-          </Button>
+          </HintedButton>
         ) : null}
       </div>
       {working && !online ? <Banner icon={WifiOff}>{documentText.offlineNote}</Banner> : null}
@@ -341,14 +347,15 @@ export function DocumentsSection({ order, upload }: { readonly order: WorkOrderD
           {...(canEdit
             ? {
                 action: (
-                  <Button
+                  <HintedButton
+                    hint={blockedHint}
                     disabled={!online}
                     onClick={() => {
                       setAdding(true);
                     }}
                   >
                     {documentText.add}
-                  </Button>
+                  </HintedButton>
                 ),
               }
             : {})}

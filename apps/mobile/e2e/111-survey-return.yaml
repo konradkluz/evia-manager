@@ -1,0 +1,30 @@
+# EVM-137 AC2 AC3: the network returns while the app was in the background. The survey is sent once and gets its number: the list shows "ZL-E2E-3"
+# with the mark, no "Oczekuje na numer"; the file goes after it and ends as "Wysłano". The counters of the scenario server (2 unique: the survey and
+# the command of the file, 0 duplicates, 0 rejected) are asserted by tools/mobile-e2e after this flow, and the log of the device must have no typed value.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- extendedWaitUntil:
+    visible: 'Zsynchr\. .*'
+    timeout: 60000
+- assertNotVisible: 'Offline.*'
+# the flow before this one ended on the Queue: the number is checked on the list
+- tapOn:
+    id: 'nav-orders'
+- extendedWaitUntil:
+    visible: 'ZL-E2E-3'
+    timeout: 60000
+- assertNotVisible: 'Oczekuje na numer'
+- assertVisible: 'Wizje lokalne \(1\)'
+- assertVisible: 'Wizja lokalna'
+- assertNotVisible: '.*Fikcyjna.*'
+- takeScreenshot: m05-survey-numbered
+- tapOn:
+    id: 'nav-queue'
+- extendedWaitUntil:
+    visible: 'Wysłane pliki'
+    timeout: 120000
+- assertNotVisible: 'Wymaga uwagi.*'
+- assertNotVisible: 'Wyślemy po utworzeniu wizji'
+- takeScreenshot: m07-survey-queue-sent

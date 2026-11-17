@@ -52,8 +52,10 @@ import {
   type UsersServer,
 } from './mock-users.ts';
 import { answerAccountRoute, newAccountServer, spendMark, type AccountServer } from './mock-account.ts';
+import { surveysOfList } from './mock-site-surveys.ts';
+import { answerCreateSurvey, answerSurveyRoute, newSurveyServer, type SurveyServer } from './mock-site-surveys.ts';
 import { answerCatalogItems, answerCatalogProcedures, answerOrderPatch, answerScopeChange, answerScopeCreate } from './mock-scope.ts';
-import { answerPatch as answerLocationPatch, answerRead as answerLocationRead, partyOf, siteOf } from './mock-locations.ts';
+import { answerPatch as answerLocationPatch, answerRead as answerLocationRead, cardOf, partyOf, siteOf } from './mock-locations.ts';
 import {
   answerErase,
   answerList,
@@ -157,6 +159,12 @@ export interface MockApi {
   account: AccountServer;
   /** EVM-037: the journal of the orders (the entries and the idempotency keys of the synthetic server). */
   journal: JournalServer;
+  /** EVM-138: the one site survey ZL-2026-0049 of the synthetic server (its status, customer and deadline). */
+  surveys: SurveyServer;
+  /** CurrentSession.features.siteSurveys (EVM-138): off by default, so only the specs of site surveys see the choice "Rodzaj" in W-05. */
+  siteSurveysOn: boolean;
+  /** The site surveys of the list of W-10 (EVM-138 AC1); empty by default, so the other specs see no survey. Tylko odczyt never gets them. */
+  surveyRows: object[];
   /** EVM-044: the media of the orders (the batches, the upload sessions, the confirmed parts and the verdict of the scan). */
   media: MediaServer;
   /** EVM-020: the answer to these calls is lost after the server has done the work (a network error after sending). */
@@ -204,13 +212,14 @@ export const LOGIN_TOKEN = 'Lg7-_Qz2'.repeat(5) + 'abc';
 function sessionBody(
   kind: Exclude<SessionKind, 'none'>,
   deadlines = { idle: Date.now() + 60 * MINUTE, absolute: Date.now() + 720 * MINUTE },
-  active: { csrf: string; role: string; displayName?: string } = { csrf: 'csrf-active', role: 'administrator' },
+  active: { csrf: string; role: string; displayName?: string; siteSurveys?: boolean } = { csrf: 'csrf-active', role: 'administrator' },
 ) {
   return {
     user: { id: '11111111-1111-4111-8111-111111111111', displayName: active.displayName ?? DISPLAY_NAME, role: active.role },
     state: kind === 'active' ? 'active' : 'mfa_enrollment',
     channel: 'web',
     csrfToken: kind === 'active' ? active.csrf : 'csrf-enrollment',
+    features: { siteSurveys: active.siteSurveys === true },
     idleExpiresAt: new Date(deadlines.idle).toISOString(),
     absoluteExpiresAt: new Date(deadlines.absolute).toISOString(),
   };
@@ -484,6 +493,9 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
     users: newUsersServer(),
     account: newAccountServer(PASSWORD),
     journal: newJournalServer(),
+    surveys: newSurveyServer(),
+    siteSurveysOn: false,
+    surveyRows: [],
     media: newMediaServer(),
     dropResponseNext: new Set(),
   };
@@ -497,7 +509,7 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
   /** A code of the app the server accepts: one of the synthetic steps of time, each once. */
   const totpValid = (code: string | undefined): boolean =>
     (code === TOTP_CODE || code === NEXT_TOTP_CODE) && !api.usedCodes.has(`totp:${code}`);
-  const active = () => ({ csrf: api.csrf, role: api.role, displayName: api.account.displayName });
+  const active = () => ({ csrf: api.csrf, role: api.role, displayName: api.account.displayName, siteSurveys: api.siteSurveysOn });
   /** A function call, so that the compiler does not narrow `api.session` after the branch (the session changes between requests). */
   const inActiveSession = () => api.session === 'active';
   let loginChallenge = '';
@@ -569,6 +581,13 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
     // The orders created in this run come first (the newest number is the highest) — only in the list: a phrase and the filters of the panel are not matched by them.
     const plain = phrase === null && query.get('siteType') === null && query.get('templateId') === null;
     if (query.get('view') !== 'mine' && plain) ordered.unshift(...createdListItems(api.orders));
+    // EVM-138: siteSurvey=only|exclude and the deadline order are the API's; Tylko odczyt gets no survey at all.
+    const surveyFilter = query.get('siteSurvey');
+    if (api.role !== 'read_only' && surveyFilter !== 'exclude') {
+      const rows = surveysOfList(api.surveyRows, query.get('sort'));
+      if (surveyFilter === 'only') ordered.splice(0, ordered.length, ...rows);
+      else ordered.unshift(...rows);
+    }
     const start = query.get('cursor') === null ? 0 : Number(decodeBase64Url(query.get('cursor') ?? ''));
     const limit = Number(query.get('limit') ?? '25');
     const nextCursor = start + limit < ordered.length ? Buffer.from(String(start + limit)).toString('base64url') : null;
@@ -611,6 +630,42 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
           })
         : null;
     if (ownAccount !== null) return route.fulfill(ownAccount);
+    // EVM-138 AC2: the creation of a survey (the one survey of the synthetic server, ZL-2026-0049, starts anew).
+    if (api.session === 'active' && request.method() === 'POST' && url.pathname === '/api/v1/site-surveys') {
+      const site = api.orders.sites[0];
+      if (site === undefined) return route.fulfill(problem(404, 'not_found'));
+      return route.fulfill(
+        answerCreateSurvey(api.surveys, {
+          body,
+          role: api.role,
+          csrfOk,
+          on: api.siteSurveysOn,
+          key: headers['idempotency-key'],
+          site,
+          siteExists: (id) => api.sites.some((entry) => entry.id === id),
+        }),
+      );
+    }
+    // EVM-138: the site survey ZL-2026-0049 (details, assignment of a customer, transitions); the Administrator and the Editor see it.
+    if (api.session === 'active' && url.pathname.startsWith('/api/v1/work-orders/01968f3e-0000-7000-8000-00000000d049')) {
+      const site = api.orders.sites[0];
+      const answered =
+        site === undefined
+          ? null
+          : answerSurveyRoute(api.surveys, {
+              method: request.method(),
+              pathname: url.pathname,
+              body,
+              role: api.role,
+              csrfOk,
+              stepUpFresh: api.stepUp === 'fresh',
+              ifMatch: headers['if-match'],
+              site,
+              siteCard: cardOf(api.orders, site.id) ?? {},
+              customerOf: (id) => api.customers.find((entry) => entry.id === id),
+            });
+      if (answered !== null) return route.fulfill(answered);
+    }
     // EVM-024: the resend of an invitation (W-16) — the account is anchored in the path; it needs the step-up like the invitation.
     const resend = request.method() === 'POST' ? /^\/api\/v1\/users\/([^/]+)\/invitations$/.exec(url.pathname) : null;
     if (resend !== null) {

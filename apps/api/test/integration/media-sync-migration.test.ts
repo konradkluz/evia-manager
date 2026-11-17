@@ -45,7 +45,7 @@ beforeAll(async () => {
   seeded.push(await insertMedia(db, { workOrderId: orderId, createdBy: userId }));
   seeded.push(await insertMedia(db, { workOrderId: orderId, createdBy: userId, state: 'clean' }));
   await sql`update media.media_assets set version = 3, updated_by = ${userId} where id = ${seeded[1]?.mediaAssetId ?? ''}`.execute(db);
-  expect((await migrateToLatest(db, MIGRATIONS)).applied).toEqual(['0065_media_sync']);
+  expect((await migrateToLatest(db, MIGRATIONS)).applied).toEqual(['0065_media_sync', '0066_site_survey']);
 });
 afterAll(async () => {
   await db.destroy();

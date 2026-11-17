@@ -151,6 +151,10 @@ export function createSessionPorts(
         isOnline: hooks.isOnline,
         onPause: hooks.onPause,
         diagnostics: logDiagnostic,
+        // the files of a discarded group go with it (EVM-137 W10); `mediaUploads` is set right below, before any user action
+        onGroupDiscarded: (ids) => {
+          void mediaUploads?.forgetFiles(ids);
+        },
       }),
     () => owner.syncStore(),
   );
@@ -163,6 +167,10 @@ export function createSessionPorts(
     dataVisible: () => guard.getSnapshot().hidden === null,
     onNativeEvent: () => {
       void owner.mergeNativeContact();
+    },
+    // the discard of a file removes its rejected command: the counters of the queue ("Wymaga uwagi · n") are read again
+    onQueueChanged: () => {
+      sync.queueChanged();
     },
     // the camera (EVM-108): the free space of the phone and the ids of the session (UUIDv7, CSPRNG)
     capture: { disk: expoDiskSpace, newId },

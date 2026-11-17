@@ -17,9 +17,18 @@ import { workOrderTables } from './tables.ts';
 const ORDERS = 'work_orders.work_orders';
 const ASSIGNMENTS = 'work_orders.work_order_assignments';
 
-/** The scope of the phone as a condition: open orders, and closed ones not older than the rule says. */
-const inScope = (scope: SyncScopeRule) =>
-  sql<SqlBool>`(work_orders.work_orders.closed_at is null or work_orders.work_orders.closed_at >= ${scope.closedSince})`;
+/**
+ * The scope of the phone as a condition: open orders, and closed ones not older than the rule says. An OPEN SITE SURVEY (EVM-135 AC5; ADR-0024 pt 8; W6) is
+ * in the scope of its creator and of its active coordinator only - for any other phone it is neither a row nor a mention (no delete marker either).
+ * A change of this rule is a new version of the rule of scope (`SCOPE_TYPES_REVISION`, `platform/sync/scope-rule.ts`).
+ */
+const inScope = (principal: Principal, scope: SyncScopeRule) =>
+  sql<SqlBool>`((work_orders.work_orders.closed_at is null or work_orders.work_orders.closed_at >= ${scope.closedSince})
+    and (work_orders.work_orders.site_survey_expires_at is null
+      or work_orders.work_orders.created_by = ${principal.userId}
+      or exists (select 1 from work_orders.work_order_assignments survey_coordinator
+        where survey_coordinator.work_order_id = work_orders.work_orders.id and survey_coordinator.role = 'coordinator'
+          and survey_coordinator.deleted_at is null and survey_coordinator.user_id = ${principal.userId})))`;
 
 export class WorkOrderSyncSourceService implements WorkOrderSyncSource {
   async snapshotPage(
@@ -29,7 +38,11 @@ export class WorkOrderSyncSourceService implements WorkOrderSyncSource {
     afterId: string | undefined,
     limit: number,
   ): Promise<readonly SyncWorkOrderProjection[]> {
-    let query = this.#projection(tx).where(visibleWorkOrders(principal)).where(inScope(scope)).orderBy(`${ORDERS}.id`).limit(limit);
+    let query = this.#projection(tx)
+      .where(visibleWorkOrders(principal))
+      .where(inScope(principal, scope))
+      .orderBy(`${ORDERS}.id`)
+      .limit(limit);
     if (afterId !== undefined) query = query.where(`${ORDERS}.id`, '>', afterId);
     return query.execute();
   }
@@ -45,7 +58,7 @@ export class WorkOrderSyncSourceService implements WorkOrderSyncSource {
     const visible = await this.#projection(tx)
       .where(`${ORDERS}.id`, 'in', ids)
       .where(visibleWorkOrders(principal))
-      .where(inScope(scope))
+      .where(inScope(principal, scope))
       .execute();
     for (const row of visible) states.set(row.id, { kind: 'upsert', projection: row });
     const rest = ids.filter((id) => !states.has(id));
@@ -54,7 +67,7 @@ export class WorkOrderSyncSourceService implements WorkOrderSyncSource {
     const others = await workOrderTables(tx)
       .selectFrom(ORDERS)
       .select([`${ORDERS}.id as id`, `${ORDERS}.deleted_at as deletedAt`])
-      .select(inScope(scope).as('inScope'))
+      .select(inScope(principal, scope).as('inScope'))
       .where(`${ORDERS}.id`, 'in', rest)
       .execute();
     for (const row of others) states.set(row.id, row.deletedAt !== null && row.inScope ? { kind: 'delete' } : { kind: 'skip' });
@@ -83,7 +96,7 @@ export class WorkOrderSyncSourceService implements WorkOrderSyncSource {
       .distinct()
       .where(`${ORDERS}.${column}`, 'in', ids)
       .where(visibleWorkOrders(principal))
-      .where(inScope(scope))
+      .where(inScope(principal, scope))
       .execute();
     return new Set(rows.flatMap((row) => (row.id === null ? [] : [row.id])));
   }
@@ -100,7 +113,7 @@ export class WorkOrderSyncSourceService implements WorkOrderSyncSource {
       .select(`${ORDERS}.id as id`)
       .where(`${ORDERS}.id`, 'in', ids)
       .where(visibleWorkOrders(principal))
-      .where(inScope(scope))
+      .where(inScope(principal, scope))
       .execute();
     return new Set(rows.map((row) => row.id));
   }
@@ -124,7 +137,7 @@ export class WorkOrderSyncSourceService implements WorkOrderSyncSource {
       .distinct()
       .where(`${ASSIGNMENTS}.user_id`, 'in', ids)
       .where(visibleWorkOrders(principal))
-      .where(inScope(scope))
+      .where(inScope(principal, scope))
       .execute();
     return new Set(rows.map((row) => row.id));
   }
@@ -151,6 +164,10 @@ export class WorkOrderSyncSourceService implements WorkOrderSyncSource {
         sql<string | null>`to_char(work_orders.work_orders.planned_date, 'YYYY-MM-DD')`.as('plannedDate'),
         `${ORDERS}.created_at as createdAt`,
         `${ORDERS}.closed_at as closedAt`,
+        // EVM-135: the site survey (the phone of the requester only reaches the phones in the scope of the survey - ADR-0024 pt 7, 8)
+        `${ORDERS}.site_survey_expires_at as siteSurveyExpiresAt`,
+        `${ORDERS}.site_survey_extensions as siteSurveyExtensions`,
+        `${ORDERS}.requester_phone as requesterPhone`,
       ]);
   }
 }

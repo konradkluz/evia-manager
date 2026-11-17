@@ -215,6 +215,8 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
       'getDocumentUploadPartUrl',
       'completeDocumentUploadSession',
       'abortDocumentUploadSession',
+      // EVM-136: the assignment of a customer to a site survey (the IDOR cell is an order that is soft deleted)
+      'assignWorkOrderCustomer',
     ];
     // EVM-042: the restoration and the list of the deleted ones are the Administrator's alone; EVM-060: so are the deletion and the
     // restoration of an order (no step-up at the level of the operation: it depends on the milestones, so the cells are those of any role)

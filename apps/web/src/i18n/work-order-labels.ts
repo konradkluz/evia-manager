@@ -28,4 +28,6 @@ export const workOrderSortLabels: Readonly<Record<WorkOrderSort, string>> = {
   nextDueDate: 'Termin',
   // "Najpilniejsze" (EVM-056): the default sort of W-10
   urgency: 'Najpilniejsze',
+  // the deadline of a site survey (EVM-135 contract; EVM-138 offers it with "Tylko wizje" and "Wygasające wizje")
+  siteSurveyExpiresAt: 'Termin wygaśnięcia',
 };

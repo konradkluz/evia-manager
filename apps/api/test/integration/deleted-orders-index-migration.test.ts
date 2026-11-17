@@ -13,6 +13,8 @@ import { freshDatabaseUrl } from './database.ts';
  * would be a new migration, ADR-0003).
  */
 const BEFORE = Object.fromEntries(Object.entries(MIGRATIONS).filter(([name]) => name < '0033')) as typeof MIGRATIONS;
+// up to 0033 only: a later migration may widen the projection (0066 adds a column, EVM-135), which says nothing about 0033
+const THROUGH = Object.fromEntries(Object.entries(MIGRATIONS).filter(([name]) => name < '0034')) as typeof MIGRATIONS;
 
 let db: Kysely<Database>;
 let snapshotBefore = '';
@@ -26,11 +28,12 @@ beforeAll(async () => {
     { number: numberOf(2026, 3301) },
     { number: numberOf(2026, 3302), deletedAt: new Date('2026-10-10T08:00:00Z') },
   ]);
-  // the helper has written the projection of both orders (the shape of 0023 is the shape of the helper)
+  // the projection of both orders as the `rebuild` of that time wrote it: the helpers recompute only a projection of the CURRENT shape (0066, EVM-135)
+  await sql`insert into overview.work_order_summaries (work_order_id, number, status, created_at, deleted_at, customer_id, recomputed_at)
+    select id, number, status, created_at, deleted_at, customer_id, now() from work_orders.work_orders`.execute(db);
   expect(JSON.parse(await snapshot())).toHaveLength(2);
   snapshotBefore = await snapshot();
-  // later migrations (e.g. 0035+) run in the same call; this test is about 0033 only
-  expect((await migrateToLatest(db, MIGRATIONS)).applied.filter((name) => name <= '0034')).toEqual(['0033_deleted_orders_index']);
+  expect((await migrateToLatest(db, THROUGH)).applied).toEqual(['0033_deleted_orders_index']);
 });
 afterAll(async () => {
   await db.destroy();

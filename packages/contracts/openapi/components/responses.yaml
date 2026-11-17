@@ -633,7 +633,8 @@ IdempotencyInProgress:
 TransitionConflict:
   description: >-
     Przejścia nie ma w tabeli przejść z bieżącego statusu (`invalid_state_transition` — odpowiedź nie podaje bieżącego statusu; klient
-    pobiera zlecenie), albo żądanie z tym samym kluczem idempotencji jest w toku (`idempotency_in_progress`, z `Retry-After`).
+    pobiera zlecenie), albo zlecenie nie ma klienta, a przejście prowadzi do statusu, którego wizja lokalna mieć nie może — do „Zaakceptowane”
+    (`customer_required`, EVM-136; najpierw `assignWorkOrderCustomer`), albo żądanie z tym samym kluczem idempotencji jest w toku (`idempotency_in_progress`, z `Retry-After`).
   headers:
     Retry-After:
       description: Liczba sekund do ponowienia (tylko `idempotency_in_progress`).
@@ -806,7 +807,8 @@ ScopeItemConflict:
 PaymentMilestoneConflict:
   description: >-
     Identyfikator zajęty (`id_conflict` — także identyfikator transzy innego zlecenia; bez danych istniejącego zasobu), zlecenie jest
-    zamknięte (`work_order_closed`: Rozliczone albo Anulowane — płatności tylko do odczytu, PO-8) albo żądanie z tym samym kluczem
+    zamknięte (`work_order_closed`: Rozliczone albo Anulowane — płatności tylko do odczytu, PO-8), zlecenie jest wizją lokalną bez
+    klienta (`customer_required`, EVM-135: transze dopiero po przypisaniu klienta) albo żądanie z tym samym kluczem
     idempotencji jest w toku (`idempotency_in_progress`, z `Retry-After`). Odpowiedź nie podaje statusu zlecenia ani kwot.
   headers:
     Retry-After:
@@ -1364,4 +1366,40 @@ CompletedObjectMismatch:
         title: The completed object does not match the session
         status: 409
         code: completed_object_mismatch
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+AssignCustomerConflict:
+  description: >-
+    Zlecenie ma już klienta innego niż żądany, albo nie jest wizją (`customer_already_set` — klient jest ustawiany raz, zmiana poza
+    zakresem v1), albo wizja jest anulowana (`invalid_state_transition` — najpierw przywrócenie przez Administratora), albo żądanie
+    z tym samym kluczem idempotencji jest w toku (`idempotency_in_progress`, z `Retry-After`). Odpowiedź nie podaje bieżącego klienta.
+  headers:
+    Retry-After:
+      description: Liczba sekund do ponowienia (tylko `idempotency_in_progress`).
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 3600
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/customer_already_set
+        title: The work order already has a customer
+        status: 409
+        code: customer_already_set
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+AssignCustomerUnprocessable:
+  description: >-
+    Klient niedostępny (`customer_unavailable` — nieistniejący, usunięty, zanonimizowany i niewidoczny to jedna odpowiedź), albo ten sam
+    klucz idempotencji z inną treścią, na innym zleceniu lub na innej operacji (`idempotency_mismatch`).
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/customer_unavailable
+        title: The customer is not available
+        status: 422
+        code: customer_unavailable
         traceId: 4bf92f3577b34da6a3ce929d0e0e4736

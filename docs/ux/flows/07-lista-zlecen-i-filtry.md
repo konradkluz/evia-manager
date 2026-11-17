@@ -24,6 +24,7 @@ flowchart TD
 ```
 
 ## W-10 Lista zleceń
+> **Wizja lokalna (E15, EVM-138):** oznaczenie i termin w wierszu, filtry „Wizje lokalne” (Tylko wizje / Bez wizji) i widok „Wygasające wizje” — [17 — wizja lokalna](17-wizja-lokalna.md#w-10-lista-zleceń--wizje-evm-138-ac1).
 - **Cel:** od razu zobaczyć, co wymaga działania — gdzie czekamy (zwłaszcza na OSD dłużej niż X dni), co jest po terminie i co nieopłacone — i przejść do zlecenia.
 - **Główna akcja:** wybór zlecenia (cały wiersz jest linkiem); akcja główna strony — „Nowe zlecenie” (A, E).
 - **Hierarchia treści:** 1) tytuł „Zlecenia” + „Nowe zlecenie”; 2) zapisane widoki; 3) pasek filtrów z wyszukiwaniem i aktywnymi chipami; 4) licznik wyników; 5) tabela z kolumnami priorytetowymi; 6) paginacja.
@@ -126,6 +127,7 @@ Widoki: {Wszystkie niezamknięte} {✓ Czekamy na OSD > 14 dni} {Po terminie} {N
 - **Dostępność:** wiersz jako link z nazwą „ZL-2026-0042, Garaż — pełny proces, Jan Przykładowy, ul. Testowa 7, Warszawa, W realizacji, czekamy na Stoen Operator (OSD) od 15 dni, płatność po terminie”; „Więcej filtrów (2)” z `aria-expanded` i `aria-controls`, nazwa dostępna = widoczna etykieta, opis w `aria-describedby` („Aktywne filtry w panelu: 2”); zmiana liczby wyników ogłaszana `aria-live="polite"`; filtry z etykietami; chipy aktywnych filtrów z przyciskiem „Usuń filtr …”; tytuł karty „Zlecenia · EVia Manager” — bez frazy wyszukiwania i nazw (zasady wspólne pkt 1).
 
 ## M-05 Lista zleceń
+> **Wizja lokalna (E15, EVM-137):** karta wizji (oznaczenie, termin, bez adresu), chip „Wizje lokalne” i pozycja „Wizja lokalna” w arkuszu „Dodaj” — [17 — wizja lokalna](17-wizja-lokalna.md#m-05-lista-zleceń--wizja-lokalna-ac1-ac4).
 - **Cel:** w terenie, bez zasięgu, szybko znaleźć zlecenie (po adresie, nazwisku, numerze) i wejść w nie, widząc, co jest niewysłane.
 - **Główna akcja:** wybór zlecenia (cała karta).
 - **Hierarchia treści:** 1) wyszukiwanie lokalne; 2) chipy „Wszystkie”, „Moje”, „Czekamy na…”; 3) karty: numer (albo „Oczekuje na numer” — § 4.15), tytuł, status, adres (`text.body-lg`), „Czekamy na: …”, licznik niewysłanych; 4) informacja o zakresie urządzenia.

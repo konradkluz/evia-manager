@@ -18,8 +18,8 @@ export const MAX_NOTE_LENGTH = 2000;
 export const MAX_NAME_LENGTH = 200;
 
 /** Same patterns as the contract (`SyncNewCustomer`, `SyncNewSite`). */
-const PHONE = /^[0-9+() -]{7,32}$/;
-const POSTAL = /^\d{2}-\d{3}$/;
+export const PHONE = /^[0-9+() -]{7,32}$/;
+export const POSTAL = /^\d{2}-\d{3}$/;
 
 /** Every control character but the new line, the direction controls and the line and paragraph separators (as the server). */
 const CONTROLS = /\p{Cc}|[\u2028\u2029\u202a-\u202e\u2066-\u2069]/gu;
@@ -166,7 +166,7 @@ function wellFormed(text: string): boolean {
   return true;
 }
 
-const points = (text: string): number => Array.from(text).length;
+export const points = (text: string): number => Array.from(text).length;
 
 /** The note as the server will store it (NFC, LF, no control characters); `null` = lone surrogate. */
 export function cleanNote(raw: string): string | null {

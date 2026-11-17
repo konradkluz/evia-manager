@@ -16,8 +16,17 @@ export const SYNC_EVENT_TYPES = ['sync.full_download', 'sync.full_download_compl
  */
 export const SYNC_MUTATION_EVENT_TYPES = ['sync.mutation_applied'] as const;
 
-/** The commands whose application is audited (the database keeps the same closed list, widened by 0058 for `CreateQuickWorkOrder` and by 0065 for `CreateMediaAsset`). */
-export const AUDITED_COMMAND_TYPES = ['CreateNote', 'CreateComment', 'CreateQuickWorkOrder', 'CreateMediaAsset'] as const;
+/**
+ * The commands whose application is audited (the database keeps the same closed list, widened by 0058 for `CreateQuickWorkOrder`, by 0065 for `CreateMediaAsset`
+ * and by 0066 for `CreateSiteSurvey`).
+ */
+export const AUDITED_COMMAND_TYPES = [
+  'CreateNote',
+  'CreateComment',
+  'CreateQuickWorkOrder',
+  'CreateMediaAsset',
+  'CreateSiteSurvey',
+] as const;
 
 /**
  * The refusal of a command that would pass the limit of new customers or sites of a device (EVM-099 AC7; AB-08, SR-API-07, SR-LOG-03): written in a short transaction

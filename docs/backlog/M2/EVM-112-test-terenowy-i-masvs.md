@@ -11,7 +11,7 @@ owner: qa-engineer
 contributors: [mobile-developer, devops-engineer]
 reviewers: [security-engineer, code-reviewer]
 model: sonnet
-depends_on: [EVM-105, EVM-106, EVM-110, EVM-130, EVM-131]
+depends_on: [EVM-105, EVM-106, EVM-110, EVM-130, EVM-131, EVM-133]
 ---
 
 # EVM-112: Test terenowy w garażu i dystrybucja
@@ -111,3 +111,4 @@ Checklista MASVS L1, warunek RR-96, procedura utraty telefonu i spis floty (EVM-
 - 2026-11-15 — decyzja Konrada: „po 2026-12-13 — odinstalowanie” — po zakończeniu testu terenowego uczestnicy odinstalowują paczkę testową; dopisane w „Decyzjach i ograniczeniach”, AC bez zmian (product-owner)
 - 2026-11-15 — **podział** (decyzja Konrada „podziel 112 na dwie”): tu zostają AC1 (test) i AC3 (dystrybucja, teraz AC2–AC3) oraz skonsolidowana lista `manual` (M1–M19) z EVM-103, 109, 130, 131, 128, 102, 108 i 110; dotychczasowe AC2 (MASVS L1), AC4 (utrata telefonu, spis floty), warunek sign-offu RR-96 i „stałe używanie po sign-offie” przeniesione do nowej EVM-132; tytuł zmieniony na „Test terenowy w garażu i dystrybucja”; nowe AC5–AC7 (pomiar, Scaleway, raport), status `draft` (product-owner)
 - 2026-11-15 — część CI z AC2 (job `mobile-apk` buduje paczkę z `EVIA_STORAGE_HOSTS` ze zmiennej repozytorium, podsumowanie „Wysyłanie plików w paczce: tak/nie”, akapit o dystrybucji) wyprzedzona decyzją Konrada 2026-11-15 — PR #145 (gałąź `feature/EVM-112-wysylanie-w-paczce-ci`); status historyjki bez zmian (Tech Lead)
+- 2026-11-16 — ustalenia z pierwszego uruchomienia aplikacji na telefonie Konrada (paczka lokalna z gałęzi EVM-110, klucz testowy): (1) `tools/mobile-apk sign` odrzuca każdą paczkę, dopóki klauzule prywatności są projektem — nowa zależność **EVM-133** (ostateczne klauzule); (2) produkcja ma `MIN_SUPPORTED_APP_VERSION_ANDROID` = 1.0.0, a aplikacja wersję 0.1.0 — ekran „Zaktualizuj aplikację”; na test Konrad użył lokalnej paczki 1.0.0, a przed testem terenowym trzeba zdecydować: obniżyć minimum w `infra/runtime/compose.staging.yaml` czy podnieść wersję aplikacji (bezpiecznik „wiecznego testu” zakłada wersję testową niższą niż wydanie); (3) konfiguracja drugiego kroku logowania w panelu odebrana jako uciążliwa, a zapis klucza dostępu w Windows zakończył się błędem systemu („Wystąpił problem podczas zapisywania klucza dostępu”, przyczyna nieustalona) — konto Edytora z samym kodem z aplikacji działa; do `/refine` jako usprawnienie pierwszego logowania; (4) pomysł Konrada „wizja lokalna jako przed-zlecenie” — w ocenie (product-owner, architekt, security) (Tech Lead)

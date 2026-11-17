@@ -265,8 +265,24 @@ describe('redactRows (EVM-103 AC5)', () => {
     const redacted = redactRows(buildOrderList(SOURCE, FACTS));
     expect(redacted).toHaveLength(6);
     for (const r of redacted) {
+      expect(r.attention).toBe(false);
       expect(Object.keys(r).sort()).toEqual(
-        ['awaitingNumber', 'city', 'createdAt', 'customer', 'id', 'keys', 'number', 'spot', 'stage', 'status', 'street', 'unsent'].sort(),
+        [
+          'attention',
+          'awaitingNumber',
+          'city',
+          'createdAt',
+          'customer',
+          'id',
+          'keys',
+          'number',
+          'spot',
+          'stage',
+          'status',
+          'street',
+          'survey',
+          'unsent',
+        ].sort(),
       );
       expect([r.customer, r.street, r.city, r.spot, r.stage, r.keys.number, r.keys.address, r.keys.customer]).toEqual([
         '',

@@ -35,6 +35,8 @@ export interface NewSiteFormProps {
   readonly onAddParty: (target: PartyTarget) => void;
   /** The site is saved: the section selects it. */
   readonly onSaved: (site: PickedSite) => void;
+  /** A light form of a site survey (no OSD, manager, power, PPE or notes). */
+  readonly lite?: boolean;
 }
 
 /**
@@ -44,7 +46,7 @@ export interface NewSiteFormProps {
  * the site (`id`, UUIDv7) and the request (`Idempotency-Key`), a retry of the same content sends the same pair (no duplicate).
  * What is typed lives in the memory of the tab only (the page holds it); offline and after a failed save it stays.
  */
-export function NewSiteForm({ form, onFormChange, osd, manager, onPartyChange, onAddParty, onSaved }: NewSiteFormProps) {
+export function NewSiteForm({ form, onFormChange, osd, manager, onPartyChange, onAddParty, onSaved, lite = false }: NewSiteFormProps) {
   const { t } = useTranslation();
   const client = useApi();
   const online = useOnline();
@@ -168,6 +170,7 @@ export function NewSiteForm({ form, onFormChange, osd, manager, onPartyChange, o
         onFormChange={change}
         onPartyChange={party}
         onAddParty={onAddParty}
+        lite={lite}
       />
       <div className="flex flex-wrap justify-start gap-inline-md">
         <Button loading={mutation.isPending} disabled={!online} onClick={submit}>

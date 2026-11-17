@@ -70,6 +70,30 @@ Odbiorcy danych z dokumentów zlecenia (OSD, administracja, projektant) — powi
 ### Art. 21 — sprzeciw
 Dotyczy danych przetwarzanych na podstawie prawnie uzasadnionego interesu (osoby kontaktowe stron, osoby na zdjęciach, dokumentacja po realizacji). Bez nadrzędnych podstaw — kroki jak w art. 17 dla danych objętych sprzeciwem.
 
+### Wizja lokalna — art. 15, 17 i 21 (EVM-141)
+Wizja lokalna ([ADR-0024](../../architecture/adr/0024-wizja-lokalna-zlecenie-bez-klienta.md)) to zlecenie **bez klienta** — karta klienta jej nie pokaże, a jedynym kluczem do danych osoby jest **adres** (telefon zamawiającego nie jest wyszukiwany). Widzą ją tylko Administrator i Edytor w panelu; operacje wykonuje Administrator. Zasady: [`rodo.md` → „Wizja lokalna”](../../security/rodo.md#wizja-lokalna--zasady-przetwarzania-evm-141); okresy i procedura ręczna: [`retencja.md` → sekcja 5](retencja.md#5-wizja-lokalna--okresy-tryb-report-i-enforce-procedura-ręczna-evm-141). Funkcja jest w budowie (EVM-135…EVM-140) — nazwy w panelu wg tych historyjek.
+
+**Weryfikacja przy wizji (uzupełnia sekcję 2).** Zdjęcia posesji to informacja dla włamywacza — **nie wydajemy ich osobie, która nie wykaże związku z adresem**. Wystarczy jedno: kontakt zwrotny na telefon zamawiającego zapisany w wizji, rozmowa z technikiem, który był na miejscu, albo dokument zlecenia z tym adresem (gdy klient jest już przypisany). Wniosek osoby, której nie da się powiązać z adresem — prośba o dodatkowe informacje (art. 12 ust. 6) i wpis w karcie żądania.
+
+**Art. 15 — wyszukanie wizji po adresie:**
+1. Poproś o adres posesji (ulica, numer, lokal, miejscowość) i przybliżoną datę wizyty; w karcie żądania zapisz tylko identyfikator sprawy, nie adres.
+2. W panelu wyszukaj lokalizację po adresie (co najmniej 3 znaki) i otwórz jej szczegóły — sekcja innych zleceń w lokalizacji pokazuje także wizje (oznaczenie „Wizja lokalna”). Równolegle: lista zleceń, grupa filtrów „Wizje lokalne” → „Tylko wizje”, z wyszukiwaniem po adresie (EVM-138 AC1). Sprawdź również wizje odrzucone (oznaczenie „Odrzucona”) — leżą do 14 dni.
+3. Gdy osoba zna tylko numer telefonu, z którego zamawiała: przejrzyj otwarte wizje z filtrem „Tylko wizje” (najwyżej 100 — limit EVM-140) i porównaj telefon zamawiającego w szczegółach; numeru nie przepisuj do karty.
+4. Wizja usunięta (anonimowy nagrobek albo usunięcie z karty przeglądu retencji): odpowiedz, że dane z wizji usunięto, z datą — bez dalszych operacji.
+5. Zestawienie: numer `ZL-…`, adres, daty (utworzenie, termin usunięcia, przedłużenia z kodem powodu), telefon zamawiającego (tylko gdy należy do wnioskodawcy), wpisy z oględzin, lista zdjęć i filmów. **Kopie zdjęć:** eksport ZIP dla wizji bez klienta jest zablokowany (ADR-0024) — pobierz oryginały pojedynczo („Pobierz oryginał”, A lub E) i usuń je z komputera po wysłaniu. Zdjęć z osobami trzecimi (sąsiad, tablica rejestracyjna) nie wydawaj bez redakcji.
+6. Informacje z art. 15 ust. 1 dla tej osoby: cel i podstawa (wizja na żądanie — art. 6 ust. 1 lit. b), okres (najpóźniej 90 dni od zapisania wizji w systemie, przedłużenia łącznie do 270 dni, po rezygnacji 14 dni), odbiorcy (dostawcy IT z UE), źródło (od osoby i z oględzin), prawa i skarga do Prezesa UODO.
+
+**Art. 17 — usunięcie wizji na żądanie** (zwykle bez wyjątku z art. 17 ust. 3 — nie ma umowy ani roszczeń):
+- **Wizja bez klienta, tryb `enforce` włączony:** „Odrzuć wizję” z powodem „Rezygnacja klienta” — zadanie usunie ją najpóźniej po 14 dniach (w terminie z art. 12 ust. 3); poinformuj osobę o dacie. Gdy osoba chce natychmiast — dodatkowo kroki ręczne niżej.
+- **Wizja bez klienta, tryb `report`** (przed `enforce`): od razu kroki 1–6 z [`retencja.md` → „Procedura ręczna”](retencja.md#procedura-ręczna-do-włączenia-enforce-zobowiązanie-konrada) (pliki, wpisy, tytuł i opis, lokalizacja wizji, „Usuń zlecenie”); **telefonu zamawiającego nie da się dziś wyczyścić w panelu** (krok 4 tamtej procedury) — dlatego realne wizje przed `enforce` przyjmujemy dopiero po wdrożeniu tej funkcji; identyfikatory obiektów edytowanych ręcznie zapisz w karcie żądania (po odtworzeniu kopii kroki 3–6 trzeba powtórzyć).
+- **Wizja z przypisanym klientem** to zwykłe zlecenie — kroki z „Art. 17” wyżej.
+- **Telefony:** po usunięciu wizji telefony twórcy i opiekuna usuwają ją przy synchronizacji; zdjęcia i filmy jeszcze niewysłane zostają w „Wymaga uwagi” — poproś twórcę wizji o „Usuń z telefonu” i potwierdzenie (RR-98).
+- **Kopie zapasowe:** dane zostają w kopiach do 37 dni (RR-14) — powiedz o tym osobie.
+
+**Art. 21 — sprzeciw osoby trzeciej** (sąsiad, domownik, właściciel posesji, który nie zamawiał wizji — np. najemca zamawiał): plik z tą osobą albo jej pojazdem — trwałe usunięcie pliku (EVM-051). Sprzeciw właściciela wobec całej wizji zamówionej bez jego wiedzy — usuń całą wizję jak w art. 17 (podstawa z lit. f wobec właściciela jest słaba).
+
+**Art. 16 — sprostowanie:** adres — edycja lokalizacji (W-20). Telefonu zamawiającego nie da się dziś poprawić w panelu (osobna historyjka); do tego czasu — przypisanie klienta z poprawnym telefonem (telefon zamawiającego znika) albo usunięcie wizji; odnotuj w karcie żądania.
+
 ## 5. Ćwiczenie (AC4 — przed pierwszymi realnymi danymi klientów)
 Na jedynym środowisku, **wyłącznie na danych syntetycznych** (reguła 4 RR-93: nazwa z prefiksem „TEST”, adres `@example.test`); wykonuje Konrad, agenci nie biorą udziału. Wynik — [`docs/qa/EVM-064/protokoly.md` → „AC4”](../../qa/EVM-064/protokoly.md#ac4--prawa-osób-ćwiczenie).
 1. Załóż klienta „TEST Prawa osób” z lokalizacją, stroną (osoba fizyczna „TEST Kontakt”), zleceniem, wpisem, zdjęciem i dokumentem `standard`.

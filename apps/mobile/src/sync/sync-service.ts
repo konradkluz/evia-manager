@@ -15,6 +15,7 @@ import {
   createSyncCore,
   QueueError,
   attentionPlan,
+  parseClientConfig,
   type Clock,
   type EnqueueInput,
   type EngineEvent,
@@ -42,6 +43,7 @@ import {
   INITIAL_FIRST_PULL,
   type AttentionResult,
   type FirstPullFailure,
+  type GroupSummary,
   type QueueCounts,
   type QueueItem,
   type QueueView,
@@ -80,6 +82,13 @@ export interface SyncServiceStore {
     writeTemplates(set: TemplateSet): Promise<void>;
     /** The customers and places of the active generation for the form of a quick work order (EVM-106); never called in the hidden-data mode. */
     readQuickOrderSource(): Promise<QuickOrderSource>;
+    /** The stored client config as it came (EVM-137: the switch of the site survey); `null` = never downloaded. */
+    readClientConfig(): Promise<unknown>;
+    /** The ids of the open site surveys of the active generation, and the durable marks "this order was a survey" (EVM-137 W10). */
+    readSurveyOrderIds(): Promise<string[]>;
+    readSurveyCreated(): Promise<ReadonlyMap<string, number>>;
+    readSurveyMarks(): Promise<string[]>;
+    addSurveyMarks(ids: readonly string[]): Promise<void>;
   };
   takeSettled(): Promise<{ mutationId: string; info: SettledInfo }[]>;
 }
@@ -107,6 +116,11 @@ export interface SyncServiceDeps {
   /** A pause of the engine that the app answers with a screen (426, 403) or the end of the session (401). */
   readonly onPause: (reason: SyncPauseReason) => void;
   readonly diagnostics?: (event: SyncDiagnostic) => void;
+  /**
+   * The commands of FILES (`CreateMediaAsset`) that left the queue with a discarded group (EVM-137 W10): the host tells the files, so that no
+   * file or row stays on the phone without its command. Ids only.
+   */
+  readonly onGroupDiscarded?: (mediaMutationIds: readonly string[]) => void;
   readonly engineOptions?: EngineOptions;
   /** Timer seam for tests; the default is `setTimeout`. Returns the cancel function. */
   readonly schedule?: (callback: () => void, ms: number) => () => void;
@@ -348,6 +362,7 @@ export class SyncService implements SyncControl {
     const status = await this.#core.engine.status();
     await this.#refreshCounts();
     await this.#collectSettled();
+    await this.#markSurveys();
     const retry = status.nextAttemptAt;
     if (paused !== undefined && paused !== 'replica_stale') {
       this.#pausedReason = paused;
@@ -556,17 +571,20 @@ export class SyncService implements SyncControl {
     }
     const descendants = (id: string): number => (children.get(id) ?? []).reduce((sum, c) => sum + 1 + descendants(c.mutationId), 0);
     const syncing = this.#snapshot.syncing;
+    const surveyOrderIds = await this.#surveyOrderIds(records);
     const items: QueueItem[] = records
       .filter((r) => r.parentMutationId === undefined || !ids.has(r.parentMutationId))
+      // the command of a file is not a row of the queue: the file is, with its own state and its own "Usuń z telefonu" (EVM-137, W10)
+      .filter((r) => r.type !== 'CreateMediaAsset')
       .map((r): QueueItem => {
-        const plan = r.state === 'needs_attention' ? attentionPlan(r) : null;
+        const plan = r.state === 'needs_attention' ? attentionPlan(r, { surveyOrderIds }) : null;
         const state = r.state === 'needs_attention' ? 'attention' : r.state === 'blocked' ? 'blocked' : syncing ? 'sending' : 'pending';
         return {
           id: r.mutationId,
           type: r.type,
           state,
           createdAt: r.createdAt,
-          targetId: r.type === 'CreateQuickWorkOrder' ? null : r.orderingKey,
+          targetId: r.type === 'CreateQuickWorkOrder' || r.type === 'CreateSiteSurvey' ? null : r.orderingKey,
           code: r.lastCode ?? null,
           attempts: r.attempts,
           reason: plan?.reason ?? null,
@@ -604,12 +622,52 @@ export class SyncService implements SyncControl {
     ]);
     if (source !== null) return buildOrderDetail(source, records, userId ?? '');
     // not on the server yet: a quick work order that waits in the queue (EVM-106 AC2)
-    if (!records.some((record) => record.type === 'CreateQuickWorkOrder' && record.objectId === workOrderId)) return null;
+    if (
+      !records.some(
+        (record) => (record.type === 'CreateQuickWorkOrder' || record.type === 'CreateSiteSurvey') && record.objectId === workOrderId,
+      )
+    )
+      return null;
     const [places, templates] = await Promise.all([
       this.#deps.store.replicaExtras.readQuickOrderSource().catch(() => EMPTY_QUICK_SOURCE),
       this.templates(),
     ]);
     return buildPendingOrderDetail(workOrderId, records, places, templates);
+  }
+
+  /** The feature switches of the server as the phone last heard them (the replica, offline too); anything unknown is off (EVM-137 AC1). */
+  async features(): Promise<{ readonly siteSurveys: boolean }> {
+    try {
+      return parseClientConfig(await this.#deps.store.replicaExtras.readClientConfig()).features;
+    } catch {
+      return { siteSurveys: false };
+    }
+  }
+
+  async isSurvey(workOrderId: string): Promise<boolean> {
+    try {
+      return (await this.#surveyOrderIds(await this.#records())).has(workOrderId);
+    } catch {
+      return false;
+    }
+  }
+
+  /** The orders that are or were site surveys: commands of the queue, the replica and the durable marks (EVM-137 W10). */
+  async #surveyOrderIds(records: readonly QueueRecord[]): Promise<ReadonlySet<string>> {
+    const extras = this.#deps.store.replicaExtras;
+    const [replica, marks] = await Promise.all([extras.readSurveyOrderIds().catch(() => []), extras.readSurveyMarks().catch(() => [])]);
+    return new Set([...records.filter((r) => r.type === 'CreateSiteSurvey').map((r) => r.objectId), ...replica, ...marks]);
+  }
+
+  /** After a cycle: the surveys the replica now holds are marked, so that their items are safe after the server deletes them. */
+  async #markSurveys(): Promise<void> {
+    if (this.#disposed) return;
+    try {
+      const ids = await this.#deps.store.replicaExtras.readSurveyOrderIds();
+      if (ids.length > 0) await this.#deps.store.replicaExtras.addSurveyMarks(ids);
+    } catch {
+      // a failure of the marks never fails a cycle; they are written again after the next one
+    }
   }
 
   /** The templates kept on the phone (replica only); a damaged or missing document is `null`. */
@@ -625,6 +683,32 @@ export class SyncService implements SyncControl {
   async quickOrderSource(): Promise<QuickOrderSource> {
     if (!(await this.contactVisible())) return EMPTY_QUICK_SOURCE;
     return this.#deps.store.replicaExtras.readQuickOrderSource();
+  }
+
+  queueChanged(): void {
+    void this.#refreshCounts();
+  }
+
+  /** The members of the group of an entry (itself and everything that waits behind it), in the order of the queue. */
+  #groupOf(records: readonly QueueRecord[], id: string): QueueRecord[] {
+    const seen = new Set([id]);
+    for (const r of records) if (r.parentMutationId !== undefined && seen.has(r.parentMutationId)) seen.add(r.mutationId);
+    return records.filter((r) => seen.has(r.mutationId));
+  }
+
+  /** What a discarded group takes with it, by kind (the dialog of a survey: "2 zdjęcia, 1 film i 1 wpis"); counts only, no content. */
+  async groupSummary(id: string): Promise<GroupSummary> {
+    const group = this.#groupOf(await this.#records(), id).filter((r) => r.mutationId !== id);
+    let photos = 0;
+    let videos = 0;
+    let entries = 0;
+    for (const r of group) {
+      if (r.type === 'CreateMediaAsset') {
+        if (r.payload['mediaType'] === 'video') videos += 1;
+        else photos += 1;
+      } else entries += 1;
+    }
+    return { photos, videos, entries, total: group.length };
   }
 
   async dependentsOf(id: string): Promise<number> {
@@ -652,14 +736,33 @@ export class SyncService implements SyncControl {
 
   enqueue(input: EnqueueInput): Promise<AttentionResult> {
     return this.#op(async () => {
-      const record = await this.#core.queue.enqueue(input);
+      const record = await this.#core.queue.enqueue(await this.#withSurveyParent(input));
+      // the mark outlives the survey in the replica (W10): written with the command, a failure of it never loses the command
+      if (record.type === 'CreateSiteSurvey') await this.#deps.store.replicaExtras.addSurveyMarks([record.objectId]).catch(() => undefined);
       return { mutationId: record.mutationId };
     });
   }
 
+  /**
+   * A file saved for a site survey that is still only a command of the queue goes BEHIND it (EVM-137 AC3, AC6): the camera knows the order by its
+   * id, not the command, so the link is made here. The group of the survey then counts the file, a rejected survey holds it back, and "Usuń z
+   * telefonu" takes it with the rest. Only surveys: an ordinary order keeps the files as they were (their rows follow the mutation ids).
+   */
+  async #withSurveyParent(input: EnqueueInput): Promise<EnqueueInput> {
+    if (input.type !== 'CreateMediaAsset' || input.parentMutationId !== undefined) return input;
+    const workOrderId = (input.payload as Record<string, unknown>)['workOrderId'];
+    if (typeof workOrderId !== 'string') return input;
+    const root = (await this.#records()).find((r) => r.type === 'CreateSiteSurvey' && r.objectId === workOrderId);
+    return root === undefined ? input : { ...input, parentMutationId: root.mutationId };
+  }
+
   discard(id: string): Promise<AttentionResult> {
     return this.#op(async () => {
+      const media = this.#groupOf(await this.#records(), id)
+        .filter((r) => r.type === 'CreateMediaAsset')
+        .map((r) => r.mutationId);
       const { dependents } = await this.#core.attention.discard(id);
+      if (media.length > 0) this.#deps.onGroupDiscarded?.(media);
       return { dependents };
     });
   }
@@ -711,7 +814,12 @@ export class SyncService implements SyncControl {
   retarget(id: string, workOrderId: string): Promise<AttentionResult> {
     return this.#op(async () => {
       const visible = new Set((await this.#deps.store.replicaExtras.listWorkOrders(500)).map((w) => w.id));
-      await this.#core.attention.retarget(id, { workOrderId, isVisibleWorkOrder: (candidate) => visible.has(candidate) });
+      const surveys = await this.#surveyOrderIds(await this.#records());
+      await this.#core.attention.retarget(id, {
+        workOrderId,
+        isVisibleWorkOrder: (candidate) => visible.has(candidate),
+        isSurveyOrder: (candidate) => surveys.has(candidate),
+      });
       return undefined;
     });
   }
@@ -724,12 +832,38 @@ export class SyncService implements SyncControl {
   /** The orders of the replica as an id and a number only (EVM-108 AC5, security 17): the title is not read; the camera picker of the hidden-data mode. */
   async orderNumbers(): Promise<readonly OrderNumber[]> {
     const list = await this.#deps.store.replicaExtras.listOrderNumbers(200).catch(() => []);
-    return list.map((order) => ({ id: order.id, number: order.number }));
+    const known = new Set(list.map((order) => order.id));
+    // a survey that is only a command of the queue can be chosen by "Oczekuje na numer" (EVM-137); nothing else marks a survey here
+    const pending = (await this.#records().catch(() => [])).filter((r) => r.type === 'CreateSiteSurvey' && !known.has(r.objectId));
+    return [
+      ...pending.map((r): OrderNumber => ({ id: r.objectId, number: '', awaitingNumber: true })),
+      ...list.map((order) => ({ id: order.id, number: order.number })),
+    ];
   }
 
   async retargetOptions(excludeWorkOrderId: string | null): Promise<readonly TargetOption[]> {
-    const list = await this.#deps.store.replicaExtras.listWorkOrders(200).catch(() => []);
-    return list.filter((w) => w.id !== excludeWorkOrderId).map((w) => ({ id: w.id, number: w.number, title: w.title }));
+    const extras = this.#deps.store.replicaExtras;
+    const list = await extras.listWorkOrders(200).catch(() => []);
+    const [replicaSurveys, created] = await Promise.all([
+      extras.readSurveyOrderIds().catch(() => []),
+      extras.readSurveyCreated().catch(() => new Map<string, number>()),
+    ]);
+    const surveys = new Set(replicaSurveys);
+    const known = new Set(list.map((w) => w.id));
+    // a survey is offered by its number (or "Oczekuje na numer"), never by its title - a title may name a person (W5)
+    const pending = (await this.#records().catch(() => [])).filter((r) => r.type === 'CreateSiteSurvey' && !known.has(r.objectId));
+    return [
+      ...pending
+        .filter((r) => r.objectId !== excludeWorkOrderId)
+        .map((r): TargetOption => ({ id: r.objectId, number: '', title: '', survey: { createdAt: r.createdAt, awaitingNumber: true } })),
+      ...list
+        .filter((w) => w.id !== excludeWorkOrderId)
+        .map((w): TargetOption =>
+          surveys.has(w.id)
+            ? { id: w.id, number: w.number, title: '', survey: { createdAt: created.get(w.id) ?? null, awaitingNumber: false } }
+            : { id: w.id, number: w.number, title: w.title },
+        ),
+    ];
   }
 }
 
@@ -738,6 +872,8 @@ const text = (value: unknown): string | null => (typeof value === 'string' && va
 type Patch = { -readonly [K in keyof SyncSnapshot]?: SyncSnapshot[K] };
 
 function labelOf(record: QueueRecord): string | null {
+  // the data of a survey (the address, the phone) are never a label of the queue (W5)
+  if (record.type === 'CreateSiteSurvey') return null;
   const value = text(record.payload['body']) ?? text(record.payload['title']);
   return value === null ? null : value.slice(0, LABEL_MAX);
 }
@@ -745,6 +881,8 @@ function labelOf(record: QueueRecord): string | null {
 /** What "Kopiuj treść" puts on the clipboard: the text of a note or comment; for a quick work order the data the technician typed. */
 export function copyTextOf(record: QueueRecord): string | null {
   const p = record.payload;
+  // nothing of a survey is copied: its data name a place (W5)
+  if (record.type === 'CreateSiteSurvey') return null;
   if (record.type !== 'CreateQuickWorkOrder') return text(p['body']);
   const customer = typeof p['newCustomer'] === 'object' && p['newCustomer'] !== null ? (p['newCustomer'] as Record<string, unknown>) : {};
   const site = typeof p['newSite'] === 'object' && p['newSite'] !== null ? (p['newSite'] as Record<string, unknown>) : {};

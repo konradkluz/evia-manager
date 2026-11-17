@@ -151,6 +151,13 @@ describe('EVM-007 AC4: compose.staging.yaml satisfies the configuration of the A
     expect(config.release.manifestSha256).toBe('c3'.repeat(32));
   });
 
+  it('EVM-135 AC3 the deployment switches site surveys on (decision 16): the API gets the string "true"; the worker has no such setting', () => {
+    const { env, read } = service('api');
+    expect(env['SITE_SURVEYS_ENABLED']).toBe('true');
+    expect(loadConfig(env, read).features).toEqual({ siteSurveys: true });
+    expect(compose.services['worker']?.environment?.['SITE_SURVEYS_ENABLED']).toBeUndefined();
+  });
+
   it('EVM-089 AC1 AC2 the worker starts with e-mail through TEM: the sender on exactly the domain of the panel, the key and the project from files, the mode lista', () => {
     const { env, read } = service('worker');
     const config = loadWorkerConfig(env, read);

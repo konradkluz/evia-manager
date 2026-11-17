@@ -25,6 +25,8 @@ export interface WorkOrderKeys {
   readonly customerId: string | null;
   readonly siteId: string | null;
   readonly sourceTemplateId: string | null;
+  /** The deadline of an open site survey (EVM-135) - a column of the read policy, so the projection holds it like `deletedAt`. */
+  readonly siteSurveyExpiresAt: Date | null;
 }
 
 export interface WorkOrderProjectionSource {
@@ -59,6 +61,10 @@ export interface SyncWorkOrderProjection {
   readonly plannedDate: string | null;
   readonly createdAt: Date;
   readonly closedAt: Date | null;
+  /** The site survey (EVM-135, ADR-0024): the deadline (`null` = an ordinary order), the extensions and the phone of the requester (DO-K). */
+  readonly siteSurveyExpiresAt: Date | null;
+  readonly siteSurveyExtensions: number;
+  readonly requesterPhone: string | null;
 }
 
 export interface WorkOrderSyncSource {
@@ -169,4 +175,23 @@ export interface WorkOrderQuickCreation {
     input: QuickWorkOrderInput,
     context: EventContext,
   ): Promise<QuickCreationResult>;
+  /**
+   * The site survey of the phone (EVM-135 AC1; ADR-0024): no customer, no template, `quoting`, the deadline, the number; the coordinator is the signed-in user.
+   * A site that is not visible is `target_unavailable`. Publishes `work_order.created` (identifiers only).
+   */
+  createSiteSurvey(
+    tx: Kysely<Database>,
+    principal: Principal,
+    deviceId: string,
+    input: SiteSurveyInput,
+    context: EventContext,
+  ): Promise<QuickCreationResult>;
+}
+
+/** The site survey of the phone: the site (an existing one or the one created a moment ago in the transaction), the title (`null` - default) and the phone (E.164). */
+export interface SiteSurveyInput {
+  readonly id: string;
+  readonly siteId: string;
+  readonly title: string | null;
+  readonly requesterPhone: string | null;
 }

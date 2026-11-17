@@ -1,12 +1,16 @@
 import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { insertCustomer } from '../support/customer-fixtures.ts';
 import { migratedDatabase, type MigratedDatabase } from './database.ts';
 
 let database: MigratedDatabase;
 const T = '2026-10-08T08:00:00Z';
+// since 0066 (EVM-135) an order without a customer is a site survey (CHECK): the orders of these tests get a customer
+let customerId = '';
 
 beforeAll(async () => {
   database = await migratedDatabase({ checkProjection: false });
+  customerId = await insertCustomer(database.admin, {});
 });
 afterAll(async () => {
   await database.close();
@@ -17,8 +21,8 @@ const fails = async (statement: Promise<unknown>, code: string): Promise<void> =
   await expect(statement).rejects.toMatchObject({ code });
 };
 const insertOrder = (number: string, extra: { resumeStatus?: string; reason?: string } = {}) =>
-  sql`insert into work_orders.work_orders (number, title, status, resume_status, status_reason, created_at, updated_at)
-      values (${number}, 'Zlecenie syntetyczne', 'on_hold', ${extra.resumeStatus ?? null}, ${extra.reason ?? null}, ${T}, ${T})`.execute(
+  sql`insert into work_orders.work_orders (number, title, status, customer_id, resume_status, status_reason, created_at, updated_at)
+      values (${number}, 'Zlecenie syntetyczne', 'on_hold', ${customerId}, ${extra.resumeStatus ?? null}, ${extra.reason ?? null}, ${T}, ${T})`.execute(
     admin(),
   );
 

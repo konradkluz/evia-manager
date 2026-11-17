@@ -68,7 +68,10 @@ async function place(): Promise<Place> {
 async function orderWithoutCustomer(): Promise<string> {
   numbering += 1;
   const siteId = await insertSite(admin());
-  const ids = await insertWorkOrders(admin(), [{ number: `ZL-7${String(numbering).padStart(3, '0')}-0003`, siteId }]);
+  // since 0066 an order without a customer is a site survey (EVM-135; CHECK)
+  const ids = await insertWorkOrders(admin(), [
+    { number: `ZL-7${String(numbering).padStart(3, '0')}-0003`, siteId, siteSurveyExpiresAt: new Date('2027-02-14T08:00:00Z') },
+  ]);
   return [...ids.values()][0] ?? '';
 }
 
@@ -202,12 +205,13 @@ describe('EVM-050 AC1 the document gets the anchor of a site or a customer in th
     }
   });
 
-  it('EVM-050 AC1 SR-AUTHZ-04 anchor=customer for an order without a customer is 400 no_customer; siteId and customerId in the body are read_only_field', async () => {
+  it('EVM-050 AC1 SR-AUTHZ-04 anchor=customer for an order without a customer is refused; siteId and customerId in the body are read_only_field', async () => {
     const orderId = await orderWithoutCustomer();
     const editor = await signIn('editor');
     const noCustomer = await create(editor, orderId, documentBody(pdf(), { anchor: 'customer' }));
-    expect(noCustomer.status).toBe(400);
-    expect(errorsOf(noCustomer.body)).toEqual([{ pointer: '/anchor', code: 'no_customer' }]);
+    // since EVM-135 the only order without a customer is an open site survey: no document of any anchor until it has one (AC7)
+    expect(noCustomer.status).toBe(409);
+    expect((noCustomer.body as { code: string }).code).toBe('customer_required');
     const { orderA, siteId } = await place();
     for (const field of ['siteId', 'customerId']) {
       const forged = await create(editor, orderA, documentBody(pdf(), { anchor: 'site', [field]: siteId }));

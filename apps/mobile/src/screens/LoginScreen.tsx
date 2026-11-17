@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { lockMinutes, type LoginMachine, type LoginState } from '../auth/login-machine';
 import { useStartup } from '../startup';
 import { BottomBar, Button, InlineAlert, TextField } from '../ui';
+import { WifiOff } from '../ui/icons';
 import { color, space, text } from '../ui/theme';
 
 /** Re-check of the connection while M-01 is offline (architect 7): 10 s, doubling up to 60 s, foreground only. */
@@ -142,7 +143,7 @@ export function LoginScreen({
         <Text accessibilityRole="header" style={{ ...text.heading1, color: color.text.onBrand }}>
           {t('login.title')}
         </Text>
-        {offline ? <InlineAlert tone="info" body={t('login.offline')} testID="login-offline" /> : null}
+        {offline ? <InlineAlert tone="info" icon={WifiOff} body={t('login.offline')} testID="login-offline" /> : null}
         {message === null ? null : <InlineAlert tone="error" body={message} testID="login-error" />}
         {codeStep ? (
           <>

@@ -1510,6 +1510,7 @@ export const pl = {
         partyHidden: 'strona niedostępna',
         mediaAssetsAdded: 'Dodano zdjęcia lub filmy',
         documentAdded: 'Dodano dokument',
+        customerAssigned: 'Przypisano klienta',
         unknown: 'Zdarzenie w zleceniu.',
       },
       correction: {

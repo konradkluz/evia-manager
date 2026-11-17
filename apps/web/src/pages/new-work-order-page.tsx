@@ -15,8 +15,8 @@ import {
   WifiOff,
 } from '@evia/ui-web';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from '@tanstack/react-router';
-import { useEffect, useRef, useState } from 'react';
+import { useNavigate, useSearch } from '@tanstack/react-router';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ApiError, unwrap } from '../api/client.ts';
 import { useApi } from '../api/api-context.tsx';
@@ -25,7 +25,7 @@ import { CustomerPicker, type PickedCustomer } from '../customers/customer-picke
 import { useAttempt } from '../forms/attempt.ts';
 import { fieldErrorText } from '../forms/field-error-text.ts';
 import { describeFailure, refusesAttempt, type SaveFailure } from '../forms/save-failure.ts';
-import { WORK_ORDERS_PATH, workOrderPath } from '../paths.ts';
+import { NEW_WORK_ORDER_PATH, WORK_ORDERS_PATH, workOrderPath } from '../paths.ts';
 import { discardDraft, readDraft, saveDraft } from '../session/draft-store.ts';
 import { useSession } from '../session/session.ts';
 import { useToast } from '../shell/toast-context.tsx';
@@ -33,7 +33,12 @@ import { ExpandedProbe, useExpanded } from '../shell/use-expanded.tsx';
 import { useOnline } from '../shell/use-online.ts';
 import { usePageTitle } from '../shell/use-page-title.ts';
 import { EMPTY_LOCATION, LocationSection, locationStarted, type LocationState } from '../sites/location-section.tsx';
+import { isObject, restoreLocation } from '../work-orders/draft-location.ts';
 import { formatClock } from '../work-orders/format.ts';
+import { NewSurveyForm } from '../work-orders/new-survey-form.tsx';
+import { OrderKindChoice, type OrderKind } from '../work-orders/new-order-kind.tsx';
+import { newSurveyText } from '../work-orders/new-survey-labels.ts';
+import { ORDER_DRAFT, readDraftLocation, SURVEY_DRAFT } from '../work-orders/site-survey-form.ts';
 import {
   buildOrderBody,
   defaultTitle,
@@ -56,7 +61,7 @@ import { TemplatePreview, TemplateSection } from '../work-orders/template-sectio
 import { ASSIGNABLE_USERS_KEY, TEMPLATES_KEY, useAssignableUsers, useTemplates } from '../work-orders/use-order-lookups.ts';
 
 /** Name of the draft of this form in the memory of the tab (`session/draft-store.ts`; never any other store, SR-WEB-05). */
-const DRAFT = 'work-order-new';
+const DRAFT = ORDER_DRAFT;
 
 interface Draft {
   readonly customer: PickedCustomer | null;
@@ -66,25 +71,12 @@ interface Draft {
   readonly savedAt: number | null;
 }
 
-const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
-const hasId = (value: unknown): boolean => value === null || (isObject(value) && typeof value.id === 'string');
-
 function restoreCustomer(value: unknown): PickedCustomer | null | undefined {
   if (value === null) return null;
   if (!isObject(value) || typeof value.id !== 'string' || typeof value.displayName !== 'string' || typeof value.phone !== 'string') {
     return undefined;
   }
   return { id: value.id, displayName: value.displayName, phone: value.phone };
-}
-
-/** The section "2. Lokalizacja" as it was saved; a draft from before the section existed has none, a broken one is dropped. */
-function restoreLocation(value: unknown): LocationState | undefined {
-  if (value === undefined) return EMPTY_LOCATION;
-  if (!isObject(value) || (value.mode !== 'existing' && value.mode !== 'new') || !isObject(value.form)) return undefined;
-  const form = value.form;
-  if (!Object.keys(EMPTY_LOCATION.form).every((key) => typeof form[key] === 'string')) return undefined;
-  if (!hasId(value.site) || !hasId(value.osd) || !hasId(value.manager)) return undefined;
-  return value as unknown as LocationState;
 }
 
 /** The sections "3. Szablon" and "4. Zlecenie" as they were saved; a draft from before them has none, a broken one is dropped. */
@@ -133,8 +125,69 @@ export function NewWorkOrderPage() {
   const allowed = role === 'administrator' || role === 'editor';
   usePageTitle(allowed ? t('newWorkOrder.title') : t('newWorkOrder.denied.pageTitle'));
   const user = session.data?.user;
-  return allowed && user !== undefined ? <NewWorkOrderForm userId={user.id} userName={user.displayName} /> : <Denied />;
+  // The kind is the one thing the address carries (`?rodzaj=wizja`); the choice exists only while the server has the function on.
+  const surveysOn = session.data?.features.siteSurveys === true;
+  const { rodzaj }: NewWorkOrderSearch = useSearch({ strict: false });
+  const kind: OrderKind = surveysOn && rodzaj === 'wizja' ? 'survey' : 'order';
+  const navigate = useNavigate();
+  const [announcement, setAnnouncement] = useState('');
+  const [restoreFocus, setRestoreFocus] = useState(false);
+  const [unavailable, setUnavailable] = useState(0);
+  const notice = useRef<HTMLDivElement>(null);
+
+  // A refused creation of a survey (`404`) is told above the form, whichever form is shown once the session is read again.
+  useEffect(() => {
+    if (unavailable > 0) notice.current?.focus();
+  }, [unavailable]);
+
+  if (!allowed || user === undefined) return <Denied />;
+  const choice = surveysOn ? (
+    <OrderKindChoice
+      kind={kind}
+      restoreFocus={restoreFocus}
+      onChange={(next) => {
+        setRestoreFocus(true);
+        setUnavailable(0);
+        setAnnouncement(next === 'survey' ? newSurveyText.kindAnnouncement : newSurveyText.kindOrderAnnouncement);
+        void navigate({ to: NEW_WORK_ORDER_PATH, search: next === 'survey' ? { rodzaj: 'wizja' } : {}, replace: true });
+      }}
+    />
+  ) : null;
+  const message =
+    unavailable === 0 ? null : (
+      <InlineAlert tone="error" alertRef={notice}>
+        {newSurveyText.failure.notFound}
+      </InlineAlert>
+    );
+  return (
+    <>
+      <p role="status" className="sr-only">
+        {announcement}
+      </p>
+      {kind === 'survey' ? (
+        <NewSurveyForm
+          userId={user.id}
+          userName={user.displayName}
+          kindChoice={choice}
+          notice={message}
+          onUnavailable={() => {
+            setUnavailable((current) => current + 1);
+          }}
+        />
+      ) : (
+        <NewWorkOrderForm userId={user.id} userName={user.displayName} kindChoice={choice} notice={message} />
+      )}
+    </>
+  );
 }
+
+/** The address of W-05 carries only the kind of the form (EVM-138 AC2): never a value of the form. */
+export interface NewWorkOrderSearch {
+  readonly rodzaj?: 'wizja' | undefined;
+}
+
+export const validateNewWorkOrderSearch = (search: Record<string, unknown>): NewWorkOrderSearch =>
+  search['rodzaj'] === 'wizja' ? { rodzaj: 'wizja' } : {};
 
 function Denied() {
   const { t } = useTranslation();
@@ -166,7 +219,18 @@ function siteTypeOf(location: LocationState): SiteType | undefined {
 
 type RequiredField = 'customer' | 'site' | 'template';
 
-function NewWorkOrderForm({ userId, userName }: { readonly userId: string; readonly userName: string }) {
+function NewWorkOrderForm({
+  userId,
+  userName,
+  kindChoice,
+  notice,
+}: {
+  readonly userId: string;
+  readonly userName: string;
+  /** The choice "Rodzaj" (`null` while the function of site surveys is off). */
+  readonly kindChoice: ReactNode;
+  readonly notice: ReactNode;
+}) {
   const { t } = useTranslation();
   const client = useApi();
   const online = useOnline();
@@ -178,7 +242,14 @@ function NewWorkOrderForm({ userId, userName }: { readonly userId: string; reado
   const users = useAssignableUsers();
   const { probe, expanded } = useExpanded();
   const [draft, setDraft] = useState<Draft>(
-    () => restore(userId) ?? { customer: null, location: EMPTY_LOCATION, details: EMPTY_DETAILS, savedAt: null },
+    () =>
+      restore(userId) ?? {
+        customer: null,
+        // what was typed in the form of a site survey stays when the kind changes
+        location: readDraftLocation(userId, SURVEY_DRAFT) ?? EMPTY_LOCATION,
+        details: EMPTY_DETAILS,
+        savedAt: null,
+      },
   );
   const [adding, setAdding] = useState(false);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
@@ -361,6 +432,8 @@ function NewWorkOrderForm({ userId, userName }: { readonly userId: string; reado
             </p>
           )}
         </header>
+        {kindChoice}
+        {notice}
         {online ? null : <Banner icon={WifiOff}>{t('newWorkOrder.offline')}</Banner>}
         {summaryItems.length === 0 ? null : (
           <ErrorSummary title={t('newWorkOrder.summary')} items={summaryItems} onSelect={focusField} summaryRef={summary} />

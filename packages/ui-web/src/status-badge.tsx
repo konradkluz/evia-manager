@@ -4,6 +4,7 @@ import {
   AlarmClock,
   Ban,
   Banknote,
+  Binoculars,
   Calculator,
   CalendarClock,
   ChevronDown,
@@ -17,6 +18,7 @@ import {
   Hourglass,
   Inbox,
   OctagonAlert,
+  ThumbsDown,
   ThumbsUp,
   Wrench,
   type Icon,
@@ -136,13 +138,35 @@ const PAYMENT_LOOKS: Readonly<Record<PaymentStatusKey, Look>> = {
   },
 };
 
-type StatusGroup = 'order' | 'stage' | 'payment';
-type AnyStatusKey = OrderStatusKey | StageStatusKey | PaymentStatusKey;
+/**
+ * The computed marks of a site survey (styleguide § 4.4, EVM-138): `survey` — "Wizja lokalna", `rejected` — "Odrzucona" (a survey in the
+ * status "Anulowane"). Not statuses of the model: they stand NEXT TO the status badge, never instead of it, and carry an outline so they
+ * are never mistaken for the filled badges of statuses.
+ */
+export type MarkKey = 'survey' | 'rejected';
+
+/** Complete class names of the marks (Tailwind reads them statically): the outline `border-width.default` is the variant. */
+const MARK_LOOKS: Readonly<Record<MarkKey, Look>> = {
+  survey: {
+    icon: Binoculars,
+    classes: 'bg-feedback-info-bg text-feedback-info-text border-w-default border-feedback-info-border',
+    iconClasses: 'text-feedback-info-icon',
+  },
+  rejected: {
+    icon: ThumbsDown,
+    classes: 'bg-status-order-cancelled-bg text-status-order-cancelled-text border-w-default border-border-strong',
+    iconClasses: 'text-status-order-cancelled-icon',
+  },
+};
+
+type StatusGroup = 'order' | 'stage' | 'payment' | 'mark';
+type AnyStatusKey = OrderStatusKey | StageStatusKey | PaymentStatusKey | MarkKey;
 
 function lookOf(status: AnyStatusKey, group: StatusGroup): Look {
   if (status === 'unknown') return LOOKS.unknown;
   if (group === 'stage') return STAGE_LOOKS[status as StageStatusKey];
   if (group === 'payment') return PAYMENT_LOOKS[status as PaymentStatusKey];
+  if (group === 'mark') return MARK_LOOKS[status as MarkKey];
   return LOOKS[status as OrderStatusKey];
 }
 

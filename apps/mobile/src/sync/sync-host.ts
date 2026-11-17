@@ -17,6 +17,7 @@ import {
   type SyncRuntime,
   type SyncPauseReason,
   type SyncSnapshot,
+  type GroupSummary,
   type OrderNumber,
   type TargetOption,
 } from './types';
@@ -117,6 +118,18 @@ export class SyncHost implements SyncRuntime {
   }
   orderDetail(workOrderId: string): Promise<OrderDetail | null> {
     return this.#service?.orderDetail(workOrderId) ?? Promise.resolve(null);
+  }
+  isSurvey(workOrderId: string): Promise<boolean> {
+    return this.#service?.isSurvey(workOrderId) ?? Promise.resolve(false);
+  }
+  queueChanged(): void {
+    this.#service?.queueChanged();
+  }
+  groupSummary(id: string): Promise<GroupSummary> {
+    return this.#service?.groupSummary(id) ?? Promise.resolve({ photos: 0, videos: 0, entries: 0, total: 0 });
+  }
+  features(): Promise<{ readonly siteSurveys: boolean }> {
+    return this.#service?.features() ?? Promise.resolve({ siteSurveys: false });
   }
   templates(): Promise<TemplateSet | null> {
     return this.#service?.templates() ?? Promise.resolve(null);

@@ -76,6 +76,22 @@ describe('configuration of the synchronisation of the phones (EVM-096; ADR-0021 
   });
 });
 
+describe('the switch of the site survey (EVM-135 AC3; ADR-0024 pt 10)', () => {
+  it('EVM-135 AC3 SITE_SURVEYS_ENABLED is off when absent (deny by default), on only for "true", off for "false"', () => {
+    expect(loadConfig(validEnv()).features).toEqual({ siteSurveys: false });
+    expect(loadConfig(validEnv({ SITE_SURVEYS_ENABLED: 'true' })).features).toEqual({ siteSurveys: true });
+    expect(loadConfig(validEnv({ SITE_SURVEYS_ENABLED: 'false' })).features).toEqual({ siteSurveys: false });
+  });
+
+  it('EVM-135 AC3 any other value - an empty one too - stops the start and the error names the key only', () => {
+    for (const value of ['TRUE', '1', 'yes', 'on', '', ' true', 'true ']) {
+      const error = errorOf(validEnv({ SITE_SURVEYS_ENABLED: value }));
+      expect(error.keys, JSON.stringify(value)).toEqual(['SITE_SURVEYS_ENABLED']);
+      expect(error.message).toBe('Invalid environment configuration: SITE_SURVEYS_ENABLED');
+    }
+  });
+});
+
 describe('configuration from the environment (EVM-008 AC1; ADR-0002, SR-LOG-02)', () => {
   it('EVM-008 AC1 config reads the minimum supported app versions, the database URL and defaults', () => {
     expect(loadConfig(validEnv())).toEqual({
@@ -93,6 +109,7 @@ describe('configuration from the environment (EVM-008 AC1; ADR-0002, SR-LOG-02)'
       loginThrottleKey: Buffer.from(TEST_LOGIN_THROTTLE_KEY, 'base64url'),
       loginAlerts: { passwordFailures: 30, secondStepFailures: 3 },
       deletionRegister: { status: 'unconfigured' },
+      features: { siteSurveys: false },
       sync: {
         cursorKeys: [{ id: 'derived', key: expect.any(Buffer) as Buffer }],
         closedOrdersInScopeDays: 30,

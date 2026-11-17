@@ -18,10 +18,17 @@ import { z } from 'zod';
 import type { DocumentAddedEvent, MediaAssetsAddedEvent } from '../../media/index.ts';
 import type { PaymentMilestoneJournalEvent } from '../../payments/index.ts';
 import type { StageJournalChangeEvent } from '../../procedures/index.ts';
-import type { ScopeItemField, WorkOrderEvent, WorkOrderField, WorkOrderJournalChangeEvent } from '../../work-orders/index.ts';
+import type {
+  ScopeItemField,
+  WorkOrderCustomerAssignedEvent,
+  WorkOrderEvent,
+  WorkOrderField,
+  WorkOrderJournalChangeEvent,
+} from '../../work-orders/index.ts';
 
 export const JOURNAL_EVENT_CODES = [
   'work_order_created',
+  'work_order_customer_assigned',
   'work_order_status_changed',
   'stage_status_changed',
   'stage_waiting_on_changed',
@@ -70,6 +77,8 @@ const MAX_MEDIA_PER_BATCH = 50;
 /** The closed list of keys of every code. */
 const SHAPES = {
   work_order_created: workOrderObject,
+  // EVM-136: a customer was assigned to a site survey - the identifier of the customer only (never a name, a phone or an address)
+  work_order_customer_assigned: { ...workOrderObject, customerId: z.uuid() },
   work_order_status_changed: { ...workOrderObject, fromStatus: zWorkOrderStatus, toStatus: zWorkOrderStatus },
   stage_status_changed: {
     ...stageObject,
@@ -118,6 +127,7 @@ const SHAPES = {
 
 const STRICT = {
   work_order_created: z.strictObject(SHAPES.work_order_created),
+  work_order_customer_assigned: z.strictObject(SHAPES.work_order_customer_assigned),
   work_order_status_changed: z.strictObject(SHAPES.work_order_status_changed),
   stage_status_changed: z.strictObject(SHAPES.stage_status_changed),
   stage_waiting_on_changed: z.strictObject(SHAPES.stage_waiting_on_changed),
@@ -140,8 +150,10 @@ const STRICT = {
 
 /** The source events `timeline` turns into entries (`work_order.created` is the creation event of the order, already audited). */
 export type CreatedEvent = WorkOrderEvent & { readonly type: 'work_order.created' };
+export type AssignedEvent = WorkOrderCustomerAssignedEvent;
 export type JournalSourceEvent =
   | CreatedEvent
+  | AssignedEvent
   | WorkOrderJournalChangeEvent
   | StageJournalChangeEvent
   | PaymentMilestoneJournalEvent
@@ -171,6 +183,13 @@ function candidateOf(event: JournalSourceEvent): Candidate {
       return {
         code: 'work_order_created',
         payload: { objectType: 'work_order', objectId: event.objectId },
+        workOrderId: event.objectId,
+        procedureStageId: null,
+      };
+    case 'work_order.customer_assigned':
+      return {
+        code: 'work_order_customer_assigned',
+        payload: { objectType: 'work_order', objectId: event.objectId, customerId: event.customerId },
         workOrderId: event.objectId,
         procedureStageId: null,
       };

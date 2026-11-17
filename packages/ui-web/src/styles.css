@@ -71,6 +71,8 @@
   --color-feedback-error-icon: var(--evm-color-feedback-error-icon);
   --color-feedback-info-bg: var(--evm-color-feedback-info-bg);
   --color-feedback-info-icon: var(--evm-color-feedback-info-icon);
+  --color-feedback-info-border: var(--evm-color-feedback-info-border);
+  --color-feedback-info-text: var(--evm-color-feedback-info-text);
   --color-feedback-success-bg: var(--evm-color-feedback-success-bg);
   --color-feedback-success-icon: var(--evm-color-feedback-success-icon);
   --color-icon-success: var(--evm-color-icon-success);

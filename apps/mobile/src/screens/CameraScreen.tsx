@@ -154,7 +154,7 @@ function Bar({ orderId, onClose }: { orderId: string; onClose: () => void }) {
  */
 function CameraCapture({ orderId, onClose, focused }: { orderId: string; onClose: () => void; focused: boolean }) {
   const { t } = useTranslation();
-  const { media } = useSession();
+  const { media, sync } = useSession();
   const snapshot = useMediaSnapshot();
   const locked = useGuard().locked;
   const loseForeground = useRef<() => void>(() => undefined);
@@ -185,6 +185,19 @@ function CameraCapture({ orderId, onClose, focused }: { orderId: string; onClose
   const [attempt, setAttempt] = useState(0);
   const [mode, setMode] = useState<Mode>('photo');
   const [category, setCategory] = useState<MediaCategory | null>(null);
+  // a site survey starts with "Oględziny" (EVM-137 AC3); a category the technician already chose is never overwritten
+  useEffect(() => {
+    let active = true;
+    sync.isSurvey(orderId).then(
+      (survey) => {
+        if (active && survey) setCategory((current) => current ?? 'site_survey');
+      },
+      () => undefined,
+    );
+    return () => {
+      active = false;
+    };
+  }, [sync, orderId]);
   const [count, setCount] = useState(0);
   const [videoCount, setVideoCount] = useState(0);
   const [saving, setSaving] = useState(false);

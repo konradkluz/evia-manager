@@ -1,0 +1,115 @@
+# EVM-137 AC5 (W9): the mode of hidden data (the hook makes the phone report no screen lock; the app re-checks when it comes back to the
+# foreground). The row "Wizja lokalna" stays in the sheet "Dodaj" and opens a notice instead of the form ("Wizję lokalną założysz po ponownym
+# zalogowaniu. Zdjęcia możesz robić dalej."); the survey is not drawn on the list in any form; the choice of the order shows its NUMBER alone (no
+# mark, no date); the camera of the survey works and its file is in the Queue without an address. The log of the device has no typed value.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- tapOn:
+    id: 'evia-e2e-hooks-panel'
+- scrollUntilVisible:
+    element:
+      id: 'e2e-lock-off'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'e2e-lock-off'
+- scrollUntilVisible:
+    element:
+      id: 'e2e-status'
+    direction: UP
+    centerElement: true
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-status'
+      text: 'device=lock_off'
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      id: 'e2e-close'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'e2e-close'
+- pressKey: home
+- launchApp:
+    stopApp: false
+- tapOn:
+    id: 'nav-orders'
+- extendedWaitUntil:
+    visible: 'Włącz blokadę ekranu'
+    timeout: 60000
+# the list draws no survey in the mode: no mark, no term, no chip, no address
+- assertNotVisible: 'Wizje lokalne.*'
+- assertNotVisible: 'Wygasa.*'
+- assertNotVisible: '.*Fikcyjna.*'
+- tapOn:
+    id: 'orders-add'
+- extendedWaitUntil:
+    visible:
+      id: 'add-sheet'
+    timeout: 10000
+- assertVisible:
+    id: 'add-site-survey'
+    enabled: true
+- assertVisible:
+    id: 'add-media'
+    enabled: true
+- takeScreenshot: m05-add-sheet-survey-hidden
+- tapOn:
+    id: 'add-site-survey'
+- extendedWaitUntil:
+    visible: 'Wizję lokalną założysz po ponownym zalogowaniu\. Zdjęcia możesz robić dalej\.'
+    timeout: 10000
+- assertNotVisible:
+    id: 'survey-city'
+- takeScreenshot: m10-survey-hidden
+- tapOn:
+    id: 'site-survey-hidden-close'
+# the photo of the existing survey still works: the choice of the order shows the number alone
+- tapOn:
+    id: 'orders-add'
+- tapOn:
+    id: 'add-media'
+- extendedWaitUntil:
+    visible: 'Do którego zlecenia\?'
+    timeout: 10000
+- assertVisible:
+    id: 'media-picker-hidden'
+- assertVisible: 'ZL-E2E-3'
+- assertNotVisible: 'ZL-E2E-3 · .*'
+- assertNotVisible: 'Wizja lokalna.*'
+- assertNotVisible: '.*Założono.*'
+- takeScreenshot: m05-media-picker-survey-hidden
+- tapOn: 'ZL-E2E-3'
+- extendedWaitUntil:
+    visible:
+      id: 'camera'
+    timeout: 20000
+- extendedWaitUntil:
+    notVisible: 'Uruchamianie aparatu…'
+    timeout: 30000
+- assertVisible: 'Aparat'
+# the category of a survey is already "Oględziny": no choice is needed
+- assertNotVisible: 'Wybierz kategorię przed zdjęciem\.'
+- tapOn:
+    id: 'camera-shutter'
+- extendedWaitUntil:
+    visible:
+      id: 'camera-count'
+      text: '1 zdjęcie'
+    timeout: 20000
+- tapOn:
+    id: 'camera-done'
+- tapOn:
+    id: 'nav-queue'
+- extendedWaitUntil:
+    visible: 'Oględziny, Zdjęcie, .*, (Oczekuje|Wysyła się [0-9]+%|Wysłano)'
+    timeout: 60000
+- assertNotVisible: '.*Fikcyjna.*'
+- assertNotVisible: 'ZL-E2E-3'
+- takeScreenshot: m07-queue-survey-hidden

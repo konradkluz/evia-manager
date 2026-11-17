@@ -57,10 +57,18 @@ export function actionOf(from: string, to: WorkOrderStatus): TransitionAction | 
  * with the right to read only gets no menu at all (a static badge).
  */
 export function menuEntries(
-  order: Pick<WorkOrderDetails, 'status' | 'allowedTransitions'>,
+  order: Pick<WorkOrderDetails, 'status' | 'allowedTransitions'> & { readonly siteSurvey?: WorkOrderDetails['siteSurvey'] },
   role: TransitionRole | undefined,
 ): TransitionEntry[] {
   if (role === undefined || role === 'read_only') return [];
+  // A site survey has one way to end: "Odrzuć wizję…" and "Przywróć wizję…" of its banner (EVM-138 AC5), so the menu offers neither
+  // "Anuluj zlecenie…" nor "Przywróć zlecenie…" (flows/17 → W-06 "Nagłówek").
+  if (order.siteSurvey !== null && order.siteSurvey !== undefined) {
+    if (order.status === 'cancelled') return [];
+    return menuEntries({ status: order.status, allowedTransitions: order.allowedTransitions }, role).filter(
+      (entry) => entry.action !== 'cancel',
+    );
+  }
   if (order.status === 'settled')
     return [{ action: 'restore', to: 'completed', ...(order.allowedTransitions.includes('completed') ? {} : { forbidden: true }) }];
   if (order.status === 'cancelled')
@@ -78,6 +86,8 @@ export const DIALOG_ACTIONS: ReadonlySet<TransitionAction> = new Set<TransitionA
 
 export type TransitionFailure =
   | { readonly kind: 'conflict' | 'forbidden' | 'stepUp' | 'network' }
+  /** `409 customer_required` (EVM-136): a survey is accepted only with a customer — the panel opens "Aby zaakceptować, przypisz klienta". */
+  | { readonly kind: 'customerRequired' }
   /** `422 transition_condition_not_met` with the codes of the reasons from the modules (e.g. `unpaid_milestones`, EVM-053). */
   | { readonly kind: 'condition'; readonly reasons?: readonly string[] }
   | { readonly kind: 'rate'; readonly seconds: number }
@@ -90,6 +100,7 @@ export type TransitionFailure =
  */
 export function describeTransitionFailure(error: unknown): TransitionFailure {
   if (!(error instanceof ApiError) || error.status === 0 || error.status >= 500) return { kind: 'network' };
+  if (error.status === 409 && error.code === 'customer_required') return { kind: 'customerRequired' };
   if (error.status === 412 || (error.status === 409 && error.code === 'invalid_state_transition')) return { kind: 'conflict' };
   if (error.status === 403) return { kind: error.code === 'step_up_required' ? 'stepUp' : 'forbidden' };
   if (error.status === 422 && error.code === 'transition_condition_not_met') {

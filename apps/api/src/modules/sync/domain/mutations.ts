@@ -13,12 +13,14 @@ import {
   zCreateMediaAssetPayload,
   zCreateNotePayload,
   zCreateQuickWorkOrderPayload,
+  zCreateSiteSurveyPayload,
   zSyncClientId,
 } from '@evia/contracts/zod';
 import { z } from 'zod';
 import { strictObjects } from '../../../platform/http/validation.ts';
 import { requestHash } from '../../../platform/idempotency/canonical-json.ts';
 import { Collector, type FieldIssue } from '../../../platform/input/field-issues.ts';
+import { normalizePhone } from '../../../platform/input/phone.ts';
 
 export const MAX_MUTATIONS_PER_BATCH = 50;
 export const MAX_MUTATION_BYTES = 64 * 1024;
@@ -29,8 +31,11 @@ export const CAPTURED_AT_MAX_AHEAD_MS = 10 * 60 * 1000;
 /** The scope of the idempotency records of the push - shared by every command of the batch (EVM-099 adds `CreateQuickWorkOrder` under the same scope). */
 export const SYNC_MUTATIONS_SCOPE = 'POST /api/v1/sync/mutations';
 
-/** The commands served (EVM-099 added `CreateQuickWorkOrder`; its content is judged by {@link decodeQuickWorkOrder}). */
-export type CommandType = 'CreateNote' | 'CreateComment' | 'CreateQuickWorkOrder' | 'CreateMediaAsset';
+/** The commands served (EVM-099 added `CreateQuickWorkOrder`, EVM-135 `CreateSiteSurvey`; their content is judged by their own decoders). */
+export type CommandType = 'CreateNote' | 'CreateComment' | 'CreateQuickWorkOrder' | 'CreateMediaAsset' | 'CreateSiteSurvey';
+
+/** The commands whose `validation_failed` carries the errors of the fields (a pointer and a code, never a value). */
+const WITH_FIELD_ERRORS: readonly string[] = ['CreateQuickWorkOrder', 'CreateSiteSurvey'];
 
 /** The limit of the errors of a field in one result (the contract has `maxItems: 20`). */
 export const MAX_FIELD_ERRORS = 20;
@@ -113,6 +118,22 @@ export interface QuickCommand {
   readonly duplicateIds: boolean;
 }
 
+/**
+ * `CreateSiteSurvey` ready for the service (EVM-135 AC1; ADR-0024 pt 5): no customer, no template, no note (W8); the title is normalised (`null` - absent or
+ * blank, the default of `work-orders` applies), the phone of the requester is E.164 or `null`; exactly one of the site pair is set.
+ */
+export interface SurveyCommand {
+  readonly workOrderId: string;
+  readonly siteId: string | undefined;
+  readonly newSite: QuickNewSite | undefined;
+  /** The site of the survey: the existing one or the new one. */
+  readonly siteRef: string;
+  readonly title: string | null;
+  readonly requesterPhone: string | null;
+  /** The same identifier for the order and the new site: `conflict id_conflict` without a write. */
+  readonly duplicateIds: boolean;
+}
+
 /** `CreateMediaAsset` ready for the service: `capturedAt` is the moment in range or `null`; the description is judged by the rules of `media`. */
 export interface MediaCommand {
   readonly id: string;
@@ -133,6 +154,7 @@ export type DecodedMutation =
       readonly capturedAtOutOfRange: boolean;
     }
   | { readonly ok: true; readonly type: 'CreateQuickWorkOrder'; readonly quick: QuickCommand; readonly hash: string }
+  | { readonly ok: true; readonly type: 'CreateSiteSurvey'; readonly survey: SurveyCommand; readonly hash: string }
   | {
       readonly ok: true;
       readonly type: 'CreateMediaAsset';
@@ -140,7 +162,7 @@ export type DecodedMutation =
       readonly hash: string;
       readonly capturedAtOutOfRange: boolean;
     }
-  /** `errors`: only for `CreateQuickWorkOrder` (AC5: the field and the code, never the value). */
+  /** `errors`: only for `CreateQuickWorkOrder` and `CreateSiteSurvey` (the field and the code, never the value). */
   | { readonly ok: false; readonly errors?: readonly FieldIssue[] };
 
 const INVALID: DecodedMutation = { ok: false };
@@ -158,10 +180,13 @@ export function decodeMutation(raw: RawMutation, now: Date): DecodedMutation {
   if (!shape.success) return INVALID;
   const { type, commandVersion, payload } = shape.data;
   if (commandVersion !== 1) {
-    return type === 'CreateQuickWorkOrder' ? { ok: false, errors: [{ pointer: '/commandVersion', code: 'unsupported_version' }] } : INVALID;
+    return WITH_FIELD_ERRORS.includes(type)
+      ? { ok: false, errors: [{ pointer: '/commandVersion', code: 'unsupported_version' }] }
+      : INVALID;
   }
   const hash = requestHash({ type, commandVersion, payload });
   if (type === 'CreateQuickWorkOrder') return decodeQuickWorkOrder(payload, hash);
+  if (type === 'CreateSiteSurvey') return decodeSiteSurvey(payload, hash);
   if (type === 'CreateMediaAsset') return decodeMediaAsset(payload, hash, now);
   if (type === 'CreateNote') {
     const parsed = notePayload.safeParse(payload);
@@ -252,11 +277,12 @@ export interface MutationResult {
     | 'idempotency_mismatch'
     | 'idempotency_in_progress'
     | 'template_unavailable'
-    | 'quota_exceeded';
+    | 'quota_exceeded'
+    | 'feature_disabled';
   readonly warnings?: ReadonlyArray<'captured_at_out_of_range' | 'idempotency_expired'>;
-  /** The number of the order: `applied` and `duplicate` of `CreateQuickWorkOrder` only (EVM-099 AC1, AC6). */
+  /** The number of the order: `applied` and `duplicate` of `CreateQuickWorkOrder` and `CreateSiteSurvey` only (EVM-099 AC1, AC6; EVM-135 AC1). */
   readonly workOrderNumber?: string;
-  /** The field errors of a `CreateQuickWorkOrder` that is `validation_failed`: a pointer and a code, never a value (EVM-099 AC5). */
+  /** The field errors of a `CreateQuickWorkOrder` or a `CreateSiteSurvey` that is `validation_failed`: a pointer and a code, never a value. */
   readonly errors?: readonly FieldIssue[];
 }
 
@@ -301,6 +327,8 @@ export function typeLabel(raw: unknown): string {
       return 'create_quick_work_order';
     case 'CreateMediaAsset':
       return 'create_media_asset';
+    case 'CreateSiteSurvey':
+      return 'create_site_survey';
     default:
       return 'unknown';
   }
@@ -345,6 +373,37 @@ function decodeQuickWorkOrder(payload: unknown, hash: string): DecodedMutation {
       siteRef: (input.siteId ?? input.newSite?.id) as string,
       note,
       duplicateIds: new Set(ids).size !== ids.length,
+    },
+  };
+}
+
+const surveyPayload = strictObjects(zCreateSiteSurveyPayload);
+
+/**
+ * `CreateSiteSurvey` (EVM-135 AC1, AC3) against the strict schema of the contract (a customer, a template, a note or a field of the server is an unknown field -
+ * W8) and the rules the schema cannot state. Every error is a JSON Pointer and a code - never a value (the payload holds an address and a phone number).
+ */
+function decodeSiteSurvey(payload: unknown, hash: string): DecodedMutation {
+  const parsed = surveyPayload.safeParse(payload);
+  if (!parsed.success) return { ok: false, errors: capped(parsed.error.issues.map(issueOf)) };
+  const input = parsed.data as { workOrderId: string; siteId?: string; newSite?: QuickNewSite; title?: string; requesterPhone?: string };
+  const rules = new Collector();
+  const title = rules.text('/title', input.title, { maxLength: 200 });
+  const requesterPhone = rules.shaped('/requesterPhone', input.requesterPhone, normalizePhone);
+  if ((input.siteId === undefined) === (input.newSite === undefined)) rules.fail('/siteId', 'exactly_one_of');
+  if (rules.errors.length > 0) return { ok: false, errors: capped(rules.errors) };
+  return {
+    ok: true,
+    type: 'CreateSiteSurvey',
+    hash,
+    survey: {
+      workOrderId: input.workOrderId,
+      siteId: input.siteId,
+      newSite: input.newSite,
+      siteRef: (input.siteId ?? input.newSite?.id) as string,
+      title,
+      requesterPhone,
+      duplicateIds: input.newSite?.id === input.workOrderId,
     },
   };
 }

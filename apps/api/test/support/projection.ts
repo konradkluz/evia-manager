@@ -50,11 +50,11 @@ export function projectionTools(db: Kysely<Database>): { maintenance: Projection
   return { recomputer, maintenance: new ProjectionMaintenance(db, recomputer, orders, clock, metrics) };
 }
 
-/** The projection in its CURRENT shape (the last column added — 0031, EVM-056): a database migrated only part of the way has none yet. */
+/** The projection in its CURRENT shape (the last column added — 0066, EVM-135): a database migrated only part of the way has none yet. */
 async function hasProjection(db: Kysely<Database>): Promise<boolean> {
   const { rows } = await sql<{ present: boolean }>`
     select exists (select 1 from information_schema.columns where table_schema = 'overview'
-      and table_name = 'work_order_summaries' and column_name = 'earliest_invoiced_due_date') as present`.execute(db);
+      and table_name = 'work_order_summaries' and column_name = 'site_survey_expires_at') as present`.execute(db);
   return rows[0]?.present === true;
 }
 

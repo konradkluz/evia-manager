@@ -111,6 +111,17 @@ export function transitionsFrom(state: StatusPair): ResolvedTransition[] {
 export const findTransition = (state: StatusPair, to: WorkOrderStatus): ResolvedTransition | undefined =>
   transitionsFrom(state).find((candidate) => candidate.to === to);
 
+/**
+ * The rule "a customer is needed to move on" (EVM-136 AC4; ADR-0024 pt 4), in the table and decided by the TARGET of the row after the resumption is resolved: a
+ * work order without a customer is a site survey, which may be only in these statuses (the CHECK `work_orders_site_survey_shape` of 0066 is the second line of
+ * defence). A row that leads anywhere else - "Zaakceptowane" from "Nowe" or "Wycena", or the resumption of an order that was held from "Zaakceptowane" - needs a
+ * customer: `409 customer_required`. "Wstrzymane" and "Anulowane" are open to a survey (it is held, rejected and, by the Administrator, restored).
+ */
+export const CUSTOMERLESS_STATUSES: readonly WorkOrderStatus[] = Object.freeze(['quoting', 'on_hold', 'cancelled']);
+
+/** Does the row need the order to have a customer? (the target is resolved: the resumption goes to `resumeStatus`) */
+export const requiresCustomer = (transition: ResolvedTransition): boolean => !CUSTOMERLESS_STATUSES.includes(transition.to);
+
 export const mayUse = (transition: ResolvedTransition, role: UserRole): boolean => transition.rule.roles.includes(role);
 
 /** The targets the role may choose NOW (`allowedTransitions`, a hint for the UI — the server decides again). Read-only gets none. */

@@ -326,7 +326,8 @@ export function EntryFormScreen({ orderId, onClose, onSaved }: { orderId: string
                   setBody(value);
                   setProblem(null);
                 }}
-                hint={t('entryForm.hint')}
+                // a site survey has no free-text field for the requester, so the hint also says not to put names or phones here (W8)
+                hint={detail.survey === undefined || detail.survey === null ? t('entryForm.hint') : t('entryForm.hintSurvey')}
                 {...(fieldProblem === null ? {} : { error: errorText(fieldProblem) })}
                 inputRef={field}
                 editable={!saving}

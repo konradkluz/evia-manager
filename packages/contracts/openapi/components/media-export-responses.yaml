@@ -1,6 +1,7 @@
 MediaExportConflict:
   description: >-
     Brak zdjęć do eksportu (`no_media_to_export`): zlecenie nie ma żadnego zdjęcia w stanie `ready`. Odpowiedź nie zdradza liczby plików w kwarantannie.
+    Zlecenie jest wizją lokalną bez klienta (`customer_required`, EVM-135): eksport ZIP dopiero po przypisaniu klienta.
   content:
     application/problem+json:
       schema:

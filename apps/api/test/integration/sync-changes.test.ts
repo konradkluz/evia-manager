@@ -16,7 +16,7 @@ import { MOBILE, newPhone, setDeviceState, signedInPhone, type Phone } from '../
 import { auditActions } from '../support/invitation-fixtures.ts';
 import { insertSite } from '../support/site-fixtures.ts';
 import { addTotp, totpAccount, type TotpAccount } from '../support/totp-flows.ts';
-import { insertWorkOrders, numberOf, type WorkOrderSpec } from '../support/work-order-fixtures.ts';
+import { FIXTURE_CUSTOMER_ID, insertWorkOrders, numberOf, type WorkOrderSpec } from '../support/work-order-fixtures.ts';
 
 const PATH = '/api/v1/sync/changes';
 const OPERATION = 'getSyncChanges';
@@ -174,7 +174,8 @@ describe('the snapshot: the first pull (EVM-096 AC2; SR-SYNC-04, SR-AUTHZ-03, CW
     expect(idsOf(result.changes, 'work_order').sort()).toEqual([open, recent, bare].sort());
     expect(idsOf(result.changes, 'work_order')).not.toContain(old);
     expect(idsOf(result.changes, 'work_order')).not.toContain(deleted);
-    expect([...new Set(idsOf(result.changes, 'customer'))].sort()).toEqual([customer, company].sort());
+    // `bare` names no customer: since 0066 (EVM-135) it has the customer of the fixture, which is in scope through it
+    expect([...new Set(idsOf(result.changes, 'customer'))].sort()).toEqual([customer, company, FIXTURE_CUSTOMER_ID].sort());
     expect(idsOf(result.changes, 'customer')).not.toContain(unused);
     expect([...new Set(idsOf(result.changes, 'site'))]).toEqual([site]);
     expect(idsOf(result.changes, 'site')).not.toContain(unusedSite);
@@ -679,7 +680,8 @@ describe('the mass read: full downloads (EVM-096 AC8; AB-08, SR-API-02, SR-LOG-0
     const customer = await insertCustomer(admin());
     const site = await insertSite(admin());
     await order({ number: numberOf(2026, 1), customerId: customer, siteId: site });
-    await order({ number: numberOf(2026, 2) });
+    // the same customer (since 0066, EVM-135, an order cannot be without one): the counts of the trail stay one customer and one site
+    await order({ number: numberOf(2026, 2), customerId: customer });
     let cursor = '';
     for (let round = 0; round < 3; round += 1) {
       const result = await drain(phone);

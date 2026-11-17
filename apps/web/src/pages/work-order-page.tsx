@@ -16,6 +16,10 @@ import { mediaText } from '../work-orders/media-labels.ts';
 import { useDocumentUpload } from '../work-orders/use-documents.ts';
 import { useMediaUpload } from '../work-orders/use-media.ts';
 import { JournalSection } from '../work-orders/journal-section.tsx';
+import { AcceptNeedsCustomerDialog } from '../work-orders/accept-needs-customer-dialog.tsx';
+import { AssignCustomerDialog } from '../work-orders/assign-customer-dialog.tsx';
+import { RejectSiteSurveyDialog } from '../work-orders/reject-site-survey-dialog.tsx';
+import { RestoreSiteSurveyDialog } from '../work-orders/restore-site-survey-dialog.tsx';
 import { ClosedBanner } from '../work-orders/closed-banner.tsx';
 import { CustomerCard } from '../work-orders/customer-card.tsx';
 import { formatClock } from '../work-orders/format.ts';
@@ -26,6 +30,10 @@ import { useSession } from '../session/session.ts';
 import { PAYMENTS_HEADING_ID, PaymentsSection } from '../work-orders/payments-section.tsx';
 import { PROCEDURES_HEADING_ID, ProceduresSection } from '../work-orders/procedures-section.tsx';
 import { ScopeSection } from '../work-orders/scope-section.tsx';
+import { isSurvey } from '../work-orders/site-survey.ts';
+import { SiteSurveyBanner } from '../work-orders/site-survey-banner.tsx';
+import { SurveyCustomerCard } from '../work-orders/survey-customer-card.tsx';
+import { SurveyOverview } from '../work-orders/survey-overview.tsx';
 import { SiteCard } from '../work-orders/site-card.tsx';
 import {
   isNotFound,
@@ -63,12 +71,21 @@ export function WorkOrderPage() {
   const [gone, setGone] = useState(false);
   const [tab, setTab] = useState(OVERVIEW_TAB);
   const [siteEditSignal, setSiteEditSignal] = useState(0);
+  const [dialog, setDialog] = useState<'accept' | 'assign' | 'reject' | 'restore' | null>(null);
+  const bannerTitle = useRef<HTMLParagraphElement>(null);
+  const [bannerTick, setBannerTick] = useState(0);
+  const [focusTick, setFocusTick] = useState(0);
   const active = !gone && id !== '';
   const header = useWorkOrderHeader(id, active);
+  // EVM-138: the reads of the processes, the payments and the scope start with the header (no extra round trip for an ordinary order); for
+  // a site survey the API answers `200` with empty lists and the page ignores them. The card of the customer waits for the header and is
+  // not asked for a site survey (no customer: the API says `404` to it). An ordinary order whose customer is gone still asks and shows the
+  // message of the card.
+  const surveyOpen = header.data !== undefined && isSurvey(header.data);
   const scope = useWorkOrderScope(id, active);
   const procedures = useWorkOrderProcedures(id, active);
   const payments = useWorkOrderPayments(id, active);
-  const customer = useWorkOrderCustomer(id, active);
+  const customer = useWorkOrderCustomer(id, active && header.data !== undefined && !surveyOpen);
   const site = useWorkOrderSite(id, active);
   const siteOrders = useWorkOrderSiteOrders(id, active);
   const heading = useRef<HTMLHeadingElement>(null);
@@ -110,6 +127,15 @@ export function WorkOrderPage() {
     if (focusTarget) heading.current?.focus();
   }, [focusTarget, notFound]);
 
+  // After "Przypisz klienta" the button that opened the dialog is gone: the focus goes to the heading of the order (WCAG 2.4.3).
+  useEffect(() => {
+    if (focusTick > 0) heading.current?.focus();
+  }, [focusTick]);
+  // After "Odrzuć wizję" and "Przywróć wizję" the banner changes: the focus goes to its heading (flows/17 "Dostępność").
+  useEffect(() => {
+    if (bannerTick > 0) bannerTitle.current?.focus();
+  }, [bannerTick]);
+
   // "+ 6 procesów" and the tile "Płatności" of the summary: the tab "Przegląd" is opened and the focus goes to the section of the
   // processes or of the payments (WCAG 2.4.3).
   const [showing, setShowing] = useState<{ readonly target: string; readonly count: number }>({ target: '', count: 0 });
@@ -146,7 +172,73 @@ export function WorkOrderPage() {
   return (
     <div className="flex flex-col gap-stack-lg">
       {online ? null : <Banner icon={WifiOff}>{t('workOrders.offline.stale', { time: formatClock(header.dataUpdatedAt) })}</Banner>}
-      <WorkOrderHeader order={order} headingRef={heading} />
+      <WorkOrderHeader
+        order={order}
+        headingRef={heading}
+        onNeedCustomer={() => {
+          setDialog('accept');
+        }}
+      />
+      <SiteSurveyBanner
+        order={order}
+        titleRef={bannerTitle}
+        onAssign={() => {
+          setDialog('assign');
+        }}
+        onReject={() => {
+          setDialog('reject');
+        }}
+        onRestore={() => {
+          setDialog('restore');
+        }}
+      />
+      {dialog === 'reject' ? (
+        <RejectSiteSurveyDialog
+          order={order}
+          onClose={() => {
+            setDialog(null);
+          }}
+          onDone={() => {
+            setDialog(null);
+            setBannerTick((count) => count + 1);
+          }}
+        />
+      ) : null}
+      {dialog === 'restore' ? (
+        <RestoreSiteSurveyDialog
+          order={order}
+          onClose={() => {
+            setDialog(null);
+          }}
+          onDone={() => {
+            setDialog(null);
+            setBannerTick((count) => count + 1);
+          }}
+        />
+      ) : null}
+      {dialog === 'accept' ? (
+        <AcceptNeedsCustomerDialog
+          onAssign={() => {
+            setDialog('assign');
+          }}
+          onClose={() => {
+            setDialog(null);
+          }}
+        />
+      ) : null}
+      {dialog === 'assign' ? (
+        <AssignCustomerDialog
+          order={order}
+          onClose={() => {
+            setDialog(null);
+            setFocusTick((count) => count + 1);
+          }}
+          onAssigned={() => {
+            setDialog(null);
+            setFocusTick((count) => count + 1);
+          }}
+        />
+      ) : null}
       <ClosedBanner order={order} />
       <MobileQuickBanner
         order={order}
@@ -155,11 +247,13 @@ export function WorkOrderPage() {
         }}
         onShowPayments={showPayments}
       />
-      <OrderSummary
-        query={procedures}
-        onShowProcesses={showProcesses}
-        {...(readsPayments ? { payments, onShowPayments: showPayments } : {})}
-      />
+      {isSurvey(order) ? null : (
+        <OrderSummary
+          query={procedures}
+          onShowProcesses={showProcesses}
+          {...(readsPayments ? { payments, onShowPayments: showPayments } : {})}
+        />
+      )}
       <MediaUnfinishedBanner
         media={media}
         onChoose={() => {
@@ -203,6 +297,8 @@ export function WorkOrderPage() {
                   />
                 )}
               </div>
+            ) : isSurvey(order) ? (
+              <SurveyOverview />
             ) : (
               <div className="flex flex-col gap-stack-lg">
                 <ProceduresSection order={order} query={procedures} />
@@ -213,7 +309,11 @@ export function WorkOrderPage() {
           </Tabs>
         </div>
         <aside className="flex flex-col gap-stack-md" aria-label={t('workOrder.sideLabel')}>
-          <CustomerCard query={customer} customerId={order.customer?.id} />
+          {isSurvey(order) ? (
+            <SurveyCustomerCard survey={order.siteSurvey} />
+          ) : (
+            <CustomerCard query={customer} customerId={order.customer?.id} />
+          )}
           <SiteCard query={site} orders={siteOrders} workOrderId={id} editSignal={siteEditSignal} />
         </aside>
       </div>

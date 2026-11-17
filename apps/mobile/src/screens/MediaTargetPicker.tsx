@@ -66,7 +66,11 @@ export function MediaTargetPicker({
     loaded === null || loaded.hidden !== hidden
       ? null
       : hidden
-        ? loaded.options.map((option): OrderChoice => ({ id: option.id, number: option.number }))
+        ? loaded.options.map((option): OrderChoice => ({
+            id: option.id,
+            number: option.number,
+            ...(option.awaitingNumber === true ? { awaitingNumber: true } : {}),
+          }))
         : loaded.options;
   const key = normalizeSearch(query).trim();
   const searching = key !== '';

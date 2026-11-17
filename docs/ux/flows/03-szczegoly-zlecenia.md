@@ -32,6 +32,7 @@ flowchart TD
 ```
 
 ## W-06 Szczegóły zlecenia
+> **Wizja lokalna (E15, EVM-138, EVM-140):** zlecenie bez klienta ma baner „Wizja lokalna — brak klienta” z akcjami „Przypisz klienta”, „Przedłuż o 90 dni”, „Odrzuć wizję…” (dialogi, reguła „Aby zaakceptować, przypisz klienta”, blokady płatności, dokumentów i eksportu ZIP) — [17 — wizja lokalna](17-wizja-lokalna.md#w-06-szczegóły-wizji-evm-138-ac3ac6-evm-140-ac6).
 - **Cel:** w kilka sekund odpowiedzieć: na jakim etapie jest zlecenie, na kogo czekamy i od kiedy, co jest po terminie, co nieopłacone — szczegóły procesów po rozwinięciu (styleguide § 1 pkt 1 i 5).
 - **Główna akcja:** zależna od stanu zlecenia — najczęściej zmiana statusu etapu z odznaki (W-07); w nagłówku jedna akcja główna nie występuje (odznaka zlecenia jako menu przejść).
 - **Hierarchia treści:** 1) nagłówek: numer, tytuł, odznaka statusu zlecenia, klient, lokalizacja, opiekun; 2) **karta podsumowania**: bieżące etapy · na kogo czekamy · terminy · płatności; 3) zakładki: **Przegląd** (procesy i etapy, płatności, zakres) · Dziennik ([W-08](05-wpis-i-komentarz.md#w-08-dziennik)) · Media i dokumenty ([W-09](06-galeria-i-upload.md#w-09-media-i-dokumenty)); 4) kolumna boczna: Klient, Lokalizacja (z „Inne zlecenia w tej lokalizacji”), Opiekun.
@@ -567,6 +568,7 @@ Wariant **„od EVM-042”** (P2). Przed EVM-042 sekcja „Procesy i etapy” je
 - **Dostępność:** wyzwalacze `⋮` z obiektem („Akcje procesu: Uzgodnienia z OSD”, „Akcje etapu: Prace sieciowe po stronie OSD”) poza przyciskiem nagłówka Disclosure; „Przywróć” w wierszach z nazwą dostępną zaczynającą się od etykiety, z obiektem: „Przywróć etap: Korekta wniosku do OSD, proces Uzgodnienia z OSD”, „Przywróć proces: Opinia ppoż” (WCAG 2.4.6, 2.5.3); AlertDialogi — `role="alertdialog"`, fokus na „Anuluj”; trzy przyciski w dialogu usunięcia etapu z różnymi nazwami; wynik ogłasza toast (`role="status"`); zmiana postępu procesu nie jest ogłaszana osobno (§ 3.23).
 
 ## M-03 Szczegóły zlecenia
+> **Wizja lokalna (E15, EVM-137):** wariant szczegółów wizji (adres i telefon zamawiającego tylko tu, bez sekcji klienta, procesów i zakresu) — [17 — wizja lokalna](17-wizja-lokalna.md#m-03-szczegóły-wizji-ac2-ac4-ac7).
 - **Cel:** w terenie, także bez zasięgu, zobaczyć, co robimy w tym zleceniu, gdzie i z kim — i od razu dodać zdjęcie albo wpis.
 - **Główna akcja:** „Zrób zdjęcie” (dolny pasek, `size.touch-target.field`).
 - **Hierarchia treści:** 1) numer (albo „Oczekuje na numer” — § 4.15), tytuł, odznaka zlecenia; 2) klient (nazwa, telefon) i adres (`text.body-lg`) z miejscem postojowym i wskazówkami dojazdu (`Site.notes`); 3) na kogo czekamy i bieżące etapy (tylko podgląd) + „Status etapu zmienisz w panelu.”; 4) procesy (rozwijane, tylko podgląd); 5) media (liczniki) → M-08; 6) dziennik (ostatnie wpisy) + „Dodaj wpis”; 7) dokumenty — tylko metadane.

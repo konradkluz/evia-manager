@@ -70,13 +70,18 @@ describe('work order transition contract (EVM-030 AC1–AC5, AC7; SR-AUTHZ-01, S
     expect(text('PreconditionRequired')).toContain('precondition_required');
   });
 
-  it('EVM-030 AC1 AC2 the body is {to, reason?, completedOn?}: `to` is one of the eight statuses, nothing else is accepted', () => {
-    expect(Object.keys(zTransitionWorkOrderRequest.shape).sort()).toEqual(['completedOn', 'reason', 'to']);
+  it('EVM-030 AC1 AC2 the body is {to, reason?, reasonCode?, completedOn?} (reasonCode: EVM-136): `to` is one of the eight statuses, nothing else is accepted', () => {
+    expect(Object.keys(zTransitionWorkOrderRequest.shape).sort()).toEqual(['completedOn', 'reason', 'reasonCode', 'to']);
     expect(bundled.components.schemas['TransitionWorkOrderRequest']?.additionalProperties).toBe(false);
     expect(bundled.components.schemas['TransitionWorkOrderRequest']?.required).toEqual(['to']);
     for (const to of zWorkOrderStatus.options) expect(zTransitionWorkOrderRequest.safeParse({ to }).success, to).toBe(true);
     expect(zTransitionWorkOrderRequest.safeParse({ to: 'archived' }).success).toBe(false);
     expect(zTransitionWorkOrderRequest.safeParse({}).success).toBe(false);
+    // EVM-136 AC5: the code of the rejection of a site survey is one of two fixed values
+    for (const reasonCode of ['offer_rejected', 'customer_withdrew']) {
+      expect(zTransitionWorkOrderRequest.safeParse({ to: 'cancelled', reasonCode }).success, reasonCode).toBe(true);
+    }
+    expect(zTransitionWorkOrderRequest.safeParse({ to: 'cancelled', reasonCode: 'Oferta odrzucona' }).success).toBe(false);
   });
 
   it('EVM-030 AC2 the reason is at most 500 characters and the completion day is a date, not a date-time', () => {

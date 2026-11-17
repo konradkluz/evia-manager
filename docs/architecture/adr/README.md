@@ -29,3 +29,4 @@ Statusy: **Proponowana** → **Zaakceptowana** / **Odrzucona** → (ewentualnie)
 | [0021](0021-sync-zakres-migawka-zlecenia-dziennik-zmian-kursor.md) | Synchronizacja offline — zakres urządzenia (reguła klienta, kontrolny resync w cieniu, migawka zlecenia), dziennik zmian z generycznego triggera i kursor z rotacją kluczy | Zaakceptowana | 2026-10-27 |
 | [0022](0022-publiczne-repozytorium-ochrona-main-atestacje-runnery-arm64.md) | Publiczne repozytorium — natywna ochrona `main` rulesetem, atestacje pochodzenia i runnery arm64 | Zaakceptowana | 2026-11-12 |
 | [0023](0023-administrator-kod-z-aplikacji-w-panelu.md) | Administrator w panelu — kod z aplikacji (TOTP) dopuszczony jak u innych ról; logowanie kodem nie otwiera okna step-upu | Zaakceptowana | 2026-11-16 |
+| [0024](0024-wizja-lokalna-zlecenie-bez-klienta.md) | Wizja lokalna — zlecenie bez klienta w statusie „Wycena” z jawnym terminem wygaśnięcia, zamiast osobnego agregatu | Zaakceptowana | 2026-11-16 |

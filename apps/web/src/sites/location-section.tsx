@@ -34,13 +34,15 @@ export interface LocationSectionProps {
   readonly value: LocationState;
   /** Takes the change as a function of the current state: an answer of the server that arrives later never overwrites newer typing. */
   readonly onChange: (update: (current: LocationState) => LocationState) => void;
+  /** A light form of a site survey (EVM-138): the new site has no OSD, manager, power, PPE or notes. */
+  readonly lite?: boolean;
 }
 
 /**
  * W-05 "2. Lokalizacja" (EVM-021): the radio "Istniejąca lokalizacja" / "Nowa lokalizacja", the search of sites or the form of a new
  * one, and the dialogs "Dodaj stronę" for the OSD and the manager (a saved party is chosen in the field it was opened from).
  */
-export function LocationSection({ customerId = null, value, onChange }: LocationSectionProps) {
+export function LocationSection({ customerId = null, value, onChange, lite = false }: LocationSectionProps) {
   const { t } = useTranslation();
   const online = useOnline();
   // Mounted whatever the mode, so that a change of the mode or "Zmień lokalizację" reads nothing again (limit 300/min, EVM-082).
@@ -108,6 +110,7 @@ export function LocationSection({ customerId = null, value, onChange }: Location
             patch({ [target]: party });
           }}
           onAddParty={setAdding}
+          lite={lite}
           onSaved={(site) => {
             onChange(() => ({ mode: 'existing', site, form: EMPTY_SITE_FORM, osd: null, manager: null }));
             toast(t('sites.new.added'));

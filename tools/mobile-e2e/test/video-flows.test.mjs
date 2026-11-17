@@ -34,7 +34,7 @@ describe('Maestro flows 90-9x and the video scenarios agree (EVM-110)', () => {
     for (const flow of videoFlows)
       assert.match(flowText(flow), new RegExp(`^appId: ${APPLICATION_ID.replaceAll('.', String.raw`\.`)}$`, 'm'), flow);
     const files = readdirSync(FLOWS)
-      .filter((name) => /^(9\d|1\d\d)-.*\.yaml$/.test(name))
+      .filter((name) => /^(9\d|10\d)-.*\.yaml$/.test(name))
       .sort();
     assert.deepEqual(OWN, files);
     for (const flow of OWN) {

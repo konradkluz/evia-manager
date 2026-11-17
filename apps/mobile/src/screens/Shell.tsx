@@ -13,6 +13,7 @@ import { MoreScreen, useSignOutFlow } from './MoreScreen';
 import { OrderDetailScreen } from './OrderDetailScreen';
 import { OrdersScreen } from './OrdersScreen';
 import { QuickOrderScreen, type QuickSavedKind } from './QuickOrderScreen';
+import { SiteSurveyScreen } from './SiteSurveyScreen';
 import { QueueScreen } from './QueueScreen';
 import { UpdateRequiredScreen } from './UpdateRequiredScreen';
 import { WipeDialog } from './WipeDialogs';
@@ -29,10 +30,12 @@ const RECENT_ORDERS = 5;
  */
 // "Utwórz ponownie" (EVM-128): the id of the rejected command is the only datum; the draft is read by the form and lives in its state
 type QuickEntry = { readonly stage: 'quick' } | { readonly stage: 'recreate'; readonly mutationId: string };
-type Entry = { readonly stage: 'pick' } | { readonly stage: 'form'; readonly orderId: string } | QuickEntry;
+// EVM-137: the site survey form - one flag, no datum (the typed data live in the state of the form)
+type FormEntry = { readonly stage: 'survey'; readonly openedHidden: boolean } | QuickEntry;
+type Entry = { readonly stage: 'pick' } | { readonly stage: 'form'; readonly orderId: string } | FormEntry;
 
 /** The text of the toast hosted by the shell (fixed texts; no data of the user): the key of the catalogue. */
-type ToastKey = 'entryForm.saved' | 'quickOrder.saved' | 'quickOrder.recreate.saved';
+type ToastKey = 'entryForm.saved' | 'quickOrder.saved' | 'quickOrder.recreate.saved' | 'siteSurvey.saved';
 
 /** "Wyczyść dane firmowe" (EVM-101 AC4): the number of unsent items is read when the dialog opens; the wipe runs after the confirmation. */
 function useWipeFlow() {
@@ -151,8 +154,37 @@ export function Shell() {
   // the hidden-data mode closes the form and the picker and so drops the typed text (AC4); the render below does not draw them in the
   // same pass either (fail-closed)
   useEffect(() => {
-    if (hidden) setEntry(null);
+    // a survey form opened WHILE the data are hidden is only the notice (EVM-137 AC5) and stays; any other form is dropped with its text
+    if (hidden) setEntry((current) => (current?.stage === 'survey' && current.openedHidden ? current : null));
   }, [hidden]);
+  // the site survey (EVM-137): saved in the queue, the details of the survey open (the id is the only datum); a fixed text again
+  const surveySaved = useCallback(
+    (workOrderId: string) => {
+      setEntry(null);
+      setToast('siteSurvey.saved');
+      AccessibilityInfo.announceForAccessibility(t('siteSurvey.saved'));
+      setTab('orders');
+      openOrder(workOrderId);
+    },
+    [t, openOrder],
+  );
+  // the switch of the server is read when the sheet opens (the replica, so offline too): a switch changed meanwhile is not out of date
+  const [surveysEnabled, setSurveysEnabled] = useState(false);
+  useEffect(() => {
+    if (!adding) return undefined;
+    let active = true;
+    session.sync.features().then(
+      (features) => {
+        if (active) setSurveysEnabled(features.siteSurveys);
+      },
+      () => {
+        if (active) setSurveysEnabled(false);
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [adding, session.sync]);
 
   // The system "back" from the queue returns to the orders; from the orders it leaves the app (default behaviour).
   useEffect(() => {
@@ -185,7 +217,7 @@ export function Shell() {
     return <UpdateRequiredScreen currentVersion={state.currentVersion} requiredVersion={state.requiredVersion} />;
   }
   const dialog = wipe.dialog ?? signOut.dialog;
-  const shownEntry = hidden ? null : entry;
+  const shownEntry = hidden && !(entry?.stage === 'survey' && entry.openedHidden) ? null : entry;
   // no new photos while the data of the company are being wiped (the picker is not drawn; the native import refuses as well)
   const shownPicker = pickingMedia && guard.hidden !== 'wipe_in_progress';
   const covered = dialog !== null || adding || shownEntry !== null || cameraOrderId !== null || shownPicker;
@@ -300,6 +332,11 @@ export function Shell() {
           <EntryFormScreen orderId={shownEntry.orderId} onClose={closeEntry} onSaved={entrySaved} />
         </View>
       ) : null}
+      {shownEntry?.stage === 'survey' ? (
+        <View style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}>
+          <SiteSurveyScreen onClose={closeEntry} onSaved={surveySaved} />
+        </View>
+      ) : null}
       {shownEntry?.stage === 'quick' ? (
         <View style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}>
           <QuickOrderScreen onClose={closeEntry} onSaved={quickSaved} />
@@ -344,12 +381,14 @@ export function Shell() {
       {adding ? (
         <AddSheet
           hidden={guard.hidden !== null}
+          surveys={surveysEnabled}
           onPick={(target) => {
             setAdding(false);
             // defence in depth: the sheet already disables these in the hidden-data mode; no form state is set here either
             if (guard.hidden !== null && (target === 'entry' || target === 'newOrder')) return;
             if (target === 'entry') setEntry({ stage: 'pick' });
             else if (target === 'newOrder') setEntry({ stage: 'quick' });
+            else if (target === 'siteSurvey') setEntry({ stage: 'survey', openedHidden: guard.hidden !== null });
             else setPickingMedia(true);
           }}
           onClose={() => {

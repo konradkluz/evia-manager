@@ -8,6 +8,7 @@ import { searchTextMatches } from '../../../platform/database/search-text.ts';
 import type { TemplateScopeItem } from '../../catalog/index.ts';
 import type { Principal } from '../../../platform/http/principal.ts';
 import type { ActiveStatus } from '../domain/work-order-transitions.ts';
+import { SITE_SURVEY_INITIAL_STATUS } from '../domain/site-survey.ts';
 import { CLOSED_STATUSES, type WorkOrderStatus } from '../domain/work-order-status.ts';
 import { deletedWorkOrders, visibleWorkOrders } from './read-policy.ts';
 import type { WorkOrdersDb } from './tables.ts';
@@ -24,6 +25,12 @@ export interface WorkOrderToInsert {
   /** The origin of the order (EVM-099); an order of the phone names the device of the session, an order of the panel has none. */
   readonly origin: 'office' | 'mobile_quick';
   readonly createdViaDeviceId: string | null;
+}
+
+/** A site survey to insert (EVM-135; ADR-0024): no customer, no template, status `quoting`, the deadline and the phone of the requester (E.164 or `null`). */
+export interface SiteSurveyToInsert extends Omit<WorkOrderToInsert, 'customerId' | 'sourceTemplateId' | 'plannedDate' | 'description'> {
+  readonly expiresAt: Date;
+  readonly requesterPhone: string | null;
 }
 
 /**
@@ -45,6 +52,39 @@ export function insertWorkOrder(db: WorkOrdersDb, order: WorkOrderToInsert, acto
       description: order.description,
       origin: order.origin,
       created_via_device_id: order.createdViaDeviceId,
+      created_at: now,
+      created_by: actorUserId,
+      updated_at: now,
+      updated_by: actorUserId,
+      deleted_at: null,
+      deleted_by: null,
+    })
+    .onConflict((conflict) => conflict.column('id').doNothing())
+    .returning('id')
+    .executeTakeFirst();
+}
+
+/**
+ * The site survey (EVM-135 AC1, AC2): INSERT only, like {@link insertWorkOrder} (an existing identifier inserts nothing and the caller answers `id_conflict`
+ * without a word about the row). No customer and the status `quoting` - the CHECKs of 0066 require the deadline then.
+ */
+export function insertSiteSurvey(db: WorkOrdersDb, order: SiteSurveyToInsert, actorUserId: string, now: Date) {
+  return db
+    .insertInto('work_orders.work_orders')
+    .values({
+      id: order.id,
+      number: order.number,
+      title: order.title,
+      status: SITE_SURVEY_INITIAL_STATUS,
+      customer_id: null,
+      site_id: order.siteId,
+      source_template_id: null,
+      planned_date: null,
+      description: null,
+      origin: order.origin,
+      created_via_device_id: order.createdViaDeviceId,
+      site_survey_expires_at: order.expiresAt,
+      requester_phone: order.requesterPhone,
       created_at: now,
       created_by: actorUserId,
       updated_at: now,
@@ -206,6 +246,10 @@ export function findReadableWorkOrder(db: WorkOrdersDb, principal: Principal, id
       'created_at',
       'created_by',
       'origin',
+      // EVM-135: the site survey of the header (the list row returns requesterPhone too - EVM-135 AC6; ADR-0024 pt 7)
+      'site_survey_expires_at',
+      'site_survey_extensions',
+      'requester_phone',
     ])
     .where('id', '=', id)
     .where(visibleWorkOrders(principal))
@@ -230,6 +274,12 @@ export function lockWorkOrderForTransition(db: WorkOrdersDb, principal: Principa
       'closed_at',
       sql<string | null>`to_char(completed_on, 'YYYY-MM-DD')`.as('completed_on'),
       'version',
+      // EVM-136 AC4: the rule "a customer is needed to move on" is decided on THIS row
+      'customer_id',
+      // EVM-136 AC5: the deadline of a site survey that is rejected or restored (the row of a survey has a deadline)
+      'site_survey_expires_at',
+      'site_survey_extensions',
+      'created_at',
     ])
     .where('id', '=', id)
     .where(visibleWorkOrders(principal))
@@ -245,6 +295,8 @@ export interface StatusColumns {
   readonly statusReason: string | null;
   readonly closedAt: Date | null;
   readonly completedOn: string | null;
+  /** EVM-136 AC5: the new deadline of a site survey (the rejection and the restoration); absent - the column is left alone. */
+  readonly siteSurveyExpiresAt?: Date | undefined;
 }
 
 /**
@@ -268,6 +320,7 @@ export async function updateWorkOrderStatus(
       status_changed_at: now,
       closed_at: columns.closedAt,
       completed_on: columns.completedOn,
+      ...(columns.siteSurveyExpiresAt === undefined ? {} : { site_survey_expires_at: columns.siteSurveyExpiresAt }),
       updated_at: now,
       updated_by: actorUserId,
       version: sql<number>`version + 1`,
@@ -346,6 +399,8 @@ export interface VisibleOrderRef {
   readonly customerId: string | null;
   /** Settled or cancelled (PO-8). */
   readonly closed: boolean;
+  /** An open site survey (EVM-135): the reports of payments leave it out. */
+  readonly siteSurvey: boolean;
 }
 
 /**
@@ -361,15 +416,56 @@ export async function findVisibleRefs(
   if (ids.length === 0) return new Map();
   const rows = await db
     .selectFrom('work_orders.work_orders')
-    .select(['id', 'number', 'title', 'customer_id', 'status'])
+    .select(['id', 'number', 'title', 'customer_id', 'status', 'site_survey_expires_at'])
     .where(sql<SqlBool>`${sql.ref('work_orders.work_orders.id')} = any(${[...ids]}::uuid[])`)
     .where(visibleWorkOrders(principal))
     .execute();
   return new Map(
     rows.map((row) => [
       row.id,
-      { number: row.number, title: row.title, customerId: row.customer_id, closed: CLOSED_STATUSES.includes(row.status) },
+      {
+        number: row.number,
+        title: row.title,
+        customerId: row.customer_id,
+        closed: CLOSED_STATUSES.includes(row.status),
+        siteSurvey: row.site_survey_expires_at !== null,
+      },
     ]),
+  );
+}
+
+/** An open site survey as the list shows it (EVM-135 AC6): the deadline, the extensions and the phone of the requester - never the address. */
+export interface VisibleSiteSurvey {
+  readonly expiresAt: Date;
+  readonly extensionCount: number;
+  readonly requesterPhone: string | null;
+}
+
+/** The open site surveys among `ids` that the caller may see - ONE query with the read policy in it, the identifiers as ONE array parameter. */
+export async function findVisibleSiteSurveys(
+  db: WorkOrdersDb,
+  principal: Principal,
+  ids: readonly string[],
+): Promise<Map<string, VisibleSiteSurvey>> {
+  if (ids.length === 0) return new Map();
+  const rows = await db
+    .selectFrom('work_orders.work_orders')
+    .select(['id', 'site_survey_expires_at', 'site_survey_extensions', 'requester_phone'])
+    .where(sql<SqlBool>`${sql.ref('work_orders.work_orders.id')} = any(${[...ids]}::uuid[])`)
+    .where('site_survey_expires_at', 'is not', null)
+    .where(visibleWorkOrders(principal))
+    .execute();
+  return new Map(
+    rows.flatMap((row) =>
+      row.site_survey_expires_at === null
+        ? []
+        : [
+            [
+              row.id,
+              { expiresAt: row.site_survey_expires_at, extensionCount: row.site_survey_extensions, requesterPhone: row.requester_phone },
+            ],
+          ],
+    ),
   );
 }
 

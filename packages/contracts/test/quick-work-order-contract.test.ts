@@ -15,6 +15,8 @@ const details = {
   origin: 'mobile_quick',
   createdBy: { displayName: 'Jan Przykładowy' },
   allowedTransitions: [],
+  // EVM-135: the detail always says whether the order is an open site survey
+  siteSurvey: null,
 };
 
 describe('EVM-099 AC5 AC7 contract of the results of a quick work order', () => {

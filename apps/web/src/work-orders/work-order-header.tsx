@@ -10,7 +10,10 @@ import { formatDate } from './format.ts';
 import { formatDueDate } from './procedure-format.ts';
 import { OrderDeleteDialog } from './order-delete-dialog.tsx';
 import { OrderEditDialog } from './order-edit-dialog.tsx';
+import { surveyText } from './site-survey-labels.ts';
+import { isRejectedSurvey, isSurvey } from './site-survey.ts';
 import { StatusTransitions } from './status-transitions.tsx';
+import { SurveyMarks } from './survey-expiry.tsx';
 import { isClosed } from './transition-actions.ts';
 
 /**
@@ -23,7 +26,16 @@ import { isClosed } from './transition-actions.ts';
  * EVM-060 AC1, AC5: "Usuń zlecenie…" closes the menu (danger group) — enabled for the Administrator, disabled with "Usunąć zlecenie może
  * tylko administrator." for the Editor; even a closed order can be deleted (the API decides by its instalments).
  */
-export function WorkOrderHeader({ order, headingRef }: { readonly order: WorkOrderDetails; readonly headingRef: Ref<HTMLHeadingElement> }) {
+export function WorkOrderHeader({
+  order,
+  headingRef,
+  onNeedCustomer,
+}: {
+  readonly order: WorkOrderDetails;
+  readonly headingRef: Ref<HTMLHeadingElement>;
+  /** EVM-138 AC4: "Zaakceptuj" on a survey without a customer asks the page for the dialog "Aby zaakceptować, przypisz klienta". */
+  readonly onNeedCustomer?: () => void;
+}) {
   const { t } = useTranslation();
   const online = useOnline();
   const role = useSession().data?.user.role;
@@ -33,8 +45,9 @@ export function WorkOrderHeader({ order, headingRef }: { readonly order: WorkOrd
   const spot = order.site === null ? undefined : formatSpot(t, order.site);
   const address = order.site === null ? null : spot === undefined ? formatAddress(order.site) : `${formatAddress(order.site)} · ${spot}`;
   const missing = t('workOrder.header.missing');
+  const survey = isSurvey(order);
   const rows: ReadonlyArray<readonly [string, string]> = [
-    [t('workOrder.header.customer'), order.customer?.displayName ?? missing],
+    [t('workOrder.header.customer'), order.customer?.displayName ?? (survey ? surveyText.noCustomer : missing)],
     [t('workOrder.header.site'), address ?? missing],
     [t('workOrder.header.coordinator'), order.coordinator?.displayName ?? missing],
     ...(order.plannedDate === undefined ? [] : [[t('workOrder.header.plannedDate'), formatDueDate(order.plannedDate)] as const]),
@@ -54,9 +67,12 @@ export function WorkOrderHeader({ order, headingRef }: { readonly order: WorkOrd
   return (
     <header className="flex flex-col gap-stack-sm">
       <div className="flex flex-wrap items-start justify-between gap-inline-md">
-        <h1 ref={headingRef} tabIndex={-1} className="self-start font-display text-heading-1 text-text-primary focus-visible:focus-ring">
-          {order.number}
-        </h1>
+        <div className="flex flex-wrap items-center gap-inline-md">
+          <h1 ref={headingRef} tabIndex={-1} className="self-start font-display text-heading-1 text-text-primary focus-visible:focus-ring">
+            {order.number}
+          </h1>
+          {survey ? <SurveyMarks rejected={isRejectedSurvey(order)} /> : null}
+        </div>
         {role === 'administrator' || role === 'editor' ? (
           <ActionMenu
             label={t('workOrder.edit.menuLabel', { number: order.number })}
@@ -92,7 +108,7 @@ export function WorkOrderHeader({ order, headingRef }: { readonly order: WorkOrd
         ) : null}
       </div>
       <p className="break-words text-heading-4 text-text-primary">{order.title}</p>
-      <StatusTransitions order={order} />
+      <StatusTransitions order={order} {...(onNeedCustomer === undefined ? {} : { onNeedCustomer })} />
       <Card>
         <dl className="grid grid-cols-1 gap-x-inline-md gap-y-stack-sm medium:grid-cols-2">
           {rows.map(([label, value]) => (

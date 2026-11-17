@@ -8,6 +8,7 @@ import { sql, type Kysely } from 'kysely';
 import type { WorkOrderStatus } from '../../src/modules/work-orders/domain/work-order-status.ts';
 import { workOrderTables } from '../../src/modules/work-orders/infrastructure/tables.ts';
 import type { Database } from '../../src/platform/database/database.ts';
+import { insertCustomer } from './customer-fixtures.ts';
 import { rebuildProjection } from './projection.ts';
 
 export const ALL_STATUSES: readonly WorkOrderStatus[] = [
@@ -29,8 +30,13 @@ export interface WorkOrderSpec {
   readonly deletedAt?: Date;
   /** when the order was closed (EVM-036: shown in the section of the other orders of a site) */
   readonly closedAt?: Date;
-  /** the customer and the site of the order (EVM-018) — ids of rows inserted by the customer and site fixtures */
+  /**
+   * the customer and the site of the order (EVM-018) — ids of rows inserted by the customer and site fixtures. An order without a customer is a site survey
+   * since migration 0066 (EVM-135; CHECK): without `customerId` and without `siteSurveyExpiresAt` the order gets the shared {@link FIXTURE_CUSTOMER_ID}.
+   */
   readonly customerId?: string;
+  /** a site survey (EVM-135): no customer, the deadline set; the status must be quoting, on_hold or cancelled (default quoting) */
+  readonly siteSurveyExpiresAt?: Date;
   readonly siteId?: string;
   /** the template the order was created from (EVM-072: the filter "Szablon") — an id of the seeded catalogue */
   readonly sourceTemplateId?: string;
@@ -48,11 +54,27 @@ export function assertSyntheticDataAllowed(env: Readonly<Record<string, string |
 const BASE = Date.parse('2026-01-01T08:00:00.000Z');
 const CHUNK = 1000;
 
+/**
+ * The customer of every fixture order that names none (EVM-135: since migration 0066 an order without a customer is a site survey - the database refuses
+ * anything else). One synthetic person per database, created on first use with a fixed identifier, so it survives across calls and test files.
+ */
+export const FIXTURE_CUSTOMER_ID = '01936d6a-0000-7066-8000-000000000066';
+
+async function fixtureCustomer(db: Kysely<Database>): Promise<string> {
+  const found = await sql<{ id: string }>`select id from customers.customers where id = ${FIXTURE_CUSTOMER_ID}`.execute(db);
+  if (found.rows.length === 0) {
+    await insertCustomer(db, { id: FIXTURE_CUSTOMER_ID, firstName: 'Klient', lastName: 'Fikstury', phone: '+48600000066' });
+  }
+  return FIXTURE_CUSTOMER_ID;
+}
+
 /** Inserts the orders (and their assignments) and returns the identifiers by number. */
 export async function insertWorkOrders(db: Kysely<Database>, specs: readonly WorkOrderSpec[]): Promise<Map<string, string>> {
   assertSyntheticDataAllowed();
   const tables = workOrderTables(db);
   const ids = new Map<string, string>();
+  const needsCustomer = specs.some((spec) => spec.customerId === undefined && spec.siteSurveyExpiresAt === undefined);
+  const defaultCustomer = needsCustomer ? await fixtureCustomer(db) : null;
   for (let start = 0; start < specs.length; start += CHUNK) {
     const chunk = specs.slice(start, start + CHUNK);
     const rows = await tables
@@ -63,8 +85,10 @@ export async function insertWorkOrders(db: Kysely<Database>, specs: readonly Wor
           return {
             number: spec.number,
             title: spec.title ?? `Zlecenie syntetyczne ${spec.number}`,
-            status: spec.status ?? 'new',
-            customer_id: spec.customerId ?? null,
+            status: spec.status ?? (spec.siteSurveyExpiresAt === undefined ? 'new' : 'quoting'),
+            customer_id: spec.siteSurveyExpiresAt === undefined ? (spec.customerId ?? defaultCustomer) : null,
+            // named only for a survey: the migration tests run this fixture on schemas before 0066
+            ...(spec.siteSurveyExpiresAt === undefined ? {} : { site_survey_expires_at: spec.siteSurveyExpiresAt }),
             site_id: spec.siteId ?? null,
             source_template_id: spec.sourceTemplateId ?? null,
             created_at: createdAt,

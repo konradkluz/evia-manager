@@ -1,7 +1,7 @@
 # Treści e-maili
 
 > Dokument żywy (EVM-015; kolejne epiki dopisują swoje e-maile). Prowadzi: `ux-designer`. E-mail nie jest ekranem, więc plik nie ma numeru przepływu (jak `scenariusze-a-d.md`). Indeks makiet: [README.md](README.md); ekrany, do których prowadzą linki: [11](11-aktywacja-i-reset-hasla.md) (W-13, W-12), [01](01-logowanie-mfa.md) (W-01), [12](12-konto-i-administracja.md) (W-15, W-18).
-> Źródła: SR-INPUT-07, SR-AUTH-05, -08, -10, -11, -12, -13, -15, SR-SESS-04, SR-LOG-07, SR-API-04; polityki P1, P2, P9 ([`policies.md`](../../security/policies.md)); README M1 → „Zasady wspólne” → „Tokeny w linkach jednorazowych”; decyzja Konrada 16 (kod odzyskiwania tylko w logowaniu — potwierdzona na demo EVM-015 2026-10-04); konsultacja `security-engineer` w EVM-015 (S6, kontrola 10). Historyjki: EVM-023, EVM-024, EVM-025, EVM-026, EVM-027, EVM-028.
+> Źródła: SR-INPUT-07, SR-AUTH-05, -08, -10, -11, -12, -13, -15, SR-SESS-04, SR-LOG-07, SR-API-04; polityki P1, P2, P9 ([`policies.md`](../../security/policies.md)); README M1 → „Zasady wspólne” → „Tokeny w linkach jednorazowych”; decyzja Konrada 16 (kod odzyskiwania tylko w logowaniu — potwierdzona na demo EVM-015 2026-10-04); konsultacja `security-engineer` w EVM-015 (S6, kontrola 10). Historyjki: EVM-023, EVM-024, EVM-025, EVM-026, EVM-027, EVM-028; od 2026-11-16 także EVM-140 (e-mail 10 — wyjątek od zasady 3 tylko w zakresie zmiennych: numer zlecenia i data usunięcia wizji lokalnej; nadal bez adresu, telefonu i danych klienta).
 
 ## Zasady treści e-maili
 1. **Zwykły tekst** — bez HTML, obrazów i pikseli śledzących. E-mail nie jest interfejsem panelu, więc nie korzysta z tokenów styleguide'u.
@@ -12,7 +12,8 @@
    - `[link]` — link jednorazowy z tokenem: `[adres panelu]/[ścieżka ekranu]#[token]` (W-13, W-12);
    - `[link: Zresetuj hasło]` — formularz „Zresetuj hasło” w W-01, bez tokenu i bez wpisanego adresu;
    - `[link: Drugi krok logowania]`, `[link: Moje sesje]` — W-15 (kotwica `#drugi-krok` albo sekcja sesji), bez tokenu;
-   - `[link: Dziennik audytu]` — W-18, bez tokenu (wejście przez W-04).
+   - `[link: Dziennik audytu]` — W-18, bez tokenu (wejście przez W-04);
+   - `[link: Zlecenie]` — W-06 zlecenia (wizji lokalnej) w panelu, bez tokenu; w adresie wyłącznie identyfikator zlecenia (od EVM-140).
 6. **Ważność linku w treści** — reset hasła 30 minut, zaproszenie 72 godziny (P2) — z godziną końca ważności.
 7. **Adres panelu widoczny jako tekst** w stopce — odbiorca może wpisać go sam zamiast klikać.
 8. **Czas zdarzenia** w strefie `Europe/Warsaw`, format § 6.3 („04.10.2026, 14:05”).
@@ -48,6 +49,7 @@ wpisz adres panelu samodzielnie i skontaktuj się z administratorem.
 | 7 | Logowanie z nowej przeglądarki | adres konta | W-01 „Zresetuj hasło” — bez tokenu | EVM-026 | SR-AUTH-15 |
 | 8 | Zakończenie najstarszej sesji | adres konta | W-15 — bez tokenu | EVM-028 | SR-SESS-04 |
 | 9 | Alert dla Administratorów (7 wariantów) | wszyscy aktywni Administratorzy | W-18 — bez tokenu | EVM-024, EVM-026, EVM-027, EVM-028 | SR-LOG-07, SR-AUTH-15 |
+| 10 | Przypomnienie o wygasającej wizji lokalnej (2 warianty) | twórca wizji i Administratorzy | W-06 wizji (`[link: Zlecenie]`) — bez tokenu | EVM-140 | W5, SR-INPUT-07, SR-LOG-07 |
 
 Logowanie z nowego urządzenia mobilnego (SR-AUTH-15) — od E9.
 
@@ -315,3 +317,47 @@ i skontaktuj się z pozostałymi administratorami.
 | Zmiana drugiego kroku konta Administratora | zmiana drugiego kroku | „zmieniono drugi krok logowania konta administratora (dodano albo usunięto metodę albo wygenerowano nowe kody).” | EVM-028 AC3 i AC5 (nowe kody — alert wymagany przez SR-LOG-07; wejście do planu EVM-028) |
 
 Bez wskazania osoby, nazwy konta, adresu e-mail i adresu IP — te dane zobaczy Administrator w W-18 po step-upie.
+
+## 10. Przypomnienie o wygasającej wizji lokalnej
+- **Kiedy:** codzienne zadanie w `worker` znajduje otwartą wizję lokalną bez klienta, której termin usunięcia jest za 15 dni lub mniej i która nie była jeszcze przypomniana od ostatniego przedłużenia (EVM-140 AC1; kontekst: [17 — wizja lokalna](17-wizja-lokalna.md)). Jeden e-mail na wizję i termin; po przedłużeniu kolejny dopiero 15 dni przed nowym terminem. Wizja z klientem, anulowana i już przypomniana nie dostaje wiadomości.
+- **Odbiorcy:** twórca wizji i każdy aktywny Administrator (jeden e-mail na adres, bez powtórzeń, gdy twórca jest Administratorem). Odbiorca, który nie ma już dostępu do wizji, nie dostaje wiadomości.
+- **Temat:** `EVia Manager: wizja lokalna ZL-2026-0051 zostanie usunięta`
+- **Zmienne (zamknięta lista):** numer zlecenia, data usunięcia (strefa `Europe/Warsaw`, `DD.MM.RRRR`), liczba dotychczasowych przedłużeń (0, 1 albo 2 — wybiera wariant), `[link: Zlecenie]`. **Bez adresu, telefonu zamawiającego, tytułu, nazwy klienta i nazwy osoby** (W5, EVM-140 AC5).
+
+**Wariant A — wizję można jeszcze przedłużyć (0 albo 1 przedłużenie)**
+```text
+Dzień dobry,
+
+wizja lokalna ZL-2026-0051 zostanie usunięta dnia 14.02.2027.
+Przypisz klienta, przedłuż albo odrzuć.
+
+Zlecenie w panelu:
+[link: Zlecenie]
+
+Po usunięciu wizji znikną także jej zdjęcia, filmy i wpisy — tego nie
+da się cofnąć. Wizję możesz przedłużyć najwyżej dwa razy, za każdym
+razem o 90 dni.
+
+[stopka]
+```
+
+**Wariant B — po dwóch przedłużeniach**
+```text
+Dzień dobry,
+
+wizja lokalna ZL-2026-0051 zostanie usunięta dnia 13.08.2027.
+Przypisz klienta albo odrzuć.
+
+Zlecenie w panelu:
+[link: Zlecenie]
+
+Ta wizja była już dwukrotnie przedłużona i nie można jej przedłużyć
+ponownie. Po usunięciu wizji znikną także jej zdjęcia, filmy i wpisy —
+tego nie da się cofnąć.
+
+[stopka]
+```
+- **Link:** `[link: Zlecenie]` — W-06 wizji w panelu (`[adres panelu]/zlecenia/[identyfikator]`), **bez tokenu**; po kliknięciu zwykłe logowanie, a po zalogowaniu przejście do zlecenia (nieupoważniony odbiorca widzi „Nie znaleziono zlecenia…”). Identyfikator w ścieżce to identyfikator zlecenia, nie adres.
+- **Brzmienie:** pierwsze zdanie wariantu A zgodne z EVM-140 AC1 („Wizja lokalna ZL-… zostanie usunięta dnia …. Przypisz klienta, przedłuż albo odrzuć.”); wariant B skraca drugie zdanie, bo „przedłuż” nie jest już dostępne (rozstrzygnięcie ux-designera, do potwierdzenia razem z kodami powodów — EVM-140 „Decyzje i ograniczenia”).
+- **Treść stała w szablonie:** wiadomość nie zawiera „za N dni” — mogłaby się zdezaktualizować, zanim odbiorca ją otworzy; data wystarcza.
+- **Test (EVM-140 AC5, Mailpit):** w treści i temacie nie ma adresu ani telefonu z danych testowych; polskie znaki poprawne; link nienaruszony.

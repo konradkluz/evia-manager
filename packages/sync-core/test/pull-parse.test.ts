@@ -176,8 +176,15 @@ describe('reader of server data (EVM-092 AC6)', () => {
       closedWorkOrdersInScopeDays: 45,
       periodicResyncDays: 14,
       scopeRuleVersion: '12',
+      features: { siteSurveys: false },
     });
-    const d = { offlineContactWindowDays: 7, closedWorkOrdersInScopeDays: 30, periodicResyncDays: 7, scopeRuleVersion: '' };
+    const d = {
+      offlineContactWindowDays: 7,
+      closedWorkOrdersInScopeDays: 30,
+      periodicResyncDays: 7,
+      scopeRuleVersion: '',
+      features: { siteSurveys: false },
+    };
     expect(parseClientConfig(null)).toEqual(d);
     expect(parseClientConfig([])).toEqual(d);
     expect(
@@ -186,6 +193,18 @@ describe('reader of server data (EVM-092 AC6)', () => {
     expect(parseClientConfig({ offlineContactWindowDays: 8 }).offlineContactWindowDays).toBe(7);
     expect(parseClientConfig({ offlineContactWindowDays: '3', closedWorkOrdersInScopeDays: 2.5, scopeRuleVersion: -1 })).toEqual(d);
     expect(parseClientConfig({ scopeRuleVersion: 'v-1.2' }).scopeRuleVersion).toBe('v-1.2');
+  });
+});
+
+describe('a site survey in the replica (EVM-135 AC5 became EVM-137 AC4; ADR-0024 pt 5)', () => {
+  it('EVM-135 AC5 / EVM-137 AC4: the reader of this version reads a work order with siteSurvey and customerId null: an upsert that now carries the survey, no resync', () => {
+    const siteSurvey = { expiresAt: iso(SERVER_NOW), extensionCount: 0, requesterPhone: '+48600700800' };
+    const parsed = parseChange(upsert('work_order', 1, 2, { customerId: null, status: 'quoting', siteSurvey }));
+    expect(parsed.kind).toBe('upsert');
+    if (parsed.kind !== 'upsert') return;
+    expect(parsed.entity.fields['customerId']).toBeNull();
+    expect(parsed.entity.fields['siteSurvey']).toEqual({ expiresAt: iso(SERVER_NOW), extensionCount: 0, requesterPhone: '+48600700800' });
+    expect(parseSnapshotEntity(upsert('work_order', 1, 2, { customerId: null, siteSurvey })['entity']).kind).toBe('upsert');
   });
 });
 

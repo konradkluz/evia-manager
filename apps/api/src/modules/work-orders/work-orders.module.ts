@@ -21,12 +21,14 @@ import { IdentityModule } from '../identity/index.ts';
 import { PartiesModule } from '../parties/index.ts';
 import { SitesModule } from '../sites/index.ts';
 import { CreateScopeItemService } from './application/create-scope-item.service.ts';
+import { CreateSiteSurveyService } from './application/create-site-survey.service.ts';
 import { CreateWorkOrderService } from './application/create-work-order.service.ts';
 import { DeleteWorkOrderService } from './application/delete-work-order.service.ts';
 import { DeleteScopeItemService } from './application/delete-scope-item.service.ts';
 import { OpenOrdersDependentsGuard } from './application/open-orders-dependents-guard.ts';
 import { ListSiteOrdersService } from './application/list-site-orders.service.ts';
 import { ReadWorkOrderService } from './application/read-work-order.service.ts';
+import { AssignCustomerService } from './application/assign-customer.service.ts';
 import { RestoreWorkOrderService } from './application/restore-work-order.service.ts';
 import { TransitionWorkOrderService } from './application/transition-work-order.service.ts';
 import { UpdateScopeItemService } from './application/update-scope-item.service.ts';
@@ -57,11 +59,13 @@ import {
   providers: [
     WorkOrderComposer,
     CreateWorkOrderService,
+    CreateSiteSurveyService,
     ReadWorkOrderService,
     ListSiteOrdersService,
     TransitionWorkOrderService,
     DeleteWorkOrderService,
     RestoreWorkOrderService,
+    AssignCustomerService,
     UpdateWorkOrderService,
     CreateScopeItemService,
     UpdateScopeItemService,

@@ -3,18 +3,22 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDatabase, type Database } from '../../src/platform/database/database.ts';
 import { createLogger } from '../../src/platform/logging/logger.ts';
 import { FixedClock } from '../support/clock.ts';
+import { insertCustomer } from '../support/customer-fixtures.ts';
 import { createUser } from '../support/identity-fixtures.ts';
 import { migratedDatabase, type MigratedDatabase } from './database.ts';
 
 let database: MigratedDatabase;
 let app: Kysely<Database>;
 let userId: string;
+// since 0066 (EVM-135) an order without a customer is a site survey (CHECK): the ordinary orders of these tests get one
+let customerId: string;
 const clock = new FixedClock('2026-10-07T08:00:00Z');
 
 beforeAll(async () => {
   database = await migratedDatabase({ checkProjection: false });
   app = createDatabase({ url: database.appUrl, logger: createLogger({ level: 'fatal' }), pool: { max: 2 } });
   userId = (await createUser(database.admin, clock, { role: 'editor' })).id;
+  customerId = await insertCustomer(database.admin, {});
 });
 afterAll(async () => {
   await app.destroy();
@@ -24,8 +28,10 @@ afterAll(async () => {
 const admin = () => database.admin;
 const T = '2026-10-07T08:00:00Z';
 const insertOrder = (number: string, extra: { status?: string; title?: string } = {}) =>
-  sql<{ id: string }>`insert into work_orders.work_orders (number, title, status, created_at, updated_at)
-      values (${number}, ${extra.title ?? 'Zlecenie syntetyczne'}, ${extra.status ?? 'new'}, ${T}, ${T}) returning id`.execute(admin());
+  sql<{ id: string }>`insert into work_orders.work_orders (number, title, status, customer_id, created_at, updated_at)
+      values (${number}, ${extra.title ?? 'Zlecenie syntetyczne'}, ${extra.status ?? 'new'}, ${customerId}, ${T}, ${T}) returning id`.execute(
+    admin(),
+  );
 const assign = (workOrderId: string, role: string, deletedAt: string | null = null) =>
   sql`insert into work_orders.work_order_assignments (work_order_id, user_id, role, created_at, updated_at, deleted_at)
       values (${workOrderId}, ${userId}, ${role}, ${T}, ${T}, ${deletedAt})`.execute(admin());
@@ -63,6 +69,12 @@ describe('migration 0010 — work orders (EVM-017 AC1, AC2, AC4, AC6; ADR-0003, 
       // EVM-099 (0058): where the order comes from and the device of the phone that created it
       'origin',
       'created_via_device_id',
+      // EVM-135 (0066): the site survey - the deadline (the marker), the extensions, the reminder, the purge and the phone of the requester
+      'site_survey_expires_at',
+      'site_survey_extensions',
+      'site_survey_reminded_at',
+      'site_survey_purged_at',
+      'requester_phone',
     ]);
     expect(columns('work_order_assignments')).toEqual(['id', 'work_order_id', 'user_id', 'role', ...common]);
     expect([...new Set(rows.map((row) => row.table_name))].sort()).toEqual([
@@ -166,9 +178,8 @@ describe('migration 0010 — work orders (EVM-017 AC1, AC2, AC4, AC6; ADR-0003, 
   });
 
   it('EVM-017 AC6 through the application role a work order is written and soft deleted, and a hard DELETE is refused (42501)', async () => {
-    await sql`insert into work_orders.work_orders (number, title, status, created_at, updated_at) values ('ZL-2026-9401', 'x', 'new', ${T}, ${T})`.execute(
-      app,
-    );
+    await sql`insert into work_orders.work_orders (number, title, status, customer_id, created_at, updated_at)
+      values ('ZL-2026-9401', 'x', 'new', ${customerId}, ${T}, ${T})`.execute(app);
     await sql`update work_orders.work_orders set deleted_at = ${T}, version = version + 1 where number = 'ZL-2026-9401'`.execute(app);
     const { rows } = await sql<{
       deleted_at: Date | null;
@@ -182,8 +193,10 @@ describe('migration 0010 — work orders (EVM-017 AC1, AC2, AC4, AC6; ADR-0003, 
 
 describe('migration 0025 — the search text of a work order (EVM-072; ADR-0017 W1; expand only)', () => {
   it('EVM-072 AC2 search_text is a generated column that follows the title: unaccented, lower case, number and title', async () => {
-    const { rows } = await sql<{ id: string }>`insert into work_orders.work_orders (number, title, status, created_at, updated_at)
-      values ('ZL-2026-0042', 'Garaż — pełny', 'new', ${T}, ${T}) returning id`.execute(admin());
+    const { rows } = await sql<{
+      id: string;
+    }>`insert into work_orders.work_orders (number, title, status, customer_id, created_at, updated_at)
+      values ('ZL-2026-0042', 'Garaż — pełny', 'new', ${customerId}, ${T}, ${T}) returning id`.execute(admin());
     const id = rows[0]?.id ?? '';
     const read = async () =>
       (await sql<{ search_text: string }>`select search_text from work_orders.work_orders where id = ${id}`.execute(admin())).rows[0]
@@ -196,8 +209,8 @@ describe('migration 0025 — the search text of a work order (EVM-072; ADR-0017 
 
   it('EVM-072 AC2 the column is never written by the application role (generated always) and the application role reads it', async () => {
     await fails(
-      sql`insert into work_orders.work_orders (number, title, status, search_text, created_at, updated_at)
-          values ('ZL-2026-9501', 'x', 'new', 'forged', ${T}, ${T})`.execute(app),
+      sql`insert into work_orders.work_orders (number, title, status, customer_id, search_text, created_at, updated_at)
+          values ('ZL-2026-9501', 'x', 'new', ${customerId}, 'forged', ${T}, ${T})`.execute(app),
       '428C9',
     );
     const { rows } = await sql<{ n: string }>`select count(search_text)::text as n from work_orders.work_orders`.execute(app);

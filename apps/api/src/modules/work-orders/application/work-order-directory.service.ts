@@ -8,11 +8,12 @@ import { workOrderTables } from '../infrastructure/tables.ts';
 import {
   findDeletedRefs,
   findVisibleRefs,
+  findVisibleSiteSurveys,
   findVisibleTitles,
   findVisibleWorkOrderRef,
   searchVisibleIds,
 } from '../infrastructure/work-order-store.ts';
-import type { DeletedOrderRef, WorkOrderDirectory, WorkOrderListRef, WorkOrderRef } from '../work-order-directory.ts';
+import type { DeletedOrderRef, SiteSurveyRef, WorkOrderDirectory, WorkOrderListRef, WorkOrderRef } from '../work-order-directory.ts';
 
 @Injectable()
 export class WorkOrderDirectoryService implements WorkOrderDirectory {
@@ -38,6 +39,10 @@ export class WorkOrderDirectoryService implements WorkOrderDirectory {
 
   refsOf(tx: Kysely<Database>, principal: Principal, ids: readonly string[]): Promise<ReadonlyMap<string, WorkOrderListRef>> {
     return findVisibleRefs(workOrderTables(tx), principal, [...new Set(ids)]);
+  }
+
+  siteSurveysOf(tx: Kysely<Database>, principal: Principal, ids: readonly string[]): Promise<ReadonlyMap<string, SiteSurveyRef>> {
+    return findVisibleSiteSurveys(workOrderTables(tx), principal, [...new Set(ids)]);
   }
 
   async #find(tx: Kysely<Database>, principal: Principal, id: string, lock: boolean): Promise<WorkOrderRef | undefined> {

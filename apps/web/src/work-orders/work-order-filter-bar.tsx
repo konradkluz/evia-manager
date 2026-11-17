@@ -1,5 +1,5 @@
 import type { WorkOrderSort, WorkOrderStatus } from '@evia/contracts';
-import { Button, FilterChip, SearchField, Select, TextField, type SelectGroup, type SelectOption } from '@evia/ui-web';
+import { Button, FilterChip, RadioGroup, SearchField, Select, TextField, type SelectGroup, type SelectOption } from '@evia/ui-web';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { partyKindLabels, siteTypeLabels } from '../i18n/catalog-labels.ts';
@@ -8,16 +8,21 @@ import { workOrderSortLabels, workOrderStatusLabels } from '../i18n/work-order-l
 import { useDebounced } from '../shell/use-debounced.ts';
 import {
   DSO_VIEW,
+  EXPIRING_VIEW,
   isFiltered,
   NO_FILTERS,
   parseWaitingDays,
   sortsFor,
+  SURVEY_SORT,
+  surveyScoped,
   WORK_ORDER_STATUSES,
   type PaymentView,
+  type SurveyFilter,
   type ViewId,
   type WaitingTarget,
   type WorkOrderFilters,
 } from './filters.ts';
+import { expiringViewLabel, surveyListText } from './survey-list-labels.ts';
 import { useTemplates } from './use-order-lookups.ts';
 import { WorkOrderMoreFilters } from './work-order-more-filters.tsx';
 
@@ -31,6 +36,8 @@ export interface WorkOrderFilterBarProps {
   readonly deletable: boolean;
   /** The role reads payments (EVM-056 AC7): the views "Po terminie" and "Nieopłacone" and the sort "Najpilniejsze" exist. */
   readonly payments: boolean;
+  /** Site surveys (EVM-138): the group "Wizje lokalne" and the view "Wygasające wizje (n)" exist for the roles that see surveys (never Tylko odczyt). */
+  readonly surveys: { readonly visible: boolean; readonly expiringCount: number | undefined };
   readonly onChange: (next: WorkOrderFilters) => void;
 }
 
@@ -61,7 +68,7 @@ const KIND_ORDER = Object.keys(partyKindLabels) as Array<keyof typeof partyKindL
  *
  * EVM-060 AC4: "Usunięte" — the last view, for the Administrator only; the search field is off there (the API does not search the deleted).
  */
-export function WorkOrderFilterBar({ filters, people, disabled, payments, deletable, onChange }: WorkOrderFilterBarProps) {
+export function WorkOrderFilterBar({ filters, people, disabled, payments, deletable, surveys, onChange }: WorkOrderFilterBarProps) {
   const { t } = useTranslation();
   const hint = disabled ? t('workOrders.filters.offlineHint') : undefined;
   const [moreOpen, setMoreOpen] = useState(false);
@@ -82,6 +89,8 @@ export function WorkOrderFilterBar({ filters, people, disabled, payments, deleta
       view,
       ...(view === 'all_open' ? { statuses: [] } : {}),
       ...(view === DSO_VIEW ? { waitingOn: '' as const } : {}),
+      // "Wygasające wizje" is a survey view itself (the surveys that are not rejected): it takes the other filters of surveys away.
+      ...(view === EXPIRING_VIEW ? { statuses: [], waitingOn: '' as const, survey: 'all' as const } : {}),
     });
   };
   const chooseWaiting = (waitingOn: WaitingTarget) => {
@@ -111,7 +120,10 @@ export function WorkOrderFilterBar({ filters, people, disabled, payments, deleta
     { value: '', label: t('workOrders.filters.allCoordinators') },
     ...[...people].sort((a, b) => a[1].localeCompare(b[1], 'pl')).map(([value, label]) => ({ value, label })),
   ];
-  const sortOptions: SelectOption[] = sortsFor(payments).map((value) => ({ value, label: workOrderSortLabels[value] }));
+  // In "Wygasające wizje" the order is the deadline, so it is the one choice (EVM-138).
+  const sortOptions: SelectOption[] = (filters.view === EXPIRING_VIEW ? [SURVEY_SORT] : sortsFor(payments, surveyScoped(filters))).map(
+    (value) => ({ value, label: workOrderSortLabels[value] }),
+  );
   const paymentViews: ReadonlyArray<readonly [PaymentView, string]> = payments
     ? [
         ['overdue_payments', t('workOrders.filters.viewOverduePayments')],
@@ -155,6 +167,16 @@ export function WorkOrderFilterBar({ filters, people, disabled, payments, deleta
       label: t('workOrders.filters.chipCoordinator', { value: people.get(filters.coordinatorId) ?? '' }),
       clear: { coordinatorId: '' },
     });
+  }
+  if (filters.survey !== 'all') {
+    chips.push({
+      key: 'survey',
+      label: filters.survey === 'only' ? surveyListText.only : surveyListText.exclude,
+      clear: { survey: 'all' },
+    });
+  }
+  if (filters.view === EXPIRING_VIEW) {
+    chips.push({ key: 'expiring', label: surveyListText.expiringChip, clear: { view: 'all_open' } });
   }
   if (filters.siteType !== '') {
     chips.push({
@@ -225,6 +247,17 @@ export function WorkOrderFilterBar({ filters, people, disabled, payments, deleta
             select(filters.view === 'mine' ? 'all_open' : 'mine');
           }}
         />
+        {surveys.visible ? (
+          <FilterChip
+            variant="choice"
+            label={expiringViewLabel(surveys.expiringCount)}
+            selected={filters.view === EXPIRING_VIEW}
+            disabled={disabled}
+            onClick={() => {
+              select(filters.view === EXPIRING_VIEW ? 'all_open' : EXPIRING_VIEW);
+            }}
+          />
+        ) : null}
         {deletable ? (
           <FilterChip
             variant="choice"
@@ -294,6 +327,25 @@ export function WorkOrderFilterBar({ filters, people, disabled, payments, deleta
           }}
         />
       </div>
+      {surveys.visible ? (
+        <RadioGroup
+          legend={surveyListText.groupLegend}
+          value={filters.view === EXPIRING_VIEW ? 'all' : filters.survey}
+          disabled={disabled}
+          options={[
+            { value: 'all', label: surveyListText.all },
+            { value: 'only', label: surveyListText.only },
+            { value: 'exclude', label: surveyListText.exclude },
+          ]}
+          onChange={(value) => {
+            onChange({
+              ...filters,
+              survey: value as SurveyFilter,
+              ...(filters.view === EXPIRING_VIEW ? { view: 'all_open' as const } : {}),
+            });
+          }}
+        />
+      ) : null}
       <WorkOrderMoreFilters
         siteType={filters.siteType}
         templateId={filters.templateId}

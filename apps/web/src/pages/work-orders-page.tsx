@@ -1,6 +1,7 @@
 import { listWorkOrders, searchWorkOrders, type CurrentSession, type WorkOrderListItem, type WorkOrderSort } from '@evia/contracts';
 import {
   Banner,
+  Binoculars,
   Button,
   ChevronLeft,
   ChevronRight,
@@ -24,28 +25,38 @@ import { NEW_WORK_ORDER_PATH, WORK_ORDERS_PATH } from '../paths.ts';
 import { canReadPayments } from '../payments/payment-access.ts';
 import { phraseOf, phraseState } from '../search/use-phrase-search.ts';
 import { setWorkOrderMoreFilters, setWorkOrderPhrase, useWorkOrderSearch } from '../search/work-order-search-store.ts';
+import { serverNow } from '../session/server-clock.ts';
 import { SESSION_KEY } from '../session/session.ts';
 import { useDebounced } from '../shell/use-debounced.ts';
+import { useNow } from '../shell/use-now.ts';
 import { usePageTitle } from '../shell/use-page-title.ts';
 import { useOnline } from '../shell/use-online.ts';
 import {
   DEFAULT_WAITING_DAYS,
   DSO_VIEW,
+  EXPIRING_VIEW,
+  expiringSurveys,
   isFiltered,
   noFiltersFor,
   searchOf,
+  shapeSurveyRows,
   statusesOf,
+  SURVEY_PAGE_SIZE,
+  SURVEY_SORT,
+  surveyOf,
   toQuery,
   toSearchBody,
   viewOf,
   waitingDaysOf,
   waitingOnOf,
+  withSurveySort,
   type ViewId,
   type WorkOrderFilters,
   type WorkOrderSearch,
 } from '../work-orders/filters.ts';
 import { formatClock } from '../work-orders/format.ts';
 import { WORK_ORDERS_KEY } from '../work-orders/query-keys.ts';
+import { surveyListText, toResolveText } from '../work-orders/survey-list-labels.ts';
 import { pluralForm } from '../work-orders/order-form.ts';
 import { DeletedOrdersTable } from '../work-orders/deleted-orders-table.tsx';
 import { WorkOrderFilterBar } from '../work-orders/work-order-filter-bar.tsx';
@@ -116,6 +127,10 @@ export function WorkOrdersPage() {
   // EVM-060 AC4: "Usunięte" is the Administrator's view (the server answers `403` to the others all the same).
   const deletable = session?.user.role === 'administrator';
   const noFilters = noFiltersFor(payments);
+  // EVM-138: Administrator and Edytor see site surveys; Tylko odczyt gets none of them — no group, no view, no siteSurvey in the query.
+  const surveysAllowed = session?.user.role === 'administrator' || session?.user.role === 'editor';
+  const surveysOn = session?.features.siteSurveys === true;
+  const now = serverNow(useNow(60_000));
   const navigate = useNavigate();
   const search: WorkOrderSearch = useSearch({ strict: false });
   // What the address does not carry (coordinator, sort order). A change that also changes the address waits in `pending`
@@ -132,11 +147,12 @@ export function WorkOrdersPage() {
   const pageTitle = useRef<HTMLHeadingElement>(null);
   const moved = useRef<'next' | 'previous' | 'search' | 'sort' | 'view' | null>(null);
 
-  const view = viewOf(search, payments, deletable);
+  const view = viewOf(search, payments, deletable, surveysAllowed);
+  const survey = surveyOf(search, surveysAllowed);
   const statuses = statusesOf(search);
   const waitingOn = waitingOnOf(search);
   const waitingDays = waitingDaysOf(search);
-  const addressKey = JSON.stringify([view, statuses, waitingOn, waitingDays]);
+  const addressKey = JSON.stringify([view, statuses, waitingOn, waitingDays, survey]);
   const { coordinatorId, sort } = pending !== null && pending.key === addressKey ? pending.values : local;
   // The phrase and the filters of the panel come from the memory of the tab (the TopBar writes there too).
   const stored = useWorkOrderSearch();
@@ -147,17 +163,22 @@ export function WorkOrdersPage() {
   // The phrase the query is made for: one that is too short or too long is never sent (the plain list stays).
   const activePhrase = searching ? settledPhrase : '';
   const waitingForPause = searching && settledPhrase !== typed;
-  const filters: WorkOrderFilters = {
-    view,
-    statuses,
-    coordinatorId,
-    sort,
-    waitingOn,
-    waitingDays,
-    siteType: stored.siteType,
-    templateId: stored.templateId,
-    phrase: stored.phrase,
-  };
+  // "Termin wygaśnięcia" exists only with the surveys alone; "Wygasające wizje" is sorted by it (the API takes it with siteSurvey=only only).
+  const filters: WorkOrderFilters = withSurveySort(
+    {
+      view,
+      statuses,
+      coordinatorId,
+      sort,
+      waitingOn,
+      waitingDays,
+      siteType: stored.siteType,
+      templateId: stored.templateId,
+      survey,
+      phrase: stored.phrase,
+    },
+    noFilters.sort,
+  );
   // What the server is asked for: the same filters with the phrase that is actually sent.
   const asked: WorkOrderFilters = { ...filters, phrase: activePhrase };
   const filterKey = JSON.stringify([
@@ -169,6 +190,7 @@ export function WorkOrdersPage() {
     asked.waitingDays,
     asked.siteType,
     asked.templateId,
+    asked.survey,
     asked.phrase,
   ]);
   const cursors = paging.key === filterKey ? paging.cursors : [];
@@ -188,6 +210,21 @@ export function WorkOrdersPage() {
   });
   const data = query.data;
   const error = query.error;
+  // "Wygasające wizje (n)": how many open surveys wait for a decision — one read of the surveys, kept only while the list is open.
+  const expiring = useQuery({
+    queryKey: [WORK_ORDERS_KEY, 'expiring-surveys'],
+    queryFn: ({ signal }) =>
+      unwrap(listWorkOrders({ client, signal, query: { siteSurvey: 'only', sort: SURVEY_SORT, limit: SURVEY_PAGE_SIZE } })),
+    select: (page) => expiringSurveys(page.items, now).length,
+    enabled: surveysOn && surveysAllowed && sessionState === 'active' && online && view !== 'deleted',
+    retry: false,
+    gcTime: 0,
+    staleTime: 30_000,
+  });
+  // The group "Wizje lokalne" stays while surveys exist even if the function is off (flows/17): the panel knows it from what it has
+  // loaded or from the filter that is on (no extra read of the list).
+  const surveysSeen = (data?.items ?? []).some((item) => item.siteSurvey !== undefined && item.siteSurvey !== null);
+  const surveyVisible = surveysAllowed && (surveysOn || surveysSeen || survey !== 'all' || view === EXPIRING_VIEW);
 
   // The last loaded page stays in the memory of this tab only — the offline view shows it (AC8); never in a store of the browser.
   useEffect(() => {
@@ -212,7 +249,7 @@ export function WorkOrdersPage() {
     if (moved.current === 'search') setAnnouncement(t('workOrders.search.loaded'));
     else if (moved.current === 'sort') {
       setAnnouncement(
-        t('workOrders.announce.sort', { sort: workOrderSortLabels[sort], counted: countedText(t, data, cursors.length > 0) }),
+        t('workOrders.announce.sort', { sort: workOrderSortLabels[filters.sort], counted: countedText(t, data, cursors.length > 0) }),
       );
     } else if (moved.current === 'view') {
       setAnnouncement(t('workOrders.announce.view', { view: viewLabel(t, view), counted: countedText(t, data, cursors.length > 0) }));
@@ -247,7 +284,8 @@ export function WorkOrdersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [online]);
 
-  const change = (changed: WorkOrderFilters) => {
+  const change = (raw: WorkOrderFilters) => {
+    const changed = withSurveySort(raw, noFilters.sort);
     // A new phrase is announced when its results arrive; the focus stays in the field (WCAG 4.1.3).
     // A new sort order or view is announced when the list arrives (EVM-056; aria-live="polite").
     moved.current =
@@ -265,7 +303,7 @@ export function WorkOrdersPage() {
     // The phrase and the filters of the panel are memory of the tab, shared with the TopBar (never the address).
     setWorkOrderPhrase(next.phrase);
     setWorkOrderMoreFilters({ siteType: next.siteType, templateId: next.templateId });
-    const nextKey = JSON.stringify([next.view, next.statuses, next.waitingOn, next.waitingDays]);
+    const nextKey = JSON.stringify([next.view, next.statuses, next.waitingOn, next.waitingDays, next.survey]);
     if (nextKey === addressKey) {
       setPending(null);
       setLocal(values);
@@ -329,7 +367,9 @@ export function WorkOrdersPage() {
 
   const offlineCopy = !online && lastPage?.key === filterKey ? lastPage : null;
   const rateLimited = error instanceof ApiError && error.status === 429;
-  const items = offlineCopy?.items ?? (waitingForPause ? undefined : data?.items);
+  const loaded = offlineCopy?.items ?? (waitingForPause ? undefined : data?.items);
+  // The survey filters the API does not do for a search, and "Wygasające wizje" cut to 15 days, are done on the rows (shapeSurveyRows).
+  const items = loaded === undefined ? undefined : shapeSurveyRows(loaded, asked, activePhrase !== '', now);
   const failed = error !== null && !badCursor && offlineCopy === null && !waitingForPause;
   const problem = phraseProblem(error);
 
@@ -342,6 +382,7 @@ export function WorkOrdersPage() {
         disabled={!online}
         payments={payments}
         deletable={deletable}
+        surveys={{ visible: surveyVisible, expiringCount: expiring.data }}
         onChange={change}
       />
       <p role="status" className="sr-only">
@@ -382,6 +423,41 @@ export function WorkOrdersPage() {
             title={t('workOrders.deleted.empty.title')}
             description={t('workOrders.deleted.empty.description')}
           />
+        ) : onlyView(asked, EXPIRING_VIEW) ? (
+          <EmptyState
+            icon={CircleCheck}
+            title={surveyListText.emptyExpiringTitle}
+            description={surveyListText.emptyExpiringDescription}
+            action={
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  change({ ...noFilters, survey: 'only' });
+                }}
+              >
+                {surveyListText.showAll}
+              </Button>
+            }
+          />
+        ) : onlySurveys(asked) ? (
+          <EmptyState
+            icon={Binoculars}
+            title={surveyListText.emptyOnlyTitle}
+            description={surveyListText.emptyOnlyDescription}
+            {...(canCreate && surveysOn
+              ? {
+                  action: (
+                    <Button
+                      onClick={() => {
+                        void navigate({ to: NEW_WORK_ORDER_PATH, search: { rodzaj: 'wizja' } });
+                      }}
+                    >
+                      {surveyListText.newSurvey}
+                    </Button>
+                  ),
+                }
+              : {})}
+          />
         ) : onlyView(asked, DSO_VIEW) ? (
           <EmptyState icon={CircleCheck} title={t('workOrders.dsoEmpty.title')} description={t('workOrders.dsoEmpty.description')} />
         ) : onlyView(asked, 'overdue_payments') ? (
@@ -416,6 +492,11 @@ export function WorkOrdersPage() {
           <h2 ref={heading} tabIndex={-1} className="text-heading-3 text-text-primary focus-visible:focus-ring">
             {view === 'deleted' ? t('workOrders.deleted.heading') : t('workOrders.table.heading')}
           </h2>
+          {view === EXPIRING_VIEW ? (
+            <p aria-live="polite" className="text-body text-text-secondary">
+              {toResolveText(items.length)}
+            </p>
+          ) : null}
           {view === 'deleted' ? (
             <DeletedOrdersTable
               items={items}
@@ -425,7 +506,7 @@ export function WorkOrdersPage() {
               }}
             />
           ) : (
-            <WorkOrderTable items={items} sort={sort} payments={payments} />
+            <WorkOrderTable items={items} sort={filters.sort} payments={payments} />
           )}
           <nav aria-label={t('workOrders.pages.label')} className="flex flex-wrap items-center justify-center gap-inline-md">
             <Button
@@ -513,6 +594,8 @@ function viewLabel(t: TFunction, view: ViewId): string {
       return t('workOrders.filters.viewUnpaid');
     case 'deleted':
       return t('workOrders.filters.viewDeleted');
+    case EXPIRING_VIEW:
+      return surveyListText.expiringView;
     default:
       return t('workOrders.filters.viewAllOpen');
   }
@@ -524,6 +607,18 @@ function viewLabel(t: TFunction, view: ViewId): string {
  */
 const onlyView = (filters: WorkOrderFilters, view: ViewId): boolean =>
   filters.view === view &&
+  filters.statuses.length === 0 &&
+  filters.coordinatorId === '' &&
+  filters.waitingOn === '' &&
+  filters.siteType === '' &&
+  filters.templateId === '' &&
+  filters.survey === 'all' &&
+  filters.phrase === '';
+
+/** "Tylko wizje" with nothing narrower (EVM-138): an empty list says there are no surveys, not that the filters are too tight. */
+const onlySurveys = (filters: WorkOrderFilters): boolean =>
+  filters.survey === 'only' &&
+  filters.view === 'all_open' &&
   filters.statuses.length === 0 &&
   filters.coordinatorId === '' &&
   filters.waitingOn === '' &&

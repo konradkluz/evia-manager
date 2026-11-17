@@ -24,6 +24,8 @@ import { useOrderExport } from './media-export.ts';
 import { MediaGallery } from './media-gallery.tsx';
 import { MediaQueue } from './media-queue.tsx';
 import { SectionLoading } from './section-states.tsx';
+import { surveyText } from './site-survey-labels.ts';
+import { isSurvey } from './site-survey.ts';
 import { stageOrder, useStageChoices } from './stage-choice.ts';
 import { useMediaList, useRescan, type MediaUpload } from './use-media.ts';
 
@@ -150,6 +152,7 @@ export function MediaSection({ order, media }: { readonly order: WorkOrderDetail
             hasPhotos={gallery.some((asset) => asset.mediaType === 'photo')}
             online={online}
             exporter={exporter}
+            {...(isSurvey(order) ? { blockedHint: surveyText.exportHint } : {})}
           />
           <MediaExportStatus workOrderId={order.id} online={online} exporter={exporter} />
         </>

@@ -2,6 +2,7 @@ import type { WorkOrderDetails } from '@evia/contracts';
 import { Banner, Info } from '@evia/ui-web';
 import { useTranslation } from 'react-i18next';
 import { useSession } from '../session/session.ts';
+import { isSurvey } from './site-survey.ts';
 import { isClosed } from './transition-actions.ts';
 
 /**
@@ -13,7 +14,8 @@ import { isClosed } from './transition-actions.ts';
 export function ClosedBanner({ order }: { readonly order: WorkOrderDetails }) {
   const { t } = useTranslation();
   const role = useSession().data?.user.role;
-  if (!isClosed(order.status) || role === undefined) return null;
+  // A rejected survey has a banner of its own ("Wizja odrzucona", EVM-138 AC5).
+  if (!isClosed(order.status) || role === undefined || isSurvey(order)) return null;
   return (
     <Banner icon={Info} tone="info" label={t('workOrder.status.banner.label')}>
       <p>

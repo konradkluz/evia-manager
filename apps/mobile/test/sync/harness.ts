@@ -5,6 +5,7 @@ import type { PullTransport, SyncRequest, Transport, TransportResponse } from '@
 import type { Database } from '../../src/storage/database';
 import { SqlQueueStore } from '../../src/storage/queue-store';
 import { SqlReplicaStore } from '../../src/storage/replica-store';
+import { SqlSurveyMarks } from '../../src/storage/survey-marks';
 import { SyncService, type SyncServiceDeps, type SyncServiceStore } from '../../src/sync/sync-service';
 import type { SyncPauseReason } from '../../src/sync/types';
 import { migratedDatabase } from '../storage/harness';
@@ -162,6 +163,7 @@ export class Phone {
   engine!: NodeSqliteEngine;
   queue!: SqlQueueStore;
   replica!: SqlReplicaStore;
+  marks!: SqlSurveyMarks;
   clockNow = NOW;
   readonly timers = new ManualTimers();
   online = true;
@@ -175,6 +177,7 @@ export class Phone {
     this.engine = opened.engine;
     this.queue = new SqlQueueStore(this.db);
     this.replica = new SqlReplicaStore(this.db);
+    this.marks = new SqlSurveyMarks(this.db);
   }
 
   /** A restart: the old connection is closed, a new one opens the same file (the process was killed). */
@@ -197,6 +200,11 @@ export class Phone {
         readTemplates: () => this.replica.readTemplates(),
         writeTemplates: (set) => this.replica.writeTemplates(set),
         readQuickOrderSource: () => this.replica.readQuickOrderSource(),
+        readClientConfig: () => this.replica.readClientConfig(),
+        readSurveyOrderIds: () => this.replica.readSurveyOrderIds(),
+        readSurveyCreated: () => this.replica.readSurveyCreated(),
+        readSurveyMarks: () => this.marks.read(),
+        addSurveyMarks: (ids) => this.marks.add(ids),
       },
       takeSettled: () => this.queue.takeSettled(),
     };

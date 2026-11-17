@@ -34,6 +34,8 @@ export const KEY_FIELDS: Readonly<Record<MutationType, { readonly objectId: stri
   CreateComment: { objectId: 'id', orderingKey: 'workOrderId' },
   CreateQuickWorkOrder: { objectId: 'workOrderId', orderingKey: 'workOrderId' },
   CreateMediaAsset: { objectId: 'id', orderingKey: 'workOrderId' },
+  // EVM-135 (ADR-0024 pt 5): the same keys as the quick order - the survey is its own order
+  CreateSiteSurvey: { objectId: 'workOrderId', orderingKey: 'workOrderId' },
 };
 
 /** The object id and FIFO key the payload carries, or `null` when a field is missing or is not a UUID. */

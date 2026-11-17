@@ -146,6 +146,7 @@ describe('the configuration of the client (EVM-094)', () => {
     const config = clientConfig(
       { android: '1.2.0', ios: '1.1.0' },
       { closedOrdersInScopeDays: 30, periodicResyncDays: 7, scopeRuleVersion: 1 },
+      { siteSurveys: false },
     );
     expect(config).toMatchObject({
       minSupportedVersion: { android: '1.2.0', ios: '1.1.0' },
@@ -157,11 +158,28 @@ describe('the configuration of the client (EVM-094)', () => {
 
   it('EVM-097 AC6 the version of the rule of scope is greater than the 1 of EVM-096 and follows N and the counter of the operator', () => {
     const at = (closedOrdersInScopeDays: number, scopeRuleVersion: number) =>
-      clientConfig({ android: '1.2.0', ios: '1.1.0' }, { closedOrdersInScopeDays, periodicResyncDays: 7, scopeRuleVersion });
+      clientConfig(
+        { android: '1.2.0', ios: '1.1.0' },
+        { closedOrdersInScopeDays, periodicResyncDays: 7, scopeRuleVersion },
+        { siteSurveys: false },
+      );
     expect(at(30, 1).scopeRuleVersion).toBeGreaterThan(1);
     expect(at(30, 1)).toMatchObject({ closedWorkOrdersInScopeDays: 30 });
     expect(at(31, 1).scopeRuleVersion).not.toBe(at(30, 1).scopeRuleVersion);
     expect(at(30, 2).scopeRuleVersion).not.toBe(at(30, 1).scopeRuleVersion);
+  });
+});
+
+describe('the switches of the server for the app (EVM-135 AC3)', () => {
+  it('EVM-135 AC3 the configuration of the client carries features.siteSurveys as the server has it', () => {
+    const at = (siteSurveys: boolean) =>
+      clientConfig(
+        { android: '1.2.0', ios: '1.1.0' },
+        { closedOrdersInScopeDays: 30, periodicResyncDays: 7, scopeRuleVersion: 1 },
+        { siteSurveys },
+      );
+    expect(at(true).features).toEqual({ siteSurveys: true });
+    expect(at(false).features).toEqual({ siteSurveys: false });
   });
 });
 

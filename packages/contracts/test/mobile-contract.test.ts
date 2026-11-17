@@ -706,8 +706,16 @@ describe('EVM-090 AC4 sending mutations', () => {
       'CreateMediaAsset',
       'CreateNote',
       'CreateQuickWorkOrder',
+      // EVM-135: the site survey from the phone
+      'CreateSiteSurvey',
     ]);
-    for (const name of ['CreateNoteMutation', 'CreateCommentMutation', 'CreateQuickWorkOrderMutation', 'CreateMediaAssetMutation']) {
+    for (const name of [
+      'CreateNoteMutation',
+      'CreateCommentMutation',
+      'CreateQuickWorkOrderMutation',
+      'CreateMediaAssetMutation',
+      'CreateSiteSurveyMutation',
+    ]) {
       expect(schemas[name]).toMatchObject({ additionalProperties: false, required: ['mutationId', 'type', 'commandVersion', 'payload'] });
       expect(resolve(schemas[name].properties.mutationId)).toMatchObject({ format: 'uuid' });
     }
@@ -729,6 +737,8 @@ describe('EVM-090 AC4 sending mutations', () => {
       'idempotency_in_progress',
       'template_unavailable',
       'quota_exceeded',
+      // EVM-135 AC3: the site survey is switched off on the server
+      'feature_disabled',
     ]);
     expect(result.properties.warnings.items['x-extensible-enum']).toEqual(['captured_at_out_of_range', 'idempotency_expired']);
     expect(result.properties.outcome.enum).toBeUndefined();
@@ -895,14 +905,18 @@ describe('EVM-090 AC6 the configuration of the client', () => {
     expect(AUTHZ_MANIFEST['getClientConfig']).toMatchObject({ method: 'get', path: '/api/v1/meta/client-config' });
     expect(AUTHZ_MANIFEST['getClientConfig']?.planned).toBeUndefined(); // EVM-094 implemented it
     const config = schemas['ClientConfig'];
-    expect(config.required.sort()).toEqual([
-      'closedWorkOrdersInScopeDays',
-      'minSupportedVersion',
-      'offlineContactWindowDays',
-      'periodicResyncDays',
-      'recommendedVersion',
-      'scopeRuleVersion',
-    ]);
+    expect(config.required.sort()).toEqual(
+      [
+        'closedWorkOrdersInScopeDays',
+        'minSupportedVersion',
+        'offlineContactWindowDays',
+        'periodicResyncDays',
+        'recommendedVersion',
+        'scopeRuleVersion',
+        // EVM-135 AC3: the switches of the server (the site survey)
+        'features',
+      ].sort(),
+    );
     expect(config.additionalProperties).toBe(false);
     const example = resolve(operation('getClientConfig')['responses']['200']).content['application/json'].example;
     expect(example).toMatchObject({ offlineContactWindowDays: 7, closedWorkOrdersInScopeDays: 30, periodicResyncDays: 7 });

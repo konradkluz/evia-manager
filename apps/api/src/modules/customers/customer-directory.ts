@@ -34,6 +34,12 @@ export interface CustomerDirectory {
    * as `findVisible` (a deleted customer is `undefined`); only `create-work-order` uses it - a read-only transaction cannot lock rows.
    */
   lockVisible(tx: Kysely<Database>, principal: Principal, id: string): Promise<CustomerSummary | undefined>;
+  /**
+   * A customer an existing order may be assigned (EVM-136): visible to the caller (not deleted) AND not anonymized, LOCKED `FOR KEY SHARE` in the transaction of the
+   * caller - a deletion or an anonymization (`FOR UPDATE`) and the assignment are serialised. A missing, deleted, anonymized and invisible customer are one answer,
+   * `false` (no oracle). Not for a read-only transaction.
+   */
+  lockUsable(tx: Kysely<Database>, principal: Principal, id: string): Promise<boolean>;
   /** @returns the card of the customer when it exists and is visible to the caller; `undefined` otherwise (the same for both) */
   getCard(tx: Kysely<Database>, principal: Principal, id: string): Promise<CustomerCard | undefined>;
   /**

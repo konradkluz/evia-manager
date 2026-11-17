@@ -18,7 +18,81 @@ WorkOrderSort:
     niezamknięte czekające dłużej niż 14 dni (klucz: `waitingSince` najdłuższego oczekiwania), 3) zlecenie niezamknięte z
     terminem etapu od dziś (klucz: najbliższy termin), 4) pozostałe, także zamknięte. Rola bez odczytu płatności dostaje
     kolejność bez składowej płatności (grupa 1 tylko z etapów). Serwer odrzuca wartość spoza listy (`400 validation_failed`).
-  enum: [-number, number, -createdAt, createdAt, longestWaitingSince, nextDueDate, urgency]
+    `siteSurveyExpiresAt` (EVM-135): termin wygaśnięcia wizji lokalnej rosnąco, remis — identyfikator; tylko w `listWorkOrders` razem z
+    `siteSurvey=only` (bez niego, także w `searchWorkOrders`, `400 validation_failed` na `/sort`).
+  enum: [-number, number, -createdAt, createdAt, longestWaitingSince, nextDueDate, urgency, siteSurveyExpiresAt]
+WorkOrderSiteSurveyFilter:
+  type: string
+  description: >-
+    Filtr wizji lokalnych (EVM-135, ADR-0024): `only` — tylko otwarte wizje, `exclude` — bez otwartych wizji. Brak parametru — wizje razem
+    ze zwykłymi zleceniami (z etykietą `siteSurvey`).
+  enum: [only, exclude]
+SiteSurvey:
+  type: object
+  description: >-
+    Wizja lokalna (EVM-135, ADR-0024): zlecenie bez klienta w statusie „Wycena” (później „Wstrzymane” albo „Anulowane”) z terminem
+    wygaśnięcia. Obiekt jest tylko przy OTWARTEJ wizji; po przypisaniu klienta zlecenie jest zwykłym zleceniem (`siteSurvey: null`).
+    Telefon zamawiającego to dane osobowe (DO-K): tylko w szczegółach i na liście dla Administratora i Edytora, nigdy w adresie, logach
+    i powiadomieniach. Adres lokalizacji wizji nie występuje na liście (tylko w szczegółach).
+  required: [expiresAt, extensionCount, requesterPhone]
+  additionalProperties: false
+  properties:
+    expiresAt:
+      type: string
+      format: date-time
+      description: Termin wygaśnięcia (UTC; utworzenie + 90 dni, przedłużenie o 90 dni — EVM-140); po nim wizję usuwa zadanie EVM-139.
+      maxLength: 40
+    extensionCount:
+      type: integer
+      description: Liczba przedłużeń terminu (0–2).
+      minimum: 0
+      maximum: 2
+    requesterPhone:
+      description: Telefon zamawiającego (E.164) albo `null`.
+      oneOf:
+        - type: string
+          pattern: '^\+[1-9][0-9]{7,14}$'
+          maxLength: 16
+        - type: 'null'
+CreateSiteSurveyRequest:
+  type: object
+  description: >-
+    Nowa wizja lokalna z panelu (EVM-135 AC2, ADR-0024): samą lokalizacją, bez klienta i bez szablonu (pusta kompozycja), w statusie
+    `quoting`, z terminem wygaśnięcia = utworzenie + 90 dni. `id` (UUIDv7) nadaje klient. `title` opcjonalny (domyślnie „Wizja lokalna”;
+    zwykły tekst, NFC, przycięty) — nie wpisuj imion ani telefonów. `requesterPhone` opcjonalny: 9 cyfr, `+48…`, `0048…`, ze spacjami
+    lub łącznikami — serwer zapisuje E.164 (zły — `400` `/requesterPhone` `invalid_format`). `assigneeUserId` (opiekun) opcjonalny:
+    brak = wizja BEZ opiekuna (inaczej niż `createWorkOrder`); musi to być aktywny użytkownik (`400` `assignee_unavailable`).
+  required: [id, siteId]
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      description: Identyfikator UUIDv7 nadany przez klienta (ponowienie zapisu używa tego samego `id`).
+      format: uuid
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+      maxLength: 36
+    siteId:
+      type: string
+      description: Lokalizacja (musi istnieć, być widoczna i nieusunięta — inaczej `404 not_found`).
+      format: uuid
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+      maxLength: 36
+    title:
+      type: string
+      description: Tytuł (pole swobodne; domyślnie „Wizja lokalna”). Nie wpisuj imion ani telefonów.
+      maxLength: 200
+    requesterPhone:
+      type: string
+      description: Telefon zamawiającego (opcjonalny; zapisywany w E.164).
+      pattern: '^[0-9+() -]{7,32}$'
+      minLength: 7
+      maxLength: 32
+    assigneeUserId:
+      type: string
+      description: Opiekun wizji (aktywny użytkownik); brak = bez opiekuna.
+      format: uuid
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+      maxLength: 36
 WorkOrderView:
   type: string
   description: >-
@@ -184,9 +258,18 @@ WorkOrderListItem:
     site:
       description: >-
         Lokalizacja zlecenia (EVM-072; tylko do odczytu): miasto, ulica i numer budynku — bez kodu pocztowego, numeru lokalu i
-        miejsca postojowego (SR-DATA-03). `null`, gdy zlecenie nie ma lokalizacji albo lokalizacja jest niewidoczna.
+        miejsca postojowego (SR-DATA-03). `null`, gdy zlecenie nie ma lokalizacji albo lokalizacja jest niewidoczna, oraz zawsze
+        dla otwartej wizji lokalnej (adres wizji tylko w szczegółach — EVM-135, ADR-0024 pkt 2).
       oneOf:
         - $ref: '#/WorkOrderListSite'
+        - type: 'null'
+    siteSurvey:
+      readOnly: true
+      description: >-
+        Wizja lokalna (EVM-135; tylko do odczytu): obiekt przy otwartej wizji (etykieta „Wizja lokalna”; `customer` jest wtedy `null`),
+        `null` przy zwykłym zleceniu.
+      oneOf:
+        - $ref: '#/SiteSurvey'
         - type: 'null'
     payment:
       readOnly: true
@@ -522,9 +605,17 @@ WorkOrderDetails:
     data utworzenia oraz cykl życia (EVM-030): `allowedTransitions` dla wołającego, `resumeStatus`, `statusChangedAt`, `closedAt`, `completedOn`.
     Bez powodu wstrzymania i anulowania (pole swobodne — może zawierać dane osobowe; nie jest zwracany), zakresu, danych kontaktowych klienta, PPE i notatek (osobne odczyty). `customer` albo `site` jest `null`,
     gdy zlecenie go nie ma albo rekord został usunięty (żywe zlecenie nie ujawnia usuniętego rekordu).
-  required: [id, number, title, status, customer, site, coordinator, version, createdAt, origin, allowedTransitions]
+  required: [id, number, title, status, customer, site, coordinator, version, createdAt, origin, allowedTransitions, siteSurvey]
   additionalProperties: false
   properties:
+    siteSurvey:
+      readOnly: true
+      description: >-
+        Wizja lokalna (EVM-135; tylko do odczytu, zapis — `400 read_only_field`): termin wygaśnięcia, liczba przedłużeń i telefon
+        zamawiającego przy otwartej wizji (zlecenie bez klienta, `customer: null`); `null` przy zwykłym zleceniu.
+      oneOf:
+        - $ref: '#/SiteSurvey'
+        - type: 'null'
     origin:
       type: string
       readOnly: true
@@ -729,6 +820,9 @@ TransitionWorkOrderRequest:
     1–500 znaków; kody `required`, `too_long`, `invalid_characters`) i niedozwolony w pozostałych przejściach (`not_allowed`);
     to pole swobodne, które może zawierać dane osobowe — nie trafia do audytu, logów ani odpowiedzi. `completedOn` (dzień
     zakończenia prac, `Europe/Warsaw`, nie z przyszłości, od 2000-01-01; kod `out_of_range`) tylko przy „Zakończ”; domyślnie dziś.
+    Odrzucenie wizji lokalnej (EVM-136; anulowanie zlecenia bez klienta, z terminem wygaśnięcia): zamiast `reason` jest wymagany
+    `reasonCode` — `offer_rejected` („Oferta odrzucona”) albo `customer_withdrew` („Rezygnacja klienta”), wartość stała, nie tekst;
+    `reason` jest tam niedozwolony (`not_allowed`), a `reasonCode` poza odrzuceniem wizji — też (`not_allowed`; brak martwego zapisu).
     Pola serwera (`status`, `resumeStatus`, `closedAt`, `statusChangedAt` …) w treści — `400 read_only_field`, inne — `400 unknown_field`.
   required: [to]
   additionalProperties: false
@@ -739,6 +833,12 @@ TransitionWorkOrderRequest:
       type: string
       description: Powód wstrzymania albo anulowania (pole swobodne — może zawierać dane osobowe).
       maxLength: 500
+    reasonCode:
+      type: string
+      description: >-
+        Powód odrzucenia wizji lokalnej (EVM-136): `offer_rejected` — „Oferta odrzucona”, `customer_withdrew` — „Rezygnacja klienta”.
+        Tylko przy anulowaniu wizji, zamiast `reason`.
+      enum: [offer_rejected, customer_withdrew]
     completedOn:
       type: string
       description: Dzień zakończenia prac, `RRRR-MM-DD` (tylko przy przejściu „Zakończ”).
@@ -895,3 +995,22 @@ ScopeItemAddition:
       maxItems: 30
       items:
         $ref: catalog.yaml#/ConfigCode
+AssignWorkOrderCustomerRequest:
+  type: object
+  description: >-
+    Przypisanie klienta do wizji lokalnej (EVM-136; ADR-0024 pkt 3): `customerId` — istniejący, widoczny, nieusunięty i niezanonimizowany
+    klient; `version` — wersja zlecenia, na której klient podjął decyzję (z `ETag` odczytu). Przypisanie jest jednorazowe („pusty → X”):
+    ten sam klient ponowiony to `200` bez zmian, inny — `409 customer_already_set`. Pola serwera w treści — `400 read_only_field`, inne —
+    `400 unknown_field`.
+  required: [customerId, version]
+  additionalProperties: false
+  properties:
+    customerId:
+      type: string
+      format: uuid
+      maxLength: 36
+    version:
+      type: integer
+      minimum: 1
+      maximum: 2147483647
+      description: Wersja zlecenia (`ETag`/`version` z odczytu).

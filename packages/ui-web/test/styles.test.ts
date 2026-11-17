@@ -71,6 +71,10 @@ describe('Tailwind theme from design tokens (EVM-008 AC3; styleguide § 7.2, ADR
       'bg-status-payment-overdue-bg',
       'text-status-payment-planned-text',
       'text-status-payment-paid-icon',
+      // EVM-138: the outlined marks of a site survey (§ 4.4)
+      'text-feedback-info-text',
+      'border-feedback-info-border',
+      'border-w-default',
       'fill-progress-fill',
       'bg-progress-track',
       'h-progress-bar-height',

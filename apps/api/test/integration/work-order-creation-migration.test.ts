@@ -10,10 +10,13 @@ import { migratedDatabase, type MigratedDatabase } from './database.ts';
 let database: MigratedDatabase;
 let app: Kysely<Database>;
 const T = '2026-10-07T08:00:00Z';
+// since 0066 (EVM-135) an order without a customer is a site survey (CHECK): an order of these tests that names no customer gets this one
+let defaultCustomerId = '';
 
 beforeAll(async () => {
   database = await migratedDatabase({ checkProjection: false });
   app = createDatabase({ url: database.appUrl, logger: createLogger({ level: 'fatal' }), pool: { max: 2 } });
+  defaultCustomerId = await insertCustomer(database.admin, {});
 });
 afterAll(async () => {
   await app.destroy();
@@ -26,7 +29,7 @@ const fails = async (statement: Promise<unknown>, code: string): Promise<void> =
 };
 const insertOrder = (id: string, number: string, extra: { customerId?: string; siteId?: string; description?: string } = {}) =>
   sql`insert into work_orders.work_orders (id, number, title, status, customer_id, site_id, description, created_at, updated_at)
-      values (${id}, ${number}, 'Zlecenie syntetyczne', 'new', ${extra.customerId ?? null}, ${extra.siteId ?? null},
+      values (${id}, ${number}, 'Zlecenie syntetyczne', 'new', ${extra.customerId ?? defaultCustomerId}, ${extra.siteId ?? null},
         ${extra.description ?? null}, ${T}, ${T})`.execute(admin());
 const insertScopeItem = (
   workOrderId: string,

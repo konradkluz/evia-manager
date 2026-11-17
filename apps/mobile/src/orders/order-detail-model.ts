@@ -9,6 +9,7 @@
  */
 import type { QueueRecord } from '@evia/sync-core';
 import type { QuickOrderSource } from './quick-order-model';
+import { DEFAULT_SURVEY_TITLE, pendingSurveyExpiry } from './site-survey-model';
 import type { TemplateSet } from './templates';
 
 export interface DetailOrder {
@@ -18,6 +19,8 @@ export interface DetailOrder {
   readonly status: string;
   readonly customerId: string | null;
   readonly siteId: string | null;
+  /** An open site survey (EVM-137): the term, the extensions and the phone of the requester; `null`/absent = an ordinary order. */
+  readonly survey?: { readonly expiresAt: number; readonly extensionCount: number; readonly requesterPhone: string | null } | null;
 }
 export interface DetailCustomer {
   readonly id: string;
@@ -96,6 +99,14 @@ export interface DetailCustomerView {
   /** The sanitised number for the dialer; `null` = no "Zadzwoń" action. */
   readonly dial: string | null;
 }
+/** What the details show of a site survey (EVM-137 AC4): the term and the phone of the requester - the only place of the app that shows it. */
+export interface DetailSurveyView {
+  readonly expiresAt: number;
+  readonly extensionCount: number;
+  readonly requesterPhone: string | null;
+  /** The sanitised number for the dialer; `null` = no "Zadzwoń" action. */
+  readonly dial: string | null;
+}
 export interface DetailLocationView {
   /** Street and building number. */
   readonly street: string | null;
@@ -151,6 +162,8 @@ export interface OrderDetail {
   readonly note?: string | null;
   /** The mutation of the quick order in the queue: entries added to the order wait behind it (EVM-106). */
   readonly pendingMutationId?: string;
+  /** A site survey (no client, a term): `null`/absent = an ordinary order; gone once the office assigned a client (EVM-137 AC7). */
+  readonly survey?: DetailSurveyView | null;
   readonly customer: DetailCustomerView | null;
   readonly location: DetailLocationView | null;
   readonly scope: readonly { readonly id: string; readonly name: string; readonly quantity: number | null }[];
@@ -182,6 +195,16 @@ function customerView(customer: DetailCustomer | null): DetailCustomerView | nul
   if (name === null) return null;
   const phone = blank(customer.phone);
   return { name, phone, dial: phone === null ? null : dialNumber(phone) };
+}
+
+function surveyView(survey: { expiresAt: number; extensionCount: number; requesterPhone: string | null }): DetailSurveyView {
+  const phone = survey.requesterPhone === null ? null : blank(survey.requesterPhone);
+  return {
+    expiresAt: survey.expiresAt,
+    extensionCount: survey.extensionCount,
+    requesterPhone: phone,
+    dial: phone === null ? null : dialNumber(phone),
+  };
 }
 
 function locationView(site: DetailSite | null, parties: ReadonlyMap<string, string>): DetailLocationView | null {
@@ -283,6 +306,7 @@ export function buildOrderDetail(
     number: source.order.number,
     title: source.order.title,
     status: source.order.status,
+    survey: source.order.survey === undefined || source.order.survey === null ? null : surveyView(source.order.survey),
     customer,
     location: locationView(source.site, parties),
     scope: [...source.scopeItems]
@@ -309,10 +333,14 @@ export function buildPendingOrderDetail(
   source: QuickOrderSource,
   templates: TemplateSet | null,
 ): OrderDetail | null {
-  const command = records.find((record) => record.type === 'CreateQuickWorkOrder' && record.objectId === workOrderId);
+  const command = records.find(
+    (record) => (record.type === 'CreateQuickWorkOrder' || record.type === 'CreateSiteSurvey') && record.objectId === workOrderId,
+  );
   if (command === undefined) return null;
   const payload = command.payload;
-  const title = blank(str(payload['title']));
+  // a survey has no template, client or note; its title is the default one unless another client of the contract sent one (EVM-137)
+  const isSurvey = command.type === 'CreateSiteSurvey';
+  const title = isSurvey ? (blank(str(payload['title'])) ?? DEFAULT_SURVEY_TITLE) : blank(str(payload['title']));
   if (title === null) return null;
   const fresh = obj(payload['newCustomer']);
   const knownCustomer = source.customers.find((customer) => customer.id === str(payload['customerId']));
@@ -342,7 +370,7 @@ export function buildPendingOrderDetail(
           },
           new Map(),
         );
-  const templateName = templates?.items.find((template) => template.id === str(payload['templateId']))?.name ?? null;
+  const templateName = isSurvey ? null : (templates?.items.find((template) => template.id === str(payload['templateId']))?.name ?? null);
   const journal: JournalItem[] = records
     .filter((record) => (record.type === 'CreateNote' || record.type === 'CreateComment') && record.orderingKey === workOrderId)
     .map((record) => ({
@@ -363,12 +391,20 @@ export function buildPendingOrderDetail(
     id: workOrderId,
     number: null,
     title,
-    status: 'new',
+    status: isSurvey ? 'quoting' : 'new',
     awaitingNumber: true,
     pendingMutationId: command.mutationId,
     templateName,
-    note: blank(str(payload['note'])),
-    customer,
+    note: isSurvey ? null : blank(str(payload['note'])),
+    ...(isSurvey
+      ? {
+          survey: surveyView({
+            ...pendingSurveyExpiry(command.createdAt),
+            requesterPhone: blank(str(payload['requesterPhone'])),
+          }),
+        }
+      : {}),
+    customer: isSurvey ? null : customer,
     location,
     scope: [],
     processes: [],

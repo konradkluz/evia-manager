@@ -4,7 +4,7 @@ title: Administrator w panelu — kod z aplikacji jako drugi krok (z ponownym ko
 type: story
 milestone: M1
 epic: E1 Dostęp i użytkownicy
-status: in-review
+status: done
 priority: P1
 path: pelna
 owner: backend-developer
@@ -106,3 +106,4 @@ Kontekst: dziś Administrator ma w panelu wyłącznie klucz dostępu (polityka P
 - 2026-11-16 — QA (`qa-engineer`): **PASS z uwagami**, AC1–AC7 spełnione, raport `docs/qa/EVM-134/raport-qa.md`, 3 testy brzegowe K1 (`6ac09395`); przeglądy: UX **APPROVE z uwagami**, security **APPROVE z uwagami** (blokery 1–4 i major 5–8 z noty spełnione), code-review **APPROVE z uwagami** — bez ustaleń blocker i major
 - 2026-11-17 — runda drobnych poprawek po przeglądach (`e6eb5f1a`, `c44f5320`, `722acb78`, `f9e4ec48`, `0ef4aa6c`): opisy step-upu i tokenu aplikacji w kontrakcie i dokumentach, komentarze, README, wzmocniona asercja alertu, teksty panelu, komunikat „konto nie ma metody”; ponowne przeglądy UX (32 zrzuty, 16 widoków × 360 i 1280 px) i kodu: **APPROVE z uwagami**, wszystkie ustalenia zamknięte
 - 2026-11-17 — weryfikacja orkiestratora na głowie `0ef4aa6c` (wszystkie kody wyjścia 0): `web-e2e-linux` 1406 passed, 0 failed, 3 flaky (Firefox, specyfikacje niezwiązane), 21 skipped; `gate:backend` w kontenerze (API 1734 testy, kontrakt 315 + 2 pominięte); pełne `test:integration` 2744 passed, 7 skipped (193 pliki); `pnpm run gate` (68 zadań; web 2100 testów, mobile 1706, `gate:kotlin`, pokrycie zmienionego kodu — część natywna zielona; 17 plików zależnych od bazy liczy CI); `npm run test:tools`; `npm run docs:check` 0 błędów; `pnpm run scan` zielony (Semgrep 0 ustaleń, OSV 11 podatności nieblokujących, Trivy 1 ustalenie nieblokujące). Pełne pokrycie zmienionego kodu z częścią kontenerową — do potwierdzenia w CI (lokalna kolejność bramek wyczyściła raporty kontenera). Koszt subagentów (tokeny, narastająco): backend-developer ok. 485 tys., web-developer ok. 343 tys., security-engineer (E3 i poprawki) ok. 217 tys., qa-engineer ok. 186 tys., ux-designer ok. 251 tys., przegląd security ok. 214 tys., przegląd kodu ok. 268 tys. — razem ok. 1,96 mln. **Status `in-review`** (Tech Lead)
+- 2026-11-17 — CI PR #147 zielone (jedno ponowienie `quality` po niestabilnym teście EVM-131 AC4, niezwiązanym); Konrad scalił PR #147 (squash, `08ca66a3`); **status `done`** (Tech Lead)

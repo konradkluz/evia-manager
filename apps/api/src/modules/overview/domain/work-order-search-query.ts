@@ -63,6 +63,8 @@ const searchBodySchema = z
     if (body.waitingOn === 'customer' && body.waitingOnPartyKind !== undefined) {
       context.addIssue({ code: 'custom', path: ['waitingOnPartyKind'], message: 'contradicts waitingOn' });
     }
+    // the sort by the deadline of the site surveys is the list's alone, with `siteSurvey=only` (EVM-135 AC6) - the search has no such filter
+    if (body.sort === 'siteSurveyExpiresAt') context.addIssue({ code: 'custom', path: ['sort'], message: 'list only' });
   });
 
 /**
@@ -95,6 +97,7 @@ export function resolveWorkOrderSearchQuery(rawBody: unknown): WorkOrderSearchQu
       customerId: body.customerId,
       siteType: body.siteType,
       templateId: body.templateId,
+      siteSurvey: undefined,
       waitingOn: body.waitingOn ?? (body.waitingOnPartyKind === undefined ? undefined : 'party'),
       waitingOnPartyKind: body.waitingOnPartyKind,
       waitingLongerThanDays: body.waitingLongerThanDays,

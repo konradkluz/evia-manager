@@ -38,6 +38,8 @@ const SUMMARY_COLUMNS = [
   'paid_count',
   'recomputed_at',
   'site_id',
+  // the deadline of an open site survey (EVM-135, 0066): a date - a column of the read policy, filter and sort
+  'site_survey_expires_at',
   'site_type',
   'source_template_id',
   'status',

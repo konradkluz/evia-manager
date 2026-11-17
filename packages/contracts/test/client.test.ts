@@ -76,6 +76,8 @@ describe('generated client and schemas (EVM-008 AC2)', () => {
       '/api/v1/catalog/document-kinds',
       '/api/v1/work-orders',
       '/api/v1/work-orders/search',
+      // EVM-135: the site survey of the panel
+      '/api/v1/site-surveys',
       '/api/v1/work-orders/{workOrderId}',
       '/api/v1/work-orders/{workOrderId}/transitions',
       '/api/v1/work-orders/{workOrderId}/restore',

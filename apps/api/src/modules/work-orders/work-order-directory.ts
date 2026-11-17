@@ -30,6 +30,15 @@ export interface WorkOrderListRef {
   readonly customerId: string | null;
   /** Settled or cancelled (PO-8) — "Do wystawienia" (EVM-059) leaves such orders out. */
   readonly closed: boolean;
+  /** An open site survey (EVM-135 AC6): the reports leave it out (the facade always says it; a double of a test may leave it out - an ordinary order). */
+  readonly siteSurvey?: boolean;
+}
+
+/** An open site survey as the list shows it (EVM-135 AC6): never the address. */
+export interface SiteSurveyRef {
+  readonly expiresAt: Date;
+  readonly extensionCount: number;
+  readonly requesterPhone: string | null;
 }
 
 /** A soft deleted order as the view "Usunięte" shows it (EVM-060): the title and the version a restoration needs (`If-Match`). */
@@ -69,4 +78,9 @@ export interface WorkOrderDirectory {
    * here is dropped (fail closed; SR-AUTHZ-03, SR-DATA-03, ADR-0017 W2).
    */
   refsOf(tx: Kysely<Database>, principal: Principal, ids: readonly string[]): Promise<ReadonlyMap<string, WorkOrderListRef>>;
+  /**
+   * The open site surveys among `ids` that the caller may see (EVM-135 AC6; ONE query, the read policy in it): the deadline, the extensions and the phone of the
+   * requester for the mark of the list - never the address. An ordinary order or one the caller may not see is absent.
+   */
+  siteSurveysOf(tx: Kysely<Database>, principal: Principal, ids: readonly string[]): Promise<ReadonlyMap<string, SiteSurveyRef>>;
 }

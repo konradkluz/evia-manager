@@ -21,6 +21,7 @@ flowchart TD
 ```
 
 ## M-10 Szybkie zlecenie
+> **Wizja lokalna (E15, EVM-137):** wariant tego ekranu bez klienta, szablonu i tytułu (sam adres + opcjonalny telefon zamawiającego) — [17 — wizja lokalna](17-wizja-lokalna.md#m-10--wariant-wizja-lokalna-ac1-ac2-ac5); karta z oznaczeniem i terminem w M-05 oraz szczegóły w M-03 — tamże.
 - **Cel:** założyć zlecenie w terenie (np. na oględzinach), bez zasięgu i z minimum pisania — żeby od razu dokumentować je zdjęciami; biuro uzupełni resztę.
 - **Główna akcja:** „Zapisz zlecenie” (dolny pasek, `size.touch-target.field`).
 - **Hierarchia treści:** 1) klient (z telefonu albo nowy); 2) lokalizacja (z telefonu albo nowa); 3) szablon; 4) tytuł; 5) notatka (opcjonalnie); 6) informacja „Numer nadamy po synchronizacji.”

@@ -116,7 +116,46 @@ const order = (id: string, title = 'T') =>
     plannedDate: null,
     createdAt: NOW,
     closedAt: null,
+    // EVM-135: an ordinary order
+    siteSurveyExpiresAt: null,
+    siteSurveyExtensions: 0,
+    requesterPhone: null,
   });
+
+describe('the site survey on the phone (EVM-135 AC5; ADR-0024)', () => {
+  it('EVM-135 AC5 an open survey carries siteSurvey {expiresAt, extensionCount, requesterPhone}; an ordinary order carries null - both pass the strict projection', () => {
+    const base = order(randomUUID());
+    const survey = workOrderChange({
+      id: randomUUID(),
+      version: 2,
+      number: 'ZL-2026-0135',
+      title: 'Wizja lokalna',
+      status: 'quoting',
+      customerId: null,
+      siteId: null,
+      coordinatorUserId: null,
+      description: null,
+      plannedDate: null,
+      createdAt: NOW,
+      closedAt: null,
+      siteSurveyExpiresAt: new Date(NOW.getTime() + 90 * 86_400_000),
+      siteSurveyExtensions: 1,
+      requesterPhone: '+48600700800',
+    });
+    expect(base).toMatchObject({ entity: { siteSurvey: null } });
+    expect(survey).toMatchObject({
+      entity: {
+        customerId: null,
+        siteSurvey: {
+          expiresAt: new Date(NOW.getTime() + 90 * 86_400_000).toISOString(),
+          extensionCount: 1,
+          requesterPhone: '+48600700800',
+        },
+      },
+    });
+    for (const change of [base, survey]) expect(assertSyncProjectionStrict(change), JSON.stringify(change)).toEqual({ ok: true });
+  });
+});
 
 describe('assembly of a page of changes (EVM-096 AC4, AC7)', () => {
   it('EVM-096 AC4 a superseded row emits nothing, a row without a due change emits nothing, the rest in the order of the log', () => {
@@ -180,6 +219,9 @@ describe('the serializers list the fields of the contract and nothing else (EVM-
       plannedDate: '2026-10-30',
       createdAt: NOW,
       closedAt: NOW,
+      siteSurveyExpiresAt: null,
+      siteSurveyExtensions: 0,
+      requesterPhone: null,
       statusReason: 'SENTINEL',
     } as never);
     for (const change of [customer, site, withExtra, deleteChange('site', id)])

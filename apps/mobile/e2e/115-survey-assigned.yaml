@@ -1,0 +1,28 @@
+# EVM-137 AC7: the office gave the survey a client (the scenario server sends the order with a client and without the survey at the next changes; the
+# step puts the app in the background and back, so that the synchronization starts). The card loses the mark, the term and the chip, and the details
+# show the client like any order - the number stays, nothing is announced and nothing is asked.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- extendedWaitUntil:
+    visible: 'Zsynchr\. .*'
+    timeout: 60000
+- extendedWaitUntil:
+    notVisible: 'Wizje lokalne.*'
+    timeout: 60000
+- assertVisible: 'ZL-E2E-3'
+- assertNotVisible: 'Wygasa.*'
+- assertNotVisible: 'Wizja lokalna'
+- takeScreenshot: m05-survey-assigned
+- tapOn: 'ZL-E2E-3'
+- extendedWaitUntil:
+    visible: 'Klient Testowy Wizji'
+    timeout: 10000
+- assertVisible: 'Zaakceptowane'
+- assertNotVisible: 'Brak klienta.*'
+- assertNotVisible: 'Wygasa.*'
+# the title of the order is still "Wizja lokalna" (the default title of a survey): the MARK is what must be gone
+- assertNotVisible:
+    id: 'order-detail-survey-badge'
+- takeScreenshot: m03-survey-assigned

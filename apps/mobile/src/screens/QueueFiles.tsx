@@ -10,8 +10,22 @@ import { FileRow } from './FileRow';
 import { useMediaSnapshot, useSession } from './session-context';
 
 /** Key of the plain-words reason of a file that needs attention (a code of the module or of the table of files; anything else is generic). */
-const reasonKey = (code: string | null): 'quarantined' | 'id_conflict' | 'missing_original' | 'unknown' =>
-  code === 'quarantined' || code === 'id_conflict' || code === 'missing_original' ? code : 'unknown';
+type ReasonKey =
+  | 'quarantined'
+  | 'id_conflict'
+  | 'missing_original'
+  | 'order_gone'
+  | 'survey_photo_gone'
+  | 'survey_video_gone'
+  | 'command_rejected'
+  | 'unknown';
+function reasonKey(file: MediaFileView): ReasonKey {
+  const { code } = file;
+  if (code === 'quarantined' || code === 'id_conflict' || code === 'missing_original') return code;
+  if (code === 'order_gone' || code === 'command_rejected') return code;
+  if (code === 'survey_gone') return file.mediaType === 'video' ? 'survey_video_gone' : 'survey_photo_gone';
+  return 'unknown';
+}
 
 /**
  * The files of the queue in "Kolejka" (EVM-130 AC4, AC6; EVM-108 AC6; flow 09): the Banner of the notifications that are off, the counter of the
@@ -71,10 +85,14 @@ export function QueueFiles({
   const waitingWifi = files.filter((file) => file.status === 'waiting_wifi');
   const rest = files.filter((file) => file.status !== 'attention' && file.status !== 'sent' && file.status !== 'waiting_wifi');
   const sent = files.filter((file) => file.status === 'sent');
-  const reasons: Readonly<Record<ReturnType<typeof reasonKey>, string>> = {
+  const reasons: Readonly<Record<ReasonKey, string>> = {
     quarantined: t('upload.reasons.quarantined'),
     id_conflict: t('upload.reasons.id_conflict'),
     missing_original: t('upload.reasons.missing_original'),
+    order_gone: t('upload.reasons.order_gone'),
+    survey_photo_gone: t('upload.reasons.survey_photo_gone'),
+    survey_video_gone: t('upload.reasons.survey_video_gone'),
+    command_rejected: t('upload.reasons.command_rejected'),
     unknown: t('upload.reasons.unknown'),
   };
 
@@ -153,7 +171,7 @@ export function QueueFiles({
             <FileRow
               key={file.assetId}
               file={file}
-              reason={reasons[reasonKey(file.code)]}
+              reason={reasons[reasonKey(file)]}
               busy={busy === file.assetId}
               {...(file.actions.includes('retry')
                 ? {

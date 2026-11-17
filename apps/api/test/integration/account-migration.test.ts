@@ -54,6 +54,7 @@ beforeAll(async () => {
     '0063_media_exports',
     '0064_device_invalidation',
     '0065_media_sync',
+    '0066_site_survey',
   ]);
 });
 afterAll(async () => {
