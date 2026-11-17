@@ -4,7 +4,7 @@ title: "Panel: wizja lokalna — lista i filtry, założenie, „Przypisz klient
 type: story
 milestone: M2
 epic: E15 Wizja lokalna
-status: ready
+status: in-progress
 priority: P1
 path: pelna             # zmiana statusu i danych zlecenia, nowa reguła widoczna dla użytkownika
 owner: web-developer
@@ -70,3 +70,4 @@ Rozmiar wg ADR-0024: M.
 ## Dziennik
 - 2026-11-16 — szkic (product-owner)
 - 2026-11-16 — uzgodniono z ADR-0024, wpisano decyzje Konrada („akceptuję wg rekomendacji”); **status ready** (product-owner)
+- 2026-11-17 — start realizacji w kolejce `/noc-2026-11-16` (tor C, klon n2, po scaleniu toru B: `POST /site-surveys` z EVM-135 i `PUT …/customer`, odrzucenie, przywrócenie z EVM-136); **status `in-progress`** (Tech Lead)
