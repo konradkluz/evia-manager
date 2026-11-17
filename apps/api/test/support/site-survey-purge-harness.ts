@@ -14,8 +14,9 @@ import { CLOCK, METRICS } from '../../src/platform/tokens.ts';
 import { createIdentityApp, type IdentityApp } from './identity-app.ts';
 import { createUser } from './identity-fixtures.ts';
 import { insertMedia } from './media-fixtures.ts';
+import { insertProcedure } from './procedure-fixtures.ts';
 import { insertSite } from './site-fixtures.ts';
-import { insertWorkOrders } from './work-order-fixtures.ts';
+import { insertScopeItems, insertWorkOrders } from './work-order-fixtures.ts';
 
 export const NOW = '2027-05-01T08:00:00.000Z';
 export const DAY = 86_400_000;
@@ -27,7 +28,25 @@ export const PHONE = '+48600139003';
 export const NOTE = 'Notatka-synt-139-nazwisko';
 export const REASON = 'Powod-synt-139-nazwisko';
 export const FILE_NAME = 'Zdjecie-synt-139.JPG';
-export const SENTINELS = [STREET, CITY, POSTAL, TITLE, PHONE, '600139003', NOTE, REASON, FILE_NAME];
+export const ITEM_NOTE = 'Notatka-pozycji-synt-139-kod-bramy';
+export const BLOCKED = 'Blokada-synt-139-nazwisko';
+export const STAGE_NOTE = 'Notatka-etapu-synt-139-telefon';
+export const STAGE_NAME = 'Etap-reczny-synt-139-nazwisko';
+export const SENTINELS = [
+  STREET,
+  CITY,
+  POSTAL,
+  TITLE,
+  PHONE,
+  '600139003',
+  NOTE,
+  REASON,
+  FILE_NAME,
+  ITEM_NOTE,
+  BLOCKED,
+  STAGE_NOTE,
+  STAGE_NAME,
+];
 
 export interface Started {
   readonly current: IdentityApp;
@@ -129,6 +148,16 @@ export async function addMedia(app: IdentityApp, order: Survey, count = 2): Prom
   return keys;
 }
 
+/** A scope item with a note and a process whose stage has a reason of a block, notes and a name typed by hand - the free text a survey may get (ADR-0024 pt 4). */
+export async function addScopeAndProcess(app: IdentityApp, order: Survey): Promise<void> {
+  const [itemId] = await insertScopeItems(app.database.admin, order.id, [{ position: 1 }]);
+  await sql`update work_orders.scope_items set notes = ${ITEM_NOTE} where id = ${itemId}`.execute(app.database.admin);
+  const process = await insertProcedure(app.database.admin, order.id, {
+    stages: [{ name: STAGE_NAME, status: 'blocked', blockedReason: BLOCKED }],
+  });
+  await sql`update procedures.procedure_stages set notes = ${STAGE_NOTE} where id = ${process.stageIds[0]}`.execute(app.database.admin);
+}
+
 export const job = (app: IdentityApp) => app.app.get(SiteSurveyPurgeJob, { strict: false });
 export const db = (app: IdentityApp): Kysely<Database> => app.database.admin;
 export const one = async <T>(app: IdentityApp, query: ReturnType<typeof sql<T>>): Promise<T | undefined> =>
@@ -154,7 +183,10 @@ export const everything = async (app: IdentityApp): Promise<string> =>
         || (select coalesce(json_agg(s order by s.id), '[]') from sites.sites s)::text
         || (select coalesce(json_agg(m order by m.id), '[]') from media.media_assets m)::text
         || (select coalesce(json_agg(f order by f.id), '[]') from media.stored_files f)::text
-        || (select coalesce(json_agg(t order by t.id), '[]') from timeline.timeline_entries t)::text as t`.execute(db(app))
+        || (select coalesce(json_agg(t order by t.id), '[]') from timeline.timeline_entries t)::text
+        || (select coalesce(json_agg(i order by i.id), '[]') from work_orders.scope_items i)::text
+        || (select coalesce(json_agg(p order by p.id), '[]') from procedures.procedures p)::text
+        || (select coalesce(json_agg(g order by g.id), '[]') from procedures.procedure_stages g)::text as t`.execute(db(app))
   ).rows[0]?.t ?? '';
 export const auditText = async (app: IdentityApp): Promise<string> =>
   (await sql<{ t: string }>`select coalesce(json_agg(e), '[]')::text as t from audit.events e`.execute(db(app))).rows[0]?.t ?? '';

@@ -9,9 +9,9 @@
  *     3. the location, when it was made for the survey and nothing else holds it, LOCKED `FOR UPDATE` (a new order pointing at it waits for the commit);
  *     4. THE ENTRY IN THE REGISTER OF DELETIONS (identifiers only; the actor is the system) - before anything is changed; a register that refuses (not configured, no key,
  *        down) rolls the transaction back: the survey is untouched, the failure is audited and alerted;
- *     5. the participants erase (the files of the media - rows marked, the entries of the journal redacted); the location anonymized; the survey becomes the TOMBSTONE (neutral
+ *     5. the participants erase (the files of the media - rows marked, the entries of the journal redacted, the free text of the stages); the location anonymized; the survey becomes the TOMBSTONE (neutral
  *        title, no description, no phone, no free text of the reason, soft deleted, `site_survey_purged_at`), the number stays; the event `work_order.site_survey_purged`
- *        (audit, projection) - identifiers only. The trigger of `sync.change_log` writes the `delete` markers (identifiers only).
+ *        (audit, projection) - identifiers only. The free text of the scope items (`notes`) is cleared here; the reasons, notes and typed names of the stages by `procedures` (a participant). The trigger of `sync.change_log` writes the `delete` markers (identifiers only).
  *     COMMIT; THEN the objects of the files are removed from the storage. A storage that fails there leaves `erased_at` set and `objects_erased_at` empty: the sweep of
  *     `ErasureCompletionJob` (EVM-051) finishes the removal, so nothing is orphaned and the survey - already purged - is never a candidate again (no second register entry).
  *
@@ -43,6 +43,7 @@ import { SITE_SURVEY_PURGE_LIMIT_PER_RUN, siteMadeForSurveyWindow, type SiteSurv
 import type { WorkOrderEvent } from '../events.ts';
 import {
   candidateIds,
+  clearScopeItemNotes,
   countCandidates,
   lockCandidate,
   siteHeldByAnotherOrder,
@@ -203,6 +204,7 @@ export class SiteSurveyPurgeJob {
       const step = await participant.erase(tx, context);
       if (step !== undefined) afterCommit.push(step);
     }
+    await clearScopeItemNotes(tables, survey.id, SYSTEM_ACTOR_ID, now);
     if (anonymizeSiteId !== undefined) await this.#sites.anonymize(tx, anonymizeSiteId, SYSTEM_ACTOR_ID, now);
     if (!(await tombstoneSurvey(tables, survey.id, SYSTEM_ACTOR_ID, now)))
       throw new Error('site survey purge: the survey changed under the lock');

@@ -110,7 +110,7 @@ services:
       FIELD_ENCRYPTION_KEYS_FILE: /run/secrets/field-encryption-keys
       LOGIN_THROTTLE_KEY_FILE: /run/secrets/login-throttle-key
       # EVM-139 (SR-PRIV-11): the automatic purge of site surveys only COUNTS (`report`); `enforce` is the decision of the owner after the backups run (RR-91) AND after the worker
-      # has its own register key (a secret of the worker, the manifest and the bucket policy - docs/ops/runbooks/wizja-lokalna.md, "Włączenie enforce"). Never `enforce` without both.
+      # has its own register key (a secret of the worker, the manifest and the bucket policy - docs/ops/runbooks/retencja.md, section 5, "Włączenie `enforce`: kroki"; the runbook wizja-lokalna.md has the operator side). Never `enforce` without both.
       SITE_SURVEY_PURGE_MODE: report
       # Object Storage (not secrets; the key id is a placeholder until step A11 of the IaC session, see the API above). The worker has no register key.
       S3_ENDPOINT: https://s3.pl-waw.scw.cloud
