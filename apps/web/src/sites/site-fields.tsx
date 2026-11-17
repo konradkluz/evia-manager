@@ -29,6 +29,8 @@ export interface SiteFieldsProps {
   /** The buttons "Dodaj stronę" and the lines with the chosen parties: the focus goes there when the person comes back. */
   readonly addRefs?: Readonly<Record<PartyTarget, Ref<HTMLButtonElement>>>;
   readonly summaryRefs?: Readonly<Record<PartyTarget, RefObject<HTMLParagraphElement | null>>>;
+  /** A light form (EVM-138, a site survey): the type, the address and the spot only — no OSD, manager, power, PPE or notes (the office adds them in W-20). */
+  readonly lite?: boolean;
 }
 
 /**
@@ -48,6 +50,7 @@ export function SiteFields({
   decorate = (_field, control) => control,
   addRefs,
   summaryRefs,
+  lite = false,
 }: SiteFieldsProps) {
   const { t } = useTranslation();
 
@@ -102,62 +105,66 @@ export function SiteFields({
           {text('garageLevel', t('sites.new.garageLevel'))}
         </div>
       ) : null}
-      <PartyPicker
-        label={t('sites.new.osd')}
-        changeLabel={t('sites.new.osdChange')}
-        addLabel={t('sites.new.osdAdd')}
-        kinds={OSD_KINDS}
-        selected={osd}
-        onSelect={(picked) => {
-          onPartyChange('osd', picked);
-        }}
-        onClear={() => {
-          onPartyChange('osd', null);
-        }}
-        onAdd={() => {
-          onAddParty('osd');
-        }}
-        error={errors.osd}
-        {...(addRefs === undefined ? {} : { addRef: addRefs.osd })}
-        {...(summaryRefs === undefined ? {} : { summaryRef: summaryRefs.osd })}
-      />
-      <PartyPicker
-        label={t('sites.new.manager')}
-        changeLabel={t('sites.new.managerChange')}
-        addLabel={t('sites.new.managerAdd')}
-        kinds={MANAGER_KINDS}
-        selected={manager}
-        onSelect={(picked) => {
-          onPartyChange('manager', picked);
-        }}
-        onClear={() => {
-          onPartyChange('manager', null);
-        }}
-        onAdd={() => {
-          onAddParty('manager');
-        }}
-        error={errors.manager}
-        {...(addRefs === undefined ? {} : { addRef: addRefs.manager })}
-        {...(summaryRefs === undefined ? {} : { summaryRef: summaryRefs.manager })}
-      />
-      <div className="grid grid-cols-1 gap-inline-md medium:grid-cols-2">
-        {text('connectionPowerKw', t('sites.new.connectionPower'), { suffix: t('sites.new.kilowatt') })}
-        {text('meteringPointId', t('sites.new.meteringPoint'))}
-      </div>
-      {decorate(
-        'notes',
-        <TextArea
-          label={t('sites.new.notes')}
-          value={form.notes}
-          hint={t('sites.new.notesHint')}
-          error={errors.notes}
-          inputRef={(element) => {
-            fields.current.notes = element;
-          }}
-          onChange={(event) => {
-            onFormChange({ notes: event.target.value });
-          }}
-        />,
+      {lite ? null : (
+        <>
+          <PartyPicker
+            label={t('sites.new.osd')}
+            changeLabel={t('sites.new.osdChange')}
+            addLabel={t('sites.new.osdAdd')}
+            kinds={OSD_KINDS}
+            selected={osd}
+            onSelect={(picked) => {
+              onPartyChange('osd', picked);
+            }}
+            onClear={() => {
+              onPartyChange('osd', null);
+            }}
+            onAdd={() => {
+              onAddParty('osd');
+            }}
+            error={errors.osd}
+            {...(addRefs === undefined ? {} : { addRef: addRefs.osd })}
+            {...(summaryRefs === undefined ? {} : { summaryRef: summaryRefs.osd })}
+          />
+          <PartyPicker
+            label={t('sites.new.manager')}
+            changeLabel={t('sites.new.managerChange')}
+            addLabel={t('sites.new.managerAdd')}
+            kinds={MANAGER_KINDS}
+            selected={manager}
+            onSelect={(picked) => {
+              onPartyChange('manager', picked);
+            }}
+            onClear={() => {
+              onPartyChange('manager', null);
+            }}
+            onAdd={() => {
+              onAddParty('manager');
+            }}
+            error={errors.manager}
+            {...(addRefs === undefined ? {} : { addRef: addRefs.manager })}
+            {...(summaryRefs === undefined ? {} : { summaryRef: summaryRefs.manager })}
+          />
+          <div className="grid grid-cols-1 gap-inline-md medium:grid-cols-2">
+            {text('connectionPowerKw', t('sites.new.connectionPower'), { suffix: t('sites.new.kilowatt') })}
+            {text('meteringPointId', t('sites.new.meteringPoint'))}
+          </div>
+          {decorate(
+            'notes',
+            <TextArea
+              label={t('sites.new.notes')}
+              value={form.notes}
+              hint={t('sites.new.notesHint')}
+              error={errors.notes}
+              inputRef={(element) => {
+                fields.current.notes = element;
+              }}
+              onChange={(event) => {
+                onFormChange({ notes: event.target.value });
+              }}
+            />,
+          )}
+        </>
       )}
     </>
   );

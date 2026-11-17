@@ -68,6 +68,35 @@ test.describe('UX review screenshots (EVM-138) @screenshots', () => {
       await shot(`w06-accept-needs-customer-${px}`);
     });
 
+    test(`EVM-138 W-05 the choice "Rodzaj", the light form of a survey, the errors, "Bez opiekuna" and the 404 at ${px} px`, async ({
+      page,
+      api,
+      shot,
+    }) => {
+      api.siteSurveysOn = true;
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto('/work-orders/new');
+      await expect(page.getByRole('group', { name: 'Rodzaj' })).toBeVisible();
+      await shot(`w05-kind-order-${px}`);
+      await page.getByRole('radio', { name: /^Wizja lokalna/ }).check();
+      await expect(page.getByRole('button', { name: 'Załóż wizję lokalną' })).toBeVisible();
+      await shot(`w05-survey-empty-${px}`);
+      await page.getByRole('radio', { name: 'Nowa lokalizacja' }).check();
+      await shot(`w05-survey-new-site-${px}`);
+      await page.getByRole('radio', { name: 'Istniejąca lokalizacja' }).check();
+      await page.getByRole('combobox', { name: 'Lokalizacja' }).fill('testowa');
+      await page.getByRole('option', { name: /ul\. Testowa 7/ }).click();
+      await page.getByRole('textbox', { name: 'Telefon zamawiającego (opcjonalnie)' }).fill('abc');
+      await page.getByRole('combobox', { name: 'Opiekun' }).selectOption({ label: 'Bez opiekuna' });
+      await page.getByRole('button', { name: 'Załóż wizję lokalną' }).click();
+      await expect(page.getByText('Popraw te pola, aby założyć wizję lokalną')).toBeVisible();
+      await shot(`w05-survey-errors-${px}`);
+      await page.getByRole('textbox', { name: 'Telefon zamawiającego (opcjonalnie)' }).fill('600 123 456');
+      api.siteSurveysOn = false;
+      await page.getByRole('button', { name: 'Załóż wizję lokalną' }).click();
+      await expect(page.getByText(/lokalizacja jest niedostępna albo wizje lokalne są teraz wyłączone/)).toBeVisible();
+      await shot(`w05-survey-unavailable-${px}`);
+    });
     test(`EVM-138 W-06 "Odrzuć wizję", the rejected survey of the Administrator and of the Editor, "Przywróć wizję" at ${px} px`, async ({
       page,
       api,

@@ -134,3 +134,31 @@ test.describe('accessibility of the site survey in W-06, with colour contrast (E
     await expect(page.getByRole('tab', { name: 'Przegląd' })).toBeFocused();
   });
 });
+
+test.describe('accessibility of W-05 "Wizja lokalna", with colour contrast (EVM-138 AC2, AC6; WCAG 2.2 AA)', () => {
+  for (const width of WIDTHS) {
+    const px = String(width);
+
+    test(`EVM-138 AC2 AC6 the choice "Rodzaj" and the light form, empty and with errors, stay inside the window at ${px} px`, async ({
+      page,
+      api,
+    }) => {
+      api.siteSurveysOn = true;
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto('/work-orders/new');
+      await expect(page.getByRole('group', { name: 'Rodzaj' })).toBeVisible();
+      expect(await violations(page)).toEqual([]);
+      await page.getByRole('radio', { name: /^Wizja lokalna/ }).check();
+      await expect(page.getByRole('button', { name: 'Załóż wizję lokalną' })).toBeVisible();
+      expect(await violations(page)).toEqual([]);
+      await page.getByRole('textbox', { name: 'Telefon zamawiającego (opcjonalnie)' }).fill('abc');
+      await page.getByRole('button', { name: 'Załóż wizję lokalną' }).click();
+      await expect(page.getByText('Popraw te pola, aby założyć wizję lokalną')).toBeVisible();
+      expect(await violations(page)).toEqual([]);
+      const form = page.getByRole('button', { name: 'Załóż wizję lokalną' });
+      expect(await fitsTheWindow(page, form)).toBe(true);
+      await page.getByRole('combobox', { name: 'Opiekun' }).selectOption({ label: 'Bez opiekuna' });
+      expect(await violations(page)).toEqual([]);
+    });
+  }
+});

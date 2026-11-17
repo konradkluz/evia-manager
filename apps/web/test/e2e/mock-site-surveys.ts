@@ -28,6 +28,8 @@ export interface SurveyServer {
   rejections: string[];
   /** The assignment bodies as the server saw them. */
   assignments: Array<{ customerId: string; version: number }>;
+  /** The bodies of POST /site-surveys as the server saw them, with the key of idempotency (EVM-138 AC2). */
+  creations: Array<{ body: Record<string, unknown>; key: string | undefined }>;
 }
 
 /** Noon UTC of the day `days` from today (a day in Warsaw too): the text "Wygasa za N dni" does not depend on the hour of the run. */
@@ -47,6 +49,7 @@ export function newSurveyServer(daysLeft = 80): SurveyServer {
     conflictOnce: false,
     rejections: [],
     assignments: [],
+    creations: [],
   };
 }
 
@@ -87,7 +90,7 @@ const allowed = (server: SurveyServer, role: SurveyInput['role']): string[] => {
   }
 };
 
-function details(server: SurveyServer, input: SurveyInput): Answer {
+function details(server: SurveyServer, input: Pick<SurveyInput, 'role' | 'site'>): Answer {
   return json(
     200,
     {
@@ -198,4 +201,49 @@ export function answerSurveyRoute(server: SurveyServer, input: SurveyInput): Ans
     return details(server, input);
   }
   return null;
+}
+
+export interface CreateSurveyInput {
+  readonly body: () => unknown;
+  readonly role: SurveyInput['role'];
+  readonly csrfOk: boolean;
+  /** `CurrentSession.features.siteSurveys` of the synthetic server. */
+  readonly on: boolean;
+  readonly key: string | undefined;
+  readonly site: Record<string, unknown>;
+  readonly siteExists: (id: string) => boolean;
+}
+
+const PHONE = /^[0-9+() -]{7,32}$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/** E.164 of a Polish number as the API saves it: nine digits, `+48…` or `0048…`. */
+const normalizePhone = (text: string): string => `+48${text.replace(/\D/g, '').slice(-9)}`;
+
+/**
+ * `POST /site-surveys` (EVM-138 AC2): the function off is `404` before the body is read; Tylko odczyt `403`; a site that does not exist
+ * `404`; a phone or a keeper that does not fit `400` with a pointer and a code. The synthetic server holds one survey, so a created one
+ * is ZL-2026-0049 anew (the browser then opens its details); the identifier the browser sent is kept in `creations`.
+ */
+export function answerCreateSurvey(server: SurveyServer, input: CreateSurveyInput): Answer {
+  if (!input.on) return problem(404, 'not_found');
+  if (!input.csrfOk) return problem(403, 'csrf_failed');
+  if (input.role === 'read_only') return problem(403, 'forbidden');
+  const sent = input.body() as { id?: string; siteId?: string; requesterPhone?: string; assigneeUserId?: string };
+  const errors: Array<{ pointer: string; code: string }> = [];
+  if (sent.requesterPhone !== undefined && !PHONE.test(sent.requesterPhone))
+    errors.push({ pointer: '/requesterPhone', code: 'invalid_format' });
+  if (sent.assigneeUserId !== undefined && !UUID.test(sent.assigneeUserId))
+    errors.push({ pointer: '/assigneeUserId', code: 'assignee_unavailable' });
+  if (errors.length > 0) return problem(400, 'validation_failed', { errors });
+  if (sent.siteId === undefined || !input.siteExists(sent.siteId)) return problem(404, 'not_found');
+  server.creations.push({ body: sent, key: input.key });
+  server.status = 'quoting';
+  server.version = 1;
+  server.customer = null;
+  server.expiresAt = deadlineIn(90);
+  server.extensionCount = 0;
+  server.requesterPhone = sent.requesterPhone === undefined ? null : normalizePhone(sent.requesterPhone);
+  const answered = details(server, { role: input.role, site: input.site });
+  return { ...answered, status: 201, headers: { ...answered.headers, Location: `/api/v1/work-orders/${SURVEY_ID}` } };
 }

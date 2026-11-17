@@ -8,7 +8,7 @@ import { DevicesPage } from './pages/devices-page.tsx';
 import { ActivationPage } from './pages/activation-page.tsx';
 import { LoginPage } from './pages/login-page.tsx';
 import { MfaSetupPage } from './pages/mfa-setup-page.tsx';
-import { NewWorkOrderPage } from './pages/new-work-order-page.tsx';
+import { NewWorkOrderPage, validateNewWorkOrderSearch } from './pages/new-work-order-page.tsx';
 import { PaymentsPage } from './pages/payments-page.tsx';
 import { ResetPasswordPage } from './pages/reset-password-page.tsx';
 import { ResetRequestPage } from './pages/reset-request-page.tsx';
@@ -67,7 +67,12 @@ const workOrdersRoute = createRoute({
   component: WorkOrdersPage,
   validateSearch,
 });
-const newWorkOrderRoute = createRoute({ getParentRoute: () => rootRoute, path: NEW_WORK_ORDER_PATH, component: NewWorkOrderPage });
+const newWorkOrderRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: NEW_WORK_ORDER_PATH,
+  component: NewWorkOrderPage,
+  validateSearch: validateNewWorkOrderSearch,
+});
 /** W-06 (EVM-018): the identifier is a UUID of the API; the page reads the order by it, four reads anchored in the order. */
 const workOrderRoute = createRoute({ getParentRoute: () => rootRoute, path: `${WORK_ORDERS_PATH}/$workOrderId`, component: WorkOrderPage });
 /** W-14 (EVM-039): the list of customers, and one customer by the UUID of the API. */

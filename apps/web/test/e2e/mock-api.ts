@@ -52,7 +52,7 @@ import {
   type UsersServer,
 } from './mock-users.ts';
 import { answerAccountRoute, newAccountServer, spendMark, type AccountServer } from './mock-account.ts';
-import { answerSurveyRoute, newSurveyServer, type SurveyServer } from './mock-site-surveys.ts';
+import { answerCreateSurvey, answerSurveyRoute, newSurveyServer, type SurveyServer } from './mock-site-surveys.ts';
 import { answerCatalogItems, answerCatalogProcedures, answerOrderPatch, answerScopeChange, answerScopeCreate } from './mock-scope.ts';
 import { answerPatch as answerLocationPatch, answerRead as answerLocationRead, cardOf, partyOf, siteOf } from './mock-locations.ts';
 import {
@@ -158,6 +158,8 @@ export interface MockApi {
   journal: JournalServer;
   /** EVM-138: the one site survey ZL-2026-0049 of the synthetic server (its status, customer and deadline). */
   surveys: SurveyServer;
+  /** CurrentSession.features.siteSurveys (EVM-138): off by default, so only the specs of site surveys see the choice "Rodzaj" in W-05. */
+  siteSurveysOn: boolean;
   /** EVM-044: the media of the orders (the batches, the upload sessions, the confirmed parts and the verdict of the scan). */
   media: MediaServer;
   /** EVM-020: the answer to these calls is lost after the server has done the work (a network error after sending). */
@@ -205,13 +207,14 @@ export const LOGIN_TOKEN = 'Lg7-_Qz2'.repeat(5) + 'abc';
 function sessionBody(
   kind: Exclude<SessionKind, 'none'>,
   deadlines = { idle: Date.now() + 60 * MINUTE, absolute: Date.now() + 720 * MINUTE },
-  active: { csrf: string; role: string; displayName?: string } = { csrf: 'csrf-active', role: 'administrator' },
+  active: { csrf: string; role: string; displayName?: string; siteSurveys?: boolean } = { csrf: 'csrf-active', role: 'administrator' },
 ) {
   return {
     user: { id: '11111111-1111-4111-8111-111111111111', displayName: active.displayName ?? DISPLAY_NAME, role: active.role },
     state: kind === 'active' ? 'active' : 'mfa_enrollment',
     channel: 'web',
     csrfToken: kind === 'active' ? active.csrf : 'csrf-enrollment',
+    features: { siteSurveys: active.siteSurveys === true },
     idleExpiresAt: new Date(deadlines.idle).toISOString(),
     absoluteExpiresAt: new Date(deadlines.absolute).toISOString(),
   };
@@ -486,6 +489,7 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
     account: newAccountServer(PASSWORD),
     journal: newJournalServer(),
     surveys: newSurveyServer(),
+    siteSurveysOn: false,
     media: newMediaServer(),
     dropResponseNext: new Set(),
   };
@@ -496,7 +500,7 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
   const partyKeys = new Map<string, string>();
   const customerPatchKeys: PatchKeys = new Map();
   let stepUpChallenge = '';
-  const active = () => ({ csrf: api.csrf, role: api.role, displayName: api.account.displayName });
+  const active = () => ({ csrf: api.csrf, role: api.role, displayName: api.account.displayName, siteSurveys: api.siteSurveysOn });
   /** A function call, so that the compiler does not narrow `api.session` after the branch (the session changes between requests). */
   const inActiveSession = () => api.session === 'active';
   let loginChallenge = '';
@@ -610,6 +614,22 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
           })
         : null;
     if (ownAccount !== null) return route.fulfill(ownAccount);
+    // EVM-138 AC2: the creation of a survey (the one survey of the synthetic server, ZL-2026-0049, starts anew).
+    if (api.session === 'active' && request.method() === 'POST' && url.pathname === '/api/v1/site-surveys') {
+      const site = api.orders.sites[0];
+      if (site === undefined) return route.fulfill(problem(404, 'not_found'));
+      return route.fulfill(
+        answerCreateSurvey(api.surveys, {
+          body,
+          role: api.role,
+          csrfOk,
+          on: api.siteSurveysOn,
+          key: headers['idempotency-key'],
+          site,
+          siteExists: (id) => api.sites.some((entry) => entry.id === id),
+        }),
+      );
+    }
     // EVM-138: the site survey ZL-2026-0049 (details, assignment of a customer, transitions); the Administrator and the Editor see it.
     if (api.session === 'active' && url.pathname.startsWith('/api/v1/work-orders/01968f3e-0000-7000-8000-00000000d049')) {
       const site = api.orders.sites[0];
