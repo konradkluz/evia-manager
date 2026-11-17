@@ -51,6 +51,8 @@ export const PROBLEMS = Object.freeze({
   idempotency_in_progress: { status: 409, title: 'A request with this idempotency key is in progress' },
   invalid_state_transition: { status: 409, title: 'Transition is not allowed from the current state' },
   work_order_closed: { status: 409, title: 'The work order is closed' },
+  // EVM-135 AC7 (and EVM-136): an open site survey has no customer yet - payments, documents, the ZIP export and the acceptance wait for one
+  customer_required: { status: 409, title: 'The work order has no customer' },
   has_active_dependents: { status: 409, title: 'The resource has active dependents' },
   customer_anonymized: { status: 409, title: 'The customer is anonymized' },
   already_anonymized: { status: 409, title: 'The customer is already anonymized' },

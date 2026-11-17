@@ -3,6 +3,7 @@ import {
   SITE_SURVEY_DEFAULT_TITLE,
   SITE_SURVEY_INITIAL_STATUS,
   SITE_SURVEY_RETENTION_DAYS,
+  awaitsCustomer,
   normalizeSiteSurveyRequest,
   siteSurveyExpiry,
 } from '../../src/modules/work-orders/domain/site-survey.ts';
@@ -57,5 +58,12 @@ describe('the survey of the panel (EVM-135 AC2, AC3; W8)', () => {
       { pointer: '/requesterPhone', code: 'invalid_format' },
     ]);
     expect(JSON.stringify(result)).not.toContain('12 34');
+  });
+});
+
+describe('what waits for the customer (EVM-135 AC7)', () => {
+  it('EVM-135 AC7 an order without a customer (an open site survey) waits for one; an order with a customer does not', () => {
+    expect(awaitsCustomer({ customerId: null })).toBe(true);
+    expect(awaitsCustomer({ customerId: '0193a000-0000-7000-8000-000000000137' })).toBe(false);
   });
 });

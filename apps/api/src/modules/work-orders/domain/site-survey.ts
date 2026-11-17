@@ -54,3 +54,9 @@ export function normalizeSiteSurveyRequest(input: SiteSurveyRequestInput): SiteS
     survey: { id: input.id, siteId: input.siteId, title, requesterPhone, coordinatorUserId: input.assigneeUserId ?? null },
   };
 }
+
+/**
+ * Does the order wait for its customer (EVM-135 AC7; ADR-0024 pt 4)? An order without a customer is an open site survey (CHECK of 0066): its payment plan, its
+ * documents and the ZIP export of its media are `409 customer_required` until the customer is assigned.
+ */
+export const awaitsCustomer = (order: { readonly customerId: string | null }): boolean => order.customerId === null;
