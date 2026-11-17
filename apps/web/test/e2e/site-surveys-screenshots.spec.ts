@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test as base } from './fixtures.ts';
-import { deadlineIn, SURVEY_NUMBER, SURVEY_PATH } from './mock-site-surveys.ts';
+import { deadlineIn, SURVEY_NUMBER, SURVEY_PATH, surveyListRow } from './mock-site-surveys.ts';
 
 // Screenshots for the UX review of EVM-138 (styleguide § 7.2 pkt 3) — evidence, not visual assertions (ADR-0015).
 // Target: docs/ux/reviews/EVM-138 (PNG ignored by git); run: pnpm --filter @evia/web run e2e:screenshots
@@ -96,6 +96,39 @@ test.describe('UX review screenshots (EVM-138) @screenshots', () => {
       await page.getByRole('button', { name: 'Załóż wizję lokalną' }).click();
       await expect(page.getByText(/lokalizacja jest niedostępna albo wizje lokalne są teraz wyłączone/)).toBeVisible();
       await shot(`w05-survey-unavailable-${px}`);
+    });
+    test(`EVM-138 W-10 the list with surveys, "Tylko wizje", "Wygasające wizje", the empty states and Tylko odczyt at ${px} px`, async ({
+      page,
+      api,
+      shot,
+    }) => {
+      api.siteSurveysOn = true;
+      api.workOrders = 3;
+      api.surveyRows = [surveyListRow(2049, 80), surveyListRow(2050, 12), surveyListRow(2051, 15), surveyListRow(2047, 9, true)];
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto('/work-orders');
+      await expect(page.getByRole('link', { name: /ZL-2026-2050/ })).toBeVisible();
+      await shot(`w10-surveys-all-${px}`);
+      await page.getByRole('group', { name: 'Wizje lokalne' }).getByRole('radio', { name: 'Tylko wizje' }).check();
+      await expect(page.getByRole('link', { name: /ZL-2026-2047/ })).toBeVisible();
+      await page.getByRole('combobox', { name: 'Sortuj' }).selectOption({ label: 'Termin wygaśnięcia' });
+      await shot(`w10-surveys-only-${px}`);
+      await page.goto('/work-orders');
+      await page.getByRole('button', { name: 'Wygasające wizje (2)' }).click();
+      await expect(page.getByText('2 wizje do rozstrzygnięcia — wygasają w ciągu 15 dni')).toBeVisible();
+      await shot(`w10-surveys-expiring-${px}`);
+      api.surveyRows = [];
+      await page.goto('/work-orders?siteSurvey=only');
+      await expect(page.getByRole('heading', { name: 'Brak wizji lokalnych.' })).toBeVisible();
+      await shot(`w10-surveys-empty-${px}`);
+      api.surveyRows = [surveyListRow(2049, 80)];
+      await page.goto('/work-orders?view=expiring_site_surveys');
+      await expect(page.getByRole('heading', { name: 'Żadna wizja nie wygasa w ciągu 15 dni.' })).toBeVisible();
+      await shot(`w10-surveys-expiring-empty-${px}`);
+      api.role = 'read_only';
+      await page.goto('/work-orders');
+      await expect(page.getByRole('table', { name: 'Lista zleceń' })).toBeVisible();
+      await shot(`w10-surveys-read-only-${px}`);
     });
     test(`EVM-138 W-06 "Odrzuć wizję", the rejected survey of the Administrator and of the Editor, "Przywróć wizję" at ${px} px`, async ({
       page,

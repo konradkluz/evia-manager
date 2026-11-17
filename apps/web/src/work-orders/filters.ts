@@ -2,6 +2,7 @@ import type {
   ListWorkOrdersData,
   PartyKind,
   SiteType,
+  WorkOrderListItem,
   WorkOrderSearchRequest,
   WorkOrderSearchView,
   WorkOrderSort,
@@ -9,6 +10,7 @@ import type {
 } from '@evia/contracts';
 import { partyKindLabels } from '../i18n/catalog-labels.ts';
 import { workOrderStatusLabels } from '../i18n/work-order-labels.ts';
+import { expiryOf, isRejectedSurvey, isSurvey } from './site-survey.ts';
 
 /** Statuses of the filter, in the order of the life of an order (styleguide § 4.4). */
 export const WORK_ORDER_STATUSES: readonly WorkOrderStatus[] = [
@@ -29,6 +31,19 @@ export const PAGE_SIZE = 25;
 export const DSO_VIEW = 'waiting_on_dso_over_14_days';
 
 /**
+ * The saved view "Wygasające wizje" (EVM-138 AC1): the open site surveys whose deadline is 15 days away or nearer. It is an identifier of
+ * the panel (the API has no such view): the panel asks for `siteSurvey=only` sorted by the deadline (100 on a page) and keeps the ones
+ * that are not rejected and expire within `SURVEY_WARNING_DAYS` — counted in `Europe/Warsaw` (the same limit as the reminder e-mail).
+ */
+export const EXPIRING_VIEW = 'expiring_site_surveys';
+
+/** "Wizje lokalne" of the bar: every order, only the site surveys, or none of them (`siteSurvey=only|exclude` of the API). */
+export type SurveyFilter = 'all' | 'only' | 'exclude';
+
+/** The survey views ask for this many rows at once (the API limit): there are few open surveys, so one page is the view. */
+export const SURVEY_PAGE_SIZE = 100;
+
+/**
  * The saved views of the payments (EVM-056 AC2; only orders that are not closed): "Po terminie" and "Nieopłacone". They need the
  * right to read payments (`restrictedParams` of the contract — a test keeps this list equal to it).
  */
@@ -43,7 +58,7 @@ export const PAYMENT_SORTS = ['urgency'] as const satisfies readonly WorkOrderSo
  * "Nieopłacone" (EVM-056), `all` — every status (the panel's own identifier: the API gets no `view`), `unknown` — an identifier
  * from a link that this panel does not know or the person may not use ("Nie znaleziono widoku").
  */
-export type ViewId = 'all_open' | 'mine' | 'all' | typeof DSO_VIEW | PaymentView | 'deleted' | 'unknown';
+export type ViewId = 'all_open' | 'mine' | 'all' | typeof DSO_VIEW | PaymentView | typeof EXPIRING_VIEW | 'deleted' | 'unknown';
 
 const isPaymentView = (view: string): view is PaymentView => (PAYMENT_VIEWS as readonly string[]).includes(view);
 
@@ -65,6 +80,8 @@ export const WAITING_DAYS_MAX = 365;
 export interface WorkOrderSearch {
   readonly status?: string;
   readonly view?: string;
+  /** `only` or `exclude` (EVM-138): no personal data, so it may be in the address. */
+  readonly siteSurvey?: string;
   readonly waitingOn?: string;
   /** A number, so that the address reads `waitingDays=14` and not a quoted string. */
   readonly waitingDays?: number;
@@ -86,6 +103,8 @@ export interface WorkOrderFilters {
    */
   readonly siteType: SiteType | '';
   readonly templateId: string;
+  /** "Wizje lokalne" (EVM-138): the address carries it as `siteSurvey=only|exclude`. */
+  readonly survey: SurveyFilter;
   /**
    * The text of the search field as typed (EVM-072 AC2): memory of the tab only, sent in the body of `POST …/search` and never in
    * the address. Whether it is long enough to be sent is the page's decision (`phraseState`).
@@ -106,6 +125,7 @@ export const NO_FILTERS: WorkOrderFilters = {
   waitingDays: DEFAULT_WAITING_DAYS,
   siteType: '',
   templateId: '',
+  survey: 'all',
   phrase: '',
 };
 
@@ -117,9 +137,64 @@ export const noFiltersFor = (paymentsReadable: boolean): WorkOrderFilters =>
  * The options of "Sortuj" (EVM-056 AC3; flows/07): "Najpilniejsze" first, then "Najdłużej czekamy", "Termin" and the numbers and
  * dates of EVM-017; without the right to read payments "Najpilniejsze" is not offered (W4).
  */
-export function sortsFor(paymentsReadable: boolean): readonly WorkOrderSort[] {
+export function sortsFor(paymentsReadable: boolean, scopedToSurveys = false): readonly WorkOrderSort[] {
   const rest: WorkOrderSort[] = ['longestWaitingSince', 'nextDueDate', '-number', 'number', '-createdAt', 'createdAt'];
-  return paymentsReadable ? [...PAYMENT_SORTS, ...rest] : rest;
+  const all = paymentsReadable ? [...PAYMENT_SORTS, ...rest] : rest;
+  // "Termin wygaśnięcia" only where the API accepts it: with "Tylko wizje" and in "Wygasające wizje" (EVM-138).
+  return scopedToSurveys ? [...all, SURVEY_SORT] : all;
+}
+
+/** The sort by the deadline of a survey; the API takes it only with `siteSurvey=only` (otherwise `400` on `/sort`). */
+export const SURVEY_SORT: WorkOrderSort = 'siteSurveyExpiresAt';
+
+/** Only the site surveys are asked for: "Tylko wizje" or the view "Wygasające wizje". */
+export const surveyScoped = (filters: Pick<WorkOrderFilters, 'view' | 'survey'>): boolean =>
+  filters.survey === 'only' || filters.view === EXPIRING_VIEW;
+
+/**
+ * The sort that fits the survey filter: "Wygasające wizje" is sorted by the deadline; "Termin wygaśnięcia" outside of a survey scope
+ * goes back to the default (the API would answer `400`). Everything else is left as it is.
+ */
+export function withSurveySort(filters: WorkOrderFilters, fallback: WorkOrderSort): WorkOrderFilters {
+  if (filters.view === EXPIRING_VIEW) return filters.sort === SURVEY_SORT ? filters : { ...filters, sort: SURVEY_SORT };
+  return filters.sort === SURVEY_SORT && !surveyScoped(filters) ? { ...filters, sort: fallback } : filters;
+}
+
+type SurveyRow = { readonly status: string; readonly siteSurvey?: WorkOrderListItem['siteSurvey'] };
+
+/**
+ * The rows of "Wygasające wizje": open surveys (not rejected) that expire within 15 days (also today and a passed deadline), by the
+ * calendar of `Europe/Warsaw` against the clock of the server (`nowMs`); the deadline order of the API is kept.
+ */
+export function expiringSurveys<T extends SurveyRow>(items: readonly T[], nowMs: number): T[] {
+  return items.filter((item) => {
+    const survey = item.siteSurvey;
+    return survey !== undefined && survey !== null && !isRejectedSurvey(item) && expiryOf(survey, nowMs).warning;
+  });
+}
+
+/**
+ * What the API cannot do for the search (`POST …/search` has no `siteSurvey` and takes no `siteSurveyExpiresAt`): the rows of a page are
+ * kept or dropped here and the deadline order is made here. For the plain list the server did it already; only the view "Wygasające
+ * wizje" is cut to 15 days.
+ */
+export function shapeSurveyRows<T extends SurveyRow>(
+  items: readonly T[],
+  filters: Pick<WorkOrderFilters, 'view' | 'survey' | 'sort'>,
+  searching: boolean,
+  nowMs: number,
+): T[] {
+  if (filters.view === EXPIRING_VIEW) return expiringSurveys(items, nowMs);
+  if (!searching) return [...items];
+  const kept =
+    filters.survey === 'only'
+      ? items.filter((item) => isSurvey(item))
+      : filters.survey === 'exclude'
+        ? items.filter((item) => !isSurvey(item))
+        : items;
+  if (filters.sort !== SURVEY_SORT) return [...kept];
+  const at = (item: T): number => Date.parse(item.siteSurvey?.expiresAt ?? '') || Number.MAX_SAFE_INTEGER;
+  return kept.toSorted((a, b) => at(a) - at(b));
 }
 
 const isStatus = (value: string): value is WorkOrderStatus => Object.hasOwn(workOrderStatusLabels, value);
@@ -129,12 +204,14 @@ export function validateSearch(search: Record<string, unknown>): WorkOrderSearch
   const status = search['status'];
   const view = search['view'];
   const waitingOn = search['waitingOn'];
+  const siteSurvey = search['siteSurvey'];
   // The router parses a number out of the address; a text of digits (a link made by hand) is read the same way.
   const days = search['waitingDays'];
   const waitingDays = typeof days === 'number' ? days : typeof days === 'string' ? parseWaitingDays(days) : undefined;
   return {
     ...(typeof status === 'string' && status !== '' ? { status } : {}),
     ...(typeof view === 'string' && view !== '' ? { view } : {}),
+    ...(siteSurvey === 'only' || siteSurvey === 'exclude' ? { siteSurvey } : {}),
     ...(typeof waitingOn === 'string' && waitingOn !== '' ? { waitingOn } : {}),
     ...(waitingDays === undefined ? {} : { waitingDays }),
   };
@@ -149,9 +226,10 @@ export function statusesOf(search: WorkOrderSearch): readonly WorkOrderStatus[] 
 /**
  * The view of the address. The payment views exist only with the right to read payments (`paymentsReadable`, deny-by-default):
  * without it a link to one is "Nie znaleziono widoku" (EVM-056 → "UX / UI"). "Usunięte" (EVM-060) is the Administrator's
- * (`deletedReadable`): for the others a link to it is the same "Nie znaleziono widoku".
+ * (`deletedReadable`): for the others a link to it is the same "Nie znaleziono widoku". So is "Wygasające wizje" (EVM-138) for a role that
+ * does not see site surveys (`surveysReadable`: Tylko odczyt).
  */
-export function viewOf(search: WorkOrderSearch, paymentsReadable = false, deletedReadable = false): ViewId {
+export function viewOf(search: WorkOrderSearch, paymentsReadable = false, deletedReadable = false, surveysReadable = false): ViewId {
   switch (search.view) {
     case undefined:
     case 'all_open':
@@ -160,6 +238,8 @@ export function viewOf(search: WorkOrderSearch, paymentsReadable = false, delete
     case 'all':
     case DSO_VIEW:
       return search.view;
+    case EXPIRING_VIEW:
+      return surveysReadable ? search.view : 'unknown';
     case 'deleted':
       return deletedReadable ? 'deleted' : 'unknown';
     default:
@@ -193,14 +273,25 @@ export const waitingDaysOf = (search: WorkOrderSearch): number =>
  * kind of party and X only (the view "Czekamy na OSD > 14 dni" is its own identifier).
  */
 export function searchOf(
-  filters: Pick<WorkOrderFilters, 'view' | 'statuses'> & Partial<Pick<WorkOrderFilters, 'waitingOn' | 'waitingDays'>>,
+  filters: Pick<WorkOrderFilters, 'view' | 'statuses'> & Partial<Pick<WorkOrderFilters, 'waitingOn' | 'waitingDays' | 'survey'>>,
 ): WorkOrderSearch {
   const waitingOn = filters.waitingOn ?? '';
+  const survey = filters.survey ?? 'all';
   return {
     ...(filters.statuses.length === 0 ? {} : { status: filters.statuses.join(',') }),
     ...(filters.view === 'all_open' || filters.view === 'unknown' ? {} : { view: filters.view }),
+    // The view "Wygasające wizje" is a survey filter itself: the address says it once.
+    ...(survey === 'all' || filters.view === EXPIRING_VIEW ? {} : { siteSurvey: survey }),
     ...(waitingOn === '' ? {} : { waitingOn, waitingDays: filters.waitingDays ?? DEFAULT_WAITING_DAYS }),
   };
+}
+
+/**
+ * "Wizje lokalne" of the address (EVM-138): `only` or `exclude`; anything else is "all". For a role that does not see site surveys
+ * (`surveysReadable` is false: Tylko odczyt) the filter does not exist — the panel never asks for it.
+ */
+export function surveyOf(search: WorkOrderSearch, surveysReadable: boolean): SurveyFilter {
+  return surveysReadable && (search.siteSurvey === 'only' || search.siteSurvey === 'exclude') ? search.siteSurvey : 'all';
 }
 
 /** Something narrower than "Wszystkie niezamknięte" is chosen ("Wyczyść filtry" has something to clear). */
@@ -211,6 +302,7 @@ export const isFiltered = (filters: WorkOrderFilters): boolean =>
   filters.waitingOn !== '' ||
   filters.siteType !== '' ||
   filters.templateId !== '' ||
+  filters.survey !== 'all' ||
   filters.phrase !== '';
 
 /** How many filters of the panel "Więcej filtrów" are on ("Więcej filtrów (2)"). */
@@ -235,17 +327,22 @@ function waitingQuery(filters: WorkOrderFilters): NonNullable<ListWorkOrdersData
 }
 
 /** The view sent to the API: every view of the panel but `all` (its own identifier) and `unknown` (nothing is asked). */
-const apiViewOf = (view: ViewId) => (view === 'all' || view === 'unknown' ? {} : { view });
+const apiViewOf = (view: ViewId) => (view === 'all' || view === 'unknown' || view === EXPIRING_VIEW ? {} : { view });
 
 /** The view of a search: the contract has no `deleted` there (EVM-060) — the list alone shows deleted orders, so nothing is sent. */
 const searchViewOf = (view: ViewId): { view?: WorkOrderSearchView } =>
-  view === 'all' || view === 'unknown' || view === 'deleted' ? {} : { view };
+  view === 'all' || view === 'unknown' || view === 'deleted' || view === EXPIRING_VIEW ? {} : { view };
+
+/** "Wygasające wizje" asks the API for the surveys only; "Tylko wizje" / "Bez wizji" are `siteSurvey=only|exclude`. */
+const surveyQueryOf = (filters: WorkOrderFilters): { siteSurvey?: 'only' | 'exclude' } =>
+  filters.view === EXPIRING_VIEW ? { siteSurvey: 'only' } : filters.survey === 'all' ? {} : { siteSurvey: filters.survey };
 
 /** The query of `listWorkOrders`: an empty filter is left out; the view `all` sends no `view` at all. */
 export function toQuery(filters: WorkOrderFilters, cursor: string | undefined): NonNullable<ListWorkOrdersData['query']> {
   return {
-    limit: PAGE_SIZE,
-    sort: filters.sort,
+    limit: filters.view === EXPIRING_VIEW ? SURVEY_PAGE_SIZE : PAGE_SIZE,
+    sort: filters.view === EXPIRING_VIEW ? SURVEY_SORT : filters.sort,
+    ...surveyQueryOf(filters),
     ...apiViewOf(filters.view),
     ...(filters.statuses.length === 0 ? {} : { status: filters.statuses.join(',') }),
     ...(filters.coordinatorId === '' ? {} : { coordinatorId: filters.coordinatorId }),
@@ -263,8 +360,10 @@ export function toSearchBody(filters: WorkOrderFilters, phrase: string, cursor: 
   const { waitingOn, waitingOnPartyKind, waitingLongerThanDays } = waitingQuery(filters);
   return {
     query: phrase,
-    limit: PAGE_SIZE,
-    sort: filters.sort,
+    // The survey views read 100 at once: the rows of a page are cut to the surveys here (the search has no `siteSurvey`).
+    limit: surveyScoped(filters) ? SURVEY_PAGE_SIZE : PAGE_SIZE,
+    // The search takes no `siteSurveyExpiresAt` (`400` on `/sort`): the deadline order is made on the rows (`shapeSurveyRows`).
+    ...(filters.sort === SURVEY_SORT || filters.view === EXPIRING_VIEW ? {} : { sort: filters.sort }),
     ...searchViewOf(filters.view),
     ...(filters.statuses.length === 0 ? {} : { status: [...filters.statuses] }),
     ...(filters.coordinatorId === '' ? {} : { coordinatorId: filters.coordinatorId }),

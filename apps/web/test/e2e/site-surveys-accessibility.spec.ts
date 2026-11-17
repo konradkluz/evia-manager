@@ -1,7 +1,7 @@
 import type { Locator, Page } from '@playwright/test';
 import { violations } from './axe.ts';
 import { expect, test } from './fixtures.ts';
-import { deadlineIn, SURVEY_NUMBER, SURVEY_PATH } from './mock-site-surveys.ts';
+import { deadlineIn, SURVEY_NUMBER, SURVEY_PATH, surveyListRow } from './mock-site-surveys.ts';
 
 // axe-core is injected as a script, which the strict CSP rightly blocks — only this spec bypasses it.
 test.use({ bypassCSP: true, baseURL: 'http://localhost:4173', session: 'active' });
@@ -161,4 +161,56 @@ test.describe('accessibility of W-05 "Wizja lokalna", with colour contrast (EVM-
       expect(await violations(page)).toEqual([]);
     });
   }
+});
+
+test.describe('accessibility of the site surveys in W-10, with colour contrast (EVM-138 AC1, AC6; WCAG 2.2 AA)', () => {
+  for (const width of WIDTHS) {
+    const px = String(width);
+
+    test(`EVM-138 AC1 AC6 the list with surveys, "Tylko wizje", "Wygasające wizje" and the empty states stay inside the window at ${px} px`, async ({
+      page,
+      api,
+    }) => {
+      api.siteSurveysOn = true;
+      api.workOrders = 3;
+      api.surveyRows = [surveyListRow(2049, 80), surveyListRow(2050, 12), surveyListRow(2051, 15), surveyListRow(2047, 9, true)];
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto('/work-orders');
+      await expect(page.getByRole('link', { name: /ZL-2026-2050/ })).toBeVisible();
+      expect(await violations(page)).toEqual([]);
+      await page.getByRole('button', { name: 'Wygasające wizje (2)' }).click();
+      await expect(page.getByText('2 wizje do rozstrzygnięcia — wygasają w ciągu 15 dni')).toBeVisible();
+      expect(await violations(page)).toEqual([]);
+      expect(await fitsTheWindow(page, page.getByRole('table', { name: 'Lista zleceń' }))).toBe(true);
+      await page.goto('/work-orders?siteSurvey=only');
+      await expect(page.getByRole('link', { name: /ZL-2026-2047/ })).toBeVisible();
+      expect(await violations(page)).toEqual([]);
+      api.surveyRows = [];
+      await page.goto('/work-orders?siteSurvey=only');
+      await expect(page.getByRole('heading', { name: 'Brak wizji lokalnych.' })).toBeVisible();
+      expect(await violations(page)).toEqual([]);
+      api.surveyRows = [surveyListRow(2049, 80)];
+      await page.goto('/work-orders?view=expiring_site_surveys');
+      await expect(page.getByRole('heading', { name: 'Żadna wizja nie wygasa w ciągu 15 dni.' })).toBeVisible();
+      expect(await violations(page)).toEqual([]);
+    });
+  }
+
+  test('EVM-138 AC6 the keyboard: the radio group of the surveys is one Tab stop, the chip of the view is a button, a row opens with Enter', async ({
+    page,
+    api,
+  }) => {
+    api.siteSurveysOn = true;
+    api.workOrders = 3;
+    api.surveyRows = [surveyListRow(2050, 12)];
+    await page.goto('/work-orders');
+    const chip = page.getByRole('button', { name: 'Wygasające wizje (1)' });
+    await chip.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('button', { name: 'Wygasające wizje (1)' })).toHaveAttribute('aria-pressed', 'true');
+    const row = page.getByRole('link', { name: /ZL-2026-2050/ });
+    await row.focus();
+    await page.keyboard.press('Enter');
+    await expect(page).toHaveURL(/\/work-orders\/01968f3e-0000-7000-8000-0000000d2050$/);
+  });
 });

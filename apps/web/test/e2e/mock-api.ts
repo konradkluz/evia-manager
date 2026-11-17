@@ -52,6 +52,7 @@ import {
   type UsersServer,
 } from './mock-users.ts';
 import { answerAccountRoute, newAccountServer, spendMark, type AccountServer } from './mock-account.ts';
+import { surveysOfList } from './mock-site-surveys.ts';
 import { answerCreateSurvey, answerSurveyRoute, newSurveyServer, type SurveyServer } from './mock-site-surveys.ts';
 import { answerCatalogItems, answerCatalogProcedures, answerOrderPatch, answerScopeChange, answerScopeCreate } from './mock-scope.ts';
 import { answerPatch as answerLocationPatch, answerRead as answerLocationRead, cardOf, partyOf, siteOf } from './mock-locations.ts';
@@ -160,6 +161,8 @@ export interface MockApi {
   surveys: SurveyServer;
   /** CurrentSession.features.siteSurveys (EVM-138): off by default, so only the specs of site surveys see the choice "Rodzaj" in W-05. */
   siteSurveysOn: boolean;
+  /** The site surveys of the list of W-10 (EVM-138 AC1); empty by default, so the other specs see no survey. Tylko odczyt never gets them. */
+  surveyRows: object[];
   /** EVM-044: the media of the orders (the batches, the upload sessions, the confirmed parts and the verdict of the scan). */
   media: MediaServer;
   /** EVM-020: the answer to these calls is lost after the server has done the work (a network error after sending). */
@@ -490,6 +493,7 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
     journal: newJournalServer(),
     surveys: newSurveyServer(),
     siteSurveysOn: false,
+    surveyRows: [],
     media: newMediaServer(),
     dropResponseNext: new Set(),
   };
@@ -572,6 +576,13 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
     // The orders created in this run come first (the newest number is the highest) — only in the list: a phrase and the filters of the panel are not matched by them.
     const plain = phrase === null && query.get('siteType') === null && query.get('templateId') === null;
     if (query.get('view') !== 'mine' && plain) ordered.unshift(...createdListItems(api.orders));
+    // EVM-138: siteSurvey=only|exclude and the deadline order are the API's; Tylko odczyt gets no survey at all.
+    const surveyFilter = query.get('siteSurvey');
+    if (api.role !== 'read_only' && surveyFilter !== 'exclude') {
+      const rows = surveysOfList(api.surveyRows, query.get('sort'));
+      if (surveyFilter === 'only') ordered.splice(0, ordered.length, ...rows);
+      else ordered.unshift(...rows);
+    }
     const start = query.get('cursor') === null ? 0 : Number(decodeBase64Url(query.get('cursor') ?? ''));
     const limit = Number(query.get('limit') ?? '25');
     const nextCursor = start + limit < ordered.length ? Buffer.from(String(start + limit)).toString('base64url') : null;

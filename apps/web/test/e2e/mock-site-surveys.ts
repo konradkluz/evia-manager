@@ -247,3 +247,34 @@ export function answerCreateSurvey(server: SurveyServer, input: CreateSurveyInpu
   const answered = details(server, { role: input.role, site: input.site });
   return { ...answered, status: 201, headers: { ...answered.headers, Location: `/api/v1/work-orders/${SURVEY_ID}` } };
 }
+
+/** A survey as a row of the list of W-10: no customer and no site (the API hides them), a deadline `days` from today; `rejected` — "Anulowane". */
+export function surveyListRow(index: number, days: number, rejected = false): Record<string, unknown> {
+  return {
+    id: `01968f3e-0000-7000-8000-0000000d${String(index).padStart(4, '0')}`,
+    number: `ZL-2026-${String(index).padStart(4, '0')}`,
+    title: 'Wizja lokalna',
+    status: rejected ? 'cancelled' : 'quoting',
+    customer: null,
+    site: null,
+    coordinator: { id: '11111111-1111-4111-8111-111111111111', displayName: 'Anna Testowa' },
+    createdAt: '2026-11-03T10:00:00.000Z',
+    waiting: null,
+    nextDueDate: null,
+    hasOverdueStage: false,
+    payment: {
+      state: 'none',
+      invoicedCount: 0,
+      invoicedTotal: { amountMinor: 0, currency: 'PLN' },
+      overdueTotal: { amountMinor: 0, currency: 'PLN' },
+    },
+    siteSurvey: { expiresAt: deadlineIn(days), extensionCount: 0, requesterPhone: '+48600000002' },
+  };
+}
+
+/** The surveys of the list in the order the API gives: by the deadline with `sort=siteSurveyExpiresAt`, otherwise as they are. */
+export function surveysOfList(rows: object[], sort: string | null): object[] {
+  if (sort !== 'siteSurveyExpiresAt') return [...rows];
+  const at = (row: object): number => Date.parse((row as { siteSurvey: { expiresAt: string } }).siteSurvey.expiresAt);
+  return rows.toSorted((a, b) => at(a) - at(b));
+}
