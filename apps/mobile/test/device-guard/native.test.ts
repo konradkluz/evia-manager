@@ -76,6 +76,9 @@ describe('native adapters of the device controls fail closed (EVM-101 AC1, AC3)'
     expect(await make('success').authenticate()).toBe('success');
     expect(await make('cancelled').authenticate()).toBe('cancelled');
     expect(await make('error').authenticate()).toBe('error');
+    for (const code of ['superseded', 'not_resumed_timeout', 'no_callback_timeout', 'cannot_authenticate', 'exception']) {
+      expect(await make(code).authenticate()).toBe(code); // the closed list of codes passes through (diagnostics)
+    }
     expect(await make('anything else').authenticate()).toBe('error');
     expect(await make('throws').authenticate()).toBe('error');
     expect(await createAuthenticator(() => ({ title: 't' }), null).authenticate()).toBe('error');

@@ -7,7 +7,16 @@
 import { requireOptionalNativeModule } from 'expo';
 import { AppState } from 'react-native';
 import type { SessionClock } from '../auth/ports';
-import type { AppStateName, AppStateSource, Authenticator, BootClock, DeviceLock, PatchSource } from './ports';
+import {
+  AUTH_CODES,
+  type AppStateName,
+  type AppStateSource,
+  type AuthCode,
+  type Authenticator,
+  type BootClock,
+  type DeviceLock,
+  type PatchSource,
+} from './ports';
 
 export interface UnlockTexts {
   readonly title: string;
@@ -84,12 +93,13 @@ export function createContactClock(native: GuardNative | null = load(), wall: ()
 
 export function createAuthenticator(texts: () => UnlockTexts, native: GuardNative | null = load()): Authenticator {
   return {
-    async authenticate(): Promise<'success' | 'cancelled' | 'error'> {
+    async authenticate(): Promise<AuthCode> {
       if (native === null) return 'error';
       try {
         const { title } = texts();
         const code = await native.authenticate(title);
-        return code === 'success' ? 'success' : code === 'cancelled' ? 'cancelled' : 'error';
+        // a code outside the closed list (an older build, a surprise) is a plain error; the success is exactly `success`
+        return AUTH_CODES.includes(code as AuthCode) ? (code as AuthCode) : 'error';
       } catch {
         return 'error';
       }

@@ -347,8 +347,10 @@ export function SessionRoot({ ports, children }: { ports: SessionPorts; children
             <LockGate
               locked={guardState.locked}
               prompting={guardState.prompting}
-              onUnlock={() => {
-                void guard.unlock();
+              failed={guardState.unlockFailed}
+              appState={guard.appState}
+              onUnlock={(auto) => {
+                void guard.unlock({ auto });
               }}
             >
               {withHelp(

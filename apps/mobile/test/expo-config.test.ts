@@ -44,11 +44,12 @@ describe('Expo configuration of the build (EVM-009 AC3, AC5, AC6)', () => {
         'android.permission.WRITE_EXTERNAL_STORAGE',
         'android.permission.SYSTEM_ALERT_WINDOW',
         'android.permission.VIBRATE',
-        'android.permission.USE_BIOMETRIC',
         'android.permission.USE_FINGERPRINT',
         'com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE',
       ]),
     );
+    // EVM-101 AC3: the system unlock window needs USE_BIOMETRIC (a normal permission, no prompt); blocked, the system drops the request silently
+    expect(BLOCKED_ANDROID_PERMISSIONS).not.toContain('android.permission.USE_BIOMETRIC');
   });
 
   it('EVM-108 AC8: CAMERA is let through for the camera (not blocked), the microphone stays blocked for good (EVM-110: films have no sound)', () => {

@@ -503,6 +503,7 @@ export const pl = {
     title: 'Aplikacja zablokowana',
     body: 'Odblokuj ją kodem blokady ekranu lub odciskiem palca.',
     unlock: 'Odblokuj',
+    failed: 'Nie udało się otworzyć okna odblokowania. Spróbuj ponownie.',
     prompt: 'Odblokuj EVia Manager',
   },
   add: {

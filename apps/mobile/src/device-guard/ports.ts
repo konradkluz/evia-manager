@@ -22,8 +22,27 @@ export interface BootClock {
  * `CryptoObject` and no parameter that could carry one (P7). `cancelled` and `error` leave the app locked.
  */
 export interface Authenticator {
-  authenticate(): Promise<'success' | 'cancelled' | 'error'>;
+  authenticate(): Promise<AuthCode>;
 }
+
+/**
+ * Answer of the system unlock: a closed list of codes, never a message of the system (SR-LOG-08). `success` unlocks; `cancelled`
+ * (the user closed the window) and `superseded` (a newer request replaced it) are silent; every other code is a failure that
+ * leaves the app locked and shows the hint under the button.
+ */
+export type AuthCode =
+  'success' | 'cancelled' | 'superseded' | 'error' | 'not_resumed_timeout' | 'no_callback_timeout' | 'cannot_authenticate' | 'exception';
+
+export const AUTH_CODES: readonly AuthCode[] = [
+  'success',
+  'cancelled',
+  'superseded',
+  'error',
+  'not_resumed_timeout',
+  'no_callback_timeout',
+  'cannot_authenticate',
+  'exception',
+];
 
 export type AppStateName = 'active' | 'background' | 'inactive';
 

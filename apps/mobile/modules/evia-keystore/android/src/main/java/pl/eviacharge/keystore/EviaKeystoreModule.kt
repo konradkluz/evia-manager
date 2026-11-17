@@ -3,14 +3,20 @@ package pl.eviacharge.keystore
 import android.app.KeyguardManager
 import android.content.Context
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.provider.Settings
 import android.security.keystore.KeyInfo
 import android.security.keystore.KeyProperties
+import android.view.ViewTreeObserver
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
 import expo.modules.kotlin.Promise
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
@@ -82,7 +88,11 @@ class EviaKeystoreModule : Module() {
 
     /**
      * EVM-101 AC3: the system unlock window, `BIOMETRIC_STRONG | DEVICE_CREDENTIAL` (API 28–29 cannot combine them: the deprecated
-     * `setDeviceCredentialAllowed` is the way there). Resolves `success`, `cancelled` or `error`; never a message. No CryptoObject.
+     * `setDeviceCredentialAllowed` is the way there). Resolves a code of a closed list, never a message of the system (SR-LOG-08):
+     * `success`, `cancelled`, `superseded`, `error`, `not_resumed_timeout`, `no_callback_timeout`, `cannot_authenticate`, `exception`.
+     * No CryptoObject. Every call is settled exactly once: a newer call cancels the older one, the window is asked for only while the
+     * activity is resumed and has the window focus, and a request that the system drops silently is cancelled after a few seconds.
+     * Needs the permission USE_BIOMETRIC in the merged manifest (without it the system refuses the request without a window).
      */
     AsyncFunction("authenticate") { title: String, promise: Promise ->
       val activity = appContext.currentActivity as? FragmentActivity
@@ -90,37 +100,7 @@ class EviaKeystoreModule : Module() {
         promise.resolve("error")
         return@AsyncFunction
       }
-      activity.runOnUiThread {
-        var settled = false
-        fun settle(code: String) {
-          if (!settled) {
-            settled = true
-            promise.resolve(code)
-          }
-        }
-        try {
-          val callback = object : BiometricPrompt.AuthenticationCallback() {
-            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) = settle("success")
-            override fun onAuthenticationError(errorCode: Int, errString: CharSequence) = settle(
-              when (errorCode) {
-                BiometricPrompt.ERROR_USER_CANCELED, BiometricPrompt.ERROR_NEGATIVE_BUTTON, BiometricPrompt.ERROR_CANCELED -> "cancelled"
-                else -> "error"
-              },
-            )
-          }
-          val info = BiometricPrompt.PromptInfo.Builder().setTitle(title).apply {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-              setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL)
-            } else {
-              @Suppress("DEPRECATION")
-              setDeviceCredentialAllowed(true)
-            }
-          }.build()
-          BiometricPrompt(activity, ContextCompat.getMainExecutor(activity), callback).authenticate(info)
-        } catch (error: Exception) {
-          settle("error")
-        }
-      }
+      activity.runOnUiThread { startAttempt(activity, title, promise) }
     }
 
     /** `strongbox` | `secure_hardware` | `software` | `unknown` — a diagnostic fact that never blocks (the emulator has no TEE). */
@@ -150,9 +130,161 @@ class EviaKeystoreModule : Module() {
 
   private fun aliasPrefix(service: String) = "AES/GCM/NoPadding:$service"
 
+  /** The attempt in flight (main thread only); a newer call replaces it. */
+  private var current: Attempt? = null
+
+  private fun startAttempt(activity: FragmentActivity, title: String, promise: Promise) {
+    var attempt: Attempt? = null
+    try {
+      current?.abort("superseded")
+      val authenticators = pickAuthenticators(activity)
+      if (authenticators == null) {
+        promise.resolve("cannot_authenticate")
+        return
+      }
+      attempt = Attempt(activity, title, authenticators, promise)
+      current = attempt
+      attempt.begin()
+    } catch (error: Throwable) {
+      // Throwable on purpose: a class missing after shrinking (NoClassDefFoundError) must not leave the promise open
+      if (attempt != null) attempt.abort("exception") else promise.resolve("exception")
+    }
+  }
+
+  /**
+   * The authenticators the phone can use now, or `null` (= `cannot_authenticate`). API 30+: strong biometrics or the screen lock; when
+   * the combination is refused but the phone has a screen lock, the screen lock alone. API 28-29: the legacy marker, valid when the
+   * phone has a screen lock (the combination is not supported there).
+   */
+  private fun pickAuthenticators(activity: FragmentActivity): Int? {
+    val keyguard = activity.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
+    val secure = keyguard?.isDeviceSecure == true
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return if (secure) LEGACY_CREDENTIAL else null
+    val manager = BiometricManager.from(activity)
+    val both = BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL
+    if (manager.canAuthenticate(both) == BiometricManager.BIOMETRIC_SUCCESS) return both
+    val credential = BiometricManager.Authenticators.DEVICE_CREDENTIAL
+    if (secure && manager.canAuthenticate(credential) == BiometricManager.BIOMETRIC_SUCCESS) return credential
+    return null
+  }
+
+  /**
+   * One request of the unlock window; every method runs on the main thread. `settle` resolves the promise at most once and removes
+   * every observer and timer; `abort` also cancels the window and ignores the callback that the cancel causes.
+   */
+  private inner class Attempt(
+    private val activity: FragmentActivity,
+    private val title: String,
+    private val authenticators: Int,
+    private val promise: Promise,
+  ) {
+    private val handler = Handler(Looper.getMainLooper())
+    private var settled = false
+    private var shown = false
+    private var focusLostAfterShow = false
+    private var prompt: BiometricPrompt? = null
+
+    private val lifecycleObserver = object : LifecycleEventObserver {
+      override fun onStateChanged(source: LifecycleOwner, event: Lifecycle.Event) = showWhenReady()
+    }
+    private val focusListener = object : ViewTreeObserver.OnWindowFocusChangeListener {
+      override fun onWindowFocusChanged(hasFocus: Boolean) {
+        if (!shown) {
+          showWhenReady()
+        } else if (!hasFocus) {
+          focusLostAfterShow = true // the system window is on screen: the user may take their time
+        }
+      }
+    }
+    private val notResumed = Runnable { settle("not_resumed_timeout") }
+    private val noCallback = Runnable {
+      // the window never took the focus and nothing came back: the system dropped the request silently
+      if (!settled && !focusLostAfterShow && activity.hasWindowFocus()) abort("no_callback_timeout")
+    }
+
+    private fun ready() = activity.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) && activity.hasWindowFocus()
+
+    fun begin() {
+      activity.lifecycle.addObserver(lifecycleObserver)
+      activity.window.decorView.viewTreeObserver.addOnWindowFocusChangeListener(focusListener)
+      handler.postDelayed(notResumed, WAIT_FOR_ACTIVITY_MS)
+      showWhenReady()
+    }
+
+    private fun showWhenReady() {
+      if (settled || shown || !ready()) return
+      try {
+        show()
+      } catch (error: Throwable) {
+        abort("exception")
+      }
+    }
+
+    private fun show() {
+      shown = true
+      handler.removeCallbacks(notResumed)
+      activity.lifecycle.removeObserver(lifecycleObserver)
+      val callback = object : BiometricPrompt.AuthenticationCallback() {
+        override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) = settle("success")
+        override fun onAuthenticationError(errorCode: Int, errString: CharSequence) = settle(
+          when (errorCode) {
+            BiometricPrompt.ERROR_USER_CANCELED, BiometricPrompt.ERROR_NEGATIVE_BUTTON, BiometricPrompt.ERROR_CANCELED -> "cancelled"
+            else -> "error"
+          },
+        )
+      }
+      val info = BiometricPrompt.PromptInfo.Builder().setTitle(title).apply {
+        if (authenticators == LEGACY_CREDENTIAL) {
+          @Suppress("DEPRECATION")
+          setDeviceCredentialAllowed(true)
+        } else {
+          setAllowedAuthenticators(authenticators)
+        }
+      }.build()
+      val created = BiometricPrompt(activity, ContextCompat.getMainExecutor(activity), callback)
+      prompt = created
+      created.authenticate(info)
+      handler.postDelayed(noCallback, NO_CALLBACK_MS)
+    }
+
+    fun settle(code: String) {
+      if (settled) return
+      settled = true
+      handler.removeCallbacks(notResumed)
+      handler.removeCallbacks(noCallback)
+      try {
+        activity.lifecycle.removeObserver(lifecycleObserver)
+        activity.window.decorView.viewTreeObserver.removeOnWindowFocusChangeListener(focusListener)
+      } catch (error: Throwable) {
+        // nothing left to detach
+      }
+      if (current === this) current = null
+      promise.resolve(code)
+    }
+
+    fun abort(code: String) {
+      val open = prompt
+      settle(code)
+      try {
+        open?.cancelAuthentication()
+      } catch (error: Throwable) {
+        // the window is gone already
+      }
+    }
+  }
+
   companion object {
     private const val PROVIDER = "AndroidKeyStore"
     private const val UNAUTHENTICATED = "keystoreUnauthenticated"
     private const val UNKNOWN = "unknown"
+
+    /** Marker for API 28-29: the deprecated `setDeviceCredentialAllowed` instead of the combined authenticators. */
+    private const val LEGACY_CREDENTIAL = -1
+
+    /** How long to wait for a resumed, focused activity (the app is still starting) before the request fails. */
+    private const val WAIT_FOR_ACTIVITY_MS = 3000L
+
+    /** How long a shown request may stay without a callback while the activity keeps the window focus (= the system dropped it). */
+    private const val NO_CALLBACK_MS = 3000L
   }
 }
