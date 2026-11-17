@@ -373,7 +373,9 @@ describe('the serializer of a medium for the phone (EVM-131 AC4; SR-SYNC-04, SR-
         heightPx: null,
       },
     });
-    expect(JSON.stringify(change)).not.toMatch(/SENTINEL|malware_detected|media\/2026|123/);
+    expect(JSON.stringify(change)).not.toMatch(/SENTINEL|malware_detected|media\/2026/);
+    // the leaked size (123) as a value of any field - not as a substring: a random UUID contains "123" now and then
+    expect(Object.values(change.entity as Record<string, unknown>)).not.toContain(123);
     expect(Object.keys(change.entity as Record<string, unknown>).sort()).toEqual(
       [
         'type',
