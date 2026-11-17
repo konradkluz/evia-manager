@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
-import { SURVEY_ID, SURVEY_NUMBER, SURVEY_PATH } from './mock-site-surveys.ts';
+import { deadlineIn, SURVEY_ID, SURVEY_NUMBER, SURVEY_PATH } from './mock-site-surveys.ts';
 
 // The site survey ("Wizja lokalna") in W-06 in a real browser against the synthetic API (EVM-138 AC3, AC4, AC5, AC6): the banner and
 // "Przypisz klienta" (an existing customer, a conflict), the rule "Aby zaakceptować, przypisz klienta", the disabled payments, documents
@@ -113,5 +113,61 @@ test.describe('site survey in W-06 (EVM-138)', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'Nie znaleziono zlecenia.' })).toBeVisible();
     await expect(page.getByText(BANNER)).toHaveCount(0);
     await expect(page).toHaveTitle('Nie znaleziono · EVia Manager');
+  });
+
+  test('EVM-138 AC5 "Odrzuć wizję…": a reason is required, then "Anulowane" with "Odrzucona", the date of the removal, the focus on the banner', async ({
+    page,
+    api,
+  }) => {
+    await open(page);
+    await page.getByRole('region', { name: BANNER }).getByRole('button', { name: 'Odrzuć wizję…' }).click();
+    const dialog = page.getByRole('alertdialog', { name: 'Odrzuć wizję lokalną' });
+    await expect(dialog.getByText(/Wizja zostanie trwale usunięta po 14 dniach/)).toBeVisible();
+    await expect(dialog.getByRole('radio', { name: 'Oferta odrzucona' })).toBeFocused();
+    await dialog.getByRole('button', { name: 'Odrzuć wizję' }).click();
+    await expect(dialog.getByText('Wybierz powód odrzucenia.')).toBeVisible();
+    await dialog.getByRole('radio', { name: 'Oferta odrzucona' }).check();
+    await dialog.getByRole('button', { name: 'Odrzuć wizję' }).click();
+    const banner = page.getByRole('region', { name: 'Wizja odrzucona' });
+    await expect(banner).toBeVisible();
+    await expect(banner.getByText(/Wizja zostanie trwale usunięta dnia \d{2}\.\d{2}\.\d{4} \(za 14 dni\)/)).toBeVisible();
+    await expect(page.getByText(/Odrzucono wizję\. Zostanie usunięta dnia \d{2}\.\d{2}\.\d{4}\./)).toBeVisible();
+    await expect(page.getByRole('main').getByText('Anulowane')).toBeVisible();
+    await expect(page.getByRole('main').getByText('Odrzucona', { exact: true })).toBeVisible();
+    await expect(banner.getByText('Wizja odrzucona', { exact: true })).toBeFocused();
+    expect(api.surveys.rejections).toEqual(['offer_rejected']);
+    await expect(page.getByRole('button', { name: 'Przypisz klienta' })).toHaveCount(0);
+  });
+
+  test('EVM-138 AC5 the Administrator restores a rejected survey with the step-up window open; the open banner returns', async ({
+    page,
+    api,
+  }) => {
+    api.surveys.status = 'cancelled';
+    api.surveys.version = 6;
+    api.surveys.expiresAt = deadlineIn(14);
+    api.stepUp = 'fresh';
+    await open(page);
+    await page.getByRole('region', { name: 'Wizja odrzucona' }).getByRole('button', { name: 'Przywróć wizję…' }).click();
+    const dialog = page.getByRole('alertdialog', { name: 'Przywrócić wizję?' });
+    await expect(dialog.getByText(/Wizja wróci do statusu „Wstrzymane”/)).toBeVisible();
+    await dialog.getByRole('button', { name: 'Przywróć wizję' }).click();
+    await expect(page.getByRole('region', { name: BANNER })).toBeVisible();
+    await expect(page.getByText(/Przywrócono wizję\. Termin usunięcia: \d{2}\.\d{2}\.\d{4}\./)).toBeVisible();
+    await expect(page.getByRole('main').getByText('Wstrzymane')).toBeVisible();
+  });
+
+  test('EVM-138 AC5 the Editor sees "Przywróć wizję…" disabled with a reason and cannot restore', async ({ page, api }) => {
+    api.role = 'editor';
+    api.surveys.status = 'cancelled';
+    api.surveys.version = 6;
+    api.surveys.expiresAt = deadlineIn(14);
+    await open(page);
+    const button = page.getByRole('button', { name: 'Przywróć wizję…' });
+    await expect(button).toHaveAttribute('aria-disabled', 'true');
+    await expect(button).toHaveAccessibleDescription('Przywrócić wizję może tylko administrator.');
+    // a disabled button stays focusable but does nothing (Playwright would wait for it to be enabled)
+    await button.click({ force: true });
+    await expect(page.getByRole('alertdialog')).toHaveCount(0);
   });
 });

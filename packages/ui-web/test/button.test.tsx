@@ -29,6 +29,22 @@ describe('Button and IconButton (styleguide § 3.1; EVM-008 AC3)', () => {
     expect(screen.getByRole('button', { name: 'Menu' }).className).toContain('focus-visible:focus-ring-inverse');
   });
 
+  it('EVM-138 AC5 the tertiary-danger variant (§ 3.1) is the text button of a harmful action among others — "Odrzuć wizję…"', async () => {
+    const onClick = vi.fn();
+    const { container } = render(
+      <Button variant="tertiary-danger" onClick={onClick}>
+        Odrzuć wizję…
+      </Button>,
+    );
+    const button = screen.getByRole('button', { name: 'Odrzuć wizję…' });
+    expect(button.className).toContain('text-action-danger-text-subtle');
+    expect(button.className).not.toMatch(/(^| )bg-action-danger-bg( |$)/);
+    expect(button.className).toContain('focus-visible:focus-ring');
+    await userEvent.click(button);
+    expect(onClick).toHaveBeenCalledTimes(1);
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
   it('EVM-054 AC3 the danger variant (§ 3.1, color.action.danger.*) is for an action that only the Administrator reverses — "Anuluj transzę"', async () => {
     const { container } = render(
       <Button variant="danger" disabled>

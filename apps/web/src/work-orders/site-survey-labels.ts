@@ -120,6 +120,7 @@ export const rejectText = {
   cancel: 'Anuluj',
   confirm: 'Odrzuć wizję',
   rejected: (date: string) => `Odrzucono wizję. Zostanie usunięta dnia ${date}.`,
+  rejectedNoDate: 'Odrzucono wizję.',
   bannerTitle: 'Wizja odrzucona',
   failure: {
     conflict: 'Tę wizję zmieniono w międzyczasie. Sprawdź jej aktualny stan i spróbuj ponownie.',
@@ -139,6 +140,7 @@ export const restoreText = {
   cancel: 'Anuluj',
   confirm: 'Przywróć wizję',
   restored: (date: string) => `Przywrócono wizję. Termin usunięcia: ${date}.`,
+  restoredNoDate: 'Przywrócono wizję.',
   stepUpTitle: 'Potwierdź tożsamość, aby przywrócić wizję',
   failure: {
     conflict: 'Tę wizję zmieniono w międzyczasie. Sprawdź jej aktualny stan i spróbuj ponownie.',

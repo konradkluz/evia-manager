@@ -18,6 +18,8 @@ import { useMediaUpload } from '../work-orders/use-media.ts';
 import { JournalSection } from '../work-orders/journal-section.tsx';
 import { AcceptNeedsCustomerDialog } from '../work-orders/accept-needs-customer-dialog.tsx';
 import { AssignCustomerDialog } from '../work-orders/assign-customer-dialog.tsx';
+import { RejectSiteSurveyDialog } from '../work-orders/reject-site-survey-dialog.tsx';
+import { RestoreSiteSurveyDialog } from '../work-orders/restore-site-survey-dialog.tsx';
 import { ClosedBanner } from '../work-orders/closed-banner.tsx';
 import { CustomerCard } from '../work-orders/customer-card.tsx';
 import { formatClock } from '../work-orders/format.ts';
@@ -69,7 +71,9 @@ export function WorkOrderPage() {
   const [gone, setGone] = useState(false);
   const [tab, setTab] = useState(OVERVIEW_TAB);
   const [siteEditSignal, setSiteEditSignal] = useState(0);
-  const [dialog, setDialog] = useState<'accept' | 'assign' | null>(null);
+  const [dialog, setDialog] = useState<'accept' | 'assign' | 'reject' | 'restore' | null>(null);
+  const bannerTitle = useRef<HTMLParagraphElement>(null);
+  const [bannerTick, setBannerTick] = useState(0);
   const [focusTick, setFocusTick] = useState(0);
   const active = !gone && id !== '';
   const header = useWorkOrderHeader(id, active);
@@ -126,6 +130,10 @@ export function WorkOrderPage() {
   useEffect(() => {
     if (focusTick > 0) heading.current?.focus();
   }, [focusTick]);
+  // After "Odrzuć wizję" and "Przywróć wizję" the banner changes: the focus goes to its heading (flows/17 "Dostępność").
+  useEffect(() => {
+    if (bannerTick > 0) bannerTitle.current?.focus();
+  }, [bannerTick]);
 
   // "+ 6 procesów" and the tile "Płatności" of the summary: the tab "Przegląd" is opened and the focus goes to the section of the
   // processes or of the payments (WCAG 2.4.3).
@@ -172,10 +180,41 @@ export function WorkOrderPage() {
       />
       <SiteSurveyBanner
         order={order}
+        titleRef={bannerTitle}
         onAssign={() => {
           setDialog('assign');
         }}
+        onReject={() => {
+          setDialog('reject');
+        }}
+        onRestore={() => {
+          setDialog('restore');
+        }}
       />
+      {dialog === 'reject' ? (
+        <RejectSiteSurveyDialog
+          order={order}
+          onClose={() => {
+            setDialog(null);
+          }}
+          onDone={() => {
+            setDialog(null);
+            setBannerTick((count) => count + 1);
+          }}
+        />
+      ) : null}
+      {dialog === 'restore' ? (
+        <RestoreSiteSurveyDialog
+          order={order}
+          onClose={() => {
+            setDialog(null);
+          }}
+          onDone={() => {
+            setDialog(null);
+            setBannerTick((count) => count + 1);
+          }}
+        />
+      ) : null}
       {dialog === 'accept' ? (
         <AcceptNeedsCustomerDialog
           onAssign={() => {
