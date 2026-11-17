@@ -21,6 +21,7 @@ type Failure =
   | 'conflict'
   | 'alreadySet'
   | 'customerGone'
+  | 'orderGone'
   | 'forbidden'
   | 'network'
   | { readonly kind: 'rate'; readonly seconds: number }
@@ -28,15 +29,15 @@ type Failure =
 
 /**
  * Why the assignment did not go through (flows/17 → "Stany dialogu"). `412 version_conflict` and `409 invalid_state_transition` both say
- * the survey is not what the person saw; `409 customer_already_set` that somebody was faster; `422 customer_unavailable` and `404` that the
- * chosen customer is gone. No answer or a 5xx is "network": the retry keeps the key, so the customer is never assigned twice.
+ * the survey is not what the person saw; `409 customer_already_set` that somebody was faster; `422 customer_unavailable` that the chosen
+ * customer is gone, `404` that the ORDER is (missing, deleted, not visible). No answer or a 5xx is "network": the retry keeps the key, so the customer is never assigned twice.
  */
 export function describeAssignFailure(error: unknown): Failure {
   if (!(error instanceof ApiError) || error.status === 0 || error.status >= 500) return 'network';
   if (error.status === 412 || (error.status === 409 && error.code === 'invalid_state_transition')) return 'conflict';
   if (error.status === 409 && error.code === 'customer_already_set') return 'alreadySet';
   if (error.status === 422 && error.code === 'customer_unavailable') return 'customerGone';
-  if (error.status === 404) return 'customerGone';
+  if (error.status === 404) return 'orderGone';
   if (error.status === 403) return 'forbidden';
   if (error.status === 429) return { kind: 'rate', seconds: error.retryAfterSeconds ?? 60 };
   if (error.code === 'idempotency_mismatch' || error.code === 'idempotency_in_progress') return 'network';
@@ -114,6 +115,16 @@ export function AssignCustomerDialog({
           body: { customerId: request.customerId, version: request.version },
         }),
       ),
+    // Here, not in `mutate(…)`: these run also when the dialog was closed while the request was in flight.
+    onSuccess: (result) => {
+      attempt.forget();
+      queryClient.setQueryData([WORK_ORDER_HEADER_KEY, order.id], result);
+      void queryClient.invalidateQueries({ queryKey: [WORK_ORDERS_KEY] });
+      // The write of the journal ("Przypisano klienta") is shown by an open "Dziennik" without a reload.
+      void queryClient.invalidateQueries({ queryKey: [WORK_ORDER_JOURNAL_KEY, order.id] });
+      showToast(assignText.assigned);
+      onAssigned();
+    },
   });
 
   const assign = () => {
@@ -123,19 +134,16 @@ export function AssignCustomerDialog({
     mutation.mutate(
       { customerId: customer.id, version: order.version, key },
       {
-        onSuccess: (result) => {
-          attempt.forget();
-          queryClient.setQueryData([WORK_ORDER_HEADER_KEY, order.id], result);
-          void queryClient.invalidateQueries({ queryKey: [WORK_ORDERS_KEY] });
-          // The write of the journal ("Przypisano klienta") is shown by an open "Dziennik" without a reload.
-          void queryClient.invalidateQueries({ queryKey: [WORK_ORDER_JOURNAL_KEY, order.id] });
-          showToast(assignText.assigned);
-          onAssigned();
-        },
         onError: (error) => {
           if (refusesAttempt(error)) attempt.forget();
           const described = describeAssignFailure(error);
           if (described === 'conflict') void queryClient.refetchQueries({ queryKey: [WORK_ORDER_HEADER_KEY, order.id] });
+          if (described === 'orderGone') {
+            // The order is gone: the page reads the header again and says "Nie znaleziono zlecenia." itself.
+            void queryClient.refetchQueries({ queryKey: [WORK_ORDER_HEADER_KEY, order.id] });
+            onClose();
+            return;
+          }
           if (described === 'customerGone') {
             // The chosen customer is gone: back to the choice with the message, so another one can be picked.
             setCustomer(null);
@@ -157,6 +165,7 @@ export function AssignCustomerDialog({
       conflict: assignText.failure.conflict,
       alreadySet: assignText.failure.alreadySet,
       customerGone: assignText.failure.customerGone,
+      orderGone: assignText.failure.network,
       forbidden: assignText.failure.forbidden,
       network: assignText.failure.network,
     }[current];

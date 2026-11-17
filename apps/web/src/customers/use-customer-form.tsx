@@ -88,7 +88,8 @@ export function useCustomerForm({ formId, active, initialPhone, onCreated, onPic
   const { t } = useTranslation();
   const client = useApi();
   const online = useOnline();
-  const [form, setForm] = useState<CustomerForm>(initialPhone === undefined ? EMPTY_FORM : { ...EMPTY_FORM, phone: initialPhone });
+  const start: CustomerForm = initialPhone === undefined ? EMPTY_FORM : { ...EMPTY_FORM, phone: initialPhone };
+  const [form, setForm] = useState<CustomerForm>(start);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [failure, setFailure] = useState<Failure | null>(null);
   const [addressOpen, setAddressOpen] = useState(false);
@@ -129,7 +130,7 @@ export function useCustomerForm({ formId, active, initialPhone, onCreated, onPic
   };
 
   const reset = () => {
-    setForm(EMPTY_FORM);
+    setForm(start);
     setErrors({});
     setFailure(null);
     setAddressOpen(false);
@@ -308,6 +309,5 @@ export function useCustomerForm({ formId, active, initialPhone, onCreated, onPic
       />
     </form>
   );
-  const initial = initialPhone === undefined ? EMPTY_FORM : { ...EMPTY_FORM, phone: initialPhone };
-  return { element, pending: mutation.isPending, reset, dirty: JSON.stringify(form) !== JSON.stringify(initial) };
+  return { element, pending: mutation.isPending, reset, dirty: JSON.stringify(form) !== JSON.stringify(start) };
 }

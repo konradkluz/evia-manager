@@ -222,6 +222,65 @@ describe('W-06 site survey: "Przypisz klienta" (EVM-138 AC3)', () => {
     expect(within(dialog()).getByRole('combobox', { name: 'Klient' })).toBeTruthy();
   });
 
+  it('EVM-138 AC3 404 on the assignment is the loss of the ORDER: the dialog closes and the page says "Nie znaleziono zlecenia."', async () => {
+    let gone = false;
+    const api = surveyApi(surveyOrder(), {
+      [SEARCH]: found,
+      [ASSIGN]: () => {
+        gone = true;
+        return problem(404, 'not_found');
+      },
+      [`GET ${SURVEY_URL}`]: () => (gone ? problem(404, 'not_found') : json(200, surveyOrder(), { ETag: '"5"' })),
+    });
+    const box = await openAssign(api);
+    const confirm = await chooseJan(box);
+    await userEvent.click(confirm.getByRole('button', { name: confirmName }));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Nie znaleziono zlecenia.' })).toBeTruthy();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.queryByText('Nie znaleziono wybranego klienta. Wybierz innego.')).toBeNull();
+  });
+
+  it('EVM-138 AC3 the dialog closed while the request is in flight: the answer still refreshes the order, the list and the journal', async () => {
+    let answer: (response: Response) => void = () => undefined;
+    const pending = new Promise<Response>((resolve) => {
+      answer = resolve;
+    });
+    const api = surveyApi(surveyOrder(), { [SEARCH]: found, [ASSIGN]: () => pending });
+    const box = await openAssign(api);
+    const confirm = await chooseJan(box);
+    await userEvent.click(confirm.getByRole('button', { name: confirmName }));
+    await waitFor(() => {
+      expect(api.calls(ASSIGN)).toHaveLength(1);
+    });
+    pressEsc();
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+    answer(json(200, assigned(), { ETag: '"6"' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('region', { name: BANNER })).toBeNull();
+    });
+    expect(screen.getByText('Przypisano klienta. Wizja jest teraz zwykłym zleceniem.')).toBeTruthy();
+  });
+
+  it('EVM-138 AC3 "Wróć do wyboru" without typing and coming back: the phone of the orderer is still in the field and nothing asks "Odrzucić zmiany?"', async () => {
+    const api = surveyApi(surveyOrder(), { [SEARCH]: found });
+    const box = await openAssign(api);
+    await userEvent.click(box.getByRole('button', { name: 'Dodaj nowego klienta' }));
+    const phone = () => within(dialog()).getByRole<HTMLInputElement>('textbox', { name: /Telefon/ });
+    const filled = phone().value;
+    expect(filled).not.toBe('');
+    await userEvent.click(within(dialog()).getByRole('button', { name: 'Wróć do wyboru' }));
+    expect(screen.queryByRole('dialog', { name: 'Odrzucić zmiany?' })).toBeNull();
+    await userEvent.click(within(dialog()).getByRole('button', { name: 'Dodaj nowego klienta' }));
+    expect(phone().value).toBe(filled);
+    pressEsc();
+    expect(screen.queryByRole('dialog', { name: 'Odrzucić zmiany?' })).toBeNull();
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+  });
+
   it('EVM-138 AC3 offline "Dalej" and "Przypisz klienta" are disabled with "Przypiszesz po powrocie połączenia."', async () => {
     const api = surveyApi(surveyOrder(), { [SEARCH]: found, [ASSIGN]: () => json(200, assigned()) });
     const box = await openAssign(api);
