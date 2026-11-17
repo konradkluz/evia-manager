@@ -89,8 +89,8 @@ describe('what waits for the customer of a site survey (EVM-135 AC7)', () => {
         return text.includes('customer_required') && operation.operationId !== undefined ? [operation.operationId] : [];
       }),
     );
-    // transitionWorkOrder joins the list with EVM-136 (the rule of "accepted"); this story owns the three below
-    expect(named.filter((id) => id !== 'transitionWorkOrder').sort()).toEqual(Object.keys(REFUSED).sort());
+    // transitionWorkOrder joined the list with EVM-136 (the rule of "accepted": 409 customer_required, in the contract and in the code); EVM-135 owns the three of REFUSED
+    expect(named.sort()).toEqual([...Object.keys(REFUSED), 'transitionWorkOrder'].sort());
   });
 
   it('EVM-135 AC7 on an open survey each of them is 409 customer_required for the Administrator and the Editor - nothing is written, no record of idempotency', async () => {

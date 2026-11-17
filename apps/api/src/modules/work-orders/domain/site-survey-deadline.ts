@@ -8,14 +8,10 @@
  *     has the time it had earned, and at least a fortnight to be looked at again.
  * Days are 24 hours of an instant of UTC (like the first deadline of the survey), so the change of the clock of Europe/Warsaw moves nothing.
  */
+import { SITE_SURVEY_RETENTION_DAYS } from './site-survey.ts';
 import type { ResolvedTransition } from './work-order-transitions.ts';
 
 const DAY_MS = 86_400_000;
-/**
- * The period of a survey: the first deadline and each extension (ADR-0024 pt 9). One place, so that the constant of the creation (EVM-135, `site-survey.ts`) can
- * replace it by an import after the two branches meet - TODO(EVM-136): import it from `site-survey.ts` instead of repeating it.
- */
-export const SITE_SURVEY_PERIOD_DAYS = 90;
 /** What a rejected survey has left at most, and a restored one at least. */
 export const SITE_SURVEY_REJECTED_DAYS = 14;
 
@@ -27,7 +23,7 @@ export const deadlineAfterRejection = (current: Date, now: Date): Date => {
 };
 
 export const deadlineAfterRestoration = (createdAt: Date, extensions: number, now: Date): Date => {
-  const earned = addDays(createdAt, SITE_SURVEY_PERIOD_DAYS * (1 + extensions));
+  const earned = addDays(createdAt, SITE_SURVEY_RETENTION_DAYS * (1 + extensions));
   const floor = addDays(now, SITE_SURVEY_REJECTED_DAYS);
   return earned.getTime() > floor.getTime() ? earned : floor;
 };
