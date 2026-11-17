@@ -51,6 +51,15 @@ test.describe('UX review screenshots (EVM-134) @screenshots', () => {
       await confirm.getByRole('button', { name: 'Potwierdź' }).click();
       await expect(confirm.getByRole('alert')).toBeVisible();
       await shot(`w04-step-up-used-code-${px}`);
+      api.failNext.set('POST /api/v1/auth/step-up/options', { status: 403, code: 'forbidden' });
+      await confirm.getByRole('button', { name: 'Użyj klucza dostępu' }).click();
+      await expect(confirm.getByRole('alert')).toHaveText(/nie ma klucza dostępu/);
+      await shot(`w04-step-up-no-key-${px}`);
+      api.failNext.set('POST /api/v1/auth/step-up', { status: 403, code: 'forbidden' });
+      await confirm.getByLabel('Kod z aplikacji uwierzytelniającej').fill('654321');
+      await confirm.getByRole('button', { name: 'Potwierdź' }).click();
+      await expect(confirm.getByRole('alert')).toHaveText(/nie ma kodu z aplikacji/);
+      await shot(`w04-step-up-no-code-${px}`);
     });
 
     test(`EVM-134 W-03 of the Administrator: the choice and the code at ${px} px`, async ({ page, api, shot }) => {
@@ -80,6 +89,10 @@ test.describe('UX review screenshots (EVM-134) @screenshots', () => {
       await page.reload();
       await expect(page.getByRole('button', { name: 'Usuń kod z aplikacji uwierzytelniającej' })).toBeVisible();
       await shot(`w15-administrator-key-and-code-${px}`);
+      await page.getByRole('button', { name: 'Usuń kod z aplikacji uwierzytelniającej' }).click();
+      await expect(page.getByRole('alertdialog', { name: 'Usunąć kod z aplikacji uwierzytelniającej?' })).toBeVisible();
+      await shot(`w15-administrator-remove-code-${px}`);
+      await page.getByRole('alertdialog').getByRole('button', { name: 'Anuluj' }).click();
       api.account.passkeys = [];
       await page.reload();
       await expect(page.getByText('To jedyna metoda — najpierw dodaj inną.')).toBeVisible();
@@ -88,8 +101,13 @@ test.describe('UX review screenshots (EVM-134) @screenshots', () => {
       await page.getByLabel('Bieżące hasło').fill(PASSWORD);
       await page.getByLabel('Nowe hasło').fill('zupełnie nowe hasło do konta');
       await page.getByRole('button', { name: 'Zapisz nowe hasło' }).click();
-      await expect(page.getByRole('dialog', { name: 'Potwierdź tożsamość, aby zmienić hasło' })).toBeVisible();
+      const reauth = page.getByRole('dialog', { name: 'Potwierdź tożsamość, aby zmienić hasło' });
+      await expect(reauth).toBeVisible();
       await shot(`w04-reauth-administrator-${px}`);
+      api.failNext.set('POST /api/v1/auth/step-up/options', { status: 403, code: 'forbidden' });
+      await reauth.getByRole('button', { name: 'Użyj klucza dostępu' }).click();
+      await expect(reauth.getByRole('alert')).toHaveText(/nie ma klucza dostępu/);
+      await shot(`w04-reauth-no-key-${px}`);
     });
 
     test(`EVM-134 W-16 the warning of the sole Administrator and the reset of the second step of an Administrator at ${px} px`, async ({

@@ -348,7 +348,7 @@ describe('W-16 Zmień rolę (EVM-027 AC1, AC5, AC7)', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: 'Zmień rolę' }));
     const confirm = await screen.findByRole('alertdialog', { name: 'Potwierdź tożsamość, aby zmienić rolę użytkownika' });
     const field = within(confirm).getByLabelText<HTMLInputElement>('Kod z aplikacji uwierzytelniającej');
-    expect(within(confirm).getByText(/Wpisz nowy kod — kod użyty przy logowaniu nie zadziała drugi raz\./)).toBeTruthy();
+    expect(within(confirm).getByText(/Wpisz nowy kod z aplikacji — ten sam kod nie zadziała drugi raz\./)).toBeTruthy();
     await userEvent.type(field, '111111');
     await userEvent.click(within(confirm).getByRole('button', { name: 'Potwierdź' }));
     expect((await within(confirm).findByRole('alert')).textContent).toBe('Kod jest nieprawidłowy lub wygasł. Wpisz nowy kod z aplikacji.');

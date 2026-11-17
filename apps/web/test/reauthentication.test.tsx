@@ -159,6 +159,29 @@ describe('W-04 pełne ponowne uwierzytelnienie (EVM-028 AC2, AC3, AC5)', () => {
     });
   });
 
+  it('EVM-134 AC3 an account without a code of the app (403 forbidden to the code): the message says to use the key, the focus on the key, the step stays', async () => {
+    const { dialog } = await open(ACTIVE_SESSION, { [REAUTH]: () => problem(403, 'forbidden') });
+    await userEvent.type(within(dialog).getByLabelText('Hasło'), 'obecne hasło do konta');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Dalej' }));
+    await userEvent.type(within(dialog).getByLabelText('Kod z aplikacji uwierzytelniającej'), '123456');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Potwierdź' }));
+    expect((await within(dialog).findByRole('alert')).textContent).toBe('Twoje konto nie ma kodu z aplikacji. Użyj klucza dostępu.');
+    expect(document.activeElement).toBe(within(dialog).getByRole('button', { name: 'Użyj klucza dostępu' }));
+    expect(within(dialog).queryByLabelText('Hasło')).toBeNull();
+    expect(result()).toBe('none');
+    expect(await axeViolations(document.body, { bestPractice: true })).toEqual([]);
+  });
+
+  it('EVM-134 AC3 an account without a passkey (403 forbidden to the options of the key): the message says to type the code, the focus on the field', async () => {
+    const { fake, dialog } = await open(ACTIVE_SESSION, { [STEP_UP_OPTIONS]: () => problem(403, 'forbidden') });
+    await userEvent.type(within(dialog).getByLabelText('Hasło'), 'obecne hasło do konta');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Dalej' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Użyj klucza dostępu' }));
+    expect((await within(dialog).findByRole('alert')).textContent).toBe('Twoje konto nie ma klucza dostępu. Wpisz kod z aplikacji.');
+    expect(document.activeElement).toBe(within(dialog).getByLabelText('Kod z aplikacji uwierzytelniającej'));
+    expect(fake.calls(REAUTH)).toHaveLength(0);
+  });
+
   it('EVM-028 AC3 ONE answer for a wrong password or a wrong second step: back to step 1, the password cleared and focused, no word about which factor', async () => {
     const { fake, dialog } = await open(EDITOR, { [REAUTH]: () => problem(401, 'reauthentication_failed') });
     await userEvent.type(within(dialog).getByLabelText('Hasło'), 'zle hasło');

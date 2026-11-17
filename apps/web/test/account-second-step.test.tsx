@@ -318,7 +318,9 @@ describe('W-15 usunięcie klucza dostępu i kodu z aplikacji (EVM-028 AC3, AC4)'
     const api = await openCard(EDITOR_ACCOUNT, { [REAUTH]: reauth, [REMOVE_TOTP]: operation });
     await userEvent.click(screen.getByRole('button', { name: 'Usuń kod z aplikacji uwierzytelniającej' }));
     const alert = await screen.findByRole('alertdialog', { name: 'Usunąć kod z aplikacji uwierzytelniającej?' });
-    expect(within(alert).getByText('Bez niego nie zalogujesz się w aplikacji na telefonie.')).toBeTruthy();
+    expect(
+      within(alert).getByText('Bez niego nie zalogujesz się w aplikacji na telefonie ani, jeśli to Twoja metoda, w panelu.'),
+    ).toBeTruthy();
     await userEvent.click(within(alert).getByRole('button', { name: 'Usuń kod' }));
     await confirmIdentity('Potwierdź tożsamość, aby usunąć kod z aplikacji');
     expect(await screen.findByText('Usunięto kod z aplikacji.')).toBeTruthy();

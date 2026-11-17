@@ -91,7 +91,7 @@ test.describe('W-02: logowanie kodem z aplikacji i kodem odzyskiwania (EVM-023 A
     await role.getByRole('button', { name: 'Zmień rolę' }).click();
     const confirm = page.getByRole('alertdialog', { name: 'Potwierdź tożsamość, aby zmienić rolę użytkownika' });
     const field = confirm.getByLabel('Kod z aplikacji uwierzytelniającej');
-    await expect(field).toHaveAccessibleDescription(/Wpisz nowy kod — kod użyty przy logowaniu nie zadziała drugi raz\./);
+    await expect(field).toHaveAccessibleDescription(/Wpisz nowy kod z aplikacji — ten sam kod nie zadziała drugi raz\./);
     await field.fill(TOTP_CODE);
     await confirm.getByRole('button', { name: 'Potwierdź' }).click();
     await expect(confirm.getByRole('alert')).toHaveText('Kod jest nieprawidłowy lub wygasł. Wpisz nowy kod z aplikacji.');

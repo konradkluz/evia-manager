@@ -9,7 +9,7 @@ import { EMAIL, PASSWORD, TOTP_CODE } from './mock-api.ts';
 test.use({ bypassCSP: true, session: 'none' });
 
 const WIDTHS = [360, 768, 1280, 1440];
-const FRESH = /Wpisz nowy kod — kod użyty przy logowaniu nie zadziała drugi raz\./;
+const FRESH = /Wpisz nowy kod z aplikacji — ten sam kod nie zadziała drugi raz\./;
 
 async function logInWithCode(page: Page) {
   await page.goto('/login');
@@ -66,6 +66,18 @@ test.describe('accessibility of the code of the app of the Administrator (EVM-13
       await expect(confirm.getByRole('alert')).toBeVisible();
       await expect(field).toBeFocused();
       expect(await violations(page)).toEqual([]);
+      // An account without the method (403 forbidden to its proof): the message names the other one and the focus goes there.
+      api.failNext.set('POST /api/v1/auth/step-up/options', { status: 403, code: 'forbidden' });
+      await confirm.getByRole('button', { name: 'Użyj klucza dostępu' }).click();
+      await expect(confirm.getByRole('alert')).toHaveText('Twoje konto nie ma klucza dostępu. Wpisz kod z aplikacji.');
+      await expect(field).toBeFocused();
+      expect(await violations(page)).toEqual([]);
+      api.failNext.set('POST /api/v1/auth/step-up', { status: 403, code: 'forbidden' });
+      await field.fill('654321');
+      await confirm.getByRole('button', { name: 'Potwierdź' }).click();
+      await expect(confirm.getByRole('alert')).toHaveText('Twoje konto nie ma kodu z aplikacji. Użyj klucza dostępu.');
+      await expect(confirm.getByRole('button', { name: 'Użyj klucza dostępu' })).toBeFocused();
+      expect(await violations(page)).toEqual([]);
     });
 
     test(`EVM-134 AC2 W-03 of the Administrator (the choice, the code) has no axe violations at ${px} px`, async ({ page, api }) => {
@@ -86,6 +98,8 @@ test.describe('accessibility of the code of the app of the Administrator (EVM-13
     }) => {
       api.session = 'active';
       api.account.passkeys = api.account.passkeys.slice(0, 1);
+      const [key] = api.account.passkeys;
+      if (key === undefined) throw new Error('the synthetic account has a key');
       await page.setViewportSize({ width, height: 900 });
       await page.goto('/account');
       await expect(page.getByText(/Dodaj drugą metodę, np\. kod z aplikacji albo klucz w telefonie/)).toBeVisible();
@@ -95,6 +109,14 @@ test.describe('accessibility of the code of the app of the Administrator (EVM-13
       api.account.totp = { addedAt: '2026-10-03T11:00:00.000Z' };
       await page.reload();
       await expect(page.getByText('To jedyna metoda — najpierw dodaj inną.')).toBeVisible();
+      expect(await violations(page)).toEqual([]);
+      api.account.passkeys = [{ ...key }];
+      await page.reload();
+      await page.getByRole('button', { name: 'Usuń kod z aplikacji uwierzytelniającej' }).click();
+      const remove = page.getByRole('alertdialog', { name: 'Usunąć kod z aplikacji uwierzytelniającej?' });
+      await expect(
+        remove.getByText('Bez niego nie zalogujesz się w aplikacji na telefonie ani, jeśli to Twoja metoda, w panelu.'),
+      ).toBeVisible();
       expect(await violations(page)).toEqual([]);
     });
   }

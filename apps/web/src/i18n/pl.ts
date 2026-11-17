@@ -2235,7 +2235,7 @@ export const pl = {
       passkeyDone: 'Usunięto klucz dostępu.',
       totpLabel: 'Usuń kod z aplikacji uwierzytelniającej',
       totpTitle: 'Usunąć kod z aplikacji uwierzytelniającej?',
-      totpBody: 'Bez niego nie zalogujesz się w aplikacji na telefonie.',
+      totpBody: 'Bez niego nie zalogujesz się w aplikacji na telefonie ani, jeśli to Twoja metoda, w panelu.',
       totpBodyReadOnly: 'Tym kodem nie zalogujesz się już do panelu.',
       totpSubmit: 'Usuń kod',
       totpDone: 'Usunięto kod z aplikacji.',
@@ -2352,7 +2352,7 @@ export const pl = {
     code: {
       label: 'Kod z aplikacji uwierzytelniającej',
       hint: '6 cyfr z aplikacji uwierzytelniającej.',
-      freshHint: 'Wpisz nowy kod — kod użyty przy logowaniu nie zadziała drugi raz.',
+      hintFresh: '6 cyfr z aplikacji uwierzytelniającej. Wpisz nowy kod z aplikacji — ten sam kod nie zadziała drugi raz.',
       submit: 'Potwierdź',
       invalid: 'Kod jest nieprawidłowy lub wygasł. Wpisz nowy kod z aplikacji.',
     },
@@ -2360,6 +2360,8 @@ export const pl = {
     rateLimited: 'Zbyt wiele prób. Spróbuj ponownie za {{minutes}} min.',
     serverError: 'Nie udało się potwierdzić tożsamości. Spróbuj ponownie za chwilę. Jeśli problem się powtarza, zgłoś go (kod: {{code}}).',
     offline: 'Brak połączenia. Potwierdzenie wymaga połączenia z internetem.',
+    noCode: 'Twoje konto nie ma kodu z aplikacji. Użyj klucza dostępu.',
+    noKey: 'Twoje konto nie ma klucza dostępu. Wpisz kod z aplikacji.',
     resetHint: 'Nie masz dostępu do metody? Poproś innego administratora o reset drugiego kroku logowania.',
     resetHintOther: 'Nie masz dostępu do metody? Poproś administratora o reset drugiego kroku logowania.',
   },
@@ -2568,7 +2570,7 @@ export const pl = {
     title: 'Urządzenia',
     confirm: {
       title: 'Potwierdź tożsamość, aby zobaczyć urządzenia.',
-      description: 'Urządzenia pokazujemy po ponownym potwierdzeniu tożsamości kluczem dostępu.',
+      description: 'Urządzenia pokazujemy po ponownym potwierdzeniu tożsamości.',
       action: 'Potwierdź tożsamość',
     },
     filters: {
@@ -2663,7 +2665,7 @@ export const pl = {
     },
     confirm: {
       title: 'Potwierdź tożsamość, aby zobaczyć dziennik audytu.',
-      description: 'Dziennik pokazujemy po ponownym potwierdzeniu tożsamości kluczem dostępu.',
+      description: 'Dziennik pokazujemy po ponownym potwierdzeniu tożsamości.',
       action: 'Potwierdź tożsamość',
       hidden: 'Czas potwierdzenia tożsamości minął — dane dziennika zostały ukryte.',
     },

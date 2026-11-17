@@ -21,7 +21,7 @@ const WRONG = 'Kod jest nieprawidłowy lub wygasł. Wpisz nowy kod z aplikacji.'
 const EDITOR: CurrentSession = { ...ACTIVE_SESSION, user: { ...ACTIVE_SESSION.user, role: 'editor' } };
 const READ_ONLY: CurrentSession = { ...ACTIVE_SESSION, user: { ...ACTIVE_SESSION.user, role: 'read_only' } };
 const CODE_LABEL = 'Kod z aplikacji uwierzytelniającej';
-const FRESH = 'Wpisz nowy kod — kod użyty przy logowaniu nie zadziała drugi raz.';
+const FRESH = 'Wpisz nowy kod z aplikacji — ten sam kod nie zadziała drugi raz.';
 
 function Trigger({ methods }: { readonly methods?: readonly ('passkey' | 'totp')[] }) {
   const request = useStepUp();
@@ -101,7 +101,7 @@ describe('W-04 kod z aplikacji (EVM-023 AC7)', () => {
     expect(screen.getByLabelText(CODE_LABEL)).toBeTruthy();
   });
 
-  it('EVM-134 AC4 an Administrator is offered the passkey and the code of the app; the field says that the code of the login does not work twice; the hint names another administrator', async () => {
+  it('EVM-134 AC4 an Administrator is offered the passkey and the code of the app; the field asks for a new code (the same code does not work twice); the hint names another administrator', async () => {
     await open(api(ACTIVE_SESSION));
     expect(screen.getByRole('button', { name: 'Użyj klucza dostępu' })).toBeTruthy();
     const field = screen.getByLabelText(CODE_LABEL);
@@ -129,6 +129,37 @@ describe('W-04 kod z aplikacji (EVM-023 AC7)', () => {
       expect(screen.getByTestId('result').textContent).toBe('confirmed');
     });
     expect(parseBody(fake.calls(STEP_UP)[0]?.body ?? '')).toEqual({ method: 'totp', code: '654321' });
+  });
+
+  it('EVM-134 AC4 an account without a code of the app (403 forbidden to the code): the message says to use the key, the focus goes to the key, the dialog stays', async () => {
+    const fake = api(ACTIVE_SESSION, { [STEP_UP]: () => problem(403, 'forbidden') });
+    await open(fake);
+    await userEvent.type(screen.getByLabelText(CODE_LABEL), '123456');
+    await userEvent.click(screen.getByRole('button', { name: 'Potwierdź' }));
+    expect((await screen.findByRole('alert')).textContent).toBe('Twoje konto nie ma kodu z aplikacji. Użyj klucza dostępu.');
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Użyj klucza dostępu' }));
+    expect(screen.getByRole('alertdialog')).toBeTruthy();
+    expect(screen.queryByText(/kod: /)).toBeNull();
+    expect(screen.getByTestId('result').textContent).toBe('none');
+    expect(await axeViolations(document.body, { bestPractice: true })).toEqual([]);
+  });
+
+  it('EVM-134 AC4 an account without a passkey (403 forbidden to the options of the key): the message says to type the code, the focus goes to the field', async () => {
+    const fake = api(ACTIVE_SESSION, { [STEP_UP_OPTIONS]: () => problem(403, 'forbidden') });
+    await open(fake);
+    await userEvent.click(screen.getByRole('button', { name: 'Użyj klucza dostępu' }));
+    expect((await screen.findByRole('alert')).textContent).toBe('Twoje konto nie ma klucza dostępu. Wpisz kod z aplikacji.');
+    expect(document.activeElement).toBe(screen.getByLabelText(CODE_LABEL));
+    expect(screen.getByRole('alertdialog')).toBeTruthy();
+    expect(fake.calls(STEP_UP)).toHaveLength(0);
+  });
+
+  it('EVM-134 AC4 another refusal than forbidden (403 csrf_failed) stays the error of the server with a code to report', async () => {
+    const fake = api(ACTIVE_SESSION, { [STEP_UP]: () => problem(403, 'csrf_failed') });
+    await open(fake);
+    await userEvent.type(screen.getByLabelText(CODE_LABEL), '123456');
+    await userEvent.click(screen.getByRole('button', { name: 'Potwierdź' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('(kod: abcdef01)');
   });
 
   it('EVM-134 AC4 the code of the login used again (401 totp_failed) is refused like a wrong one: one message, the field cleared and focused, the dialog and the session stay', async () => {
