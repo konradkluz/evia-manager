@@ -52,8 +52,9 @@ import {
   type UsersServer,
 } from './mock-users.ts';
 import { answerAccountRoute, newAccountServer, spendMark, type AccountServer } from './mock-account.ts';
+import { answerSurveyRoute, newSurveyServer, type SurveyServer } from './mock-site-surveys.ts';
 import { answerCatalogItems, answerCatalogProcedures, answerOrderPatch, answerScopeChange, answerScopeCreate } from './mock-scope.ts';
-import { answerPatch as answerLocationPatch, answerRead as answerLocationRead, partyOf, siteOf } from './mock-locations.ts';
+import { answerPatch as answerLocationPatch, answerRead as answerLocationRead, cardOf, partyOf, siteOf } from './mock-locations.ts';
 import {
   answerErase,
   answerList,
@@ -155,6 +156,8 @@ export interface MockApi {
   account: AccountServer;
   /** EVM-037: the journal of the orders (the entries and the idempotency keys of the synthetic server). */
   journal: JournalServer;
+  /** EVM-138: the one site survey ZL-2026-0049 of the synthetic server (its status, customer and deadline). */
+  surveys: SurveyServer;
   /** EVM-044: the media of the orders (the batches, the upload sessions, the confirmed parts and the verdict of the scan). */
   media: MediaServer;
   /** EVM-020: the answer to these calls is lost after the server has done the work (a network error after sending). */
@@ -482,6 +485,7 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
     users: newUsersServer(),
     account: newAccountServer(PASSWORD),
     journal: newJournalServer(),
+    surveys: newSurveyServer(),
     media: newMediaServer(),
     dropResponseNext: new Set(),
   };
@@ -606,6 +610,26 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
           })
         : null;
     if (ownAccount !== null) return route.fulfill(ownAccount);
+    // EVM-138: the site survey ZL-2026-0049 (details, assignment of a customer, transitions); the Administrator and the Editor see it.
+    if (api.session === 'active' && url.pathname.startsWith('/api/v1/work-orders/01968f3e-0000-7000-8000-00000000d049')) {
+      const site = api.orders.sites[0];
+      const answered =
+        site === undefined
+          ? null
+          : answerSurveyRoute(api.surveys, {
+              method: request.method(),
+              pathname: url.pathname,
+              body,
+              role: api.role,
+              csrfOk,
+              stepUpFresh: api.stepUp === 'fresh',
+              ifMatch: headers['if-match'],
+              site,
+              siteCard: cardOf(api.orders, site.id) ?? {},
+              customerOf: (id) => api.customers.find((entry) => entry.id === id),
+            });
+      if (answered !== null) return route.fulfill(answered);
+    }
     // EVM-024: the resend of an invitation (W-16) — the account is anchored in the path; it needs the step-up like the invitation.
     const resend = request.method() === 'POST' ? /^\/api\/v1\/users\/([^/]+)\/invitations$/.exec(url.pathname) : null;
     if (resend !== null) {

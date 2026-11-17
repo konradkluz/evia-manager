@@ -45,6 +45,8 @@ import {
   WORK_ORDER_PROCEDURES_KEY,
   WORK_ORDERS_KEY,
 } from './query-keys.ts';
+import { acceptText } from './site-survey-labels.ts';
+import { isSurvey } from './site-survey.ts';
 import { useWorkOrderPayments, useWorkOrderProcedures } from './use-work-order.ts';
 import {
   DIALOG_ACTIONS,
@@ -107,7 +109,14 @@ function reasonError(t: TFunction, code: string): string {
  * stays when a request fails — also on `429` and offline (AC8). Every request carries `If-Match` of the version on screen and
  * an `Idempotency-Key` that is the same for a retry of the same content (a lost answer never makes a second change).
  */
-export function StatusTransitions({ order }: { readonly order: WorkOrderDetails }) {
+export function StatusTransitions({
+  order,
+  onNeedCustomer,
+}: {
+  readonly order: WorkOrderDetails;
+  /** A survey without a customer cannot be accepted (EVM-138 AC4): "Zaakceptuj" and `409 customer_required` ask the page for the dialog. */
+  readonly onNeedCustomer?: () => void;
+}) {
   const { t } = useTranslation();
   const client = useApi();
   const queryClient = useQueryClient();
@@ -118,10 +127,12 @@ export function StatusTransitions({ order }: { readonly order: WorkOrderDetails 
   const attempt = useAttempt();
   const formId = useId();
   // AC4: the number of open stages for the warning in the dialog "Zakończ"; the section of the processes reads the same entry.
-  const openStages = useWorkOrderProcedures(order.id, true).data?.openStageCount ?? 0;
+  // A survey has no processes and no instalments, and the panel does not ask for them (EVM-138).
+  const survey = isSurvey(order);
+  const openStages = useWorkOrderProcedures(order.id, !survey).data?.openStageCount ?? 0;
   // EVM-053 AC6 (P1): cancelling the order cancels its planned instalments — the dialog says how many; the section reads the same entry.
   // Without the list (still loading or a failed read) the number is unknown (`null`): the dialog warns without it, never stays silent.
-  const milestones = useWorkOrderPayments(order.id, true).data?.items ?? null;
+  const milestones = useWorkOrderPayments(order.id, !survey).data?.items ?? null;
   const countOf = (status: string): number | null =>
     milestones === null ? null : milestones.filter((entry) => entry.status === status).length;
   const plannedMilestones = countOf('planned');
@@ -226,6 +237,11 @@ export function StatusTransitions({ order }: { readonly order: WorkOrderDetails 
     } catch (error) {
       if (refusesAttempt(error)) attempt.forget();
       const described = describeTransitionFailure(error);
+      if (described.kind === 'customerRequired') {
+        // EVM-138 AC4: the same dialog as the menu gives, not an error under the badge.
+        onNeedCustomer?.();
+        return false;
+      }
       if (described.kind === 'conflict') void refreshHeader();
       // EVM-053 AC6: the server judged the instalments as they are now; the section shows the same state.
       // EVM-058 AC5: a `412` too means the instalments may have changed meanwhile — the summary is read again.
@@ -255,6 +271,10 @@ export function StatusTransitions({ order }: { readonly order: WorkOrderDetails 
   const choose = (entry: TransitionEntry) => {
     setFailure(null);
     setFieldErrors({});
+    if (survey && order.customer === null && (entry.action === 'accept' || entry.action === 'acceptWithoutQuote')) {
+      onNeedCustomer?.();
+      return;
+    }
     if (DIALOG_ACTIONS.has(entry.action)) {
       // AC4: the warning counts the open stages as they are now (they may have changed since the page was opened).
       if (entry.action === 'complete') void queryClient.refetchQueries({ queryKey: [WORK_ORDER_PROCEDURES_KEY, order.id] });
@@ -309,6 +329,8 @@ export function StatusTransitions({ order }: { readonly order: WorkOrderDetails 
     switch (current.kind) {
       case 'conflict':
         return source === 'undo' ? t('workOrder.status.failure.undoConflict') : t('workOrder.status.failure.conflict');
+      case 'customerRequired':
+        return acceptText.body;
       case 'forbidden':
         return t('workOrder.status.failure.forbidden');
       case 'stepUp':

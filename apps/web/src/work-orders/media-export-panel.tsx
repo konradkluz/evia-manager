@@ -15,15 +15,18 @@ export function MediaExportButton({
   hasPhotos,
   online,
   exporter,
+  blockedHint,
 }: {
   readonly workOrderId: string;
   readonly hasPhotos: boolean;
   readonly online: boolean;
   readonly exporter: Exporter;
+  /** EVM-138 AC4: a survey without a customer exports nothing — the reason is shown and read with the button. */
+  readonly blockedHint?: string | undefined;
 }) {
   const [asking, setAsking] = useState(false);
   const hintId = `media-export-hint-${workOrderId}`;
-  const hint = !online ? exportText.offlineHint : !hasPhotos ? exportText.noPhotosHint : null;
+  const hint = blockedHint ?? (!online ? exportText.offlineHint : !hasPhotos ? exportText.noPhotosHint : null);
   return (
     <div className="flex flex-wrap items-center gap-inline-md">
       <Button

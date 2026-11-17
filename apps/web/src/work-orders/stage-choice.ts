@@ -1,9 +1,10 @@
-import type { ProcedureList } from '@evia/contracts';
+import type { ProcedureList, WorkOrderDetails } from '@evia/contracts';
 import { useQueryClient } from '@tanstack/react-query';
 import type { SelectGroup, SelectOption } from '@evia/ui-web';
 import { useCallback } from 'react';
 import { ApiError } from '../api/client.ts';
-import { WORK_ORDER_PROCEDURES_KEY } from './query-keys.ts';
+import { WORK_ORDER_HEADER_KEY, WORK_ORDER_PROCEDURES_KEY } from './query-keys.ts';
+import { isSurvey } from './site-survey.ts';
 import { useWorkOrderProcedures } from './use-work-order.ts';
 
 /** The value of the Select "Etap" for "no stage" (the API takes `null`). */
@@ -48,8 +49,11 @@ export function isStageRejection(error: unknown): boolean {
 
 /** The stages of the order from the shared read of W-06 and a way to read them again (after "etap usunięty w międzyczasie"). */
 export function useStageChoices(workOrderId: string, enabled = true) {
-  const procedures = useWorkOrderProcedures(workOrderId, enabled);
   const queryClient = useQueryClient();
+  // EVM-138: a site survey has no processes, so there are no stages to choose and the panel does not ask for them. The screens that use
+  // this hook are shown after the header was read, so it is in the cache of the tab.
+  const header = queryClient.getQueryData<WorkOrderDetails>([WORK_ORDER_HEADER_KEY, workOrderId]);
+  const procedures = useWorkOrderProcedures(workOrderId, enabled && !(header !== undefined && isSurvey(header)));
   const refresh = useCallback(
     () => queryClient.invalidateQueries({ queryKey: [WORK_ORDER_PROCEDURES_KEY, workOrderId] }),
     [queryClient, workOrderId],

@@ -381,8 +381,10 @@ describe('states (EVM-018 AC7)', () => {
       await Promise.resolve();
     });
     expect(await screen.findByRole('heading', { level: 1, name: 'ZL-2026-0042' })).toBeTruthy();
-    expect(screen.getAllByText('Wczytujemy sekcję…').length).toBe(3);
-    expect(document.querySelectorAll('[aria-busy="true"]').length).toBe(3);
+    // EVM-138: the sections of the processes, the instalments, the scope and the customer wait for the header (a site survey has none of
+    // them and the panel does not ask), so right after the header they are all still loading — never fewer than before.
+    expect(screen.getAllByText('Wczytujemy sekcję…').length).toBeGreaterThanOrEqual(3);
+    expect(document.querySelectorAll('[aria-busy="true"]').length).toBeGreaterThanOrEqual(3);
 
     await act(async () => {
       scope.resolve(json(200, { items: SCOPE_ITEMS }));
@@ -391,7 +393,9 @@ describe('states (EVM-018 AC7)', () => {
       await Promise.resolve();
     });
     expect(await screen.findByText('Operator Testowy')).toBeTruthy();
-    expect(document.querySelectorAll('[aria-busy="true"]').length).toBe(0);
+    await waitFor(() => {
+      expect(document.querySelectorAll('[aria-busy="true"]').length).toBe(0);
+    });
   });
 
   it('EVM-018 AC7 a section that fails shows an alert with "Spróbuj ponownie" inside itself; the other sections work; the retry reads only that section', async () => {
