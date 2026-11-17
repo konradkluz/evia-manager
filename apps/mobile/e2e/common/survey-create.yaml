@@ -1,6 +1,6 @@
 # EVM-137 AC1 AC2: the shared creation of a site survey from the list (M-05 -> M-10 "Wizja lokalna"): "Dodaj" -> "Wizja lokalna" (the first
 # row), the city, the street, the building number, the postal code and the phone of the requester - nothing else is asked - and "Zapisz wizję".
-# Ends on the details (M-03) of the survey that waits for its number. The typed words are the ones tools/mobile-e2e looks for in the log
+# Ends on the details (M-03) of the survey (waiting for its number offline, numbered at once online). The typed words are the ones tools/mobile-e2e looks for in the log
 # afterwards (src/device-survey.mjs SURVEY_SYNTHETIC_WORDS). Synthetic ASCII data only (the keyboard of the emulator does not carry Polish
 # letters reliably). Rules of the earlier flows: elements below the fold are scrolled to first with centerElement; hideKeyboard only right after
 # a text was typed (the keyboard is certainly open).
@@ -61,6 +61,8 @@ appId: pl.eviacharge.manager
 - takeScreenshot: m10-survey-filled
 - tapOn:
     id: 'survey-save'
+# the details are open: offline the survey waits for its number, online it gets the number at once - the flow that follows says which
 - extendedWaitUntil:
-    visible: 'Oczekuje na numer'
+    visible:
+      id: 'order-detail-take-photo'
     timeout: 10000

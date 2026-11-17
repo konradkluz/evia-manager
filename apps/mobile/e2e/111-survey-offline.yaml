@@ -31,7 +31,11 @@ appId: pl.eviacharge.manager
     timeout: 10000
 - assertVisible: 'Podaj miejscowość\.'
 - assertVisible: 'Podaj ulicę\.'
-- assertVisible: 'Podaj kod pocztowy, np\. 00-000\.'
+# the postal code is below the fold: its message is reached by scrolling (the summary at the top is one node of several lines)
+- scrollUntilVisible:
+    element: 'Podaj kod pocztowy, np\. 00-000\.'
+    direction: DOWN
+    centerElement: true
 - takeScreenshot: m10-survey-errors
 # close without saving: nothing was typed, so no question
 - tapOn:
@@ -40,11 +44,15 @@ appId: pl.eviacharge.manager
     id: 'site-survey'
 # AC1 AC2: the survey with an address only (and the phone), saved offline
 - runFlow: common/survey-create.yaml
+- extendedWaitUntil:
+    visible: 'Oczekuje na numer'
+    timeout: 10000
 - assertVisible: 'Zapisano w telefonie\. Numer nadamy po synchronizacji\. Możesz już robić zdjęcia i filmy\.'
 - assertVisible: 'Brak klienta — uzupełni biuro\. Biuro przypisze klienta po akceptacji oferty\.'
 - assertVisible: 'Wygasa za 90 dni'
 - assertVisible: 'Fikcyjna 12, 05-500 Piaseczno'
-- assertVisible: '600000011'
+# the phone is shown as the server will store it (+48...): the node is matched as a whole
+- assertVisible: '.*600000011'
 - takeScreenshot: m03-survey-pending
 # AC3: the camera with the category "Oględziny" already chosen: no hint, the shutter works at once
 - tapOn:
