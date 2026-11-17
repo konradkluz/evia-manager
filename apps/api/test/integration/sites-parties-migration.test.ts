@@ -214,6 +214,9 @@ describe('migration 0014 — sites (EVM-021 AC1, AC2, AC3, AC5, AC6; ADR-0003; e
       'deleted_by',
       // EVM-099 (0058): the device of the phone that created the site
       'created_via_device_id',
+      // EVM-139 (0068): the mark of an anonymized location
+      'anonymized_at',
+      'anonymized_by',
     ]);
   });
 

@@ -82,6 +82,8 @@ beforeAll(async () => {
     '0064_device_invalidation',
     '0065_media_sync',
     '0066_site_survey',
+    '0067_email_outbox_site_survey',
+    '0068_site_survey_purge',
   ]);
 });
 afterAll(async () => {
