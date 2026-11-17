@@ -66,8 +66,18 @@ Oferta, CRM, scalanie wizji z istniejącym zleceniem, „Zastosuj szablon do ist
 
 ## Notatki
 Rozmiar wg ADR-0024: M.
+- **Rozstrzygnięcia Tech Leada z delegacji (potwierdzone w przeglądzie UX, do decyzji Konrada przy demo):**
+  1. **Wiersz wizji na liście bez adresu** (API nie zwraca adresu w liście — decyzja 10, AC6 EVM-135); wyszukiwanie po adresie znajduje wizję, której adresu w wierszu nie widać.
+  2. **Baner odrzuconej wizji bez powodu** (szczegóły nie zwracają kodu powodu; powód jest w dzienniku) — pole w API to osobna zmiana.
+  3. **„Wygasające wizje” liczone po stronie panelu:** wizje posortowane po terminie (limit 100), ≤ 15 dni w `Europe/Warsaw`, tylko otwarte; licznik liczy pierwsze 100 wizji. Wyszukiwanie z „Tylko wizje” filtruje wczytaną stronę (API wyszukiwania nie ma tego filtra).
+  4. Nieaktualna wersja przy przypisaniu klienta = `412`; „Przywróć wizję…” u Edytora wyłączony z podpowiedzią; edycja telefonu zamawiającego poza kolejką (osobna historyjka); „Przedłuż o 90 dni” i komunikaty limitu — EVM-140.
+  5. Biblioteka UI: cztery ikony, wariant odznaki z obrysem (`StatusBadge group="mark"`), przycisk `tertiary-danger`; formularz klienta wydzielony z dialogu „Dodaj klienta” (bez zmiany zachowania).
+- **Instrukcja dla biura** (`docs/user/instrukcja-dla-biura.md`, rozdz. 4) opisuje już „Przedłuż o 90 dni” i komunikat limitu — panel dostanie je z EVM-140; do tego czasu instrukcja wyprzedza panel.
+- **Minor / nit z przeglądów — zostają:** osobny zegar na każdy wiersz w „Wygasających wizjach”; brak sortowania po terminie przy wyszukiwaniu frazą w tym widoku; `expiryDate` bez osłony na nieparsowalną datę; nieosiągalny `case 'customerRequired'`; martwe teksty w plikach etykiet; dwie kreski „—” w wierszu wizji przy 360 px; zdanie o dokumentach lokalizacji mylące przy wizji; telefon w formularzu nowego klienta bez odstępów; baner „Przedłużono 1 z 2 razy” bez przycisku; brak testu wejścia na adres wizji przy wyłączonej funkcji; tytuł jednego testu obiecuje więcej niż asercje; przewijanie poziome szczegółów przy 200% czcionki na 360 px (istniejąca wada paska górnego i zakładek).
 
 ## Dziennik
 - 2026-11-16 — szkic (product-owner)
 - 2026-11-16 — uzgodniono z ADR-0024, wpisano decyzje Konrada („akceptuję wg rekomendacji”); **status ready** (product-owner)
 - 2026-11-17 — start realizacji w kolejce `/noc-2026-11-16` (tor C, klon n2, po scaleniu toru B: `POST /site-surveys` z EVM-135 i `PUT …/customer`, odrzucenie, przywrócenie z EVM-136); **status `in-progress`** (Tech Lead)
+- 2026-11-17 — implementacja etapami (web-developer): biblioteka UI `7e6043cb`, refaktor formularza klienta `59a43000`, szczegóły i „Przypisz klienta” `8e579668`, odrzucenie i przywrócenie `cc4b7251`, korekty `7aad7315`, założenie w biurze `9376c2ee`, lista i filtry `58bbc17b`
+- 2026-11-17 — QA (`qa-engineer`): **PASS z uwagami**, raport `docs/qa/EVM-138/raport-qa.md`; code-reviewer **REQUEST CHANGES** z trzema major w dialogu „Przypisz klienta” (etykieta dziennika, reset formularza z telefonem, `404` jako utrata zlecenia) — poprawione `86727b78`, ponowny przegląd **APPROVE z uwagami**; ux-designer **APPROVE z uwagami**; przepływ 17 wyrównany `18222b54`

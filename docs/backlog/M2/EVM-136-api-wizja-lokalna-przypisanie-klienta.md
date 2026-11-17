@@ -65,8 +65,19 @@ Zmiana klienta po przypisaniu; łączenie wizji z istniejącym zleceniem; odrzuc
 
 ## Notatki
 Rozmiar wg ADR-0024: M. Panel przed przypisaniem podstawia telefon zamawiającego do formularza nowego klienta (EVM-138).
+- **Rozstrzygnięcia Tech Leada z delegacji (do potwierdzenia przy demo):**
+  1. **AC2 — nieaktualna wersja to `412 version_conflict`**, nie „`409` jak dziś” (w całym API i panelu konflikt wersji to `412`); `version` w ciele żądania (ADR-0024); „ten sam klient ponownie → `200`” sprawdzane przed wersją.
+  2. **AC3 — kanał aplikacji:** sesja kanału aplikacji dostaje `403 forbidden`, token aplikacji `401` (jak każda operacja tylko-web), nie `channel_not_allowed`.
+  3. **AC4 — reguła „wymaga klienta” jest szersza:** `409 customer_required` dla każdego celu poza „Wycena”, „Wstrzymane”, „Anulowane” (lustro więzu bazy), nie tylko dla „Zaakceptowane”.
+  4. Przypisanie klienta do odrzuconej wizji → `409 invalid_state_transition` (najpierw przywrócenie przez Administratora); `reasonCode` poza odrzuceniem wizji → `400`; audyt odrzucenia bez kodu powodu (kod w `status_reason`).
+  5. Baseline kontraktu przesunięty z `--allow-breaking ADR-0024` (nowa wartość enum akcji audytu `work_order.customer_assigned`).
+- **Ryzyka rezydualne (security, do decyzji Konrada — rekomendacja: akceptacja, monitorowanie w EVM-140):** Administrator cyklem „odrzuć → przywróć” może przesuwać termin wizji (przywrócenie daje co najmniej teraz + 14 dni); wizję po terminie, a przed usunięciem, można ocalić przypisaniem klienta.
+- **Do EVM-139:** wolny tekst powodu wstrzymania wizji (`status_reason`) może nazwać osobę — zadanie usuwania ma go zerować.
+- **Minor / nit z przeglądów — zostają:** testy „równoległych” żądań (poza testem blokady klienta) nie wymuszają faktycznej współbieżności; `SURVEY_REJECTION_CODES` powiela enum kontraktu; opis PUT w kontrakcie mówi jeszcze o `403 channel_not_allowed` dla tokenu aplikacji; opis `allowedTransitions` nie mówi o `accepted` dla wizji; nazwa `lockUsableCustomerForQuickOrder`; brak asercji licznika wprost w AC6 (sprawdzane listy, raporty i projekcja).
 
 ## Dziennik
 - 2026-11-16 — szkic (product-owner)
 - 2026-11-16 — uzgodniono z ADR-0024, wpisano decyzje Konrada („akceptuję wg rekomendacji”); **status ready** (product-owner)
 - 2026-11-16 — start realizacji w kolejce `/noc-2026-11-16` (tor C, klon n2, na commicie kontraktu EVM-135 `84766fbf`); **status `in-progress`** (Tech Lead)
+- 2026-11-17 — implementacja etapami (backend-developer): przypisanie klienta `72c7680b`, baseline `36db5500`, reguła akceptacji `9fadc083`, odrzucenie i przywrócenie `be68b810`, synchronizacja po przypisaniu `3d259025`, część po scaleniu EVM-135 `22c7bf21`; bez migracji
+- 2026-11-17 — QA (`qa-engineer`): **PASS z uwagami**, raport `docs/qa/EVM-136/raport-qa.md`; przeglądy: security-engineer **APPROVE z uwagami** (W2, W3, W5 spełnione), code-reviewer **APPROVE z uwagami** — bez blocker i major

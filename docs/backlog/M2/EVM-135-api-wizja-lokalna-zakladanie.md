@@ -77,8 +77,20 @@ Przypisanie klienta, reguła `accepted`, odrzucenie (EVM-136); ekrany (EVM-137, 
 
 ## Notatki
 Rozmiar wg ADR-0024: **L**. Pierwszy punkt planu technicznego: zapytanie kontrolne i kolejność migracji `NOT VALID` → `VALIDATE`. Zasada organizacyjna: do czasu EVM-139/141/133 tylko wizje testowe.
+- **Rozstrzygnięcia Tech Leada z delegacji (kolejka 2026-11-16, do potwierdzenia przy demo):**
+  1. **AC3 — kod przekroczonej kwoty to `quota_exceeded`**, nie `sync_quota_exceeded` (istniejący kod wyniku mutacji, ten sam mechanizm co w szybkim zleceniu); do poprawy brzmienie AC.
+  2. **AC6 — wiersz listy zwraca `requesterPhone`** (zgodnie z AC6); przegląd security rekomenduje usunięcie telefonu z wiersza listy (minimalizacja) — **decyzja Konrada**; interfejs telefonu w wierszu nie pokazuje, adresu w wierszu nie ma.
+  3. Wizja z panelu bez podanego opiekuna = bez opiekuna; „raporty” bez wizji = widoki `waiting_on_dso_over_14_days`, `overdue_payments`, `unpaid` i lista nieopłaconych transz; sortowanie po terminie tylko z `siteSurvey=only`; stan przełącznika w `features.siteSurveys`.
+  4. „Odwracalność” migracji 0066: runner działa tylko w przód — wycofanie logiczne opisane w nagłówku migracji i wykonane w teście; migracja sama sprawdza „0 zleceń bez klienta” i przy wyniku > 0 cofa całą transakcję.
+  5. Baseline kontraktu przesunięty z `--allow-breaking ADR-0024` (nowy wariant unii mutacji); `POST /site-surveys` wszedł do kontraktu razem z trasą, filtr listy razem z implementacją.
+  6. Przełącznik `SITE_SURVEYS_ENABLED` włączony w `infra/runtime/compose.staging.yaml` (decyzja 16); zabezpieczeniem jest zasada „tylko wizje testowe”.
+- **Skutki wdrożenia:** nowa wersja reguły zakresu telefonu (294) — jednorazowa pełna synchronizacja telefonów; **EVM-135 i EVM-136 tylko w jednym wydaniu** (bez reguły z EVM-136 przejście wizji do „Zaakceptowane” kończy się błędem bazy); przy otwartych wizjach nie wycofywać kodu do wersji sprzed EVM-135 (runbook `docs/ops/runbooks/wizja-lokalna.md`).
+- **Znane i poza zakresem:** lokalizacja założona dla wizji jest widoczna dla roli Tylko odczyt w wyszukiwaniu lokalizacji (sam adres; TM-149, pkt 9 listy kontrolnej — decyzja Konrada przed pierwszą realną wizją); limit otwartych wizji dopiero w EVM-140.
+- **Minor / nit z przeglądów — zostają:** test migracji bez zlecenia usuniętego miękko bez klienta; brak testu kursora z wersją zakresu 293; brak testu widoku `waiting_on_dso_over_14_days` bez wizji i limitu mieszanego (szybkie zlecenia + wizje); test redakcji bez asercji niepustego logu i bez `timeline`, `overview`, `idempotency_records`; test widoczności obejmuje odczyty o jednym segmencie; `WorkOrderListRef.siteSurvey` opcjonalne; fikstura „sprawdź, potem wstaw”; test czytający zbudowany kontrakt; trzy równoległe definicje kształtu wizji; niestabilny `work-orders-payments-performance.test.ts` (limit czasu SQL w przygotowaniu danych, niezwiązany); brak testu niezależności terminów od zmiany czasu (kod liczy pełne doby UTC).
 
 ## Dziennik
 - 2026-11-16 — szkic (product-owner)
 - 2026-11-16 — uzgodniono z ADR-0024, wpisano decyzje Konrada („akceptuję wg rekomendacji”); **status ready** (product-owner)
 - 2026-11-16 — start realizacji w kolejce `/noc-2026-11-16`; **status `in-progress`** (Tech Lead)
+- 2026-11-16 … 2026-11-17 — implementacja etapami (backend-developer, devops-engineer): migracja 0066 `0d968f03`, przełącznik `8f8c17e2` i `447ead71`, kontrakt `84766fbf`, zakładanie z telefonu `ac244a1d` i z panelu `b220ab80`, polityka Tylko odczyt `218e8cfa`, lista i filtr `8df4f608`, zakres telefonu `3d956a6e`, blokady `b7489ac4`, test AC8 `506e63f4`, dokumenty `6815808d`
+- 2026-11-17 — przeglądy: code-reviewer **APPROVE z uwagami**, security-engineer **APPROVE z uwagami** (W2, W4, W5, W6, W8, W11 spełnione; migracja oceniona jako bezpieczna dla wdrożenia bez kopii) — bez blocker; ustalenie major (osłabiony test listy) poprawione w `1d7eb47e`; QA (`qa-engineer`): **PASS z uwagami**, raport `docs/qa/EVM-135/raport-qa.md`, testy brzegowe `5d09516c`
