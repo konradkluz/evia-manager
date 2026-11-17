@@ -27,6 +27,7 @@ export class WorkOrderProjectionSourceService implements WorkOrderProjectionSour
         `${ORDERS}.customer_id as customerId`,
         `${ORDERS}.site_id as siteId`,
         `${ORDERS}.source_template_id as sourceTemplateId`,
+        `${ORDERS}.site_survey_expires_at as siteSurveyExpiresAt`,
         `${ASSIGNMENTS}.user_id as coordinatorUserId`,
       ])
       .where(`${ORDERS}.id`, 'in', ids)

@@ -1,0 +1,54 @@
+# EVM-137 AC6 (W10): the network returns; the server has deleted the survey (the delete reaches the phone with the next changes) and rejects what was
+# waiting for it with `target_unavailable`. The survey leaves the list; the entry and the photo are "Wymaga uwagi" with the reason in Polish, each with ONE
+# action "Usuń z telefonu" (no "Dodaj do innego zlecenia", no copy), and they are not sent again. After both are discarded the Queue is empty. The counters
+# of the scenario server (1 unique more, 0 duplicates, 2 rejected) are asserted by tools/mobile-e2e after this flow.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- extendedWaitUntil:
+    visible: 'Wymaga uwagi.*'
+    timeout: 90000
+- assertNotVisible: 'Offline.*'
+- tapOn:
+    id: 'nav-queue'
+- extendedWaitUntil:
+    visible: 'Wizja została usunięta — wpis nie został wysłany\.'
+    timeout: 30000
+- assertVisible: 'Wizja została usunięta — zdjęcie nie zostało wysłane\.'
+- assertNotVisible: 'Dodaj do innego zlecenia'
+- assertNotVisible: 'Kopiuj treść'
+- assertNotVisible: '.*Fikcyjna.*'
+- takeScreenshot: m07-survey-items-gone
+# the survey is not on the list any more (the chip and the number are gone)
+- tapOn:
+    id: 'nav-orders'
+- assertNotVisible: 'ZL-E2E-3'
+- assertNotVisible: 'Wizje lokalne.*'
+- tapOn:
+    id: 'nav-queue'
+# the entry first: its card has the action; the dialog is the ordinary one
+- tapOn:
+    id: 'attention-.*-discard'
+    index: 0
+- extendedWaitUntil:
+    visible: 'Usunąć z telefonu\?'
+    timeout: 10000
+- tapOn:
+    id: 'discard-confirm'
+- extendedWaitUntil:
+    visible: 'Wizja została usunięta — zdjęcie nie zostało wysłane\.'
+    timeout: 20000
+- assertNotVisible: 'Wizja została usunięta — wpis nie został wysłany\.'
+# the photo: the row of the file has its own "Usuń z telefonu"
+- tapOn: 'Usuń z telefonu'
+- extendedWaitUntil:
+    visible: 'Usunąć z telefonu\?'
+    timeout: 10000
+- tapOn:
+    id: 'file-discard-confirm'
+- extendedWaitUntil:
+    visible: 'Nic nie czeka na wysłanie\.'
+    timeout: 30000
+- assertNotVisible: 'Wymaga uwagi.*'
+- takeScreenshot: m07-survey-items-discarded

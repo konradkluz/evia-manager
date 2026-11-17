@@ -362,7 +362,14 @@ describe('smoke test run (EVM-009 AC4; ADR-0015)', () => {
     );
     assert.deepEqual(
       machine.syncModes,
-      SCENARIOS.flatMap((scenario) => scenario.steps.map((step) => ({ templates: step.templates ?? 'ok', quick: step.quick ?? 'ok' }))),
+      SCENARIOS.flatMap((scenario) =>
+        scenario.steps.map((step) => ({
+          templates: step.templates ?? 'ok',
+          quick: step.quick ?? 'ok',
+          survey: step.survey ?? 'ok',
+          features: step.features ?? 'on',
+        })),
+      ),
     );
     // airplane mode changes exactly where two consecutive steps differ (the offline flows of EVM-009 and EVM-100), nothing else
     assert.deepEqual(machine.airplane(), expectedAirplane(SCENARIOS.flatMap((scenario) => scenario.steps)));

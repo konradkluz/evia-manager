@@ -28,7 +28,9 @@ beforeAll(async () => {
     { number: numberOf(2026, 3301) },
     { number: numberOf(2026, 3302), deletedAt: new Date('2026-10-10T08:00:00Z') },
   ]);
-  // the helper has written the projection of both orders (the shape of 0023 is the shape of the helper)
+  // the projection of both orders as the `rebuild` of that time wrote it: the helpers recompute only a projection of the CURRENT shape (0066, EVM-135)
+  await sql`insert into overview.work_order_summaries (work_order_id, number, status, created_at, deleted_at, customer_id, recomputed_at)
+    select id, number, status, created_at, deleted_at, customer_id, now() from work_orders.work_orders`.execute(db);
   expect(JSON.parse(await snapshot())).toHaveLength(2);
   snapshotBefore = await snapshot();
   expect((await migrateToLatest(db, THROUGH)).applied).toEqual(['0033_deleted_orders_index']);

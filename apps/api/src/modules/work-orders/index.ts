@@ -18,6 +18,7 @@ export { ScopeLimitError, WorkOrderScopeRegistry, type ScopeAdditionContext, typ
 export { WorkOrderTransitionRegistry, type TransitionContext, type WorkOrderTransitionParticipant } from './transition-participant.ts';
 export { WorkOrderDeletionRegistry, type DeletionContext, type WorkOrderDeletionParticipant } from './deletion-participant.ts';
 export { decideDeletion, type DeletionAssessment, type DeletionDecision } from './domain/work-order-deletion.ts';
+export { awaitsCustomer } from './domain/site-survey.ts';
 export {
   CompositionRejectedError,
   WorkOrderCompositionRegistry,
@@ -30,5 +31,6 @@ export {
   type DeletedOrderRef,
   type WorkOrderDirectory,
   type WorkOrderListRef,
+  type SiteSurveyRef,
   type WorkOrderRef,
 } from './work-order-directory.ts';

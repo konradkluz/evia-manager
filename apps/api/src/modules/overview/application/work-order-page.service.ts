@@ -44,7 +44,7 @@ import { UserDirectory } from '../../identity/index.ts';
 import { PARTY_DIRECTORY, type PartyDirectory } from '../../parties/index.ts';
 import { PAYMENT_TOTALS_DIRECTORY, type PaymentTotals, type PaymentTotalsDirectory } from '../../payments/payment-totals.ts';
 import { SITE_DIRECTORY, type SiteDirectory, type SiteLine } from '../../sites/index.ts';
-import { WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders/index.ts';
+import { WORK_ORDER_DIRECTORY, type SiteSurveyRef, type WorkOrderDirectory } from '../../work-orders/index.ts';
 import { PAYMENT_VIEWS, paymentStateOf } from '../domain/payment-signals.ts';
 import { daysBetween, parsePosition, positionParts, type Position, type WorkOrderListQuery } from '../domain/work-order-list-query.ts';
 import { readWorkOrderPage, type SearchIdSets, type WorkOrderRow } from '../infrastructure/work-order-list-reader.ts';
@@ -175,13 +175,23 @@ export class WorkOrderPageService {
     const partyKinds = partyIds.length === 0 ? new Map<string, string>() : await this.#parties.kindsOf(this.#db, principal, partyIds);
     // the customers and the sites: ONE statement each for the whole page, under the read policy of their modules (none when absent)
     const customerNames = await this.#customers.displayNamesOf(this.#db, principal, unique(visible.map(({ row }) => row.customerId)));
-    const siteLines = await this.#sites.linesOf(this.#db, principal, unique(visible.map(({ row }) => row.siteId)));
+    // the address of an open site survey is never on the list (EVM-135 AC6, W5): its site is not even looked up
+    const siteLines = await this.#sites.linesOf(
+      this.#db,
+      principal,
+      unique(visible.map(({ row }) => (row.siteSurveyExpiresAt === null ? row.siteId : null))),
+    );
+    // the mark of an open site survey: ONE statement under the read policy, none when the page has no survey (the view "Usunięte" shows none)
+    const surveyIds = deletedView ? [] : visible.flatMap(({ row }) => (row.siteSurveyExpiresAt === null ? [] : [row.id]));
+    const surveys =
+      surveyIds.length === 0 ? new Map<string, SiteSurveyRef>() : await this.#orders.siteSurveysOf(this.#db, principal, surveyIds);
     // the totals of payments are read under the policy of the visible orders: a deleted order has none, so its row has no column of payments
     const totals = withPayments && !deletedView ? await this.#totalsOf(principal, visible, today) : undefined;
     const last = shown.at(-1);
     const list = {
       items: visible.map(({ row, title, version }) => ({
         ...toItem(row, title, { names, partyNames, partyKinds, customerNames, siteLines }, today),
+        siteSurvey: siteSurveyOf(surveys.get(row.id)),
         ...(deletedView && row.deletedAt !== null && version !== undefined ? { deletedAt: row.deletedAt.toISOString(), version } : {}),
         ...(totals === undefined ? {} : { payment: paymentOf(row, totals, today) }),
       })),
@@ -278,8 +288,15 @@ function toItem(row: WorkOrderRow, title: string, lookups: Lookups, today: strin
     // a difference of dates (`YYYY-MM-DD` compare as dates): the deadline of the nearest unfinished stage is before today
     hasOverdueStage: row.nextDueDate !== null && row.nextDueDate < today,
     customer: customerOf(row.customerId, lookups.customerNames),
-    site: siteOf(row.siteId, lookups.siteLines),
+    site: row.siteSurveyExpiresAt === null ? siteOf(row.siteId, lookups.siteLines) : null,
   };
+}
+
+/** The mark of an open site survey (EVM-135 AC6) - `null` for an ordinary order. */
+function siteSurveyOf(survey: SiteSurveyRef | undefined) {
+  return survey === undefined
+    ? null
+    : { expiresAt: survey.expiresAt.toISOString(), extensionCount: survey.extensionCount, requesterPhone: survey.requesterPhone };
 }
 
 /**

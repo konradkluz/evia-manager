@@ -34,7 +34,7 @@ import { parseInput } from '../../../platform/http/validation.ts';
 import type { Counter, MetricsRegistry } from '../../../platform/metrics/metrics.ts';
 import { BULK_READ_CONTROL, CLOCK, CURSOR_CODEC, DATABASE, METRICS } from '../../../platform/tokens.ts';
 import { CUSTOMER_DIRECTORY, type CustomerDirectory } from '../../customers/index.ts';
-import { WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders/index.ts';
+import { WORK_ORDER_DIRECTORY, type WorkOrderDirectory, type WorkOrderListRef } from '../../work-orders/index.ts';
 import {
   compareOrders,
   filterPartsOf,
@@ -147,7 +147,7 @@ export class ListUnpaidMilestonesService {
       this.#db,
       async (tx) => {
         const tables = paymentTables(tx);
-        const refs = await this.#orders.refsOf(tx, principal, await unpaidOrderIds(tables));
+        const refs = withoutSiteSurveys(await this.#orders.refsOf(tx, principal, await unpaidOrderIds(tables)));
         const visible = [...refs.keys()];
         const filteredOrderIds = await this.#narrowedToCustomer(tx, principal, query.customerId, visible, refs);
         const summary = await readUnpaidSummary(tables, { orderIds: visible, filteredOrderIds, filters, asOf });
@@ -202,7 +202,7 @@ export class ListUnpaidMilestonesService {
         const tables = paymentTables(tx);
         const issuedIds = await unpaidOrderIds(tables);
         const plannedIds = await plannedOrderIds(tables);
-        const refs = await this.#orders.refsOf(tx, principal, [...new Set([...issuedIds, ...plannedIds])]);
+        const refs = withoutSiteSurveys(await this.#orders.refsOf(tx, principal, [...new Set([...issuedIds, ...plannedIds])]));
         const tileOrders = issuedIds.filter((id) => refs.has(id));
         const open = plannedIds.filter((id) => refs.get(id)?.closed === false);
         const narrowed = await this.#narrowedToCustomer(tx, principal, query.customerId, open, refs);
@@ -274,4 +274,12 @@ export class ListUnpaidMilestonesService {
     if (!known.has(customerId)) return [];
     return visible.filter((id) => refs.get(id)?.customerId === customerId);
   }
+}
+
+/**
+ * The reports leave the open site surveys out (EVM-135 AC6; ADR-0024 pt 2): a survey has no milestone through the API (`customer_required`), and a row written any
+ * other way is neither counted nor listed.
+ */
+function withoutSiteSurveys(refs: ReadonlyMap<string, WorkOrderListRef>): ReadonlyMap<string, WorkOrderListRef> {
+  return new Map([...refs].filter(([, ref]) => ref.siteSurvey !== true));
 }

@@ -44,6 +44,8 @@ export interface WorkOrderRow {
   readonly createdAt: Date;
   /** the deletion time — only a row of the view "Usunięte" has one (EVM-060) */
   readonly deletedAt: Date | null;
+  /** the deadline of an open site survey (EVM-135) - `null` for an ordinary order */
+  readonly siteSurveyExpiresAt: Date | null;
   readonly coordinatorUserId: string | null;
   /** keys only — the name and the address come from `customers` and `sites` in batches, under the policy of the caller (W1, W5) */
   readonly customerId: string | null;
@@ -74,6 +76,9 @@ export interface PageScope {
 const SUMMARIES = 'overview.work_order_summaries';
 /** The views that list open orders only (ADR-0017 pyt. 7). */
 const OPEN_VIEWS: readonly string[] = ['all_open', 'waiting_on_dso_over_14_days', 'overdue_payments', 'unpaid'];
+/** The reports (EVM-135 AC6, ADR-0024 pt 2): they count orders, so they leave the open site surveys out; the lists show them with their mark. */
+const REPORT_VIEWS: readonly string[] = ['waiting_on_dso_over_14_days', 'overdue_payments', 'unpaid'];
+const SITE_SURVEY_EXPIRES_AT = sql.ref('overview.work_order_summaries.site_survey_expires_at');
 
 const NEXT_DUE_DATE = sql.ref('overview.work_order_summaries.next_due_date');
 const LONGEST_WAITING_SINCE = sql.ref('overview.work_order_summaries.longest_waiting_since');
@@ -174,6 +179,7 @@ export async function readWorkOrderPage(
       `${SUMMARIES}.status as status`,
       `${SUMMARIES}.created_at as createdAt`,
       `${SUMMARIES}.deleted_at as deletedAt`,
+      `${SUMMARIES}.site_survey_expires_at as siteSurveyExpiresAt`,
       `${SUMMARIES}.coordinator_user_id as coordinatorUserId`,
       `${SUMMARIES}.customer_id as customerId`,
       `${SUMMARIES}.site_id as siteId`,
@@ -202,6 +208,12 @@ export async function readWorkOrderPage(
   if (query.customerId !== undefined) select = select.where(`${SUMMARIES}.customer_id`, '=', query.customerId);
   if (query.siteType !== undefined) select = select.where(`${SUMMARIES}.site_type`, '=', query.siteType);
   if (query.templateId !== undefined) select = select.where(`${SUMMARIES}.source_template_id`, '=', query.templateId);
+  if (query.siteSurvey === 'only' || query.siteSurvey === 'exclude') {
+    select = select.where(
+      query.siteSurvey === 'only' ? sql<SqlBool>`${SITE_SURVEY_EXPIRES_AT} is not null` : sql<SqlBool>`${SITE_SURVEY_EXPIRES_AT} is null`,
+    );
+  }
+  if (query.view !== undefined && REPORT_VIEWS.includes(query.view)) select = select.where(sql<SqlBool>`${SITE_SURVEY_EXPIRES_AT} is null`);
   if (narrowing !== undefined) select = select.where(matchesAny(narrowing));
   if (query.waitingOn !== undefined || query.waitingOnPartyKind !== undefined || query.waitingLongerThanDays !== undefined) {
     select = select.where(
@@ -246,6 +258,11 @@ export async function readWorkOrderPage(
       select = select.where(
         sql<SqlBool>`(${key}, ${sql.ref('overview.work_order_summaries.work_order_id')}) > (${day}::date, ${id}::uuid)`,
       );
+    } else if ('expiresAt' in position) {
+      // the sort by the deadline (EVM-135): ascending only, every row of the page has a deadline (the filter `only`)
+      select = select.where(
+        sql<SqlBool>`(${SITE_SURVEY_EXPIRES_AT}, ${sql.ref('overview.work_order_summaries.work_order_id')}) > (${position.expiresAt}, ${position.id}::uuid)`,
+      );
     } else {
       const { createdAt, id } = position;
       select = select.where((eb) =>
@@ -265,6 +282,9 @@ export async function readWorkOrderPage(
     case 'longestWaitingSince':
     case 'nextDueDate':
       ordered = select.orderBy(dayKey(rule.key), direction).orderBy(`${SUMMARIES}.work_order_id`, direction);
+      break;
+    case 'siteSurveyExpiresAt':
+      ordered = select.orderBy(`${SUMMARIES}.site_survey_expires_at`, direction).orderBy(`${SUMMARIES}.work_order_id`, direction);
       break;
   }
   const rows = await ordered.limit(query.limit + 1).execute();

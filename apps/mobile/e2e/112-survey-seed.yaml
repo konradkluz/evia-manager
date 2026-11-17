@@ -1,0 +1,25 @@
+# EVM-137 AC5 AC6 AC7 (preparation of the scenarios of the hidden-data mode, of the deleted survey and of the assigned client): with the network on, the survey
+# is created from the list (common/survey-create.yaml), is sent at once and gets its number; the details that are open turn from "Oczekuje na
+# numer" into the numbered survey ("ZL-E2E-3" in the bar). Back at the list the card has the mark, the term and the chip.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- runFlow: common/survey-create.yaml
+- extendedWaitUntil:
+    visible: 'ZL-E2E-3'
+    timeout: 60000
+- assertNotVisible: 'Oczekuje na numer'
+- assertVisible: 'Wizja lokalna'
+- assertVisible: 'Fikcyjna 12, 05-500 Piaseczno'
+- takeScreenshot: m03-survey-numbered
+- tapOn:
+    id: 'order-detail-back'
+- extendedWaitUntil:
+    visible: 'Wizje lokalne \(1\)'
+    timeout: 10000
+- assertVisible: 'Wygasa za 90 dni'
+- assertNotVisible: '.*Fikcyjna.*'

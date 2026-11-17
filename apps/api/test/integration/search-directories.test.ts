@@ -120,9 +120,21 @@ describe('the search and display facades of the three modules (EVM-072 AC2, AC5;
     const unknown = '0190a1b2-0000-7000-8000-0000000000ff';
     for (const role of ['administrator', 'editor', 'read_only'] as const) {
       const refs = await orders.refsOf(admin(), principal({ role }), [visible, withoutCustomer, deleted, unknown, visible]);
+      // the order without a customer is an open site survey: Read-only does not see it (EVM-135 AC4)
+      if (role === 'read_only') {
+        expect([...refs.keys()]).toEqual([visible]);
+        continue;
+      }
       expect([...refs.keys()].sort()).toEqual([visible, withoutCustomer].sort());
-      expect(refs.get(visible)).toEqual({ number: 'ZL-2026-0101', title: 'Widoczne', customerId, closed: false });
-      expect(refs.get(withoutCustomer)).toEqual({ number: 'ZL-2026-0102', title: 'Bez klienta', customerId: null, closed: false });
+      // EVM-135: the facade says whether the order is an open site survey (the reports leave it out)
+      expect(refs.get(visible)).toEqual({ number: 'ZL-2026-0101', title: 'Widoczne', customerId, closed: false, siteSurvey: false });
+      expect(refs.get(withoutCustomer)).toEqual({
+        number: 'ZL-2026-0102',
+        title: 'Bez klienta',
+        customerId: null,
+        closed: false,
+        siteSurvey: true,
+      });
     }
     expect((await orders.refsOf(admin(), caller, [])).size).toBe(0);
   });

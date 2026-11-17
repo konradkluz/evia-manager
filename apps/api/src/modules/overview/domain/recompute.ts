@@ -24,6 +24,8 @@ export interface OrderKeys {
   readonly customerId: string | null;
   readonly siteId: string | null;
   readonly sourceTemplateId: string | null;
+  /** The deadline of an open site survey (EVM-135): an authorisation column - Read-only does not see an open survey (ADR-0024 pt 8). */
+  readonly siteSurveyExpiresAt: Date | null;
 }
 
 /** What `procedures` tells about an unfinished stage of a live process of the order. */
@@ -55,6 +57,7 @@ export interface SummaryColumns {
   readonly status: string;
   readonly createdAt: Date;
   readonly deletedAt: Date | null;
+  readonly siteSurveyExpiresAt: Date | null;
   readonly coordinatorUserId: string | null;
   readonly customerId: string | null;
   readonly siteId: string | null;
@@ -148,6 +151,7 @@ export function computeProjection(
       status: keys.status,
       createdAt: keys.createdAt,
       deletedAt: keys.deletedAt,
+      siteSurveyExpiresAt: keys.siteSurveyExpiresAt,
       coordinatorUserId: keys.coordinatorUserId,
       customerId: keys.customerId,
       siteId: keys.siteId,
@@ -178,7 +182,12 @@ export function differingGroups(stored: Projection, computed: Projection): Colum
   const groups: ColumnGroup[] = [];
   const a = stored.summary;
   const b = computed.summary;
-  if ((a.deletedAt?.getTime() ?? null) !== (b.deletedAt?.getTime() ?? null)) groups.push('authorization');
+  if (
+    (a.deletedAt?.getTime() ?? null) !== (b.deletedAt?.getTime() ?? null) ||
+    (a.siteSurveyExpiresAt?.getTime() ?? null) !== (b.siteSurveyExpiresAt?.getTime() ?? null)
+  ) {
+    groups.push('authorization');
+  }
   if (
     a.number !== b.number ||
     a.status !== b.status ||

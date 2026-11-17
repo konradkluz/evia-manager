@@ -8,6 +8,7 @@ import {
   zCreateSiteSurveyResponse,
   zCreateWorkOrderRequest,
   zCurrentSession,
+  zListWorkOrdersQuery,
   zSyncMutation,
   zSyncMutationsResponse,
   zSyncWorkOrder,
@@ -159,6 +160,15 @@ describe('EVM-135 AC5 AC6 an order without a customer on the phone, in the detai
     };
     expect(zWorkOrderListItem.safeParse({ ...item, customer: null, site: null, siteSurvey: SURVEY }).success).toBe(true);
     expect(zWorkOrderListItem.safeParse({ ...item, siteSurvey: null }).success).toBe(true);
+  });
+});
+
+describe('EVM-135 AC6 the filter and the sort of the list', () => {
+  it('EVM-135 AC6 listWorkOrders takes siteSurvey=only|exclude and the sort by the deadline (which the server allows with only)', () => {
+    expect(zListWorkOrdersQuery.safeParse({ siteSurvey: 'only', sort: 'siteSurveyExpiresAt' }).success).toBe(true);
+    expect(zListWorkOrdersQuery.safeParse({ siteSurvey: 'exclude' }).success).toBe(true);
+    expect(zListWorkOrdersQuery.safeParse({ siteSurvey: 'all' }).success).toBe(false);
+    expect(AUTHZ_MANIFEST['listWorkOrders']?.query).toContain('siteSurvey');
   });
 });
 

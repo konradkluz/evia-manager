@@ -1,0 +1,41 @@
+# EVM-137 AC6 (W5, W10): the network returns; the server rejects the survey with `feature_disabled`. The survey is ONE row of "Wymaga uwagi" with the
+# reason in Polish and WITHOUT the address, the entry and the photo wait behind it; the only action is "Usuń z telefonu" (no moving to another order, no
+# copy, no "Utwórz ponownie"); its dialog names what goes with it by kind; after the confirmation the Queue is empty and the survey is gone from the list.
+# The counters of the scenario server (0 unique, 0 duplicates, 1 rejected: the rest is held back) are asserted by tools/mobile-e2e after this flow.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- extendedWaitUntil:
+    visible: 'Wymaga uwagi.*'
+    timeout: 90000
+- tapOn:
+    id: 'nav-queue'
+- extendedWaitUntil:
+    visible: 'Wizja lokalna nie została utworzona — funkcja jest wyłączona\. Zapytaj administratora\.'
+    timeout: 30000
+- assertVisible: 'Czekają z nim 2 elementy\.'
+- assertVisible: 'Usuń z telefonu'
+- assertNotVisible: 'Dodaj do innego zlecenia'
+- assertNotVisible: 'Kopiuj treść'
+- assertNotVisible: 'Utwórz ponownie'
+- assertNotVisible: '.*Fikcyjna.*'
+- assertNotVisible: '.*Piaseczno.*'
+- takeScreenshot: m07-survey-needs-attention
+- tapOn: 'Usuń z telefonu'
+- extendedWaitUntil:
+    visible: 'Usunąć wizję z telefonu\?'
+    timeout: 10000
+- assertVisible: 'Wizja nie zostanie wysłana\. Razem z nią usuniemy z telefonu 2 elementy: 1 zdjęcie i 1 wpis\. Tego nie da się cofnąć\.'
+- takeScreenshot: m07-survey-discard-dialog
+- tapOn:
+    id: 'discard-confirm'
+- extendedWaitUntil:
+    visible: 'Nic nie czeka na wysłanie\.'
+    timeout: 30000
+- assertNotVisible: 'Wymaga uwagi.*'
+- tapOn:
+    id: 'nav-orders'
+- assertNotVisible: 'Oczekuje na numer'
+- assertNotVisible: 'Wizje lokalne.*'
+- takeScreenshot: m05-survey-removed

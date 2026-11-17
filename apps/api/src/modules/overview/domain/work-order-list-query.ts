@@ -8,7 +8,15 @@
  * `nextDueDate`, `urgency`; `overdue`, `unpaid`) additively. The sort is a map from the enum to fixed columns — a value of
  * the request never becomes a column name.
  */
-import { zPartyKind, zSiteType, zWorkOrderSort, zWorkOrderStatus, zWorkOrderView, zWorkOrderWaitingOnFilter } from '@evia/contracts/zod';
+import {
+  zPartyKind,
+  zSiteType,
+  zWorkOrderSiteSurveyFilter,
+  zWorkOrderSort,
+  zWorkOrderStatus,
+  zWorkOrderView,
+  zWorkOrderWaitingOnFilter,
+} from '@evia/contracts/zod';
 import { z } from 'zod';
 
 export const WORK_ORDER_STATUSES = zWorkOrderStatus.options;
@@ -17,6 +25,7 @@ export type WorkOrderSort = z.infer<typeof zWorkOrderSort>;
 export type WorkOrderView = z.infer<typeof zWorkOrderView>;
 export type WaitingOnFilter = z.infer<typeof zWorkOrderWaitingOnFilter>;
 export type SiteType = z.infer<typeof zSiteType>;
+export type SiteSurveyFilter = z.infer<typeof zWorkOrderSiteSurveyFilter>;
 
 /** "Open" is every status but the closed ones (domain-model.md → WorkOrderStatus). */
 export const CLOSED_STATUSES: readonly WorkOrderStatus[] = ['settled', 'cancelled'];
@@ -33,7 +42,7 @@ export const WAITING_WARNING_DAYS = 14;
 /** The kind of the party of the view "Czekamy na OSD > 14 dni" (D2). */
 export const DSO_PARTY_KIND = 'distribution_system_operator';
 
-export type SortKey = 'number' | 'createdAt' | 'longestWaitingSince' | 'nextDueDate' | 'urgency';
+export type SortKey = 'number' | 'createdAt' | 'longestWaitingSince' | 'nextDueDate' | 'urgency' | 'siteSurveyExpiresAt';
 export interface SortRule {
   readonly key: SortKey;
   readonly direction: 'asc' | 'desc';
@@ -50,6 +59,8 @@ export const SORT_RULES: Readonly<Record<WorkOrderSort, SortRule>> = Object.free
   nextDueDate: { key: 'nextDueDate', direction: 'asc' },
   // "Najpilniejsze" (EVM-056 AC3; ADR-0017 D9): ascending only — the group 1..4, the day of its key (`infinity` in group 4), the id
   urgency: { key: 'urgency', direction: 'asc' },
+  // the deadline of the site surveys (EVM-135 AC6): ascending, with `siteSurvey=only` alone (every row has a deadline), a tie by the id
+  siteSurveyExpiresAt: { key: 'siteSurveyExpiresAt', direction: 'asc' },
 });
 
 /** Comma separated statuses of the closed list: no empty element, at most 20 elements; the set is normalised (sorted, no duplicates). */
@@ -69,6 +80,8 @@ const listQueryShape = {
   // "Więcej filtrów" (EVM-072 AC4): the type of the site (a code) and the template the order came from (an identifier of the catalogue)
   siteType: zSiteType.optional(),
   templateId: z.uuid().optional(),
+  // the site surveys (EVM-135 AC6): only the open surveys, or none of them; absent - both
+  siteSurvey: zWorkOrderSiteSurveyFilter.optional(),
   // "Czekamy na…" (EVM-034 AC2): codes and a number only — never an identifier of a party or a name (SR-API-04)
   waitingOn: zWorkOrderWaitingOnFilter.optional(),
   waitingOnPartyKind: zPartyKind.optional(),
@@ -100,6 +113,10 @@ export const workOrderListQuerySchema = z.strictObject(listQueryShape).superRefi
   if (query.waitingOn === 'customer' && query.waitingOnPartyKind !== undefined) {
     context.addIssue({ code: 'custom', path: ['waitingOnPartyKind'], message: 'contradicts waitingOn' });
   }
+  // the sort by the deadline has a key for every row only among the open surveys (EVM-135 AC6)
+  if (query.sort === 'siteSurveyExpiresAt' && query.siteSurvey !== 'only') {
+    context.addIssue({ code: 'custom', path: ['sort'], message: 'needs siteSurvey=only' });
+  }
 });
 
 /** The query as the reader needs it: defaults applied, statuses normalised. */
@@ -112,6 +129,8 @@ export interface WorkOrderListQuery {
   /** "Więcej filtrów" (EVM-072): the type of the site and the template of the order — codes and a catalogue identifier, never personal data */
   readonly siteType: SiteType | undefined;
   readonly templateId: string | undefined;
+  /** the site surveys (EVM-135): `only` the open surveys, `exclude` them, `undefined` both */
+  readonly siteSurvey: SiteSurveyFilter | undefined;
   /** "Czekamy na…": who is waited for; `party` when only a kind is named */
   readonly waitingOn: WaitingOnFilter | undefined;
   readonly waitingOnPartyKind: string | undefined;
@@ -128,6 +147,7 @@ export const resolveWorkOrderListQuery = workOrderListQuerySchema.transform((que
   customerId: query.customerId,
   siteType: query.siteType,
   templateId: query.templateId,
+  siteSurvey: query.siteSurvey,
   waitingOn: query.waitingOn ?? (query.waitingOnPartyKind === undefined ? undefined : 'party'),
   waitingOnPartyKind: query.waitingOnPartyKind,
   waitingLongerThanDays: query.waitingLongerThanDays,
@@ -148,6 +168,8 @@ export const filterPartsOf = (query: WorkOrderListQuery): string[] => [
   query.waitingOn ?? '',
   query.waitingOnPartyKind ?? '',
   query.waitingLongerThanDays === undefined ? '' : String(query.waitingLongerThanDays),
+  // EVM-135: appended only when given, so the cursors of a list without the filter keep the parts they had
+  ...(query.siteSurvey === undefined ? [] : [`siteSurvey=${query.siteSurvey}`]),
 ];
 
 export type UrgencyGroup = 1 | 2 | 3 | 4;
@@ -166,6 +188,7 @@ export interface Urgency {
 export type Position =
   | { readonly number: string }
   | { readonly createdAt: Date; readonly id: string }
+  | { readonly expiresAt: Date; readonly id: string }
   | { readonly day: string; readonly id: string }
   | { readonly group: UrgencyGroup; readonly day: string; readonly id: string };
 
@@ -196,6 +219,10 @@ export function parsePosition(sort: WorkOrderSort, parts: readonly string[]): Po
       const parsed = urgencyPosition.safeParse(parts);
       return parsed.success ? { group: parsed.data[0], day: parsed.data[1], id: parsed.data[2] } : undefined;
     }
+    case 'siteSurveyExpiresAt': {
+      const parsed = createdAtPosition.safeParse(parts);
+      return parsed.success ? { expiresAt: new Date(parsed.data[0]), id: parsed.data[1] } : undefined;
+    }
   }
 }
 
@@ -210,6 +237,8 @@ export function positionParts(
     readonly nextDueDate: string | null;
     /** the group and the day of "Najpilniejsze", as the query computed them (present when the page is sorted by it) */
     readonly urgency?: Urgency | undefined;
+    /** the deadline of a site survey (EVM-135; every row of a page sorted by it has one) */
+    readonly siteSurveyExpiresAt?: Date | null;
   },
 ): string[] {
   switch (SORT_RULES[sort].key) {
@@ -225,6 +254,12 @@ export function positionParts(
       // the reader computes the group and the day for every row of a page sorted by "Najpilniejsze": a row without them is a defect
       if (item.urgency === undefined) throw new Error('a row of a page sorted by urgency without its group');
       return [String(item.urgency.group), item.urgency.day, item.id];
+    }
+    case 'siteSurveyExpiresAt': {
+      // the page is filtered to the open surveys: a row without a deadline is a defect
+      if (item.siteSurveyExpiresAt === undefined || item.siteSurveyExpiresAt === null)
+        throw new Error('a row of a page sorted by the deadline without one');
+      return [item.siteSurveyExpiresAt.toISOString(), item.id];
     }
   }
 }

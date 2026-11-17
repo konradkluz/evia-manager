@@ -4,7 +4,8 @@
  * of the entity types the pull serves ({@link SCOPE_TYPES_REVISION}) is a different number, and every cursor issued before it is a `resync_required`
  * with `scope_changed`. The number is an int32 (the cursor and the contract admit nothing larger) and it is never below the 1 of EVM-096.
  */
-export const SCOPE_TYPES_REVISION = 3;
+// 4 (EVM-135): an open site survey is in the scope of its creator and its coordinator only - a change of the rule, not of the types
+export const SCOPE_TYPES_REVISION = 4;
 
 /** The bounds the configuration is validated against at the start (fail fast, ASVS V13): they keep the result inside an int32. */
 export const MAX_SCOPE_RULE_COUNTER = 100_000;

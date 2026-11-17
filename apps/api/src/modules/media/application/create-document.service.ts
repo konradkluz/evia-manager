@@ -30,7 +30,7 @@ import { IDEMPOTENCY, type Idempotency } from '../../../platform/idempotency/ide
 import { OBJECT_STORAGE, type ObjectStorage } from '../../../platform/object-storage/object-storage.ts';
 import { CLOCK, DATABASE, EVENT_BUS } from '../../../platform/tokens.ts';
 import { DOCUMENT_KIND_DIRECTORY, type DocumentKindDirectory, type DocumentKindForDocument } from '../../catalog/index.ts';
-import { WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders/index.ts';
+import { awaitsCustomer, WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders/index.ts';
 import { PROCEDURE_STAGE_DIRECTORY, type ProcedureStageDirectory } from '../../procedures/index.ts';
 import { effectiveClass, resolveNewDocumentClass, type ConfidentialityOverride } from '../domain/confidentiality.ts';
 import { checkAnchor, type DocumentAnchor } from '../domain/document-anchor.ts';
@@ -175,6 +175,8 @@ export class CreateDocumentService {
     return runInTransaction(this.#db, async (tx) => {
       const order = await this.#orders.findVisible(tx, principal, workOrderId);
       if (order === undefined) throw new ProblemException('not_found');
+      // EVM-135 AC7: no document of an open site survey - whatever the anchor - until it has a customer
+      if (awaitsCustomer(order)) throw new ProblemException('customer_required');
       requireStorage(this.#storage);
       const key = idempotencyKeyOf(rawKey);
       const input = parseInput(bodySchema, rawBody, SERVER_FIELDS) as Input;

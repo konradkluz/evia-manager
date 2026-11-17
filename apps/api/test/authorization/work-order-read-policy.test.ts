@@ -16,8 +16,9 @@ const db = new Kysely<unknown>({
 const principalOf = (role: Principal['role']): Principal => ({ role }) as Principal;
 
 describe('the read policy of work orders as a condition of a query (EVM-034 W2; EVM-017 AC6; SR-AUTHZ-03, ASVS V8.2.2)', () => {
-  it('EVM-034 AC6 W2 every role sees the orders that are not soft deleted — as a condition on the deletion column of the table of the query', () => {
-    for (const role of ['administrator', 'editor', 'read_only'] as const) {
+  it('EVM-034 AC6 W2 the Administrator and the Editor see the orders that are not soft deleted — as a condition on the deletion column of the table of the query', () => {
+    // Read-only has one more condition since EVM-135 (the open site surveys) - the next test
+    for (const role of ['administrator', 'editor'] as const) {
       expect(workOrderReadCondition(principalOf(role), 'work_orders.work_orders').compile(db).sql, role).toBe(
         '"work_orders"."work_orders"."deleted_at" is null',
       );
@@ -25,6 +26,19 @@ describe('the read policy of work orders as a condition of a query (EVM-034 W2; 
         '"overview"."work_order_summaries"."deleted_at" is null',
       );
     }
+  });
+
+  it('EVM-135 AC4 Read-only does not see an open site survey: the same condition on both sources, on the deadline column of the table of the query', () => {
+    expect(workOrderReadCondition(principalOf('read_only'), 'work_orders.work_orders').compile(db).sql).toBe(
+      '("work_orders"."work_orders"."deleted_at" is null and "work_orders"."work_orders"."site_survey_expires_at" is null)',
+    );
+    expect(workOrderReadCondition(principalOf('read_only'), 'overview.work_order_summaries').compile(db).sql).toBe(
+      '("overview"."work_order_summaries"."deleted_at" is null and "overview"."work_order_summaries"."site_survey_expires_at" is null)',
+    );
+    // the other modes are unchanged: no deleted view and no access for Read-only
+    expect(workOrderReadCondition(principalOf('read_only'), 'work_orders.work_orders', 'deleted').compile(db).sql).toBe('false');
+    expect(workOrderReadCondition(principalOf('read_only'), 'work_orders.work_orders', 'access').compile(db).sql).toBe('false');
+    expect(workOrderReadCondition(principalOf('read_only'), 'overview.work_order_summaries').compile(db).parameters).toEqual([]);
   });
 
   it('EVM-034 AC6 W2 the condition has no parameter: nothing of a request enters it', () => {

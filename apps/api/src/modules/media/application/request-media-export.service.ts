@@ -32,7 +32,7 @@ import { IDEMPOTENCY, type Idempotency } from '../../../platform/idempotency/ide
 import { EXPORT_STORAGE, type ObjectStorage } from '../../../platform/object-storage/object-storage.ts';
 import { CLOCK, DATABASE, EVENT_BUS } from '../../../platform/tokens.ts';
 import { AdministratorDirectory } from '../../identity/index.ts';
-import { WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders/index.ts';
+import { awaitsCustomer, WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders/index.ts';
 import {
   EXPORT_LIFETIME_MS,
   EXPORT_MAX_BYTES,
@@ -107,6 +107,8 @@ export class RequestMediaExportService {
       return await runInTransaction(this.#db, async (tx) => {
         const order = await this.#orders.findVisible(tx, principal, workOrderId);
         if (order === undefined) throw new ProblemException('not_found');
+        // EVM-135 AC7, W11: no ZIP of the media of an open site survey until it has a customer
+        if (awaitsCustomer(order)) throw new ProblemException('customer_required');
         requireStorage(this.#storage);
         const key = idempotencyKeyOf(rawKey);
         let exportId = '';

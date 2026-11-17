@@ -92,6 +92,9 @@ describe('migration 0031 — the signals of payments in the projection (EVM-056 
   });
 
   it('EVM-056 AC1 the step of the deployment: until `rebuild`, verify reports the group `payments` (numbers and identifiers only); after it, nothing', async () => {
+    // the code of the release runs on the schema of the release: the later migrations (0066 adds a column of the projection, EVM-135) come first; none of them
+    // touches the signals of payments, so the drift below is still the one 0031 left
+    await migrateToLatest(db, MIGRATIONS);
     const { maintenance } = projectionTools(db);
     const before = await maintenance.verify({ traceId: '0'.repeat(32), alert: false });
     expect(before.drift.payments).toEqual([withMilestones]);

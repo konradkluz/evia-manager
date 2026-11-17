@@ -12,7 +12,7 @@
  */
 
 const UUIDV7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
-const MUTATION_TYPES = ['CreateNote', 'CreateComment', 'CreateQuickWorkOrder', 'CreateMediaAsset'];
+const MUTATION_TYPES = ['CreateNote', 'CreateComment', 'CreateQuickWorkOrder', 'CreateMediaAsset', 'CreateSiteSurvey'];
 const SERVER_TIME = () => new Date().toISOString();
 /** The marker of the encryption checks (EVM-093; src/device.mjs): the customer 2 carries it so that the list search can be proven (EVM-103 AC6). */
 const SENTINEL = ['EVM093', 'SENTINEL'].join('-');
@@ -32,7 +32,18 @@ const REJECTED_TYPES = ['CreateNote', 'CreateComment'];
  * (rejected with that code on every repeat, counted as rejected). The stand-in is never part of a release build.
  * EVM-128: the quick mode `template_unavailable_first` rejects the FIRST quick work order it sees (by `workOrderId`, on every repeat of that
  * mutation) with `template_unavailable`; a later command with another `workOrderId` (the order created again) is accepted.
- * @typedef {{ templates: 'ok' | 'none' | 'channel_not_allowed', quick: 'ok' | 'quota_exceeded' | 'template_unavailable_first' }} SyncModes
+ * EVM-137: the site survey. `features` is the switch the client config announces (`on`, `off` = `features.siteSurveys: false`, and the command
+ * is then answered `rejected` / `feature_disabled`, like the real server); `survey` is how the server answers a `CreateSiteSurvey`: `ok` (applied
+ * once, the number comes with the next changes page), `feature_disabled` and `validation_failed` (rejected with that code on every repeat,
+ * counted as rejected, the survey never created); two modes act on the surveys the server already created, at the next changes page, once:
+ * `deleted` (a delete of the work order; from then on every command for it is `rejected` / `target_unavailable`) and `assigned` (the office gave
+ * the survey a client: the order with `customerId`, `siteSurvey: null`, status `accepted`, the same id and number).
+ * @typedef {{
+ *   templates: 'ok' | 'none' | 'channel_not_allowed',
+ *   quick: 'ok' | 'quota_exceeded' | 'template_unavailable_first',
+ *   survey: 'ok' | 'feature_disabled' | 'validation_failed' | 'deleted' | 'assigned',
+ *   features: 'on' | 'off',
+ * }} SyncModes
  */
 export const TEMPLATE_HOUSE_ID = '0194c2a0-0000-7000-8000-00000000e201';
 export const TEMPLATE_GARAGE_ID = '0194c2a0-0000-7000-8000-00000000e202';
@@ -77,14 +88,18 @@ export const TEMPLATE_LIST = Object.freeze({
 const CURSOR_AFTER_SNAPSHOT = 'e2e-cursor-after-snapshot-0001';
 const CURSOR_CHANGES = 'e2e-cursor-changes-000000002';
 
-export const SYNC_CLIENT_CONFIG = Object.freeze({
-  offlineContactWindowDays: 7,
-  closedWorkOrdersInScopeDays: 30,
-  periodicResyncDays: 7,
-  scopeRuleVersion: 1,
-  minSupportedVersion: { android: '0.1.0', ios: '0.1.0' },
-  recommendedVersion: { android: '0.1.0', ios: '0.1.0' },
-});
+/** @param {boolean} siteSurveys the switch of the site survey (EVM-135/EVM-137) */
+const clientConfig = (siteSurveys) =>
+  Object.freeze({
+    offlineContactWindowDays: 7,
+    closedWorkOrdersInScopeDays: 30,
+    periodicResyncDays: 7,
+    scopeRuleVersion: 1,
+    minSupportedVersion: { android: '0.1.0', ios: '0.1.0' },
+    recommendedVersion: { android: '0.1.0', ios: '0.1.0' },
+    features: { siteSurveys },
+  });
+export const SYNC_CLIENT_CONFIG = clientConfig(true);
 
 /**
  * @param {number} n
@@ -144,6 +159,7 @@ export function snapshotPage() {
         plannedDate: null,
         createdAt: at,
         closedAt: null,
+        siteSurvey: null,
       },
     },
   ];
@@ -304,6 +320,81 @@ export function createdAggregate(payload, number) {
       plannedDate: null,
       createdAt: at,
       closedAt: null,
+      siteSurvey: null,
+    },
+  });
+  return out;
+}
+
+/** A phone number as the server stores it (E.164; Poland is the default country). @param {unknown} value */
+const e164 = (value) => {
+  if (typeof value !== 'string') return null;
+  const digits = value.replace(/\D/g, '');
+  if (digits.length < 7) return null;
+  return value.trim().startsWith('+') ? `+${digits}` : digits.length === 9 ? `+48${digits}` : `+${digits}`;
+};
+
+/** The term of a survey without a client: 90 days from its creation (ADR-0024). */
+const SURVEY_TERM_MS = 90 * 86_400_000;
+
+/**
+ * The aggregate the server creates from an accepted `CreateSiteSurvey` (EVM-137 AC2): the new place of the payload and the order - a quote with
+ * no client, the default title, the term and the phone of the requester as E.164. Fields are copied from the payload the app sent; nothing of
+ * them is kept by the server beyond this answer.
+ * @param {Record<string, unknown>} payload
+ * @param {string} number
+ */
+export function createdSurveyAggregate(payload, number) {
+  const created = Date.now();
+  /** @param {Record<string, unknown>} from @param {string} key */
+  const text = (from, key) => (typeof from[key] === 'string' ? from[key] : null);
+  const site = /** @type {Record<string, unknown> | null} */ (typeof payload['newSite'] === 'object' ? payload['newSite'] : null);
+  const siteId = site === null ? text(payload, 'siteId') : text(site, 'id');
+  /** @type {unknown[]} */
+  const out = [];
+  if (site !== null) {
+    out.push({
+      op: 'upsert',
+      entity: {
+        type: 'site',
+        id: siteId,
+        version: 1,
+        siteType: text(site, 'siteType'),
+        street: text(site, 'street'),
+        buildingNumber: text(site, 'buildingNumber'),
+        apartmentNumber: text(site, 'apartmentNumber'),
+        postalCode: text(site, 'postalCode'),
+        city: text(site, 'city'),
+        parkingSpotNumber: null,
+        garageLevel: null,
+        connectionPowerKw: null,
+        managerPartyId: null,
+        distributionSystemOperatorPartyId: null,
+        notes: null,
+      },
+    });
+  }
+  out.push({
+    op: 'upsert',
+    entity: {
+      type: 'work_order',
+      id: text(payload, 'workOrderId'),
+      version: 1,
+      number,
+      title: text(payload, 'title') ?? 'Wizja lokalna',
+      status: 'quoting',
+      customerId: null,
+      siteId,
+      coordinatorUserId: null,
+      description: null,
+      plannedDate: null,
+      createdAt: new Date(created).toISOString(),
+      closedAt: null,
+      siteSurvey: {
+        expiresAt: new Date(created + SURVEY_TERM_MS).toISOString(),
+        extensionCount: 0,
+        requesterPhone: e164(payload['requesterPhone']),
+      },
     },
   });
   return out;
@@ -320,7 +411,12 @@ export function createSyncStub() {
   /** @type {Map<string, string>} mutation id -> the code of the rejection (stable on every repeat) */
   let rejectedIds = new Map();
   /** @type {SyncModes} */
-  let modes = { templates: 'ok', quick: 'ok' };
+  let modes = { templates: 'ok', quick: 'ok', survey: 'ok', features: 'on' };
+  /** EVM-137: the surveys the server created and the office has not yet touched (by `workOrderId`), and the ones it deleted. @type {Map<string, { number: string, siteId: string | null }>} */
+  let surveyOrders = new Map();
+  /** @type {Set<string>} */
+  let deletedSurveys = new Set();
+  let customerSerial = 0;
   /** What the server created and has not yet sent in a changes page; the work orders it created. */
   /** @type {unknown[]} */
   let created = [];
@@ -347,6 +443,56 @@ export function createSyncStub() {
     body: { type: 'about:blank', title: code, status, code, traceId: '0'.repeat(32) },
   });
 
+  /**
+   * What the office does to the surveys the server created, at the next changes page and once (EVM-137 AC6, AC7): the modes `deleted` and
+   * `assigned` of the scenario.
+   */
+  const officeActs = () => {
+    if (modes.survey !== 'deleted' && modes.survey !== 'assigned') return;
+    for (const [workOrderId, order] of surveyOrders) {
+      if (modes.survey === 'deleted') {
+        created.push({ op: 'delete', type: 'work_order', id: workOrderId, version: 2 });
+        deletedSurveys.add(workOrderId);
+      } else {
+        customerSerial += 1;
+        const customerId = id(900 + customerSerial, '1');
+        created.push(
+          {
+            op: 'upsert',
+            entity: {
+              type: 'customer',
+              id: customerId,
+              version: 1,
+              kind: 'person',
+              displayName: 'Klient Testowy Wizji',
+              phone: '+48000000000',
+            },
+          },
+          {
+            op: 'upsert',
+            entity: {
+              type: 'work_order',
+              id: workOrderId,
+              version: 2,
+              number: order.number,
+              title: 'Wizja lokalna',
+              status: 'accepted',
+              customerId,
+              siteId: order.siteId,
+              coordinatorUserId: null,
+              description: null,
+              plannedDate: null,
+              createdAt: new Date().toISOString(),
+              closedAt: null,
+              siteSurvey: null,
+            },
+          },
+        );
+      }
+      surveyOrders.delete(workOrderId);
+    }
+  };
+
   return {
     /** @returns {SyncReport} */
     report: () => ({ unique: saved.size, duplicates, rejected: rejectedIds.size, received, requests, lastPendingItems }),
@@ -367,6 +513,9 @@ export function createSyncStub() {
       rejectedIds = new Map();
       created = [];
       createdOrders = new Set();
+      surveyOrders = new Map();
+      deletedSurveys = new Set();
+      customerSerial = 0;
       firstRejectedOrder = null;
       cursorSerial = 0;
       duplicates = 0;
@@ -399,12 +548,13 @@ export function createSyncStub() {
           body: modes.templates === 'none' ? { items: [], nextCursor: null } : TEMPLATE_LIST,
         };
       }
-      if (isConfig) return { status: 200, type: 'application/json', body: SYNC_CLIENT_CONFIG };
+      if (isConfig) return { status: 200, type: 'application/json', body: clientConfig(modes.features !== 'off') };
       if (isChanges) {
         const pending = Number(query.get('pendingItems'));
         if (Number.isInteger(pending) && pending >= 0) lastPendingItems = pending;
         const given = query.get('cursor');
         let extra;
+        if (given !== null) officeActs();
         if (given !== null && created.length > 0) {
           cursorSerial += 1;
           extra = { changes: created, cursor: `e2e-cursor-changes-${String(cursorSerial).padStart(9, '0')}` };
@@ -418,7 +568,7 @@ export function createSyncStub() {
       const pendingItems = fields['pendingItems'];
       if (!Array.isArray(list) || list.length === 0 || list.length > 50) return problem(400, 'validation_failed');
       if (typeof pendingItems !== 'number' || !Number.isInteger(pendingItems) || pendingItems < 0) return problem(400, 'validation_failed');
-      /** @type {{ mutationId: string, rejection: string | null, quick: Record<string, unknown> | null }[]} */
+      /** @type {{ mutationId: string, rejection: string | null, quick: Record<string, unknown> | null, survey: Record<string, unknown> | null }[]} */
       const ids = [];
       for (const item of list) {
         // a parsed JSON body is untyped; every field is checked below
@@ -432,18 +582,33 @@ export function createSyncStub() {
         const target =
           typeof payload === 'object' && payload !== null ? /** @type {Record<string, unknown>} */ (payload)['workOrderId'] : undefined;
         const isQuick = type === 'CreateQuickWorkOrder';
+        const isSurvey = type === 'CreateSiteSurvey';
         /** @type {string | null} */
         let rejection = null;
-        if (target === DELETED_ORDER_ID && REJECTED_TYPES.includes(type)) rejection = 'target_unavailable';
+        if (isSurvey && (modes.features === 'off' || modes.survey === 'feature_disabled')) rejection = 'feature_disabled';
+        else if (isSurvey && modes.survey === 'validation_failed') rejection = 'validation_failed';
+        // in the mode "deleted" the survey is gone for the commands at once: the push of a cycle comes BEFORE the pull that delivers the delete
+        else if (
+          !isSurvey &&
+          typeof target === 'string' &&
+          (deletedSurveys.has(target) || (modes.survey === 'deleted' && surveyOrders.has(target)))
+        )
+          rejection = 'target_unavailable';
+        else if (target === DELETED_ORDER_ID && REJECTED_TYPES.includes(type)) rejection = 'target_unavailable';
         else if (isQuick && modes.quick === 'quota_exceeded') rejection = 'quota_exceeded';
         else if (isQuick && modes.quick === 'template_unavailable_first' && typeof target === 'string') {
           firstRejectedOrder ??= target;
           if (target === firstRejectedOrder) rejection = 'template_unavailable';
         }
-        ids.push({ mutationId, rejection, quick: isQuick ? /** @type {Record<string, unknown>} */ (payload) : null });
+        ids.push({
+          mutationId,
+          rejection,
+          quick: isQuick ? /** @type {Record<string, unknown>} */ (payload) : null,
+          survey: isSurvey ? /** @type {Record<string, unknown>} */ (payload) : null,
+        });
       }
       lastPendingItems = pendingItems;
-      const results = ids.map(({ mutationId, rejection, quick }) => {
+      const results = ids.map(({ mutationId, rejection, quick, survey }) => {
         received += 1;
         const earlier = rejectedIds.get(mutationId);
         if (rejection !== null || earlier !== undefined) {
@@ -461,6 +626,15 @@ export function createSyncStub() {
         if (quick !== null && typeof workOrderId === 'string' && !createdOrders.has(workOrderId)) {
           createdOrders.add(workOrderId);
           created.push(...createdAggregate(quick, `ZL-E2E-${String(2 + createdOrders.size)}`));
+        }
+        // a survey is created once like a quick order; its number comes with the next changes page (EVM-137 AC2)
+        const surveyId = survey?.['workOrderId'];
+        if (survey !== null && typeof surveyId === 'string' && !createdOrders.has(surveyId)) {
+          createdOrders.add(surveyId);
+          const number = `ZL-E2E-${String(2 + createdOrders.size)}`;
+          const site = /** @type {Record<string, unknown> | null} */ (typeof survey['newSite'] === 'object' ? survey['newSite'] : null);
+          surveyOrders.set(surveyId, { number, siteId: typeof site?.['id'] === 'string' ? site['id'] : null });
+          created.push(...createdSurveyAggregate(survey, number));
         }
         return { mutationId, outcome: 'applied' };
       });

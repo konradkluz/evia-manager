@@ -25,6 +25,8 @@ export interface WorkOrderKeys {
   readonly customerId: string | null;
   readonly siteId: string | null;
   readonly sourceTemplateId: string | null;
+  /** The deadline of an open site survey (EVM-135) - a column of the read policy, so the projection holds it like `deletedAt`. */
+  readonly siteSurveyExpiresAt: Date | null;
 }
 
 export interface WorkOrderProjectionSource {

@@ -250,3 +250,50 @@ describe('"Czekamy na…" in the query (EVM-034 AC2, AC4; SR-INPUT-01, SR-INPUT-
       expect(resolveWorkOrderListQuery.safeParse(query).success, JSON.stringify(query)).toBe(false);
   });
 });
+
+describe('the site surveys on the list (EVM-135 AC6)', () => {
+  it('EVM-135 AC6 siteSurvey is only or exclude; another value, another case or an empty one is refused', () => {
+    expect(ok({ siteSurvey: 'only' }).siteSurvey).toBe('only');
+    expect(ok({ siteSurvey: 'exclude' }).siteSurvey).toBe('exclude');
+    expect(ok({}).siteSurvey).toBeUndefined();
+    for (const value of ['all', 'ONLY', '', 'only,exclude']) expect(parse({ siteSurvey: value }).success, value).toBe(false);
+  });
+
+  it('EVM-135 AC6 the sort by the deadline is ascending and allowed with siteSurvey=only alone - else refused on /sort', () => {
+    expect(SORT_RULES.siteSurveyExpiresAt).toEqual({ key: 'siteSurveyExpiresAt', direction: 'asc' });
+    expect(ok({ siteSurvey: 'only', sort: 'siteSurveyExpiresAt' }).sort).toBe('siteSurveyExpiresAt');
+    const refused: Array<Record<string, string>> = [
+      { sort: 'siteSurveyExpiresAt' },
+      { siteSurvey: 'exclude', sort: 'siteSurveyExpiresAt' },
+    ];
+    for (const query of refused) {
+      const result = parse(query);
+      expect(result.success, JSON.stringify(query)).toBe(false);
+      if (!result.success) expect(result.error.issues.map((issue) => issue.path.join('/'))).toEqual(['sort']);
+    }
+  });
+
+  it('EVM-135 AC6 the filter is part of what a cursor is bound to - and a query without it keeps the parts it had', () => {
+    expect(filterPartsOf(ok({}))).toEqual(['-number', '', '', '', '', '', '', '', '', '']);
+    expect(filterPartsOf(ok({ siteSurvey: 'only' }))).toEqual(['-number', '', '', '', '', '', '', '', '', '', 'siteSurvey=only']);
+    expect(filterPartsOf(ok({ siteSurvey: 'exclude' }))).not.toEqual(filterPartsOf(ok({ siteSurvey: 'only' })));
+  });
+
+  it('EVM-135 AC6 the position of the sort by the deadline is [the deadline with milliseconds, id], validated again after decryption', () => {
+    const id = randomUUID();
+    const expiresAt = new Date('2027-02-14T08:00:00.123Z');
+    const row = {
+      id,
+      number: 'ZL-2026-0135',
+      createdAt: new Date(),
+      longestWaitingSince: null,
+      nextDueDate: null,
+      siteSurveyExpiresAt: expiresAt,
+    };
+    expect(positionParts('siteSurveyExpiresAt', row)).toEqual(['2027-02-14T08:00:00.123Z', id]);
+    expect(parsePosition('siteSurveyExpiresAt', ['2027-02-14T08:00:00.123Z', id])).toEqual({ expiresAt, id });
+    expect(parsePosition('siteSurveyExpiresAt', ['2027-02-14', id])).toBeUndefined();
+    expect(parsePosition('siteSurveyExpiresAt', ['ZL-2026-0135'])).toBeUndefined();
+    expect(() => positionParts('siteSurveyExpiresAt', { ...row, siteSurveyExpiresAt: null })).toThrow();
+  });
+});

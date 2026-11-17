@@ -1,0 +1,67 @@
+# EVM-137 AC6 (preparation): no network (airplane mode, set by tools/mobile-e2e) and no permission to notify. A survey is saved (common/survey-create.yaml),
+# one entry and one photo are added to it - they wait behind the survey ("Wyślemy po utworzeniu wizji"). The next flow lets the server reject the survey
+# with `feature_disabled` (the switch was turned off after the survey was saved).
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: true
+    permissions:
+      notifications: deny
+- extendedWaitUntil:
+    visible: 'Brak zasięgu.*'
+    timeout: 30000
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- runFlow: common/survey-create.yaml
+# the entry for the survey that has no number yet
+- tapOn:
+    id: 'order-detail-add-entry'
+- extendedWaitUntil:
+    visible: 'Nowy wpis'
+    timeout: 10000
+# the hint of an entry of a survey: no names and no phones (W8)
+- assertVisible: 'Nie wpisuj imion ani telefonów\. Nie wpisuj też PESEL, numerów dokumentów ani kodów do bram i alarmów\.'
+- tapOn:
+    id: 'entry-body'
+- inputText: 'Garaz od podworza'
+- hideKeyboard
+- tapOn:
+    id: 'entry-save'
+- extendedWaitUntil:
+    visible: 'Zapisano w telefonie\. Wyślemy, gdy wróci zasięg\.'
+    timeout: 10000
+# the photo
+- tapOn:
+    id: 'order-detail-take-photo'
+- extendedWaitUntil:
+    visible:
+      id: 'camera'
+    timeout: 20000
+- extendedWaitUntil:
+    notVisible: 'Uruchamianie aparatu…'
+    timeout: 30000
+- tapOn:
+    id: 'camera-shutter'
+- extendedWaitUntil:
+    visible:
+      id: 'camera-count'
+      text: '1 zdjęcie'
+    timeout: 20000
+- tapOn:
+    id: 'camera-done'
+- extendedWaitUntil:
+    visible: 'Powiadomienia o wysyłaniu'
+    timeout: 20000
+- tapOn:
+    id: 'notification-consent-later'
+- extendedWaitUntil:
+    visible:
+      id: 'order-detail-take-photo'
+    timeout: 20000
+- tapOn:
+    id: 'order-detail-back'
+- extendedWaitUntil:
+    visible: 'Oczekuje na numer'
+    timeout: 10000
+- takeScreenshot: m05-survey-with-items-offline
