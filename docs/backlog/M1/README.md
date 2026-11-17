@@ -57,7 +57,7 @@ Kolumna „Ekrany”: identyfikatory z [`docs/ux/flows/README.md`](../../ux/flow
 | [EVM-026](EVM-026-ochrona-przed-zgadywaniem-hasel.md) | Ochrona przed zgadywaniem haseł i powiadomienia o bezpieczeństwie konta | story | P1 | backend-developer | EVM-024 | W-01, W-02 |
 | [EVM-027](EVM-027-role-dezaktywacja-reset-mfa.md) | Role, dezaktywacja, sesje i reset MFA użytkownika | story | P1 | backend-developer | EVM-024 | W-16, W-04 |
 | [EVM-028](EVM-028-konto-uzytkownika.md) | Konto — profil, hasło, drugi krok logowania i moje sesje | story | P1 | backend-developer | EVM-023 | W-15 (bez urządzeń) |
-| [EVM-134](EVM-134-kod-z-aplikacji-dla-administratora-w-panelu.md) | Administrator w panelu — kod z aplikacji jako drugi krok (K1: ponowny kod przed operacją wrażliwą) | story | P1 | backend-developer | EVM-023, EVM-026, EVM-027, EVM-028 | in-review (2026-11-17); ADR-0023, decyzja Konrada 2026-11-16; RR-101 |
+| [EVM-134](EVM-134-kod-z-aplikacji-dla-administratora-w-panelu.md) | Administrator w panelu — kod z aplikacji jako drugi krok (K1: ponowny kod przed operacją wrażliwą) | story | P1 | backend-developer | EVM-023, EVM-026, EVM-027, EVM-028 | done (2026-11-17, PR #147); ADR-0023, decyzja Konrada 2026-11-16; RR-101 |
 
 ### E2 Klienci
 | ID | Tytuł | Typ | Prio | `owner` | `depends_on` | Ekrany / uwagi |

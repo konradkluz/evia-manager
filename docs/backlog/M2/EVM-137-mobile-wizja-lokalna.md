@@ -4,7 +4,7 @@ title: "Aplikacja: wizja lokalna — zakładanie samym adresem offline, zdjęcia
 type: story
 milestone: M2
 epic: E15 Wizja lokalna
-status: in-progress
+status: in-review
 priority: P1
 path: pelna             # dane osobowe na urządzeniu, praca offline, kolejka plików
 owner: mobile-developer
@@ -84,3 +84,4 @@ Rozmiar wg ADR-0024: M (równolegle z EVM-136 i EVM-140). Testy Maestro: przepł
 - 2026-11-16 — start realizacji w kolejce `/noc-2026-11-16` (tor B, klon n1, na commicie kontraktu EVM-135 `84766fbf`; makiety: przepływ 17); **status `in-progress`** (Tech Lead)
 - 2026-11-17 — implementacja etapami (mobile-developer): rdzeń `f24b752a`, formularz i szczegóły `ac811551`, lista i kolejka `4a59c5a0`, scenariusze i przepływy Maestro 110–116 `399771c5`; poprawki po emulatorze `ff84775e` (licznik „Wymaga uwagi”, ikona komunikatu informacyjnego); poprawki przepływów przez orkiestratora `6eda4b90`, `5bad4b95`, `c87a4f91`
 - 2026-11-17 — QA (`qa-engineer`): **PASS z uwagami**, raport `docs/qa/EVM-137/raport-qa.md`; przeglądy: security-engineer **APPROVE z uwagami** (W5, W8, W9, W10 spełnione); code-reviewer **APPROVE z uwagami** z jednym major (odczyt kolejki przy każdym zdarzeniu postępu) — poprawione `b0ce2ad2`, ponowny przegląd **APPROVE z uwagami**; ux-designer **REQUEST CHANGES** z dwoma major (ikona „Odrzucona”, znacznik odrzuconej wizji na liście) — poprawione `bc40eeac`
+- 2026-11-17 — bramka lokalna na gałęzi zintegrowanej (`bc40eeac` + dokumenty): `pnpm run gate` 68/68 zadań, pokrycie zmienionego kodu zielone, `npm run test:tools`, `npm run docs:check` (0 błędów), `pnpm run gate:deploy` — kody wyjścia 0; pełna integracja API, E2E Linux i skany — w CI PR-u (zasada z 2026-11-17). Emulator: scenariusze wizji 110–116 — 18/18 na `b0ce2ad2`; powtórka po poprawkach UX i regresja — wynik w opisie PR. **Status `in-review`** — PR wspólny dla EVM-135…138 i EVM-141; demo i akceptacja Konrada po scaleniu (Tech Lead)
