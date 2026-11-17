@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import { AUTHZ_MANIFEST } from '../src/authz.ts';
 import { parseSyncChange } from '../src/sync.ts';
 import {
   zClientConfig,
   zCreateSiteSurveyPayload,
+  zCreateSiteSurveyRequest,
+  zCreateSiteSurveyResponse,
   zCreateWorkOrderRequest,
   zCurrentSession,
   zSyncMutation,
@@ -15,8 +18,8 @@ import {
 /**
  * The contract of the site survey (EVM-135; ADR-0024): the command of the phone, the shape of an order without a customer on
  * the phone, in the detail and on the list, the filter of the list, the switch and the code `customer_required` of the operations that wait for a customer.
- * The commit of this contract is the one the parallel stories (EVM-136, EVM-137, EVM-138) start from; the operation of the panel (`createSiteSurvey`)
- * joins it with its route (EVM-135 stage 2), because an operation of the panel cannot be marked planned (EVM-090). Synthetic data only.
+ * The parallel stories (EVM-136, EVM-137, EVM-138) start from this contract; the operation of the panel (`createSiteSurvey`) joined it with its route
+ * (EVM-135 stage 2), because an operation of the panel cannot be marked planned (EVM-090). Synthetic data only.
  */
 const V7 = '0198b0a0-0000-7000-8000-000000000135';
 const ANY = '0198b0a0-0000-4000-8000-000000000136';
@@ -81,6 +84,28 @@ describe('EVM-135 AC1 the command CreateSiteSurvey v1 of the phone', () => {
       ],
     });
     expect(parsed.success).toBe(true);
+  });
+});
+
+describe('EVM-135 AC2 the operation createSiteSurvey of the panel', () => {
+  it('EVM-135 AC2 AC4 POST /api/v1/site-surveys for the Administrator and the Editor on the web channel, audited, implemented (not planned)', () => {
+    expect(AUTHZ_MANIFEST['createSiteSurvey']).toMatchObject({
+      method: 'post',
+      path: '/api/v1/site-surveys',
+      authz: { roles: ['administrator', 'editor'], channels: ['web'], audit: true },
+    });
+    expect(AUTHZ_MANIFEST['createSiteSurvey']?.planned).toBeUndefined();
+  });
+
+  it('EVM-135 AC2 W8 the request is id, siteId, an optional title, requester phone and coordinator - no customer, no template, no description', () => {
+    expect(Object.keys(zCreateSiteSurveyRequest.shape).sort()).toEqual(['assigneeUserId', 'id', 'requesterPhone', 'siteId', 'title']);
+    expect(zCreateSiteSurveyRequest.safeParse({ id: V7, siteId: ANY }).success).toBe(true);
+    expect(zCreateSiteSurveyRequest.safeParse({ id: V7 }).success).toBe(false);
+    expect(zCreateSiteSurveyRequest.safeParse({ id: ANY, siteId: ANY }).success).toBe(false);
+  });
+
+  it('EVM-135 AC2 the answer 201 is the detail of the order (WorkOrderDetails with siteSurvey)', () => {
+    expect(zCreateSiteSurveyResponse).toBe(zWorkOrderDetails);
   });
 });
 

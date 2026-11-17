@@ -45,7 +45,8 @@ import { IDEMPOTENCY, IDEMPOTENCY_RETENTION_MS, type Idempotency } from '../../.
 import type { Counter, MetricsRegistry } from '../../../platform/metrics/metrics.ts';
 import { uuidV7 } from '../../../platform/ids/uuid-v7.ts';
 import type { SyncMutationAuditEvent, SyncQuotaAuditEvent } from '../../../platform/sync/sync-event.ts';
-import { CLOCK, DATABASE, EVENT_BUS, METRICS } from '../../../platform/tokens.ts';
+import { APP_CONFIG, CLOCK, DATABASE, EVENT_BUS, METRICS } from '../../../platform/tokens.ts';
+import type { AppConfig } from '../../../platform/config/config.ts';
 import { CUSTOMER_QUICK_CREATION, type CustomerQuickCreation } from '../../customers/system-ports.ts';
 import { DEVICE_PENDING_ITEMS, type DevicePendingItems } from '../../identity/system-ports.ts';
 import { MOBILE_MEDIA_COMMANDS, type MobileMediaCommands } from '../../media/system-ports.ts';
@@ -74,6 +75,7 @@ import {
   type MutationVerdict,
   type QuickCommand,
   type RawMutation,
+  type SurveyCommand,
 } from '../domain/mutations.ts';
 import { lockDeviceQuota, markQuotaAlerted, purgeQuotaAlerts, snapshotWindowStart } from '../infrastructure/sync-queries.ts';
 
@@ -108,6 +110,7 @@ export class PushMutationsService {
   readonly #newSites: SiteQuickCreation;
   readonly #quickOrders: WorkOrderQuickCreation;
   readonly #media: MobileMediaCommands;
+  readonly #features: AppConfig['features'];
 
   constructor(
     @Inject(DATABASE) db: Kysely<Database>,
@@ -123,7 +126,9 @@ export class PushMutationsService {
     @Inject(SITE_QUICK_CREATION) newSites: SiteQuickCreation,
     @Inject(WORK_ORDER_QUICK_CREATION) quickOrders: WorkOrderQuickCreation,
     @Inject(MOBILE_MEDIA_COMMANDS) media: MobileMediaCommands,
+    @Inject(APP_CONFIG) config: AppConfig,
   ) {
+    this.#features = config.features;
     this.#db = db;
     this.#clock = clock;
     this.#events = events;
@@ -157,6 +162,9 @@ export class PushMutationsService {
 
   async #apply(principal: Principal, author: MobileAuthor, mutation: RawMutation, context: EventContext): Promise<MutationResult> {
     const { mutationId } = mutation;
+    // EVM-135 AC3: the switch of the site survey is asked before anything of the command is looked at - nothing is decoded, written or recorded
+    if (mutation['type'] === 'CreateSiteSurvey' && !this.#features.siteSurveys)
+      return { mutationId, outcome: 'rejected', code: 'feature_disabled' };
     const decoded = decodeMutation(mutation, this.#clock.now());
     if (!decoded.ok) {
       return decoded.errors === undefined
@@ -165,6 +173,7 @@ export class PushMutationsService {
     }
     if (decoded.type === 'CreateQuickWorkOrder')
       return this.#applyQuick(principal, author, mutationId, decoded.quick, decoded.hash, context);
+    if (decoded.type === 'CreateSiteSurvey') return this.#applySurvey(principal, author, mutationId, decoded.survey, decoded.hash, context);
     try {
       const outcome = await runInTransaction(this.#db, (tx) =>
         this.#idempotency.run(
@@ -300,6 +309,97 @@ export class PushMutationsService {
     }
   }
 
+  /**
+   * `CreateSiteSurvey` (EVM-135 AC1, AC3; ADR-0024 pt 5): the road of the quick order without a customer and a template - the same identifiers twice, the rules
+   * of the new site, then in ONE transaction under the idempotency port: the probe of the identifier, the existing site, the limit of new sites of the device,
+   * the new site, the survey (the number, the deadline, the coordinator = the signed-in user) and the audit event `sync.mutation_applied` (identifiers only -
+   * never the title, the address or the phone). Every result but `applied` rolls everything back (no site, no order, the number unused).
+   */
+  async #applySurvey(
+    principal: Principal,
+    author: MobileAuthor,
+    mutationId: string,
+    survey: SurveyCommand,
+    hash: string,
+    context: EventContext,
+  ): Promise<MutationResult> {
+    if (survey.duplicateIds) return { mutationId, outcome: 'conflict', code: 'id_conflict' };
+    const errors = capped(survey.newSite === undefined ? [] : this.#newSites.check(survey.newSite));
+    if (errors.length > 0) return { mutationId, outcome: 'rejected', code: 'validation_failed', errors };
+    try {
+      const outcome = await runInTransaction(this.#db, async (tx) => {
+        const run = await this.#idempotency.run(
+          tx,
+          { userId: author.userId, deviceId: author.deviceId, key: mutationId, scope: SYNC_MUTATIONS_SCOPE, bodyHash: hash },
+          async () => {
+            const number = await this.#performSurvey(tx, principal, author, survey, context);
+            return { value: number, result: { status: 201, code: 'applied', resourceId: survey.workOrderId } };
+          },
+        );
+        if (!run.replayed) return { replayed: false, number: run.value };
+        return { replayed: true, number: await this.#quickOrders.numberOf(tx, survey.workOrderId) };
+      });
+      const withNumber = outcome.number === undefined ? {} : { workOrderNumber: outcome.number };
+      return { mutationId, outcome: outcome.replayed ? 'duplicate' : 'applied', ...withNumber };
+    } catch (error) {
+      if (error instanceof QuotaExceededSignal) {
+        await this.#recordQuotaExceeded(author, error.kind, context);
+        return { mutationId, ...error.verdict };
+      }
+      if (error instanceof MutationVerdictSignal) return { mutationId, ...error.verdict };
+      if (isMappedProblem(error)) return { mutationId, outcome: 'rejected', code: error.code };
+      throw error;
+    }
+  }
+
+  /** The steps of {@link #applySurvey} in the transaction of the mutation. @returns the number @throws MutationVerdictSignal for every result but `applied` */
+  async #performSurvey(
+    tx: Kysely<Database>,
+    principal: Principal,
+    author: MobileAuthor,
+    survey: SurveyCommand,
+    context: EventContext,
+  ): Promise<string> {
+    const now = this.#clock.now();
+    const probe = await this.#quickOrders.probe(tx, survey.workOrderId, author, new Date(now.getTime() - IDEMPOTENCY_RETENTION_MS));
+    if (probe.kind === 'own') {
+      throw verdict({ outcome: 'duplicate', warnings: ['idempotency_expired'], workOrderNumber: probe.number });
+    }
+    if (probe.kind === 'conflict') throw verdict({ outcome: 'conflict', code: 'id_conflict' });
+    if (survey.siteId !== undefined && (await this.#siteDirectory.findVisible(tx, principal, survey.siteId)) === undefined) {
+      throw verdict({ outcome: 'rejected', code: 'target_unavailable' });
+    }
+    await this.#checkQuota(tx, author.deviceId, { newCustomer: false, newSite: survey.newSite !== undefined }, now);
+    if (survey.newSite !== undefined) {
+      const created = await this.#newSites.create(tx, principal, author.deviceId, survey.newSite, context);
+      if (created === 'invalid') throw verdict({ outcome: 'rejected', code: 'validation_failed' });
+      if (created === 'id_conflict') throw verdict({ outcome: 'conflict', code: 'id_conflict' });
+    }
+    const order = await this.#quickOrders.createSiteSurvey(
+      tx,
+      principal,
+      author.deviceId,
+      { id: survey.workOrderId, siteId: survey.siteRef, title: survey.title, requesterPhone: survey.requesterPhone },
+      context,
+    );
+    if (!order.ok)
+      throw verdict(
+        order.reason === 'id_conflict' ? { outcome: 'conflict', code: 'id_conflict' } : { outcome: 'rejected', code: order.reason },
+      );
+    const event: SyncMutationAuditEvent = {
+      type: 'sync.mutation_applied',
+      actor: { type: 'user', userId: author.userId },
+      outcome: 'success',
+      objectType: 'work_order',
+      objectId: survey.workOrderId,
+      deviceId: author.deviceId,
+      workOrderId: survey.workOrderId,
+      commandType: 'CreateSiteSurvey',
+    };
+    await this.#events.publish(tx, event, context);
+    return order.number;
+  }
+
   /** The rules of the content of the new customer and the new site (the rules of `customers` and `sites`, without a write): pointers and codes, never values. */
   #contentErrors(quick: QuickCommand): ReturnType<typeof capped> {
     return capped([
@@ -332,7 +432,12 @@ export class PushMutationsService {
     if (!(await this.#quickOrders.templateAvailable(tx, quick.templateId)))
       throw verdict({ outcome: 'rejected', code: 'template_unavailable' });
 
-    await this.#checkQuota(tx, author.deviceId, quick, now);
+    await this.#checkQuota(
+      tx,
+      author.deviceId,
+      { newCustomer: quick.newCustomer !== undefined, newSite: quick.newSite !== undefined },
+      now,
+    );
 
     if (quick.newCustomer !== undefined) {
       const created = await this.#newCustomers.create(tx, principal, author.deviceId, quick.newCustomer, context);
@@ -402,14 +507,19 @@ export class PushMutationsService {
    * The limit of new customers and new sites of the device (20 each in a rolling 24 hours of the time of the SERVER): taken under an advisory lock of the device, so
    * two batches that run at once cannot both read 19. Only a command that creates a customer or a site is counted, and only the kind it creates.
    */
-  async #checkQuota(tx: Kysely<Database>, deviceId: string, quick: QuickCommand, now: Date): Promise<void> {
-    if (quick.newCustomer === undefined && quick.newSite === undefined) return;
+  async #checkQuota(
+    tx: Kysely<Database>,
+    deviceId: string,
+    creates: { readonly newCustomer: boolean; readonly newSite: boolean },
+    now: Date,
+  ): Promise<void> {
+    if (!creates.newCustomer && !creates.newSite) return;
     await lockDeviceQuota(tx, deviceId);
     const since = new Date(now.getTime() - QUICK_CREATE_WINDOW_MS);
-    if (quick.newCustomer !== undefined && (await this.#newCustomers.countCreatedBy(tx, deviceId, since)) >= QUICK_CREATE_LIMIT) {
+    if (creates.newCustomer && (await this.#newCustomers.countCreatedBy(tx, deviceId, since)) >= QUICK_CREATE_LIMIT) {
       throw new QuotaExceededSignal('customer');
     }
-    if (quick.newSite !== undefined && (await this.#newSites.countCreatedBy(tx, deviceId, since)) >= QUICK_CREATE_LIMIT) {
+    if (creates.newSite && (await this.#newSites.countCreatedBy(tx, deviceId, since)) >= QUICK_CREATE_LIMIT) {
       throw new QuotaExceededSignal('site');
     }
   }

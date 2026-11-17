@@ -173,4 +173,23 @@ export interface WorkOrderQuickCreation {
     input: QuickWorkOrderInput,
     context: EventContext,
   ): Promise<QuickCreationResult>;
+  /**
+   * The site survey of the phone (EVM-135 AC1; ADR-0024): no customer, no template, `quoting`, the deadline, the number; the coordinator is the signed-in user.
+   * A site that is not visible is `target_unavailable`. Publishes `work_order.created` (identifiers only).
+   */
+  createSiteSurvey(
+    tx: Kysely<Database>,
+    principal: Principal,
+    deviceId: string,
+    input: SiteSurveyInput,
+    context: EventContext,
+  ): Promise<QuickCreationResult>;
+}
+
+/** The site survey of the phone: the site (an existing one or the one created a moment ago in the transaction), the title (`null` - default) and the phone (E.164). */
+export interface SiteSurveyInput {
+  readonly id: string;
+  readonly siteId: string;
+  readonly title: string | null;
+  readonly requesterPhone: string | null;
 }

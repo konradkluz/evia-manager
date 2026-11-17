@@ -2,6 +2,7 @@
  * The implementation of the port `WORK_ORDER_QUICK_CREATION` (see `system-ports.ts`; EVM-099 AC1, AC4-AC6): the quick order of the phone composed by the SAME
  * component as the panel, INSERT only, with the origin `mobile_quick` and the device of the session. The assignee is the signed-in user (the phone names none),
  * the planned date and the description stay empty. Nothing here throws a problem of the panel: the result is typed, so `sync` maps it to a verdict.
+ * The site survey of the phone (EVM-135 AC1) takes the same road: the same probe, number and origin, through `composeSiteSurvey` (no customer, no template).
  */
 import { Inject, Injectable } from '@nestjs/common';
 import type { Kysely } from 'kysely';
@@ -10,8 +11,14 @@ import type { EventContext } from '../../../platform/events/event-bus.ts';
 import type { Principal } from '../../../platform/http/principal.ts';
 import { TEMPLATE_DIRECTORY, type TemplateDirectory } from '../../catalog/index.ts';
 import { workOrderTables } from '../infrastructure/tables.ts';
-import type { QuickCreationResult, QuickOrderProbe, QuickWorkOrderInput, WorkOrderQuickCreation } from '../system-ports.ts';
-import { WorkOrderComposer } from './work-order-composer.ts';
+import type {
+  QuickCreationResult,
+  QuickOrderProbe,
+  QuickWorkOrderInput,
+  SiteSurveyInput,
+  WorkOrderQuickCreation,
+} from '../system-ports.ts';
+import { WorkOrderComposer, type ComposeResult } from './work-order-composer.ts';
 
 @Injectable()
 export class WorkOrderQuickCreationService implements WorkOrderQuickCreation {
@@ -75,15 +82,37 @@ export class WorkOrderQuickCreationService implements WorkOrderQuickCreation {
       { origin: 'mobile_quick', createdViaDeviceId: deviceId },
       context,
     );
-    if (result.ok) return result;
-    switch (result.reason) {
-      case 'composition_limit':
-        return { ok: false, reason: 'template_unavailable' };
-      case 'assignee_unavailable':
-        // the signed-in user is not an active user any more: the guard let the request in a moment ago, so this is a race with a deactivation - no oracle, `target_unavailable`
-        return { ok: false, reason: 'target_unavailable' };
-      default:
-        return { ok: false, reason: result.reason };
-    }
+    return quickResult(result);
+  }
+
+  async createSiteSurvey(
+    tx: Kysely<Database>,
+    principal: Principal,
+    deviceId: string,
+    input: SiteSurveyInput,
+    context: EventContext,
+  ): Promise<QuickCreationResult> {
+    const result = await this.#composer.composeSiteSurvey(
+      tx,
+      principal,
+      { id: input.id, siteId: input.siteId, title: input.title, requesterPhone: input.requesterPhone, coordinatorUserId: principal.userId },
+      { origin: 'mobile_quick', createdViaDeviceId: deviceId },
+      context,
+    );
+    return quickResult(result);
+  }
+}
+
+/** The result of the composer in the language of the phone: nothing here throws a problem of the panel. */
+function quickResult(result: ComposeResult): QuickCreationResult {
+  if (result.ok) return result;
+  switch (result.reason) {
+    case 'composition_limit':
+      return { ok: false, reason: 'template_unavailable' };
+    case 'assignee_unavailable':
+      // the signed-in user is not an active user any more: the guard let the request in a moment ago, so this is a race with a deactivation - no oracle, `target_unavailable`
+      return { ok: false, reason: 'target_unavailable' };
+    default:
+      return { ok: false, reason: result.reason };
   }
 }

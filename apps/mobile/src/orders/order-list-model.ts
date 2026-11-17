@@ -9,6 +9,7 @@
  */
 import type { QueueRecord } from '@evia/sync-core';
 import { normalizeSearch } from './normalize';
+import { pendingSurveyExpiry, type SurveyInfo } from './site-survey-model';
 
 export interface SourceOrder {
   readonly id: string;
@@ -17,6 +18,8 @@ export interface SourceOrder {
   readonly createdAt: number;
   readonly customerId: string | null;
   readonly siteId: string | null;
+  /** The term of an open site survey (EVM-137); `null`/absent = an ordinary order. Never read in the hidden-data mode. */
+  readonly survey?: SurveyInfo | null;
 }
 export interface SourceCustomer {
   readonly id: string;
@@ -81,10 +84,15 @@ export interface OrderRow {
   readonly city: string;
   readonly spot: string;
   readonly stage: string;
+  /**
+   * A site survey (EVM-137): the term. For a survey `street`, `city` and `spot` are EMPTY - the address is only in the details (W5) and in
+   * the search key; the card of the list has nothing to print. `null` = an ordinary order and every row of the hidden-data mode.
+   */
+  readonly survey: SurveyInfo | null;
   readonly keys: SearchKeys;
 }
 
-export type OrderChip = 'all' | 'unsent';
+export type OrderChip = 'all' | 'unsent' | 'survey';
 
 const NO_KEYS: SearchKeys = { number: '', address: '', customer: '' };
 const FINISHED_STAGE = new Set(['done', 'not_applicable']);
@@ -102,7 +110,7 @@ export function queueFact(record: QueueRecord, withData: boolean): QueueFact {
     state: record.state,
     createdAt: record.createdAt,
   };
-  if (!withData || record.type !== 'CreateQuickWorkOrder') return base;
+  if (!withData || (record.type !== 'CreateQuickWorkOrder' && record.type !== 'CreateSiteSurvey')) return base;
   const payload = record.payload;
   const customer = asRecord(payload['newCustomer']);
   const site = asRecord(payload['newSite']);
@@ -136,6 +144,7 @@ interface RowFacts {
   readonly city: string;
   readonly spot: string;
   readonly stage: string;
+  readonly survey?: SurveyInfo | null;
 }
 
 function row(id: string, facts: RowFacts): OrderRow {
@@ -145,7 +154,10 @@ function row(id: string, facts: RowFacts): OrderRow {
     address: normalizeSearch(address),
     customer: normalizeSearch(facts.customer),
   };
-  return { id, awaitingNumber: facts.number === null, ...facts, keys };
+  const survey = facts.survey ?? null;
+  // a survey is found by its address, but the row never carries it for display (W5)
+  const shown = survey === null ? facts : { ...facts, street: '', city: '', spot: '' };
+  return { id, awaitingNumber: facts.number === null, ...shown, survey, keys };
 }
 
 const addressOf = (site: { street: string; buildingNumber: string } | undefined): string =>
@@ -183,17 +195,20 @@ export function buildOrderList(source: OrderListSource, facts: readonly QueueFac
         city: site?.city ?? '',
         spot: site?.parkingSpot ?? '',
         stage: stageOf.get(order.id)?.name ?? '',
+        survey: order.survey ?? null,
       }),
     );
   }
   for (const fact of facts) {
-    if (fact.type !== 'CreateQuickWorkOrder' || known.has(fact.orderingKey)) continue;
+    if ((fact.type !== 'CreateQuickWorkOrder' && fact.type !== 'CreateSiteSurvey') || known.has(fact.orderingKey)) continue;
     known.add(fact.orderingKey);
     const site = fact.site ?? (fact.siteId === undefined ? undefined : sites.get(fact.siteId));
     rows.push(
       row(fact.orderingKey, {
         number: null,
-        status: 'new',
+        // a survey waits for its number as a quote without a client; its term is 90 days from the save (EVM-137 AC2)
+        status: fact.type === 'CreateSiteSurvey' ? 'quoting' : 'new',
+        survey: fact.type === 'CreateSiteSurvey' ? pendingSurveyExpiry(fact.createdAt) : null,
         createdAt: fact.createdAt,
         unsent: true,
         customer: fact.customerName ?? (fact.customerId === undefined ? '' : (customers.get(fact.customerId) ?? '')),
@@ -221,9 +236,13 @@ export function redactRows(rows: readonly OrderRow[]): OrderRow[] {
     city: '',
     spot: '',
     stage: '',
+    survey: null,
     keys: NO_KEYS,
   }));
 }
+
+/** "Wizje lokalne (n)" (EVM-137 AC4): the open surveys in the phone; the chip is absent while there is none. */
+export const surveyCount = (rows: readonly OrderRow[]): number => rows.reduce((n, r) => n + (r.survey === null ? 0 : 1), 0);
 
 /** "Niewysłane (n)": every work order in scope with elements in the queue, whatever the query. */
 export const unsentCount = (rows: readonly OrderRow[]): number => rows.reduce((n, r) => n + (r.unsent ? 1 : 0), 0);
@@ -237,6 +256,7 @@ export function filterOrders(rows: readonly OrderRow[], query: string, chip: Ord
   const out: { row: OrderRow; score: number }[] = [];
   for (const candidate of rows) {
     if (chip === 'unsent' && !candidate.unsent) continue;
+    if (chip === 'survey' && candidate.survey === null) continue;
     let score = 0;
     if (key !== '') {
       if (candidate.keys.number.includes(key)) score = 0;

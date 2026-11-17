@@ -818,3 +818,33 @@ describe('the camera in the shell: the port openCamera (EVM-108 AC2, security 18
     expect(rig.ports.camera.getSnapshot()).toBeNull();
   });
 });
+
+describe('the category of a site survey (EVM-137 AC3)', () => {
+  it('EVM-137 AC3: for a site survey "Oględziny" is chosen from the start - the shutter works at once, the other categories stay available', async () => {
+    const { rig } = setup();
+    rig.sync.surveyIds.add(WO);
+    await mount(rig);
+    expect(screen.getByRole('radio', { name: 'Oględziny' })).toBeChecked();
+    expect(screen.queryByText(pl.camera.chooseCategory)).toBeNull();
+    expect(shutter()).toBeEnabled();
+    await choose('defect');
+    expect(screen.getByRole('radio', { name: 'Usterka / problem' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: 'Oględziny' })).not.toBeChecked();
+  });
+
+  it('EVM-137 AC3: an ordinary order still asks for a category (no regression)', async () => {
+    const { rig } = setup();
+    await mount(rig);
+    expect(screen.getByRole('radio', { name: 'Oględziny' })).not.toBeChecked();
+    expect(shutter()).toBeDisabled();
+  });
+
+  it('EVM-137 AC3: the photo of a survey is saved in the category "site_survey" with the order of the survey', async () => {
+    const { rig, photos } = setup();
+    rig.sync.surveyIds.add(WO);
+    await mount(rig);
+    await shoot();
+    expect(photos).toHaveLength(1);
+    expect(photos[0]).toMatchObject({ workOrderId: WO, category: 'site_survey' });
+  });
+});

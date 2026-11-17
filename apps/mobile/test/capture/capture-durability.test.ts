@@ -31,11 +31,14 @@ const DEVICE = '7a000000-0000-4000-8000-000000000001';
 const WO = '10000000-0000-4000-8000-000000000001';
 const SHA = 'e'.repeat(64);
 const UUID_V7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
-/** `add` and a sweep start reconciles of their own in the background: let them finish (single-flight, one more run when asked meanwhile). */
+/**
+ * `add` and a sweep start reconciles of their own in the background (single-flight, one more run when asked meanwhile): wait until the service is
+ * quiet, not for a time - a fixed sleep raced those runs and failed under the load of the whole suite.
+ */
 const settle = async (uploads: MediaUploads): Promise<void> => {
+  await uploads.settled();
   await uploads.reconcile();
-  await new Promise((resolve) => setTimeout(resolve, 25));
-  await uploads.reconcile();
+  await uploads.settled();
 };
 const NEVER: Promise<never> = new Promise<never>(() => undefined);
 
@@ -408,7 +411,7 @@ describe('space and a series (EVM-108 AC4, AC7)', () => {
     const w = await world();
     const { pipeline, uploads } = w.boot();
     for (let i = 0; i < 5; i += 1) expect((await pipeline.capture(request)).ok).toBe(true);
-    await new Promise((resolve) => setTimeout(resolve, 30));
+    await uploads.settled();
     expect(w.phone.sweeps).toEqual([]);
     expect(await rows(w)).toHaveLength(5);
     await uploads.reconcile();
@@ -417,7 +420,7 @@ describe('space and a series (EVM-108 AC4, AC7)', () => {
     const quiet = uploads.reconcile({ sweep: false });
     const asked = uploads.reconcile();
     await Promise.all([quiet, asked]);
-    await new Promise((resolve) => setTimeout(resolve, 30));
+    await uploads.settled();
     expect(w.phone.sweeps).toHaveLength(2);
     // and a plain run after a plain run is not asked for again by itself
     await uploads.reconcile({ sweep: false });

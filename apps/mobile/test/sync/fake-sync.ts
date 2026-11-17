@@ -118,12 +118,27 @@ export class FakeSync implements SyncRuntime {
   templateSet: TemplateSet | null = null;
   quickSource: QuickOrderSource = { customers: [], sites: [] };
   readonly quickSourceRequests: number[] = [];
+  /** The switches the server announced (EVM-137); the site survey is on by default in the fake, the tests of the switch turn it off. */
+  featureSet: { siteSurveys: boolean } = { siteSurveys: true };
+  /** The orders that are site surveys (EVM-137): the camera starts with "Oględziny" for them. */
+  readonly surveyIds = new Set<string>();
+  isSurvey(workOrderId: string): Promise<boolean> {
+    return Promise.resolve(this.surveyIds.has(workOrderId));
+  }
+  features(): Promise<{ readonly siteSurveys: boolean }> {
+    return Promise.resolve(this.featureSet);
+  }
   templates(): Promise<TemplateSet | null> {
     return Promise.resolve(this.templateSet);
   }
   quickOrderSource(): Promise<QuickOrderSource> {
     this.quickSourceRequests.push(this.quickSourceRequests.length);
     return Promise.resolve(this.quickSource);
+  }
+  summary: { photos: number; videos: number; entries: number; total: number } = { photos: 0, videos: 0, entries: 0, total: 0 };
+  groupSummary(id: string): Promise<{ photos: number; videos: number; entries: number; total: number }> {
+    this.calls.push(`groupSummary:${id}`);
+    return Promise.resolve(this.summary);
   }
   dependentsOf(id: string): Promise<number> {
     this.calls.push(`dependentsOf:${id}`);
@@ -169,6 +184,12 @@ export class FakeSync implements SyncRuntime {
   readonly numberRequests: number[] = [];
   orderNumbers(): Promise<readonly OrderNumber[]> {
     this.numberRequests.push(this.numberRequests.length);
-    return Promise.resolve(this.targets.map((target) => ({ id: target.id, number: target.number })));
+    return Promise.resolve(
+      this.targets.map((target) => ({
+        id: target.id,
+        number: target.number,
+        ...(target.survey?.awaitingNumber === true ? { awaitingNumber: true } : {}),
+      })),
+    );
   }
 }

@@ -3,9 +3,9 @@ import { useTranslation } from 'react-i18next';
 import { FlatList, Text, View } from 'react-native';
 import { formatClock, formatDateTime, sameDay } from '../i18n/format';
 import { pluralKey } from '../i18n/plural';
-import { filterOrders, unsentCount, type OrderChip, type OrderRow } from '../orders/order-list-model';
+import { filterOrders, surveyCount, unsentCount, type OrderChip, type OrderRow } from '../orders/order-list-model';
 import { useStartup } from '../startup';
-import { AppBar, Button, ClipboardList, EmptyState, FilterChip, Search, Skeleton, TextField } from '../ui';
+import { AppBar, Binoculars, Button, ClipboardList, EmptyState, FilterChip, Search, Skeleton, TextField } from '../ui';
 import { color, space, text } from '../ui/theme';
 import { ConnectionNotices } from './ConnectionNotices';
 import { ContactWarningBanner, HiddenDataNotice, PatchNotice } from './DeviceNotices';
@@ -103,6 +103,7 @@ export function OrdersScreen({
 
   const visible = useMemo(() => (hidden || rows === null ? [] : filterOrders(rows, shownQuery, chip)), [hidden, rows, shownQuery, chip]);
   const unsent = rows === null ? 0 : unsentCount(rows);
+  const surveys = rows === null ? 0 : surveyCount(rows);
   const total = rows?.length ?? 0;
   const searching = shownQuery.trim() !== '';
   const announced = useAnnouncement(hidden ? '' : shownQuery, visible.length, t);
@@ -151,6 +152,9 @@ export function OrdersScreen({
   const emptyList =
     chip === 'unsent' && !searching ? (
       <EmptyState icon={ClipboardList} title={t('shell.orders.allSent')} testID="orders-all-sent" />
+    ) : chip === 'survey' && !searching ? (
+      // EVM-137: nothing is wrong - only the own surveys and those the technician looks after are on the phone
+      <EmptyState icon={Binoculars} title={t('shell.orders.surveyEmpty')} testID="orders-survey-empty" />
     ) : (
       noMatch
     );
@@ -246,6 +250,21 @@ export function OrdersScreen({
               }}
               testID="orders-chip-unsent"
             />
+            {surveys === 0 && chip !== 'survey' ? null : (
+              <FilterChip
+                label={t('shell.orders.chipSurvey', { count: surveys })}
+                accessibilityLabel={withState(
+                  t('shell.orders.chipSurveyA11y', { count: surveys }),
+                  chip === 'survey',
+                  t('shell.orders.chipSelected'),
+                )}
+                selected={chip === 'survey'}
+                onPress={() => {
+                  setChip('survey');
+                }}
+                testID="orders-chip-survey"
+              />
+            )}
           </View>
           {announced === null ? null : (
             <Text accessibilityLiveRegion="polite" style={{ ...text.bodySm, color: color.text.secondary }} testID="orders-results-count">

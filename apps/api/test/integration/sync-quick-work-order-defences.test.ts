@@ -62,6 +62,8 @@ const orders: WorkOrderQuickCreation = {
   numberOf: () => Promise.resolve(answers.number),
   templateAvailable: () => Promise.resolve(true),
   create: () => (answers.failure === undefined ? Promise.resolve(answers.order) : Promise.reject(answers.failure)),
+  // EVM-135: the site survey of the phone answers like the quick order
+  createSiteSurvey: () => (answers.failure === undefined ? Promise.resolve(answers.order) : Promise.reject(answers.failure)),
 };
 const entries: MobileEntryCommands = {
   create: () => Promise.resolve(answers.note),
@@ -140,6 +142,42 @@ describe('results of the other modules that only a race gives (EVM-099 AC4, AC5)
     expect(await resultOf(phone, mutation())).toMatchObject({ outcome: 'conflict', code: 'id_conflict' });
     answers.order = { ok: false, reason: 'target_unavailable' };
     expect(await resultOf(phone, mutation())).toMatchObject({ outcome: 'rejected', code: 'target_unavailable' });
+  });
+});
+
+describe('results of the other modules that only a race gives for a site survey (EVM-135 AC1, AC3)', () => {
+  const surveyOf = (payload: Record<string, unknown> = {}) => ({
+    mutationId: uuidv7(),
+    type: 'CreateSiteSurvey',
+    commandVersion: 1,
+    payload: {
+      workOrderId: uuidv7(),
+      newSite: { id: uuidv7(), siteType: 'other', street: 'ul. Zmyślona', buildingNumber: '1', postalCode: '00-001', city: 'Fikcyjnowo' },
+      ...payload,
+    },
+  });
+
+  it('EVM-135 AC1 AC3 a new site that the port refuses - for its content or for its identifier - and a survey whose identifier or site was taken a moment ago are verdicts, never a 500', async () => {
+    current = await createIdentityApp({
+      env: { SITE_SURVEYS_ENABLED: 'true' },
+      configure: (builder) =>
+        builder.overrideProvider(SITE_QUICK_CREATION).useValue(sites).overrideProvider(WORK_ORDER_QUICK_CREATION).useValue(orders),
+    });
+    const { phone } = await editor(current);
+    answers.site = 'invalid';
+    expect(await resultOf(phone, surveyOf())).toMatchObject({ outcome: 'rejected', code: 'validation_failed' });
+    answers.site = 'id_conflict';
+    expect(await resultOf(phone, surveyOf())).toMatchObject({ outcome: 'conflict', code: 'id_conflict' });
+    answers.site = 'created';
+    answers.order = { ok: false, reason: 'id_conflict' };
+    expect(await resultOf(phone, surveyOf())).toMatchObject({ outcome: 'conflict', code: 'id_conflict' });
+    answers.order = { ok: false, reason: 'target_unavailable' };
+    expect(await resultOf(phone, surveyOf())).toMatchObject({ outcome: 'rejected', code: 'target_unavailable' });
+    answers.order = { ok: true, number: 'ZL-2026-9999' };
+    const command = surveyOf();
+    expect(await resultOf(phone, command)).toMatchObject({ outcome: 'applied', workOrderNumber: 'ZL-2026-9999' });
+    // a repeat whose survey is gone for good is a duplicate without a number
+    expect(await resultOf(phone, command)).toEqual({ mutationId: command.mutationId, outcome: 'duplicate' });
   });
 });
 

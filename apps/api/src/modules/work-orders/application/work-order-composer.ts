@@ -30,11 +30,21 @@ import { UserDirectory } from '../../identity/index.ts';
 import { SITE_DIRECTORY, type SiteDirectory } from '../../sites/index.ts';
 import { CompositionRejectedError, WorkOrderCompositionRegistry } from '../composition-contributor.ts';
 import { resolveTitle, type NewWorkOrder } from '../domain/new-work-order.ts';
+import { SITE_SURVEY_DEFAULT_TITLE, siteSurveyExpiry } from '../domain/site-survey.ts';
 import { businessYear, formatWorkOrderNumber } from '../domain/work-order-number.ts';
 import type { WorkOrderEvent } from '../events.ts';
 import { takeNextNumber } from '../infrastructure/number-counter.ts';
 import { workOrderTables } from '../infrastructure/tables.ts';
-import { insertCoordinator, insertScopeItems, insertWorkOrder } from '../infrastructure/work-order-store.ts';
+import { insertCoordinator, insertScopeItems, insertSiteSurvey, insertWorkOrder } from '../infrastructure/work-order-store.ts';
+
+/** A new site survey (EVM-135): the site, the normalised title (`null` - the default), the phone of the requester in E.164 and the coordinator (`null` - nobody). */
+export interface NewSiteSurvey {
+  readonly id: string;
+  readonly siteId: string;
+  readonly title: string | null;
+  readonly requesterPhone: string | null;
+  readonly coordinatorUserId: string | null;
+}
 
 /** Where an order comes from: the panel (`office`, no device) or the phone (`mobile_quick`, the device of the session). */
 export type ComposeOrigin =
@@ -47,6 +57,12 @@ export type ComposeFailure =
   | { readonly ok: false; readonly reason: 'assignee_unavailable'; readonly named: boolean };
 
 export type ComposeResult = { readonly ok: true; readonly number: string } | ComposeFailure;
+
+/** The result of a site survey: no template, so never `template_unavailable` or `composition_limit`. */
+export type ComposeSurveyResult =
+  | { readonly ok: true; readonly number: string }
+  | { readonly ok: false; readonly reason: 'id_conflict' | 'target_unavailable' }
+  | { readonly ok: false; readonly reason: 'assignee_unavailable'; readonly named: boolean };
 
 @Injectable()
 export class WorkOrderComposer {
@@ -129,6 +145,57 @@ export class WorkOrderComposer {
       outcome: 'success',
       objectType: 'work_order',
       objectId: order.id,
+    };
+    await this.#events.publish(tx, event, context);
+    return { ok: true, number };
+  }
+
+  /**
+   * The site survey (EVM-135 AC1, AC2; ADR-0024 pt 5, 6), the same way as {@link compose} with what a survey has not: no customer (none is locked), no template,
+   * so an EMPTY composition (no scope, no process, no milestone - the contributors are not asked), the status `quoting` and the deadline = now + 90 days. The
+   * coordinator is the named active user or nobody (`null`; the phone names the signed-in user). The number comes from the same yearly counter (decision 2).
+   * The event `work_order.created` carries identifiers only - never the title, the address or the phone.
+   */
+  async composeSiteSurvey(
+    tx: Kysely<Database>,
+    principal: Principal,
+    survey: NewSiteSurvey,
+    source: ComposeOrigin,
+    context: EventContext,
+  ): Promise<ComposeSurveyResult> {
+    const site = await this.#sites.findVisible(tx, principal, survey.siteId);
+    if (site === undefined) return { ok: false, reason: 'target_unavailable' };
+    const assignee = survey.coordinatorUserId === null ? null : await this.#users.findActive(survey.coordinatorUserId, tx);
+    if (assignee === undefined) return { ok: false, reason: 'assignee_unavailable', named: true };
+
+    const now = this.#clock.now();
+    const tables = workOrderTables(tx);
+    const sequence = await takeNextNumber(tables, businessYear(now));
+    const number = formatWorkOrderNumber(businessYear(now), sequence);
+    const inserted = await insertSiteSurvey(
+      tables,
+      {
+        id: survey.id,
+        number,
+        title: survey.title ?? SITE_SURVEY_DEFAULT_TITLE,
+        siteId: site.id,
+        origin: source.origin,
+        createdViaDeviceId: source.createdViaDeviceId,
+        expiresAt: siteSurveyExpiry(now),
+        requesterPhone: survey.requesterPhone,
+      },
+      principal.userId,
+      now,
+    );
+    if (inserted === undefined) return { ok: false, reason: 'id_conflict' };
+    if (assignee !== null) await insertCoordinator(tables, survey.id, assignee.id, principal.userId, now);
+
+    const event: WorkOrderEvent = {
+      type: 'work_order.created',
+      actor: { type: 'user', userId: principal.userId },
+      outcome: 'success',
+      objectType: 'work_order',
+      objectId: survey.id,
     };
     await this.#events.publish(tx, event, context);
     return { ok: true, number };

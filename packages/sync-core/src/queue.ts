@@ -42,6 +42,8 @@ export interface RetargetInput {
   readonly workOrderId: string;
   /** The target must be a work order visible in the local replica; supplied by the host (the queue does not know the replica). */
   readonly isVisibleWorkOrder: (workOrderId: string) => boolean | Promise<boolean>;
+  /** EVM-137: orders that are (or were) site surveys; nothing of a survey is moved to another order. */
+  readonly isSurveyOrder?: (workOrderId: string) => boolean | Promise<boolean>;
 }
 
 /** The durable queue: every entry is saved before `enqueue` resolves, and read back through validation. */
@@ -169,7 +171,8 @@ export class MutationQueue {
   async retarget(mutationId: string, input: RetargetInput): Promise<QueueRecord> {
     const group = await this.#group(mutationId, false);
     const [root, ...dependents] = group as [QueueRecord, ...QueueRecord[]];
-    if (root.type === 'CreateQuickWorkOrder') throw new QueueError('invalid_input');
+    if (root.type === 'CreateQuickWorkOrder' || root.type === 'CreateSiteSurvey') throw new QueueError('invalid_input');
+    if (input.isSurveyOrder !== undefined && (await input.isSurveyOrder(root.orderingKey))) throw new QueueError('invalid_input');
     const target = input.workOrderId;
     if (!UUID_PATTERN.test(target) || target === root.orderingKey) throw new QueueError('invalid_input');
     if (!(await input.isVisibleWorkOrder(target))) throw new QueueError('invalid_input');

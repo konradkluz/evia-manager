@@ -30,7 +30,9 @@ type Spec =
   | { readonly k: 'num'; readonly min: number; readonly max: number; readonly nullable?: boolean }
   | { readonly k: 'ts'; readonly nullable?: boolean }
   | { readonly k: 'date'; readonly nullable?: boolean }
-  | { readonly k: 'params' };
+  | { readonly k: 'params' }
+  /** `siteSurvey` of a work order (EVM-135): an object or `null`; a missing field (an older server) is `null`. */
+  | { readonly k: 'survey' };
 
 const uuid = (nullable = false, ref?: EntityType): Spec => ({ k: 'uuid', nullable, ...(ref === undefined ? {} : { ref }) });
 const str = (max: number, nullable = false): Spec => ({ k: 'str', max, nullable });
@@ -52,6 +54,7 @@ export const PROJECTIONS: Readonly<Record<EntityType, Readonly<Record<string, Sp
     plannedDate: date(true),
     createdAt: ts(),
     closedAt: ts(true),
+    siteSurvey: { k: 'survey' },
   },
   customer: { kind: en(['person', 'company']), displayName: str(401), phone: str(32) },
   site: {
@@ -159,6 +162,7 @@ const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'obj
 const NOPE = Symbol('nope');
 
 function readField(spec: Spec, raw: unknown): FieldValue | typeof NOPE {
+  if (spec.k === 'survey') return readSurvey(raw);
   if (raw === null) return spec.k !== 'params' && spec.nullable === true ? null : NOPE;
   switch (spec.k) {
     case 'uuid':
@@ -199,6 +203,17 @@ function readField(spec: Spec, raw: unknown): FieldValue | typeof NOPE {
   }
 }
 
+/** `{expiresAt, extensionCount, requesterPhone}` or `null`; the phone of the requester is copied as text, never logged. */
+function readSurvey(raw: unknown): FieldValue | typeof NOPE {
+  if (raw === null || raw === undefined) return null;
+  if (!isObject(raw)) return NOPE;
+  const expiresAt = readField({ k: 'ts' }, raw['expiresAt']);
+  const extensionCount = readField({ k: 'int', min: 0, max: 2 }, raw['extensionCount']);
+  const phone = raw['requesterPhone'] === undefined ? null : readField({ k: 'str', max: 32, nullable: true }, raw['requesterPhone']);
+  if (expiresAt === NOPE || extensionCount === NOPE || phone === NOPE) return NOPE;
+  return { expiresAt: expiresAt as string, extensionCount: extensionCount as number, requesterPhone: phone as string | null };
+}
+
 const isEntityType = (type: unknown): type is EntityType => typeof type === 'string' && Object.hasOwn(PROJECTIONS, type);
 
 /** Reads one entity of a known type; `null` when it does not match its projection (extra, missing or malformed fields). */
@@ -213,7 +228,7 @@ function readEntity(type: EntityType, raw: Record<string, unknown>, strict: bool
   const fields: Record<string, FieldValue> = {};
   for (const name of Object.keys(projection)) {
     const spec = projection[name];
-    if (spec === undefined || !Object.hasOwn(raw, name)) return null;
+    if (spec === undefined || (!Object.hasOwn(raw, name) && spec.k !== 'survey')) return null;
     const value = readField(spec, raw[name]);
     if (value === NOPE) return null;
     fields[name] = value;
@@ -312,5 +327,6 @@ export function parseClientConfig(body: unknown): ClientConfig {
     closedWorkOrdersInScopeDays: intIn(body['closedWorkOrdersInScopeDays'], 1, 365) ?? d.closedWorkOrdersInScopeDays,
     periodicResyncDays: intIn(body['periodicResyncDays'], 1, 90) ?? d.periodicResyncDays,
     scopeRuleVersion,
+    features: { siteSurveys: isObject(body['features']) && body['features']['siteSurveys'] === true },
   };
 }

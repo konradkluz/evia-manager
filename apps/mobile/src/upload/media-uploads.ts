@@ -73,7 +73,22 @@ export const SWEEP_MIN_AGE_MS = 10 * 60 * 1000;
 const EMPTY: MediaUploadsSnapshot = { files: [], notifications: 'granted' };
 
 /** The codes of "Wymaga uwagi" for which "Usuń z telefonu" is offered (EVM-108 AC6, decision of Konrad 2026-11-15). */
-const DISCARDABLE_CODES: readonly string[] = ['quarantined', 'id_conflict', 'missing_original'];
+const DISCARDABLE_CODES: readonly string[] = [
+  'quarantined',
+  'id_conflict',
+  'missing_original',
+  'order_gone',
+  'survey_gone',
+  'command_rejected',
+];
+/**
+ * The codes of a file whose COMMAND the server rejected or that left the queue with a discarded group (EVM-137 AC6, W10): `order_gone` (the
+ * order is deleted or not ours), `survey_gone` (the same for a site survey), `command_rejected` (any other rejection). The row of the file leaves
+ * `pending` for "Wymaga uwagi" with ONLY "Usuń z telefonu": nothing is armed, nothing is retried, the file never goes to another order, and the
+ * command is not a row of the Queue any more - so every such file has exactly one row, with its action.
+ */
+const COMMAND_CODES: readonly string[] = ['order_gone', 'survey_gone', 'command_rejected'];
+const isCommandCode = (code: string | null): boolean => code !== null && COMMAND_CODES.includes(code);
 const isDiscardable = (code: string | null): boolean => code !== null && DISCARDABLE_CODES.includes(code);
 
 const mimeOf = (mediaType: unknown): string => (mediaType === 'video' ? 'video/mp4' : 'image/jpeg');
@@ -384,6 +399,15 @@ export class MediaUploads implements MediaControl {
     return this.#running;
   }
 
+  /**
+   * Resolves when no reconciliation is running or waiting for its repeat. `reconcile` starts a repeat of its own when it was asked meanwhile
+   * (`add` and every event ask), and that repeat is not part of the promise the caller got: a caller that must see the final state (a test, a
+   * screen that measures the Queue) waits here instead of guessing a time.
+   */
+  async settled(): Promise<void> {
+    while (this.#running !== undefined) await this.#running;
+  }
+
   async #run(sweep: boolean): Promise<void> {
     const store = this.#deps.store();
     if (store === null) {
@@ -392,6 +416,8 @@ export class MediaUploads implements MediaControl {
     }
     try {
       await this.#repairOrphans(store);
+      // a failing adoption never stops the arming, the sweep and the statuses below it
+      await this.#adoptRejections(store).catch(() => undefined);
       if (sweep) await this.#sweep(store);
       await this.#arm(store);
       await this.#syncStatuses(store);
@@ -400,6 +426,31 @@ export class MediaUploads implements MediaControl {
       // a failing store or module leaves the rows as they are; the next run starts again
     }
     await this.#rebuild();
+  }
+
+  /** A file whose command the server rejected: the row is "Wymaga uwagi" with a code of ours (never the message of the server). */
+  async #adoptRejections(store: UnlockedStore): Promise<void> {
+    const waiting = new Map((await store.media.list()).filter((file) => file.state === 'pending').map((file) => [file.mutationId, file]));
+    if (waiting.size === 0) return;
+    const at = this.#deps.now();
+    // the orders that are (or were) site surveys: the text of the row says "Wizja została usunięta" for them
+    const surveys = new Set<string>();
+    try {
+      for (const id of await store.replicaExtras.readSurveyMarks()) surveys.add(id);
+    } catch {
+      // without the marks a survey's file only gets the general words
+    }
+    for (const raw of await store.queue.readAll()) {
+      if (typeof raw !== 'object' || raw === null) continue;
+      const { mutationId, state, lastCode, ownerUserId, type, objectId } = raw as Record<string, unknown>;
+      if (type === 'CreateSiteSurvey' && typeof objectId === 'string') surveys.add(objectId);
+      if (typeof mutationId !== 'string' || state !== 'needs_attention' || ownerUserId !== store.userId) continue;
+      const file = waiting.get(mutationId);
+      if (file === undefined || typeof lastCode !== 'string') continue;
+      const gone = lastCode === 'target_unavailable' || lastCode === 'forbidden';
+      const code = gone ? (surveys.has(file.workOrderId) ? 'survey_gone' : 'order_gone') : 'command_rejected';
+      await store.media.setState(file.assetId, 'needs_attention', code, at);
+    }
   }
 
   /** Commands of the queue whose row is missing (the process died between the two writes of `add`): the row is written again. */
@@ -520,7 +571,12 @@ export class MediaUploads implements MediaControl {
     const store = this.#deps.store();
     if (store === null) return false;
     const file = (await store.media.list()).find((row) => row.assetId === assetId);
-    if (file === undefined || (file.state !== 'failed' && file.state !== 'needs_attention') || file.lastCode === 'quarantined')
+    if (
+      file === undefined ||
+      (file.state !== 'failed' && file.state !== 'needs_attention') ||
+      file.lastCode === 'quarantined' ||
+      isCommandCode(file.lastCode)
+    )
       return false;
     const result = await this.#deps.native.retryUpload(assetId).catch(() => 'failed' as const);
     if (result !== 'armed_user_initiated' && result !== 'armed' && result !== 'already_armed') return false;
@@ -529,6 +585,27 @@ export class MediaUploads implements MediaControl {
     this.#progress.delete(assetId);
     await this.#rebuild();
     return true;
+  }
+
+  /**
+   * The commands of files that left the queue with a discarded group (EVM-137 W10): the original and the row of each go too. A file that the
+   * module cannot remove keeps its row as "Wymaga uwagi" (`command_rejected`, "Usuń z telefonu") - never a file on the disk without a row.
+   */
+  async forgetFiles(mutationIds: readonly string[]): Promise<void> {
+    const store = this.#deps.store();
+    if (store === null || mutationIds.length === 0) return;
+    const wanted = new Set(mutationIds);
+    try {
+      for (const file of await store.media.list()) {
+        if (!wanted.has(file.mutationId) || (file.state !== 'pending' && file.state !== 'needs_attention')) continue;
+        const removed = await this.#deps.native.cancelUpload(file.assetId, true).catch(() => false);
+        if (file.state === 'pending') await store.media.setState(file.assetId, 'needs_attention', 'command_rejected', this.#deps.now());
+        if (removed) await store.media.discard(file.assetId);
+      }
+    } catch {
+      // a failing store leaves the rows as they are; the next reconciliation shows them
+    }
+    await this.#rebuild();
   }
 
   // ---- "Usuń z telefonu" ------------------------------------------------------------------------------------------------------
@@ -548,6 +625,8 @@ export class MediaUploads implements MediaControl {
     if (!removed) return false;
     try {
       await store.media.discard(assetId);
+      // the rejected command of the file goes with it, so that it is not shown twice and never sent again (W10); a missing one is fine
+      if (isCommandCode(file.lastCode)) await store.queue.rewrite([file.mutationId], []);
     } catch {
       return false;
     }
@@ -611,7 +690,24 @@ export class MediaUploads implements MediaControl {
       .sort((a, b) => b.updatedAt - a.updatedAt)
       .slice(0, CLEAN_KEPT);
     const open = rows.filter((row) => row.state !== 'clean');
-    this.#publish({ files: [...open, ...clean].map((row) => viewOf(row, statuses.get(row.assetId))), notifications });
+    // the orders whose site survey is still only a command of the queue: their files wait for the survey (EVM-137)
+    const surveys = new Set<string>();
+    try {
+      for (const raw of await store.queue.readAll()) {
+        if (typeof raw === 'object' && raw !== null && (raw as Record<string, unknown>)['type'] === 'CreateSiteSurvey') {
+          const id = (raw as Record<string, unknown>)['objectId'];
+          if (typeof id === 'string') surveys.add(id);
+        }
+      }
+    } catch {
+      // without the queue the files are still shown, only without the words about the survey
+    }
+    this.#publish({
+      files: [...open, ...clean].map((row) =>
+        viewOf(row, statuses.get(row.assetId), row.state === 'pending' && surveys.has(row.workOrderId)),
+      ),
+      notifications,
+    });
   }
 
   #permission(): 'granted' | 'denied' {
@@ -623,7 +719,7 @@ export class MediaUploads implements MediaControl {
   }
 }
 
-function viewOf(row: MediaFileRecord, status: UploadStatus | undefined): MediaFileView {
+function viewOf(row: MediaFileRecord, status: UploadStatus | undefined, awaitsSurvey = false): MediaFileView {
   const base = {
     assetId: row.assetId,
     sizeBytes: row.sizeBytes,
@@ -633,6 +729,7 @@ function viewOf(row: MediaFileRecord, status: UploadStatus | undefined): MediaFi
     mediaType: row.mime === 'video/mp4' ? ('video' as const) : ('photo' as const),
     capturedAt: row.createdAt,
     durationMs: row.durationMs ?? null,
+    ...(awaitsSurvey ? { awaitsSurvey: true } : {}),
   };
   switch (row.state) {
     case 'pending':
@@ -657,7 +754,7 @@ function viewOf(row: MediaFileRecord, status: UploadStatus | undefined): MediaFi
         status: 'attention',
         percent: null,
         actions: [
-          ...(row.lastCode === 'quarantined' ? [] : (['retry'] as const)),
+          ...(row.lastCode === 'quarantined' || isCommandCode(row.lastCode) ? [] : (['retry'] as const)),
           ...(isDiscardable(row.lastCode) ? (['discard'] as const) : []),
         ],
       };

@@ -26,6 +26,8 @@ export interface MediaFileView {
   readonly durationMs?: number | null;
   /** When the file was taken (ms): the time of the capture, not of the last change. */
   readonly capturedAt: number;
+  /** The file waits for a site survey that is still only in the queue ("Wyślemy po utworzeniu wizji"; EVM-137). */
+  readonly awaitsSurvey?: boolean;
 }
 
 export interface MediaUploadsSnapshot {

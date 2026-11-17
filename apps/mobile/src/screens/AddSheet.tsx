@@ -1,15 +1,26 @@
 import { useTranslation } from 'react-i18next';
-import { Text } from 'react-native';
+import { Text, View } from 'react-native';
 import { AlertDialog, Button } from '../ui';
-import { color, text } from '../ui/theme';
+import { color, space, text } from '../ui/theme';
 
-export type AddTarget = 'entry' | 'newOrder' | 'media';
+export type AddTarget = 'siteSurvey' | 'entry' | 'newOrder' | 'media';
 
 /**
  * Sheet "Dodaj" (EVM-101 AC8; M-05): in the hidden-data mode "Wpis" and "Nowe zlecenie" are disabled with a visible reason; "Zdjęcie
  * lub film" stays active (SR-MOB-05). Rendered inside the window like every dialog (FLAG_SECURE).
  */
-export function AddSheet({ hidden, onPick, onClose }: { hidden: boolean; onPick: (target: AddTarget) => void; onClose: () => void }) {
+export function AddSheet({
+  hidden,
+  surveys,
+  onPick,
+  onClose,
+}: {
+  hidden: boolean;
+  /** The server allows new site surveys (`features.siteSurveys`; EVM-137 AC1): without it the row is not offered at all. */
+  surveys: boolean;
+  onPick: (target: AddTarget) => void;
+  onClose: () => void;
+}) {
   const { t } = useTranslation();
   return (
     <AlertDialog
@@ -18,6 +29,22 @@ export function AddSheet({ hidden, onPick, onClose }: { hidden: boolean; onPick:
       testID="add-sheet"
       actions={
         <>
+          {/* EVM-137 AC1: "Wizja lokalna" is the FIRST action; in the hidden-data mode it stays (it opens the notice of the form) */}
+          {surveys ? (
+            <View style={{ rowGap: space.stack.xs }}>
+              <Button
+                label={t('add.siteSurvey')}
+                onPress={() => {
+                  onPick('siteSurvey');
+                }}
+                fullWidth
+                testID="add-site-survey"
+              />
+              <Text style={{ ...text.bodySm, color: color.text.secondary }} testID="add-site-survey-hint">
+                {t('add.siteSurveyHint')}
+              </Text>
+            </View>
+          ) : null}
           <Button
             label={t('add.entry')}
             onPress={() => {

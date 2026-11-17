@@ -46,6 +46,45 @@ SiteSurvey:
           pattern: '^\+[1-9][0-9]{7,14}$'
           maxLength: 16
         - type: 'null'
+CreateSiteSurveyRequest:
+  type: object
+  description: >-
+    Nowa wizja lokalna z panelu (EVM-135 AC2, ADR-0024): samą lokalizacją, bez klienta i bez szablonu (pusta kompozycja), w statusie
+    `quoting`, z terminem wygaśnięcia = utworzenie + 90 dni. `id` (UUIDv7) nadaje klient. `title` opcjonalny (domyślnie „Wizja lokalna”;
+    zwykły tekst, NFC, przycięty) — nie wpisuj imion ani telefonów. `requesterPhone` opcjonalny: 9 cyfr, `+48…`, `0048…`, ze spacjami
+    lub łącznikami — serwer zapisuje E.164 (zły — `400` `/requesterPhone` `invalid_format`). `assigneeUserId` (opiekun) opcjonalny:
+    brak = wizja BEZ opiekuna (inaczej niż `createWorkOrder`); musi to być aktywny użytkownik (`400` `assignee_unavailable`).
+  required: [id, siteId]
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      description: Identyfikator UUIDv7 nadany przez klienta (ponowienie zapisu używa tego samego `id`).
+      format: uuid
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+      maxLength: 36
+    siteId:
+      type: string
+      description: Lokalizacja (musi istnieć, być widoczna i nieusunięta — inaczej `404 not_found`).
+      format: uuid
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+      maxLength: 36
+    title:
+      type: string
+      description: Tytuł (pole swobodne; domyślnie „Wizja lokalna”). Nie wpisuj imion ani telefonów.
+      maxLength: 200
+    requesterPhone:
+      type: string
+      description: Telefon zamawiającego (opcjonalny; zapisywany w E.164).
+      pattern: '^[0-9+() -]{7,32}$'
+      minLength: 7
+      maxLength: 32
+    assigneeUserId:
+      type: string
+      description: Opiekun wizji (aktywny użytkownik); brak = bez opiekuna.
+      format: uuid
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+      maxLength: 36
 WorkOrderView:
   type: string
   description: >-

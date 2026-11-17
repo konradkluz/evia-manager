@@ -24,6 +24,7 @@ import { ProblemException } from '../../../platform/http/problem.ts';
 import { requestEventContext, webEventContext } from '../../../platform/http/request-context.ts';
 import { AssignCustomerService } from '../application/assign-customer.service.ts';
 import { CreateScopeItemService } from '../application/create-scope-item.service.ts';
+import { CreateSiteSurveyService } from '../application/create-site-survey.service.ts';
 import { CreateWorkOrderService } from '../application/create-work-order.service.ts';
 import { DeleteWorkOrderService } from '../application/delete-work-order.service.ts';
 import { DeleteScopeItemService } from '../application/delete-scope-item.service.ts';
@@ -53,6 +54,7 @@ export class WorkOrdersController {
   readonly #deletions: DeleteWorkOrderService;
   readonly #restorations: RestoreWorkOrderService;
   readonly #assignments: AssignCustomerService;
+  readonly #surveys: CreateSiteSurveyService;
 
   constructor(
     @Inject(CreateWorkOrderService) creations: CreateWorkOrderService,
@@ -66,7 +68,9 @@ export class WorkOrdersController {
     @Inject(DeleteWorkOrderService) deletions: DeleteWorkOrderService,
     @Inject(RestoreWorkOrderService) restorations: RestoreWorkOrderService,
     @Inject(AssignCustomerService) assignments: AssignCustomerService,
+    @Inject(CreateSiteSurveyService) surveys: CreateSiteSurveyService,
   ) {
+    this.#surveys = surveys;
     this.#creations = creations;
     this.#reads = reads;
     this.#transitions = transitions;
@@ -274,6 +278,28 @@ export class WorkOrdersController {
       idempotencyKey,
       webEventContext(request, response),
     );
+    response.set('ETag', entityTag(workOrder.version));
+    if (replayed) response.set('Idempotent-Replayed', 'true');
+    return workOrder;
+  }
+
+  /** EVM-135 AC2: the site survey of the panel - `201` with `Location` of the order and its detail. */
+  @Post('/api/v1/site-surveys')
+  @OperationId('createSiteSurvey')
+  @HttpCode(201)
+  async createSiteSurvey(
+    @Body() body: unknown,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<WorkOrderDetails> {
+    const { workOrder, replayed } = await this.#surveys.create(
+      requirePrincipal(request),
+      body,
+      idempotencyKey,
+      webEventContext(request, response),
+    );
+    response.set('Location', `/api/v1/work-orders/${workOrder.id}`);
     response.set('ETag', entityTag(workOrder.version));
     if (replayed) response.set('Idempotent-Replayed', 'true');
     return workOrder;
