@@ -1,0 +1,105 @@
+# EVM-137 AC1 AC2 AC3 AC4: no network (airplane mode, set by tools/mobile-e2e) and no permission to notify. The form of the survey says what is
+# missing when it is empty; filled with an address (and the phone of the requester) it is saved in the durable queue BEFORE the toast, and the
+# details open as "Wizja lokalna - Oczekuje na numer" with the address (the only place of it). The camera opens from the details: the category is
+# already "Oględziny" (the shutter works with no choice), one shot is saved; "Gotowe" goes back to the survey and, once, offers the notifications
+# ("Nie teraz"). The Queue shows the survey by its type, the file "Wyślemy po utworzeniu wizji" and NO address; the list shows the card with the
+# mark, the term and the chip "Wizje lokalne (1)" and NO address. tools/mobile-e2e kills the app right after this flow (force-stop).
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: true
+    permissions:
+      notifications: deny
+- extendedWaitUntil:
+    visible: 'Brak zasięgu.*'
+    timeout: 30000
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+# AC1: an empty form says what is missing and saves nothing
+- tapOn:
+    id: 'orders-add'
+- tapOn:
+    id: 'add-site-survey'
+- extendedWaitUntil:
+    visible: 'Numer nadamy po synchronizacji\.'
+    timeout: 10000
+- tapOn:
+    id: 'survey-save'
+- extendedWaitUntil:
+    visible: 'Popraw dane w formularzu'
+    timeout: 10000
+- assertVisible: 'Podaj miejscowość\.'
+- assertVisible: 'Podaj ulicę\.'
+- assertVisible: 'Podaj kod pocztowy, np\. 00-000\.'
+- takeScreenshot: m10-survey-errors
+# close without saving: nothing was typed, so no question
+- tapOn:
+    id: 'survey-close'
+- assertNotVisible:
+    id: 'site-survey'
+# AC1 AC2: the survey with an address only (and the phone), saved offline
+- runFlow: common/survey-create.yaml
+- assertVisible: 'Zapisano w telefonie\. Numer nadamy po synchronizacji\. Możesz już robić zdjęcia i filmy\.'
+- assertVisible: 'Brak klienta — uzupełni biuro\. Biuro przypisze klienta po akceptacji oferty\.'
+- assertVisible: 'Wygasa za 90 dni'
+- assertVisible: 'Fikcyjna 12, 05-500 Piaseczno'
+- assertVisible: '600000011'
+- takeScreenshot: m03-survey-pending
+# AC3: the camera with the category "Oględziny" already chosen: no hint, the shutter works at once
+- tapOn:
+    id: 'order-detail-take-photo'
+- extendedWaitUntil:
+    visible:
+      id: 'camera'
+    timeout: 20000
+- extendedWaitUntil:
+    notVisible: 'Uruchamianie aparatu…'
+    timeout: 30000
+- assertNotVisible: 'Wybierz kategorię przed zdjęciem\.'
+- tapOn:
+    id: 'camera-shutter'
+- extendedWaitUntil:
+    visible:
+      id: 'camera-count'
+      text: '1 zdjęcie'
+    timeout: 20000
+- takeScreenshot: m06-survey-camera
+- tapOn:
+    id: 'camera-done'
+- extendedWaitUntil:
+    visible: 'Powiadomienia o wysyłaniu'
+    timeout: 20000
+- tapOn:
+    id: 'notification-consent-later'
+- extendedWaitUntil:
+    visible:
+      id: 'order-detail-take-photo'
+    timeout: 20000
+# AC4: the Queue - the survey by its type, the file behind it, no address
+- tapOn:
+    id: 'nav-queue'
+- extendedWaitUntil:
+    visible: 'Wyślemy po utworzeniu wizji'
+    timeout: 20000
+- assertVisible: 'Wizja lokalna'
+- assertNotVisible: '.*Fikcyjna.*'
+- assertNotVisible: '.*Piaseczno.*'
+- takeScreenshot: m07-survey-queue-waiting
+# AC4: the list - the mark, the term, the date, the chip; no address
+- tapOn:
+    id: 'nav-orders'
+- extendedWaitUntil:
+    visible: 'Wizje lokalne \(1\)'
+    timeout: 10000
+- assertVisible: 'Oczekuje na numer'
+- assertVisible: 'Wygasa za 90 dni'
+- assertVisible: 'Zapisano w telefonie [0-9]+:[0-9]+'
+- assertNotVisible: '.*Fikcyjna.*'
+- assertNotVisible: '.*Piaseczno.*'
+- takeScreenshot: m05-survey-card-pending
+- tapOn:
+    id: 'orders-chip-survey'
+- assertVisible: 'Oczekuje na numer'
+- assertNotVisible: 'ZL-E2E-1'
+- takeScreenshot: m05-survey-chip

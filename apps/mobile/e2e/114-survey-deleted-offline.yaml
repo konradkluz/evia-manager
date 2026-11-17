@@ -1,0 +1,65 @@
+# EVM-137 AC6 (preparation of the deleted survey): no network (airplane mode, set by tools/mobile-e2e) and no permission to notify. The survey that
+# the phone already knows (ZL-E2E-3, from 112-survey-seed) gets an entry and a photo that wait in the queue. The next flow lets the server delete the survey
+# (the office rejected it or its term ended) before they are sent.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: true
+    permissions:
+      notifications: deny
+- extendedWaitUntil:
+    visible: 'Brak zasięgu.*'
+    timeout: 30000
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- tapOn: 'ZL-E2E-3'
+- extendedWaitUntil:
+    visible: 'Wizja lokalna'
+    timeout: 10000
+- tapOn:
+    id: 'order-detail-add-entry'
+- extendedWaitUntil:
+    visible: 'Nowy wpis'
+    timeout: 10000
+- tapOn:
+    id: 'entry-body'
+- inputText: 'Wpis do wizji'
+- hideKeyboard
+- tapOn:
+    id: 'entry-save'
+- extendedWaitUntil:
+    visible: 'Zapisano w telefonie\. Wyślemy, gdy wróci zasięg\.'
+    timeout: 10000
+- tapOn:
+    id: 'order-detail-take-photo'
+- extendedWaitUntil:
+    visible:
+      id: 'camera'
+    timeout: 20000
+- extendedWaitUntil:
+    notVisible: 'Uruchamianie aparatu…'
+    timeout: 30000
+- tapOn:
+    id: 'camera-shutter'
+- extendedWaitUntil:
+    visible:
+      id: 'camera-count'
+      text: '1 zdjęcie'
+    timeout: 20000
+- tapOn:
+    id: 'camera-done'
+- extendedWaitUntil:
+    visible: 'Powiadomienia o wysyłaniu'
+    timeout: 20000
+- tapOn:
+    id: 'notification-consent-later'
+- extendedWaitUntil:
+    visible:
+      id: 'order-detail-take-photo'
+    timeout: 20000
+- tapOn:
+    id: 'order-detail-back'
+- extendedWaitUntil:
+    visible: 'Offline · [0-9]+'
+    timeout: 10000

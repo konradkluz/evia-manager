@@ -732,11 +732,24 @@ export class SyncService implements SyncControl {
 
   enqueue(input: EnqueueInput): Promise<AttentionResult> {
     return this.#op(async () => {
-      const record = await this.#core.queue.enqueue(input);
+      const record = await this.#core.queue.enqueue(await this.#withSurveyParent(input));
       // the mark outlives the survey in the replica (W10): written with the command, a failure of it never loses the command
       if (record.type === 'CreateSiteSurvey') await this.#deps.store.replicaExtras.addSurveyMarks([record.objectId]).catch(() => undefined);
       return { mutationId: record.mutationId };
     });
+  }
+
+  /**
+   * A file saved for a site survey that is still only a command of the queue goes BEHIND it (EVM-137 AC3, AC6): the camera knows the order by its
+   * id, not the command, so the link is made here. The group of the survey then counts the file, a rejected survey holds it back, and "Usuń z
+   * telefonu" takes it with the rest. Only surveys: an ordinary order keeps the files as they were (their rows follow the mutation ids).
+   */
+  async #withSurveyParent(input: EnqueueInput): Promise<EnqueueInput> {
+    if (input.type !== 'CreateMediaAsset' || input.parentMutationId !== undefined) return input;
+    const workOrderId = (input.payload as Record<string, unknown>)['workOrderId'];
+    if (typeof workOrderId !== 'string') return input;
+    const root = (await this.#records()).find((r) => r.type === 'CreateSiteSurvey' && r.objectId === workOrderId);
+    return root === undefined ? input : { ...input, parentMutationId: root.mutationId };
   }
 
   discard(id: string): Promise<AttentionResult> {

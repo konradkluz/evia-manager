@@ -16,12 +16,15 @@
  *   upload?: boolean,
  *   templates?: 'ok' | 'none' | 'channel_not_allowed',
  *   quick?: 'ok' | 'quota_exceeded' | 'template_unavailable_first',
+ *   survey?: 'ok' | 'feature_disabled' | 'validation_failed' | 'deleted' | 'assigned',
+ *   features?: 'on' | 'off',
  * }} Step
  * `before` runs ahead of the flow (a failure skips it), `after` once the flow passed (EVM-093 device steps, src/device.mjs).
  * `onFail` (EVM-110): informational device steps run when the flow FAILED (a diagnosis, e.g. the code of a film that was not saved); their result never changes the verdict.
  * `auth` is the sign-in mode of the scenario server for the step (EVM-100; default `ok`).
  * `upload` (EVM-130): the sign-in of the run is served by the upload part of the scenario server (src/upload-stub.mjs) for the step (default off).
  * `templates` and `quick` are the answers of the scenario server for the list of templates and for a quick work order (EVM-106; default `ok`).
+ * `survey` and `features` (EVM-137): how the server answers a site survey and whether the client config switches the function on (defaults `ok`, `on`).
  * @typedef {{ name: string, ac: string, steps: Step[] }} Scenario
  */
 

@@ -1,0 +1,29 @@
+# EVM-137 AC2: after the kill (force-stop by tools/mobile-e2e) the survey and its file are still in the durable queue: the capsule says "Offline",
+# the list shows the survey as "Oczekuje na numer" with the chip, it opens with the address (still the only place of it), and nothing was sent.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible: 'Offline · [0-9]+'
+    timeout: 45000
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- extendedWaitUntil:
+    visible: 'Oczekuje na numer'
+    timeout: 10000
+- assertVisible: 'Wizje lokalne \(1\)'
+- tapOn: 'Oczekuje na numer'
+- extendedWaitUntil:
+    visible: 'Fikcyjna 12, 05-500 Piaseczno'
+    timeout: 10000
+- takeScreenshot: m03-survey-after-kill
+- tapOn:
+    id: 'order-detail-back'
+- tapOn:
+    id: 'nav-queue'
+- extendedWaitUntil:
+    visible: 'Wyślemy po utworzeniu wizji'
+    timeout: 20000
+- assertNotVisible: '.*Fikcyjna.*'

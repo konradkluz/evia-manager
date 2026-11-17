@@ -17,6 +17,7 @@
  */
 import { CAMERA_SCENARIOS } from './camera-scenarios.mjs';
 import { VIDEO_SCENARIOS } from './video-scenarios.mjs';
+import { SURVEY_SCENARIOS } from './survey-scenarios.mjs';
 import { SCENARIOS } from './scenarios.mjs';
 
 /** The answer to every part is held this long (ms): ten parts of the big file take about a minute. */
@@ -243,13 +244,14 @@ export const UPLOAD_SCENARIOS = [
 
 /**
  * The scenarios a run takes: without `only` the scenarios of scenarios.mjs; with it the scenarios (those and the upload ones) whose name
- * is, or starts with, one of the given words (the upload scenarios and, from EVM-108, the camera ones `camera-`).
+ * is, or starts with, one of the given words (the upload scenarios and, from EVM-108, the camera ones `camera-`, from EVM-110 the film ones
+ * `video-`, from EVM-137 the site survey ones `survey-`).
  * @param {string[] | null} only
  * @returns {import('./scenarios.mjs').Scenario[]}
  */
 export function selectScenarios(only) {
   if (only === null) return SCENARIOS;
-  return [...SCENARIOS, ...UPLOAD_SCENARIOS, ...CAMERA_SCENARIOS, ...VIDEO_SCENARIOS].filter((scenario) =>
+  return [...SCENARIOS, ...UPLOAD_SCENARIOS, ...CAMERA_SCENARIOS, ...VIDEO_SCENARIOS, ...SURVEY_SCENARIOS].filter((scenario) =>
     only.some((word) => scenario.name.startsWith(word)),
   );
 }

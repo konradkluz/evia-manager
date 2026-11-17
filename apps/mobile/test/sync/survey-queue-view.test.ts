@@ -141,3 +141,40 @@ describe('the view of the queue without the commands of the files (EVM-137 AC6)'
     expect(removed.flat()).toEqual([]);
   });
 });
+
+describe('a file of a survey that waits is its dependent (EVM-137 AC3, AC6)', () => {
+  it('EVM-137 AC3: a file command saved without a parent while the survey still waits goes behind it - the group counts it and a rejected survey holds it back', async () => {
+    const { server, service } = await offlineService();
+    const built = buildSurveyInput(DRAFT, newId);
+    if (!built.ok) throw new Error('draft');
+    const root = idOf(await service.enqueue(built.input));
+    // the camera does not know the survey command: it saves the file by the order id only
+    await service.enqueue({
+      type: 'CreateMediaAsset',
+      commandVersion: 1,
+      payload: { id: newId(), workOrderId: built.workOrderId, mediaType: 'photo', category: 'site_survey' },
+    });
+    expect(await service.groupSummary(root)).toEqual({ photos: 1, videos: 0, entries: 0, total: 1 });
+    expect(must((await service.queueView(true)).items.find((i) => i.id === root)).dependents).toBe(1);
+    phone.online = true;
+    rejectAll(server, 'feature_disabled');
+    service.setOnline(true);
+    await settle();
+    const [media] = (await phone.queue.readAll()).filter((r) => (r as { type: string }).type === 'CreateMediaAsset') as {
+      state: string;
+      lastCode?: string;
+    }[];
+    expect(media).toMatchObject({ state: 'blocked', lastCode: 'parent_unavailable' });
+  });
+
+  it('EVM-137 AC3: a file of an ordinary order (or of a survey that is already on the server) keeps no parent - nothing changes for it', async () => {
+    const { service } = await offlineService();
+    await service.enqueue({
+      type: 'CreateMediaAsset',
+      commandVersion: 1,
+      payload: { id: newId(), workOrderId: '0194c2a0-0000-7000-8000-0000000000ee', mediaType: 'photo', category: 'other' },
+    });
+    const [media] = (await phone.queue.readAll()) as { parentMutationId?: string }[];
+    expect(media?.parentMutationId).toBeUndefined();
+  });
+});

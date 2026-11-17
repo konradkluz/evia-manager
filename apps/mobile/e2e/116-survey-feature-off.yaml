@@ -1,0 +1,32 @@
+# EVM-137 AC1: the server announced the function as switched off (`features.siteSurveys: false` in the client config; scenario step `features: off`). A
+# fresh install signs in and the first download ends on the list; the sheet "Dodaj" has no "Wizja lokalna" - the other actions are as they were.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    clearState: true
+    permissions:
+      all: allow
+      camera: unset
+- runFlow: common/sign-in.yaml
+- extendedWaitUntil:
+    visible: 'ZL-E2E-1'
+    timeout: 60000
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- tapOn:
+    id: 'orders-add'
+- extendedWaitUntil:
+    visible:
+      id: 'add-sheet'
+    timeout: 10000
+- assertNotVisible:
+    id: 'add-site-survey'
+- assertNotVisible: 'Wizja lokalna'
+- assertVisible:
+    id: 'add-new-order'
+- assertVisible:
+    id: 'add-media'
+- takeScreenshot: m05-add-sheet-no-survey
+- tapOn:
+    id: 'add-close'

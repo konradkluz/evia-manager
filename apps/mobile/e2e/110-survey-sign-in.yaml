@@ -1,0 +1,35 @@
+# EVM-137 AC1 (preparation of every survey scenario): a fresh install WITHOUT the permission for the camera (Maestro grants every permission by
+# default; here the camera is the one left out) signs in against the scenario server (its upload part serves the sign-in of these scenarios);
+# the first download ends on the list. The sheet "Dodaj" has "Wizja lokalna" as its first action, before "Nowe zlecenie" (the server switch is
+# on); the sheet closes and the list is as it was.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    clearState: true
+    permissions:
+      all: allow
+      camera: unset
+- runFlow: common/sign-in.yaml
+- extendedWaitUntil:
+    visible: 'ZL-E2E-1'
+    timeout: 60000
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- tapOn:
+    id: 'orders-add'
+- extendedWaitUntil:
+    visible:
+      id: 'add-sheet'
+    timeout: 10000
+- assertVisible:
+    id: 'add-site-survey'
+- assertVisible: 'Wizja lokalna'
+- assertVisible: 'Tylko adres — klienta uzupełni biuro'
+- assertVisible:
+    id: 'add-new-order'
+- takeScreenshot: m05-add-sheet-survey
+- tapOn:
+    id: 'add-close'
+- assertNotVisible:
+    id: 'add-sheet'

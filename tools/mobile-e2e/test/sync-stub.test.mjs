@@ -398,3 +398,166 @@ describe('sync part of the scenario server: media (EVM-130 stage C, AC1)', () =>
     assert.deepEqual(page('e2e-cursor-after-snapshot-0001').changes, []);
   });
 });
+
+describe('site surveys of the scenario server (EVM-137)', () => {
+  const SURVEY = '0194c2a0-0000-7000-8000-0000000000f1';
+  const SITE = '0194c2a0-0000-7000-8000-0000000000f2';
+  const M1 = '0194c2a0-0000-7000-8000-0000000000b1';
+  const M2 = '0194c2a0-0000-7000-8000-0000000000b2';
+  const AFTER_SNAPSHOT = 'e2e-cursor-after-snapshot-0001';
+  /** @param {string} mutationId @param {Record<string, unknown>} [extra] */
+  const survey = (mutationId, extra = {}) => ({
+    mutations: [
+      {
+        mutationId,
+        type: 'CreateSiteSurvey',
+        commandVersion: 1,
+        payload: {
+          workOrderId: SURVEY,
+          newSite: { id: SITE, siteType: 'other', street: 'Testowa', buildingNumber: '5', postalCode: '05-500', city: 'Piaseczno' },
+          requesterPhone: '600000011',
+          ...extra,
+        },
+      },
+    ],
+    pendingItems: 1,
+  });
+  /** @param {string} mutationId @param {string} workOrderId */
+  const note = (mutationId, workOrderId) => ({
+    mutations: [{ mutationId, type: 'CreateNote', commandVersion: 1, payload: { id: mutationId, workOrderId, body: 'x' } }],
+    pendingItems: 1,
+  });
+  /** @param {ReturnType<typeof createSyncStub>} stub @param {unknown} body @returns {{ results: { outcome: string, code?: string }[] }} */
+  const send = (stub, body) => /** @type {never} */ (post(stub, body)?.body);
+  /** @param {ReturnType<typeof createSyncStub>} stub @param {string} cursor @returns {Record<string, unknown>[]} */
+  const pull = (stub, cursor) => {
+    const answer = stub.handle('GET', '/api/v1/sync/changes', new URLSearchParams(`cursor=${cursor}`), null, true);
+    assert.ok(answer !== null);
+    assert.equal(zSyncChangesResponse.safeParse(answer.body).success, true);
+    return /** @type {{ changes: Record<string, unknown>[] }} */ (answer.body).changes;
+  };
+  const entityOf = (/** @type {Record<string, unknown>} */ change) => /** @type {Record<string, unknown>} */ (change['entity']);
+
+  it('EVM-137 AC1: the client config states the switch of the site survey (on by default, off in the mode) and is valid against the contract', () => {
+    const stub = createSyncStub();
+    const config = () => /** @type {Record<string, unknown>} */ (stub.handle('GET', '/api/v1/meta/client-config', none, null, true)?.body);
+    assert.equal(zGetClientConfigResponse.safeParse(config()).success, true);
+    assert.deepEqual(config()['features'], { siteSurveys: true });
+    stub.setModes({ features: 'off' });
+    assert.equal(zGetClientConfigResponse.safeParse(config()).success, true);
+    assert.deepEqual(config()['features'], { siteSurveys: false });
+  });
+
+  it('EVM-137 AC2: a survey is applied once; its number arrives with the next changes page as a quote without a client, with a 90 day term and the phone as E.164; a replay is a duplicate', () => {
+    const stub = createSyncStub();
+    assert.deepEqual(
+      send(stub, survey(M1)).results.map((r) => r.outcome),
+      ['applied'],
+    );
+    const changes = pull(stub, AFTER_SNAPSHOT);
+    assert.deepEqual(
+      changes.map((c) => entityOf(c)['type']),
+      ['site', 'work_order'],
+    );
+    const order = entityOf(changes[1] ?? {});
+    assert.equal(order['id'], SURVEY);
+    assert.equal(order['number'], 'ZL-E2E-3');
+    assert.equal(order['status'], 'quoting');
+    assert.equal(order['customerId'], null);
+    assert.equal(order['siteId'], SITE);
+    const term = /** @type {{ expiresAt: string, extensionCount: number, requesterPhone: string }} */ (order['siteSurvey']);
+    assert.equal(term.extensionCount, 0);
+    assert.equal(term.requesterPhone, '+48600000011');
+    const days = (Date.parse(term.expiresAt) - Date.now()) / 86_400_000;
+    assert.ok(days > 89 && days <= 90, String(days));
+    assert.deepEqual(pull(stub, 'e2e-cursor-changes-000000001'), []);
+    assert.deepEqual(
+      send(stub, survey(M1)).results.map((r) => r.outcome),
+      ['duplicate'],
+    );
+    assert.deepEqual(stub.report(), {
+      unique: 1,
+      duplicates: 1,
+      rejected: 0,
+      received: 2,
+      requests: stub.report().requests,
+      lastPendingItems: 1,
+    });
+  });
+
+  it('EVM-137 AC6: feature_disabled and validation_failed are answered rejected with that code, the same on every repeat, counted as rejected - and the survey is never created', () => {
+    for (const mode of /** @type {const} */ (['feature_disabled', 'validation_failed'])) {
+      const stub = createSyncStub();
+      stub.setModes({ survey: mode });
+      for (let i = 0; i < 3; i += 1) {
+        const [result] = send(stub, survey(M1)).results;
+        assert.deepEqual([result?.outcome, result?.code], ['rejected', mode]);
+      }
+      assert.equal(stub.report().rejected, 1);
+      assert.equal(stub.report().unique, 0);
+      assert.deepEqual(pull(stub, AFTER_SNAPSHOT), []);
+    }
+  });
+
+  it('EVM-137 AC1 AC6: with the feature off in the config the same command is rejected feature_disabled (the server and the config agree)', () => {
+    const stub = createSyncStub();
+    stub.setModes({ features: 'off' });
+    assert.equal(send(stub, survey(M1)).results[0]?.code, 'feature_disabled');
+  });
+
+  it('EVM-137 AC6 W10: in the mode "deleted" the survey disappears from the replica (a delete change, once) and a note for it is rejected target_unavailable, stable on repeat', () => {
+    const stub = createSyncStub();
+    send(stub, survey(M1));
+    pull(stub, AFTER_SNAPSHOT);
+    stub.setModes({ survey: 'deleted' });
+    const changes = pull(stub, 'e2e-cursor-changes-000000001');
+    assert.deepEqual(
+      changes.map((c) => [c['op'], c['type'], c['id']]),
+      [['delete', 'work_order', SURVEY]],
+    );
+    assert.deepEqual(pull(stub, 'e2e-cursor-changes-000000002'), []);
+    for (let i = 0; i < 2; i += 1) {
+      const [result] = send(stub, note(M2, SURVEY)).results;
+      assert.deepEqual([result?.outcome, result?.code], ['rejected', 'target_unavailable']);
+    }
+    assert.equal(stub.report().rejected, 1);
+  });
+
+  it('EVM-137 AC6 W10: the push of a cycle comes before the pull - in the mode "deleted" a note is rejected even before the delete reached the phone', () => {
+    const stub = createSyncStub();
+    send(stub, survey(M1));
+    stub.setModes({ survey: 'deleted' });
+    assert.equal(send(stub, note(M2, SURVEY)).results[0]?.code, 'target_unavailable');
+    // and the delete is still delivered once
+    assert.deepEqual(
+      pull(stub, 'e2e-cursor-changes-000000001').map((c) => c['op']),
+      ['upsert', 'upsert', 'delete'],
+    );
+  });
+
+  it('EVM-137 AC7: in the mode "assigned" the next changes page gives the survey a client - the order with customerId, no survey, status accepted, the same id and number - and the client', () => {
+    const stub = createSyncStub();
+    send(stub, survey(M1));
+    pull(stub, AFTER_SNAPSHOT);
+    stub.setModes({ survey: 'assigned' });
+    const changes = pull(stub, 'e2e-cursor-changes-000000001').map(entityOf);
+    assert.deepEqual(
+      changes.map((e) => e['type']),
+      ['customer', 'work_order'],
+    );
+    const order = changes[1] ?? {};
+    assert.equal(order['id'], SURVEY);
+    assert.equal(order['number'], 'ZL-E2E-3');
+    assert.equal(order['version'], 2);
+    assert.equal(order['siteSurvey'], null);
+    assert.equal(order['status'], 'accepted');
+    assert.equal(order['customerId'], changes[0]?.['id']);
+    assert.deepEqual(pull(stub, 'e2e-cursor-changes-000000002'), []);
+  });
+
+  it('EVM-137 W5: the report of the server carries counters only - nothing of the address or the phone is kept', () => {
+    const stub = createSyncStub();
+    send(stub, survey(M1));
+    assert.doesNotMatch(JSON.stringify(stub.report()), /Testowa|Piaseczno|05-500|600000011/);
+  });
+});

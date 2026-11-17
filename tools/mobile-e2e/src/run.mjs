@@ -218,7 +218,12 @@ export async function runE2e({ skipBuild, port, only = null }, host) {
           continue;
         }
         stub.setMode(step.server, step.auth ?? 'ok');
-        stub.setSyncModes({ templates: step.templates ?? 'ok', quick: step.quick ?? 'ok' });
+        stub.setSyncModes({
+          templates: step.templates ?? 'ok',
+          quick: step.quick ?? 'ok',
+          survey: step.survey ?? 'ok',
+          features: step.features ?? 'on',
+        });
         if (step.background === true) {
           adb(...adbArgs(serial, 'shell', 'input', 'keyevent', 'KEYCODE_HOME'));
           await host.sleep(BACKGROUND_WAIT_MS);
