@@ -120,6 +120,10 @@ export const REASON_CODES = [
   'session_revoked',
   // EVM-095: a device was logged out / ordered to wipe by hand (the other reasons reuse the codes of the events of the account).
   'manual',
+  // EVM-140: why a site survey was extended by 90 days (a closed list chosen in the panel; never free text).
+  'awaiting_client_decision',
+  'awaiting_community_decision',
+  'second_visit_needed',
 ] as const;
 
 export type ReasonCode = (typeof REASON_CODES)[number];

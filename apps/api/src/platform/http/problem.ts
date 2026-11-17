@@ -56,6 +56,9 @@ export const PROBLEMS = Object.freeze({
   customer_anonymized: { status: 409, title: 'The customer is anonymized' },
   // EVM-136 (ADR-0024 pt 3, 4): the assignment of a customer to a site survey and the rule 'accepted needs a customer'
   customer_already_set: { status: 409, title: 'The work order already has a customer' },
+  // EVM-140 (ADR-0024 pt 9, 10): a survey is extended twice at most; the limit of open surveys (20 per creator, 100 in all)
+  extension_limit_reached: { status: 409, title: 'The site survey was extended the most it can be' },
+  site_survey_limit_exceeded: { status: 409, title: 'Too many open site surveys' },
   already_anonymized: { status: 409, title: 'The customer is already anonymized' },
   entry_superseded: { status: 409, title: 'The entry already has a correction' },
   file_processing: { status: 409, title: 'The file is still being processed' },

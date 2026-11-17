@@ -10,6 +10,7 @@ export {
   type WorkOrderEvent,
   type WorkOrderFieldsChangedEvent,
   type WorkOrderJournalChangeEvent,
+  type WorkOrderSiteSurveyExtendedEvent,
   type WorkOrderStatusChangedEvent,
 } from './events.ts';
 export type { ScopeItemField } from './domain/scope-item-rules.ts';

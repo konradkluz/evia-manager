@@ -23,6 +23,7 @@ import { SitesModule } from '../sites/index.ts';
 import { CreateScopeItemService } from './application/create-scope-item.service.ts';
 import { CreateSiteSurveyService } from './application/create-site-survey.service.ts';
 import { CreateWorkOrderService } from './application/create-work-order.service.ts';
+import { ExtendSiteSurveyService } from './application/extend-site-survey.service.ts';
 import { DeleteWorkOrderService } from './application/delete-work-order.service.ts';
 import { DeleteScopeItemService } from './application/delete-scope-item.service.ts';
 import { OpenOrdersDependentsGuard } from './application/open-orders-dependents-guard.ts';
@@ -66,6 +67,7 @@ import {
     DeleteWorkOrderService,
     RestoreWorkOrderService,
     AssignCustomerService,
+    ExtendSiteSurveyService,
     UpdateWorkOrderService,
     CreateScopeItemService,
     UpdateScopeItemService,

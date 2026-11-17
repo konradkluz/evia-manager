@@ -146,6 +146,18 @@ describe('journal event payloads (EVM-038 AC1, AC2; SR-LOG-03, SR-DATA-01)', () 
         'work_order_customer_assigned',
         null,
       ],
+      [
+        {
+          type: 'work_order.site_survey_extended',
+          actor,
+          outcome: 'success',
+          objectType: 'work_order',
+          objectId: ORDER,
+          reasonCode: 'second_visit_needed',
+        },
+        'work_order_site_survey_extended',
+        null,
+      ],
     ];
     expect(cases.map(([, code]) => code).sort()).toEqual([...JOURNAL_EVENT_CODES].sort());
     for (const [event, code, stageId] of cases) {
@@ -446,5 +458,36 @@ describe('the journal event of the assignment of a customer (EVM-136 AC1; SR-LOG
     expect(readJournalEvent('work_order_customer_assigned', { objectType: 'work_order', objectId: ORDER })).toMatchObject({
       code: UNKNOWN_EVENT_CODE,
     });
+  });
+});
+
+describe('the journal event of the extension of a site survey (EVM-140 AC2; SR-LOG-03, SR-DATA-01, DO-K)', () => {
+  const extended = {
+    type: 'work_order.site_survey_extended',
+    actor,
+    outcome: 'success',
+    objectType: 'work_order',
+    objectId: ORDER,
+    reasonCode: 'awaiting_client_decision',
+  } as const;
+
+  it('EVM-140 AC2 the entry holds the order only: neither the reason, nor an address, a phone or a deadline', () => {
+    const leaky = { ...extended, street: 'ul. Znacznik', phone: '+48600936001', expiresAt: new Date() } as unknown as JournalSourceEvent;
+    expect(toJournalEvent(leaky)).toEqual({
+      code: 'work_order_site_survey_extended',
+      payload: { objectType: 'work_order', objectId: ORDER },
+      workOrderId: ORDER,
+      procedureStageId: null,
+      actorUserId: USER,
+    });
+  });
+
+  it('EVM-140 AC2 reading gives the code and the order; a payload that does not fit is the neutral view', () => {
+    expect(readJournalEvent('work_order_site_survey_extended', { objectType: 'work_order', objectId: ORDER })).toMatchObject({
+      code: 'work_order_site_survey_extended',
+      objectType: 'work_order',
+      objectId: ORDER,
+    });
+    expect(readJournalEvent('work_order_site_survey_extended', { objectType: 'work_order' })).toMatchObject({ code: UNKNOWN_EVENT_CODE });
   });
 });
