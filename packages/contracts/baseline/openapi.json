@@ -306,6 +306,50 @@
         },
         "description": "Link jest użyty, zmieniony, zastąpiony, wygasły albo nieznany (`activation_link_invalid`) — jedna odpowiedź dla wszystkich przypadków, bez informacji o koncie — albo treść niezgodna ze schematem (`validation_failed`)."
       },
+      "AssignCustomerConflict": {
+        "content": {
+          "application/problem+json": {
+            "example": {
+              "code": "customer_already_set",
+              "status": 409,
+              "title": "The work order already has a customer",
+              "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+              "type": "/problems/customer_already_set"
+            },
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "Zlecenie ma już klienta innego niż żądany, albo nie jest wizją (`customer_already_set` — klient jest ustawiany raz, zmiana poza zakresem v1), albo wizja jest anulowana (`invalid_state_transition` — najpierw przywrócenie przez Administratora), albo żądanie z tym samym kluczem idempotencji jest w toku (`idempotency_in_progress`, z `Retry-After`). Odpowiedź nie podaje bieżącego klienta.",
+        "headers": {
+          "Retry-After": {
+            "description": "Liczba sekund do ponowienia (tylko `idempotency_in_progress`).",
+            "schema": {
+              "maximum": 3600,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "AssignCustomerUnprocessable": {
+        "content": {
+          "application/problem+json": {
+            "example": {
+              "code": "customer_unavailable",
+              "status": 422,
+              "title": "The customer is not available",
+              "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+              "type": "/problems/customer_unavailable"
+            },
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "Klient niedostępny (`customer_unavailable` — nieistniejący, usunięty, zanonimizowany i niewidoczny to jedna odpowiedź), albo ten sam klucz idempotencji z inną treścią, na innym zleceniu lub na innej operacji (`idempotency_mismatch`)."
+      },
       "CompletedObjectMismatch": {
         "content": {
           "application/problem+json": {
@@ -2433,6 +2477,28 @@
         "pattern": "^[A-Za-z0-9_-]{43}$",
         "type": "string"
       },
+      "AssignWorkOrderCustomerRequest": {
+        "additionalProperties": false,
+        "description": "Przypisanie klienta do wizji lokalnej (EVM-136; ADR-0024 pkt 3): `customerId` — istniejący, widoczny, nieusunięty i niezanonimizowany klient; `version` — wersja zlecenia, na której klient podjął decyzję (z `ETag` odczytu). Przypisanie jest jednorazowe („pusty → X”): ten sam klient ponowiony to `200` bez zmian, inny — `409 customer_already_set`. Pola serwera w treści — `400 read_only_field`, inne — `400 unknown_field`.",
+        "properties": {
+          "customerId": {
+            "format": "uuid",
+            "maxLength": 36,
+            "type": "string"
+          },
+          "version": {
+            "description": "Wersja zlecenia (`ETag`/`version` z odczytu).",
+            "maximum": 2147483647,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "customerId",
+          "version"
+        ],
+        "type": "object"
+      },
       "AssignableUser": {
         "description": "Użytkownik, którego można wskazać jako opiekuna zlecenia — wyłącznie identyfikator i nazwa wyświetlana (bez e-maila, roli, ostatniego logowania i statusu MFA, SR-DATA-03).",
         "properties": {
@@ -2540,6 +2606,7 @@
           "work_order.deleted",
           "work_order.undeleted",
           "work_order.updated",
+          "work_order.customer_assigned",
           "scope_item.created",
           "scope_item.updated",
           "scope_item.deleted",
@@ -10376,7 +10443,7 @@
       },
       "TimelineEvent": {
         "additionalProperties": false,
-        "description": "Zdarzenie automatyczne (`kind = event`; EVM-038) — kod i dane strukturalne, bez treści: tekst panel składa sam, w formie bezosobowej. `code` to jeden z `work_order_created`, `work_order_status_changed`, `stage_status_changed`, `stage_waiting_on_changed`, `stage_updated`, `work_order_fields_changed`, `scope_item_added`, `scope_item_updated`, `scope_item_removed` (EVM-035), `procedure_added`, `procedure_removed`, `procedure_restored`, `stage_added`, `stage_removed`, `stage_restored` (EVM-042: kod procesu w `procedureCodes`, bez nazw; nazwę usuniętego etapu daje `procedureStageName` wpisu), `payment_milestone_status_changed` (EVM-054 — zmiana statusu transzy, także skutek anulowania zlecenia; bez kwoty, numeru faktury i powodu), `payment_milestone_deleted` (EVM-057 — usunięcie transzy korektą Administratora; bez kwoty, numeru faktury i nazwy), `media_assets_added` (EVM-044 — do zlecenia dodano partię zdjęć w jednym wpisie; odczyt nie niesie liczby, identyfikatorów ani nazw plików, a zdarzenie nie ma statusu ani etapu; etykieta panelu: „Dodano zdjęcia”), `document_added` (EVM-047 — do zlecenia dodano dokument; odczyt nie niesie tytułu, nazwy pliku ani rodzaju, a zdarzenie nie ma statusu ani etapu; etykieta panelu: „Dodano dokument”) — lista rośnie z E6 i E7, klient pokazuje nieznany kod neutralnym tekstem; zapis, którego serwer nie potrafi odczytać, ma kod `unknown_event` i puste pola. `fromStatus` / `toStatus` to kody statusów zlecenia, etapu albo transzy (`null`, gdy zdarzenie nie dotyczy statusu); `waitingOn` i `waitingOnParty` — na kogo czekamy (`null` poza zdarzeniami „Czekamy na…”); `changedFields` — nazwy zmienionych pól etapu (etapu: `responsibleUserId`, `dueDate`; zlecenia: `title`, `description`, `plannedDate`, `coordinator`; pozycji: `parameters`, `notes`; wartości NIE są zapisane). Etap zdarzenia to `procedureStageId` / `procedureStageName` wpisu.",
+        "description": "Zdarzenie automatyczne (`kind = event`; EVM-038) — kod i dane strukturalne, bez treści: tekst panel składa sam, w formie bezosobowej. `code` to jeden z `work_order_created`, `work_order_status_changed`, `stage_status_changed`, `stage_waiting_on_changed`, `stage_updated`, `work_order_fields_changed`, `scope_item_added`, `scope_item_updated`, `scope_item_removed` (EVM-035), `procedure_added`, `procedure_removed`, `procedure_restored`, `stage_added`, `stage_removed`, `stage_restored` (EVM-042: kod procesu w `procedureCodes`, bez nazw; nazwę usuniętego etapu daje `procedureStageName` wpisu), `work_order_customer_assigned` (EVM-136 — do wizji lokalnej przypisano klienta; odczyt nie niesie klienta ani statusu; etykieta panelu: „Przypisano klienta”), `payment_milestone_status_changed` (EVM-054 — zmiana statusu transzy, także skutek anulowania zlecenia; bez kwoty, numeru faktury i powodu), `payment_milestone_deleted` (EVM-057 — usunięcie transzy korektą Administratora; bez kwoty, numeru faktury i nazwy), `media_assets_added` (EVM-044 — do zlecenia dodano partię zdjęć w jednym wpisie; odczyt nie niesie liczby, identyfikatorów ani nazw plików, a zdarzenie nie ma statusu ani etapu; etykieta panelu: „Dodano zdjęcia”), `document_added` (EVM-047 — do zlecenia dodano dokument; odczyt nie niesie tytułu, nazwy pliku ani rodzaju, a zdarzenie nie ma statusu ani etapu; etykieta panelu: „Dodano dokument”) — lista rośnie z E6 i E7, klient pokazuje nieznany kod neutralnym tekstem; zapis, którego serwer nie potrafi odczytać, ma kod `unknown_event` i puste pola. `fromStatus` / `toStatus` to kody statusów zlecenia, etapu albo transzy (`null`, gdy zdarzenie nie dotyczy statusu); `waitingOn` i `waitingOnParty` — na kogo czekamy (`null` poza zdarzeniami „Czekamy na…”); `changedFields` — nazwy zmienionych pól etapu (etapu: `responsibleUserId`, `dueDate`; zlecenia: `title`, `description`, `plannedDate`, `coordinator`; pozycji: `parameters`, `notes`; wartości NIE są zapisane). Etap zdarzenia to `procedureStageId` / `procedureStageName` wpisu.",
         "properties": {
           "changedFields": {
             "items": {
@@ -18649,6 +18716,102 @@
             "administrator",
             "editor",
             "read_only"
+          ]
+        }
+      },
+      "put": {
+        "description": "Przypisanie klienta do otwartej wizji lokalnej (EVM-136 AC1–AC3; ADR-0024 pkt 3; SR-AUTHZ-02, SR-AUTHZ-05, SR-API-05, SR-API-06, SR-LOG-03; CWE-639): `{ \"customerId\": \"…\", \"version\": 3 }`. Po przypisaniu wizja jest zwykłym zleceniem — ten sam numer, identyfikatory mediów i wpisów, lokalizacja bez zmian. Role Administrator i Edytor (Tylko odczyt — `403 forbidden`, niezalogowany — `401`; token mobilny — `403 channel_not_allowed`), kanał `web`, z audytem (`work_order.customer_assigned` — aktor i identyfikator zlecenia, bez klienta, adresu i telefonu) i wpisem dziennika (`work_order_customer_assigned`). Wymaga `X-CSRF-Token`; wersja jest w TREŚCI (nie w `If-Match`). Jedno `UPDATE` ustawia `customerId` i zeruje termin wygaśnięcia, licznik przedłużeń, znacznik przypomnienia i telefon zamawiającego (kolumny wizji wiąże CHECK bazy: bez terminu wizji nie ma telefonu, przedłużeń ani przypomnienia); status zostaje (Wycena albo Wstrzymane), `version + 1`, nowy `ETag`. Kolejność (decyzje zapadają na wierszu zlecenia zablokowanym `SELECT … FOR NO KEY UPDATE`, a klient jest blokowany `FOR KEY SHARE` dopiero po nim, w jednej transakcji): guard (rola, CSRF, kanał), ścieżka i `Idempotency-Key` (`400`), zlecenie (`404` — brak, usunięte i niewidoczne to jedna odpowiedź, przed treścią), treść (`400`), powtórka idempotentna, TEN SAM klient — `200` bez zmian (PRZED wersją: powtórka po sukcesie niesie wersję sprzed niego), inny klient albo zlecenie z klientem — `409 customer_already_set`, wizja anulowana — `409 invalid_state_transition` (najpierw przywraca ją Administrator ze step-upem; Edytor nie omija przywrócenia ani 14-dniowego terminu odrzucenia), nieaktualna wersja — `412 version_conflict` (ten sam kod i status co wszędzie w API; AC2 EVM-136 mówi „409 jak dziś”, a dziś to `412`), klient niedostępny — `422 customer_unavailable` (nieistniejący, usunięty, zanonimizowany i niewidoczny — jedna odpowiedź), potem zapis, zdarzenia i rekord idempotencji; błąd któregokolwiek kroku cofa całość, a dwa równoległe przypisania różnych klientów dają jeden sukces i jeden `409`. Idempotencja (api-guidelines.md → Idempotencja): `Idempotency-Key` (UUIDv7) opcjonalny, panel wysyła go zawsze; klucz związany z użytkownikiem, metodą, szablonem ścieżki I zleceniem. Powtórka — `200` z `Idempotent-Replayed: true`.",
+        "operationId": "assignWorkOrderCustomer",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignWorkOrderCustomerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkOrderDetails"
+                }
+              }
+            },
+            "description": "Zlecenie z klientem (albo powtórka: ten sam klient, albo ten sam klucz idempotencji — wtedy `Idempotent-Replayed: true`).",
+            "headers": {
+              "ETag": {
+                "description": "Nowa wersja zasobu (`\"<version>\"`).",
+                "schema": {
+                  "maxLength": 32,
+                  "type": "string"
+                }
+              },
+              "Idempotent-Replayed": {
+                "description": "`true` przy powtórce żądania z tym samym `Idempotency-Key`, zleceniem i treścią.",
+                "schema": {
+                  "enum": [
+                    "true"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/AssignCustomerConflict"
+          },
+          "412": {
+            "$ref": "#/components/responses/PreconditionFailed"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/AssignCustomerUnprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "summary": "Wizja lokalna — przypisanie klienta (jednorazowe)",
+        "tags": [
+          "work-orders"
+        ],
+        "x-evia-authz": {
+          "audit": true,
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor"
           ]
         }
       }
