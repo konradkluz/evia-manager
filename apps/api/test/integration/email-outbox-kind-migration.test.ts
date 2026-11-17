@@ -14,6 +14,10 @@ import { freshDatabaseUrl } from './database.ts';
  * runner keeps no `down`) restores the CHECK of 0052 while no row of the new kind exists. Synthetic data only.
  */
 const BEFORE = Object.fromEntries(Object.entries(MIGRATIONS).filter(([name]) => name < '0067')) as typeof MIGRATIONS;
+/** The migrations up to and including 0067: later ones (0068 of the purge, merged into this branch) are not the subject of this test and apply on their own. */
+const THROUGH_0067 = Object.fromEntries(
+  Object.entries(MIGRATIONS).filter(([name]) => name <= '0067_email_outbox_site_survey'),
+) as typeof MIGRATIONS;
 const clock = new FixedClock('2026-11-17T08:00:00.000Z');
 const T = '2026-11-17T08:00:00Z';
 const OLD_KINDS = [
@@ -52,7 +56,7 @@ afterAll(async () => {
 describe('migration 0067 - the kind of the reminder of a site survey (EVM-140 AC1; expand only)', () => {
   it('EVM-140 AC1 before 0067 the kind is refused (23514); 0067 applies alone and the rows that exist are untouched', async () => {
     await expect(insertKind('site_survey_expiring')).rejects.toMatchObject({ code: '23514' });
-    expect((await migrateToLatest(db, MIGRATIONS)).applied).toEqual(['0067_email_outbox_site_survey']);
+    expect((await migrateToLatest(db, THROUGH_0067)).applied).toEqual(['0067_email_outbox_site_survey']);
     expect(await kinds()).toEqual([...OLD_KINDS].sort());
   });
 
