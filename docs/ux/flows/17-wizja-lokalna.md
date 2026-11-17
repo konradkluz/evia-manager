@@ -6,10 +6,10 @@
 > **Stan:** makiety do akceptacji przy demo EVM-137 / EVM-138; rzeczy do potwierdzenia — [lista na końcu](#do-potwierdzenia-przy-demo).
 
 ## Zasady wspólne dla wizji lokalnej
-1. **Nazwa i słownictwo.** „Wizja lokalna” (zlecenie bez klienta, w statusie „Wycena” — ADR-0024). „Oględziny” zostaje wyłącznie kategorią zdjęć. Nie używamy: „pre-zlecenie”, „wizyta”, „lead”, „oferta” (ofert w systemie nie ma). Klient: „Brak klienta”. Czynności: „Przypisz klienta”, „Przedłuż o 90 dni”, „Odrzuć wizję”, „Przywróć wizję”.
+1. **Nazwa i słownictwo.** „Wizja lokalna” (zlecenie bez klienta, w statusie „Wycena” — ADR-0024). „Oględziny” zostaje wyłącznie kategorią zdjęć. Nie używamy: „pre-zlecenie”, „wizyta”, „lead”, „oferta” jako obiektu systemu (ofert w systemie nie ma; słowo zostaje wyłącznie w zdaniach o decyzji klienta: „po akceptacji oferty”, powód „Oferta odrzucona”). Klient: „Brak klienta”. Czynności: „Przypisz klienta”, „Przedłuż o 90 dni”, „Odrzuć wizję”, „Przywróć wizję”.
 2. **Wizja to zwykłe zlecenie z oznaczeniem, nie nowy status.** Oznaczenie **«Wizja lokalna»** jest wyliczane (jak „Po terminie”, [§ 4.4](../styleguide.md#44-statusy-ac5)): ikona `binoculars` + etykieta, wariant z obrysem `color.feedback.info.border` na `color.feedback.info.bg`, tekst `color.feedback.info.text` (8,01:1), `radius.pill`, `size.badge.height`. Stoi **obok numeru, nigdy zamiast statusu** — status zlecenia („Wycena”, „Wstrzymane”, „Anulowane”) pozostaje własną odznaką StatusBadge. Po przypisaniu klienta oznaczenie znika.
 3. **Termin wygaśnięcia** jako tekst z ikoną, nigdy sam kolor: „Wygasa za 80 dni” (`calendar-x`, `color.text.secondary`); od **15 dni i mniej** — `triangle-alert` + `color.text.warning` („Wygasa za 12 dni”); w dniu terminu „Wygasa dziś”; po terminie, a przed usunięciem — „Termin minął — wizja zostanie wkrótce usunięta.”; wizja odrzucona (Anulowane) — „Usunięcie za 14 dni” (`trash-2`). Odmiana: „za 1 dzień”, „za 2 dni”, „za 5 dni”, „za 22 dni” (§ 6.3; `Intl.PluralRules('pl')`). Pełna data w szczegółach i w nazwie dostępnej: „wygasa za 80 dni, dnia 14.02.2027”.
-4. **Adres tylko w szczegółach (W5).** Wiersz listy i karta na telefonie, Kolejka, arkusz „Do którego zlecenia?”, tytuł karty przeglądarki, powiadomienia, e-maile, komunikaty błędów i nazwy dostępne **nie zawierają adresu ani telefonu zamawiającego**. Wizję identyfikuje numer (albo „Oczekuje na numer”), oznaczenie i data założenia. Wyjątek (świadomy): lista w panelu ma kolumnę lokalizacji jak każde zlecenie (decyzja 10 w EVM-138).
+4. **Adres tylko w szczegółach (W5).** Wiersz listy i karta na telefonie, Kolejka, arkusz „Do którego zlecenia?”, tytuł karty przeglądarki, powiadomienia, e-maile, komunikaty błędów i nazwy dostępne **nie zawierają adresu ani telefonu zamawiającego**. Wizję identyfikuje numer (albo „Oczekuje na numer”), oznaczenie i data założenia. Wiersz wizji w panelu również **nie ma adresu** (stan przyjęty 2026-11-17; wcześniejszy wyjątek „kolumna lokalizacji” został wycofany) — adres jest tylko w szczegółach W-06.
 5. **Telefon zamawiającego** — jedno opcjonalne pole, klawiatura `tel`, format § 6.3, zapis E.164. Podpowiedź przy polu: telefon — „Tylko numer — imion i nazwisk nie wpisuj.”; panel — „Tylko numer — nie wpisuj imion w opisach.” (brzmienia z historyjek, bez zmian). Przy komentarzach i wpisach wizji (M-04, W-08): „Nie wpisuj imion ani telefonów. Nie wpisuj też PESEL, numerów dokumentów ani kodów do bram i alarmów.”
 6. **Telefon tylko dodaje.** Z aplikacji nie ma przypisania klienta, odrzucenia, przywrócenia ani przedłużenia (EVM-137 „Poza zakresem”, EVM-140 AC6) — zamiast przycisków krótka informacja: „Klienta uzupełni biuro.”, „Wizję może przedłużyć biuro w panelu.”
 7. **Kto widzi.** Panel: Administrator i Edytor; Tylko odczyt — brak dostępu (`404` „Nie znaleziono zlecenia…”, bez śladu wizji na listach, w filtrach i wyszukiwaniu). Telefon: tylko twórca i opiekun (decyzja 9) — pusty stan listy wyjaśnia dlaczego, bo brak „cudzych” wizji inaczej wyglądałby jak błąd synchronizacji.
@@ -124,7 +124,7 @@ Dopisek do [M-10](10-mobile-szybkie-zlecenie.md#m-10-szybkie-zlecenie): ten sam 
 
 - **Cel:** założyć wizję w kilkanaście sekund na oględzinach, także bez zasięgu — i od razu robić zdjęcia.
 - **Główna akcja:** „Zapisz wizję” (dolny pasek, `size.touch-target.field`).
-- **Hierarchia treści:** 1) „Numer nadamy po synchronizacji.”; 2) adres: miejscowość, ulica, numer budynku (+ numer lokalu); 3) telefon zamawiającego (opcjonalnie) z podpowiedzią; 4) informacja o wygasaniu; 5) status szkicu.
+- **Hierarchia treści:** 1) „Numer nadamy po synchronizacji.”; 2) adres: miejscowość, ulica, numer budynku (+ numer lokalu); 3) telefon zamawiającego (opcjonalnie) z podpowiedzią; 4) informacja o wygasaniu (bez statusu szkicu — patrz „Pusty” niżej).
 
 **Makieta (compact)**
 ```text
@@ -150,7 +150,7 @@ Dopisek do [M-10](10-mobile-szybkie-zlecenie.md#m-10-szybkie-zlecenie): ten sam 
 │ ┃ Wizja bez klienta zostanie     │
 │ ┃ usunięta po 90 dniach.         │
 │                                  │
-│ Szkic zapisany w telefonie · 13:38│
+│ (bez wiersza o szkicu — stan 17.11)│
 ├──────────────────────────────────┤
 │ [[       Zapisz wizję         ]] │
 └──────────────────────────────────┘
@@ -172,14 +172,14 @@ Dopisek do [M-10](10-mobile-szybkie-zlecenie.md#m-10-szybkie-zlecenie): ten sam 
 **Stany M-10 „Wizja lokalna”**
 | Stan | Zachowanie |
 |---|---|
-| Pusty | Pusty formularz, fokus na „Miejscowość”; szkic odtwarzany po powrocie (zaszyfrowana baza, § 4.1). |
+| Pusty | Pusty formularz, fokus na „Miejscowość”. **Szkic tylko w pamięci ekranu** (stan przyjęty w przeglądzie 2026-11-17, zasada W5/W9 jak w szybkim zleceniu: wpisane dane nie trafiają nigdzie poza zapis do kolejki); przy zamknięciu z wpisanymi danymi — dialog „Odrzucić szkic?” (§ 3.13), bez wiersza „Szkic zapisany w telefonie”. Ponowna ocena po teście EVM-112 (zabicie aplikacji w trakcie wpisywania gubi dane). |
 | Ładowanie | nd. — zapis lokalny natychmiastowy; formularz nie czyta danych z sieci. |
 | Błąd | Podsumowanie błędów na górze (fokus) + komunikaty pod polami (wyżej); brak miejsca: „Brak miejsca — wizja zostaje w szkicu.”; odrzucenie przez serwer — nie tu, tylko Kolejka (niżej, AC6). |
 | Offline | Normalna praca; toast „Zapisano w telefonie. Numer nadamy po synchronizacji.” |
 | Brak uprawnień | Tylko odczyt — M-02. Funkcja wyłączona — wiersza nie ma w arkuszu „Dodaj”. **Tryb ukrytych danych (AC5, W9):** formularz niedostępny — EmptyState `eye-off`: „Wizję lokalną założysz po ponownym zalogowaniu. Zdjęcia możesz robić dalej.” + akcja wyjścia „Zaloguj się ponownie” (jak M-10; offline wyłączona z podpowiedzią „Zalogujesz się, gdy wróci połączenie.”). |
 
 - **Komponenty i tokeny:** AppBar + SyncIndicator (§ 3.18, § 5.4); TextField (§ 3.2, `size.touch-target.field` w rękawicach), telefon z klawiaturą `tel`; InlineAlert (§ 3.19) `color.feedback.info.*`; Button primary `size.touch-target.field` w dolnym pasku `elevation.bottom-bar`; „Oczekuje na numer” (§ 4.15); Toast (§ 3.14); EmptyState + tryb ukrytych danych (§ 4.18).
-- **Mikrocopy:** „Wizja lokalna” · „Numer nadamy po synchronizacji.” · „Adres” · „Miejscowość” · „Ulica” · „Nr budynku” · „Nr lokalu (opcjonalnie)” · „Kod pocztowy” · „Telefon zamawiającego (opcjonalnie)” · „Tylko numer — imion i nazwisk nie wpisuj.” · „Klienta uzupełni biuro. Wizja bez klienta zostanie usunięta po 90 dniach.” · „Szkic zapisany w telefonie · 13:38” · „Zapisz wizję” · „Zapisano w telefonie. Numer nadamy po synchronizacji. Możesz już robić zdjęcia i filmy.” · „Wizja lokalna dostała numer ZL-2026-0051.” · tryb ukrytych danych — jak wyżej.
+- **Mikrocopy:** „Wizja lokalna” · „Numer nadamy po synchronizacji.” · „Adres” · „Miejscowość” · „Ulica” · „Nr budynku” · „Nr lokalu (opcjonalnie)” · „Kod pocztowy” · „Telefon zamawiającego (opcjonalnie)” · „Tylko numer — imion i nazwisk nie wpisuj.” · „Klienta uzupełni biuro. Wizja bez klienta zostanie usunięta po 90 dniach.” · „Zapisz wizję” · „Zapisano w telefonie. Numer nadamy po synchronizacji. Możesz już robić zdjęcia i filmy.” · „Wizja lokalna dostała numer ZL-2026-0051.” · tryb ukrytych danych — jak wyżej.
 - **Dostępność:** `h1` „Wizja lokalna”; pola z widocznymi etykietami (nie placeholderami), `autocomplete` wyłączone dla pól adresu (dane nie trafiają do słowników klawiatury — `importantForAutofill="no"`); podpowiedź przy telefonie powiązana z polem (`accessibilityHint`); błędy z fokusem na podsumowaniu; nadanie numeru ogłaszane raz bez przerywania pracy (§ 4.15); 200% czcionki — etykiety nad polami, „Nr budynku” i „Nr lokalu” jedno pod drugim; cele ≥ 48 dp.
 
 ## M-03 Szczegóły wizji (AC2, AC4, AC7)
@@ -297,19 +297,20 @@ Widoki: {Wszystkie niezamknięte} {Czekamy na OSD > 14 dni} {Po terminie} {Nieop
 ┌───────────────────────────────┬──────────────────┬──────────┬────────────┬────────────┬─────────┐
 │ Zlecenie                      │ Klient           │ Status   │ Czekamy na │ Termin     │ Płatność│
 ├───────────────────────────────┼──────────────────┼──────────┼────────────┼────────────┼─────────┤
-│ ZL-2026-0049                  │ Brak klienta     │ «Wycena» │ —          │ —          │ —       │
-│ Wizja lokalna                 │ ul. Próbna 5,    │          │            │            │         │
-│ «‹binoculars›Wizja lokalna»   │ Piaseczno        │          │            │            │         │
+│ ZL-2026-0049                  │ ‹user-x› Brak    │ «Wycena» │ —          │ —          │ —       │
+│ Wizja lokalna                 │ klienta          │          │            │            │         │
+│ «‹binoculars›Wizja lokalna»   │                  │          │            │            │         │
 │ ‹triangle-alert› Wygasa za 12 │                  │          │            │            │         │
-│ dni                           │                  │          │            │            │         │
+│ dni · Opiekun: A. Testowa     │                  │          │            │            │         │
 ├───────────────────────────────┼──────────────────┼──────────┼────────────┼────────────┼─────────┤
-│ ZL-2026-0047                  │ Brak klienta     │«Anulowane»│ —         │ —          │ —       │
-│ Wizja lokalna                 │ ul. Dalsza 2,    │          │            │            │         │
-│ «Wizja lokalna» «Odrzucona»   │ Łódź             │          │            │            │         │
+│ ZL-2026-0047                  │ ‹user-x› Brak    │«Anulowane»│ —         │ —          │ —       │
+│ Wizja lokalna                 │ klienta          │          │            │            │         │
+│ «Wizja lokalna» «Odrzucona»   │                  │          │            │            │         │
 │ ‹trash-2› Usunięcie za 9 dni  │                  │          │            │            │         │
 └───────────────────────────────┴──────────────────┴──────────┴────────────┴────────────┴─────────┘
 ```
-- **Wiersz wizji:** w komórce „Zlecenie” trzy linie — numer, tytuł, oznaczenia i termin (oznaczenie „Wizja lokalna”; „Odrzucona” przy Anulowane; termin jak w zasadzie 3). Komórka „Klient”: tekst „Brak klienta” (`color.text.secondary`, ikona `user-x`) + lokalizacja jak w innych zleceniach (jedyne miejsce adresu w W-10). „Czekamy na”, „Termin”, „Płatność”: „—” (wizja nie ma etapów ani transz).
+*(Stan przyjęty 2026-11-17: wiersz wizji **bez adresu** — makieta z adresem w komórce „Klient” została zastąpiona.)*
+- **Wiersz wizji:** w komórce „Zlecenie” trzy linie — numer, tytuł, oznaczenia i termin (oznaczenie „Wizja lokalna”; „Odrzucona” przy Anulowane; termin jak w zasadzie 3). Komórka „Klient”: tekst „Brak klienta” (`color.text.secondary`, ikona `user-x`) — **bez adresu** (rozstrzygnięcie Tech Leada, potwierdzone w przeglądzie UX 2026-11-17: adres wizji tylko w szczegółach, zasada 4; wyszukiwanie po adresie nadal działa). Komórka „Zlecenie” kończy się wierszami „Opiekun: …” i „Utworzono …” jak w innych zleceniach. „Czekamy na”, „Termin”, „Płatność”: „—” z ukrytym tekstem dla czytnika („Wizja lokalna nie ma etapów / terminu etapu / transz”); na `breakpoint.compact` nie drukujemy gołych „—” (rekomendacja przeglądu).
 - **Filtry:**
   - **„Wizje lokalne”** — grupa radio w pasku filtrów (wartości: „Wszystkie zlecenia” domyślnie, „Tylko wizje”, „Bez wizji”; parametry `siteSurvey=only|exclude`); wartości bez danych osobowych, więc mogą być w URL (§ 3.7).
   - **„Wygasające wizje (n)”** — zapisany widok = otwarte wizje (bez „Odrzucona”), termin ≤ 15 dni, sortowanie po terminie rosnąco; (n) = licznik „do rozstrzygnięcia”. Aktywny widok pokazuje pod paskiem „3 wizje do rozstrzygnięcia — wygasają w ciągu 15 dni” (odmiana: 1 wizja / 2–4 wizje / 5 wizji). Odrzucone wizje już mają decyzję, więc nie liczą się do „do rozstrzygnięcia” (pytanie 4).
@@ -521,13 +522,13 @@ AlertDialog `size.dialog.width.sm`; **bez drugiego potwierdzenia** (jak zwykłe 
 
 ### Wizja odrzucona i „Przywróć wizję” (AC5)
 ```text
-│ ┃‹ban› Wizja odrzucona — powód: Oferta odrzucona                                         │
+│ ┃‹info› Wizja odrzucona                                                                  │
 │ ┃ Wizja zostanie trwale usunięta dnia 30.12.2026 (za 14 dni) — razem ze zdjęciami,       │
 │ ┃ filmami i wpisami.                                                                     │
 │ ┃ [[ Przywróć wizję… ]]   ← Administrator ↑ (W-04); Edytor: wyłączony z podpowiedzią     │
 │ ZL-2026-0047 · Wizja lokalna «Anulowane» «Wizja lokalna» «Odrzucona»                     │
 ```
-- **Baner „Odrzucona”:** ton `info`; bez „Przypisz klienta” i „Przedłuż” (nie działają na anulowanej wizji — EVM-140 AC3); jedyna akcja „Przywróć wizję…” (zastępuje „Przywróć zlecenie…” z menu statusu dla wizji — jedna droga). Edytor: przycisk wyłączony z podpowiedzią „Przywrócić wizję może tylko administrator.” (spójnie z „Przywróć zlecenie…”; do potwierdzenia, czy Edytor ma widzieć przycisk, czy nie — pytanie 5).
+- **Baner „Odrzucona”:** tytuł „Wizja odrzucona” **bez powodu** (stan przyjęty 2026-11-17: powód jest w dzienniku; pola z powodem w API nie ma — do decyzji przy demo, czy je dodać); ton `info`; bez „Przypisz klienta” i „Przedłuż” (nie działają na anulowanej wizji — EVM-140 AC3); jedyna akcja „Przywróć wizję…” (zastępuje „Przywróć zlecenie…” z menu statusu dla wizji — jedna droga). Edytor: przycisk wyłączony z podpowiedzią „Przywrócić wizję może tylko administrator.” (spójnie z „Przywróć zlecenie…”; do potwierdzenia, czy Edytor ma widzieć przycisk, czy nie — pytanie 5).
 - **Dialog „Przywróć wizję”** (AlertDialog `size.dialog.width.sm`, potem W-04): „Przywrócić wizję? Wizja wróci do statusu „Wstrzymane”, a termin jej usunięcia zostanie ustawiony od nowa (nie krótszy niż 14 dni).” [Anuluj] · [[Przywróć wizję]] → ponowne uwierzytelnienie [W-04](01-logowanie-mfa.md#w-04-ponowne-uwierzytelnienie) (passkey). Toast: „Przywrócono wizję. Termin usunięcia: 15.12.2026.” Błędy: jak „Przywróć zlecenie…” (README zasada 16).
 
 ### Dialog „Edytuj telefon zamawiającego” (wariant warunkowy)
@@ -595,7 +596,11 @@ Przypisanie klienta albo odrzucenie zwalnia miejsce (limit liczy otwarte wizje b
 2. **Identyfikacja wizji bez adresu na liście i w arkuszu wyboru** — przy kilku otwartych wizjach (do 20 na osobę) technik odróżnia je tylko po godzinie założenia. Rekomendacja: zostawić (decyzja 10, W5) i ocenić w teście EVM-112; jeśli zawiedzie — dodać samą miejscowość.
 3. **Komunikat limitu na telefonie** — wersja z AC EVM-140 („przypisz klienta, odrzuć…”) kieruje technika do akcji, których nie ma w aplikacji. Rekomendacja: wariant telefonu z tabeli wyżej; panel bez zmian.
 4. **„Wygasające wizje” bez odrzuconych** — odrzucona wizja ma zawsze ≤ 14 dni, więc włączona do widoku „do rozstrzygnięcia” zawyżałaby licznik i zasłaniała wizje wymagające decyzji.
-5. **Przycisk „Przywróć wizję…” dla Edytora** — wyłączony z podpowiedzią (spójnie z „Przywróć zlecenie…”) zamiast ukrytego.
+5. **Przycisk „Przywróć wizję…” dla Edytora** — wyłączony z podpowiedzią (spójnie z „Przywróć zlecenie…”) zamiast ukrytego. **Potwierdzone w przeglądzie 2026-11-17** (podpowiedź widoczna pod przyciskiem).
 6. **Typ obiektu w formularzu telefonu** i **numer lokalu** — AC1 wylicza tylko miejscowość, ulicę i numer; rekomendacja: numer lokalu opcjonalny (garaże w blokach), typ obiektu ustawia serwer (domyślnie „Inny obiekt”), do uzgodnienia z EVM-135.
 7. **Zdanie o karcie informacyjnej w M-10** — obecność i treść: EVM-141.
 8. **Edycja telefonu zamawiającego w panelu** — wariant warunkowy (EVM-138, „Decyzje i ograniczenia”). **Rozstrzygnięte 2026-11-16: poza kolejką (brak operacji API w ADR-0024) — osobna historyjka.**
+
+## Teksty i rozwiązania spoza makiet — przyjęte w przeglądzie UX 2026-11-17 (EVM-137, EVM-138)
+- **Panel:** nagłówek widoku „Wybierz klienta” w dialogu „Przypisz klienta” (nazwa widoku ogłaszana czytnikowi, obok tytułu dialogu); ogłoszenie „Formularz zlecenia z szablonu” przy powrocie do zwykłego formularza W-05; dialog „Odrzucić szkic wizji lokalnej?” (zgodny z wzorcem „Odrzucić zmiany?” ze styleguide'u § 3.13 — nie mylić z czynnością „Odrzuć wizję”); podpowiedź przy opisie wizji „Nie wpisuj imion, nazwisk ani telefonów. Nie wpisuj też PESEL, numerów dokumentów ani kodów do bram i alarmów.” (zasada 5); grupa filtrów „Wizje lokalne” zostaje przy wyłączonej funkcji, gdy wizje są na liście (zasada 8); brak „Przedłuż o 90 dni” do czasu EVM-140; komunikat 404 przy zakładaniu wizji łączy dwie przyczyny: „…lokalizacja jest niedostępna albo wizje lokalne są teraz wyłączone. Odśwież stronę, załóż zwykłe zlecenie albo zapytaj administratora.”
+- **Aplikacja:** wymagany kod pocztowy w M-10 (rozstrzygnięcie Tech Leada); chip „Wizje lokalne (n)” zawija się do drugiego wiersza przy trzech chipach (jak w makiecie M-05); domyślna ikona InlineAlert `info` to „info” — przekreślone Wi-Fi tylko w komunikatach o sieci.
