@@ -57,6 +57,8 @@ describe('only the passkey while the account has none (EVM-016 AC4; SR-AUTH-06, 
       // EVM-067: the deadlines of the session are part of the view (60 minutes idle, 12 hours absolute)
       idleExpiresAt: '2026-10-01T09:00:00.000Z',
       absoluteExpiresAt: '2026-10-01T20:00:00.000Z',
+      // EVM-135 AC3: the state of the feature switches is part of the view in every state of the session
+      features: { siteSurveys: false },
     });
   });
 
