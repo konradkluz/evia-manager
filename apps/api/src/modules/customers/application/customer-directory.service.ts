@@ -9,6 +9,7 @@ import {
   findVisibleCustomerCard,
   findVisibleCustomerNames,
   findVisibleCustomerSummary,
+  lockUsableCustomerForQuickOrder,
   lockVisibleCustomerForOrder,
   searchVisibleCustomerIds,
 } from '../infrastructure/customer-store.ts';
@@ -24,6 +25,10 @@ export class CustomerDirectoryService implements CustomerDirectory {
   async lockVisible(tx: Kysely<Database>, principal: Principal, id: string): Promise<CustomerSummary | undefined> {
     const row = await lockVisibleCustomerForOrder(customerTables(tx), principal, id);
     return row === undefined ? undefined : { id: row.id, displayName: row.display_name };
+  }
+
+  lockUsable(tx: Kysely<Database>, principal: Principal, id: string): Promise<boolean> {
+    return lockUsableCustomerForQuickOrder(customerTables(tx), principal, id);
   }
 
   async getCard(tx: Kysely<Database>, principal: Principal, id: string): Promise<CustomerCard | undefined> {

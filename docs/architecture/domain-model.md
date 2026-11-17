@@ -831,11 +831,11 @@ stateDiagram-v2
 | Z | Do | Warunek i skutki | Role | Telefon |
 |---|---|---|---|---|
 | `new` | `quoting` | — | A, E | nie |
-| `new` | `accepted` | — (np. scenariusz A bez osobnej wyceny) | A, E | nie |
-| `quoting` | `accepted` | — | A, E | nie |
+| `new` | `accepted` | wymagany klient (`409 customer_required`, EVM-136; zlecenie bez klienta to wizja lokalna) — np. scenariusz A bez osobnej wyceny | A, E | nie |
+| `quoting` | `accepted` | wymagany klient (`409 customer_required`, EVM-136; wizję lokalną przed akceptacją uzupełnia się o klienta komendą `PUT …/customer`) | A, E | nie |
 | `accepted` | `in_progress` | — | A, E | nie |
 | `active` (dowolny: `new`, `quoting`, `accepted`, `in_progress`) | `on_hold` | wymagany `statusReason`; serwer zapisuje `resumeStatus` = stan bieżący | A, E | nie |
-| `on_hold` | `active` (`resumeStatus`) | wraca do stanu sprzed wstrzymania | A, E | nie |
+| `on_hold` | `active` (`resumeStatus`) | wraca do stanu sprzed wstrzymania; wznowienie do `accepted` wymaga klienta (`409 customer_required`, EVM-136) | A, E | nie |
 | `active` (dowolny: `new`, `quoting`, `accepted`, `in_progress`) | `cancelled` | wymagany `statusReason`; brak transz w `invoiced` (najpierw opłać albo anuluj — korekta płatności, A ↑); transze `planned` → `cancelled` (skutek, aktor jak w komendzie); `resumeStatus` = stan bieżący; ustawia `closedAt`; **audyt** | A, E | nie |
 | `on_hold` | `cancelled` | jak wyżej (`resumeStatus` bez zmian) | A, E | nie |
 | `cancelled` | `on_hold` | przywrócenie do „Wstrzymane” — dalej świadome wznowienie; transze nie są przywracane automatycznie; czyści `closedAt`; **audyt** | A (step-up) | nie |
@@ -924,7 +924,7 @@ stateDiagram-v2
 Dodatkowo: zmiany płatności są zablokowane, gdy zlecenie jest w `settled` lub `cancelled` (poza skutkiem anulowania).
 
 ### Przejścia audytowane
-Zawsze audytujemy: każde przejście etapu płatności i każdą zmianę kwoty, anulowanie zlecenia, przywrócenie zlecenia z `settled` i `cancelled`, usunięcie i przywrócenie usuniętego zlecenia (`work_order.deleted`, `work_order.undeleted`, EVM-060), soft delete, przywrócenie, trwałe usunięcie i redakcję każdej encji, pobranie oryginału mediów i dokumentu, eksport, a także zdarzenia z ADR-0001 i ADR-0005 (logowania, role, sesje, urządzenia).
+Zawsze audytujemy: każde przejście etapu płatności i każdą zmianę kwoty, anulowanie zlecenia, przywrócenie zlecenia z `settled` i `cancelled`, usunięcie i przywrócenie usuniętego zlecenia (`work_order.deleted`, `work_order.undeleted`, EVM-060), przypisanie klienta do wizji lokalnej (`work_order.customer_assigned`, EVM-136 — identyfikatory, bez klienta, adresu i telefonu), soft delete, przywrócenie, trwałe usunięcie i redakcję każdej encji, pobranie oryginału mediów i dokumentu, eksport, a także zdarzenia z ADR-0001 i ADR-0005 (logowania, role, sesje, urządzenia).
 
 ## Uprawnienia
 **Zasada deny-by-default:** brak wiersza lub komórki w macierzy = brak dostępu. Macierz jest źródłem dla `x-evia-authz` w kontrakcie (ADR-0004) i dla generowanych testów macierzy ról (Administrator / Edytor / Tylko odczyt / niezalogowany + przypadek IDOR). Polityki obiektowe działają przez [kotwicę autoryzacji](#kotwica-autoryzacji) — w API i w filtrze synchronizacji (ADR-0001, ADR-0008).

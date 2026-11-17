@@ -188,6 +188,7 @@ TimelineEvent:
     `stage_waiting_on_changed`, `stage_updated`, `work_order_fields_changed`, `scope_item_added`, `scope_item_updated`,
     `scope_item_removed` (EVM-035), `procedure_added`, `procedure_removed`, `procedure_restored`, `stage_added`, `stage_removed`,
     `stage_restored` (EVM-042: kod procesu w `procedureCodes`, bez nazw; nazwę usuniętego etapu daje `procedureStageName` wpisu),
+    `work_order_customer_assigned` (EVM-136 — do wizji lokalnej przypisano klienta; odczyt nie niesie klienta ani statusu; etykieta panelu: „Przypisano klienta”),
     `payment_milestone_status_changed` (EVM-054 — zmiana statusu transzy, także skutek anulowania
     zlecenia; bez kwoty, numeru faktury i powodu), `payment_milestone_deleted` (EVM-057 — usunięcie transzy korektą Administratora;
     bez kwoty, numeru faktury i nazwy), `media_assets_added` (EVM-044 — do zlecenia dodano partię zdjęć w jednym wpisie; odczyt nie

@@ -27,6 +27,7 @@ import { DeleteScopeItemService } from './application/delete-scope-item.service.
 import { OpenOrdersDependentsGuard } from './application/open-orders-dependents-guard.ts';
 import { ListSiteOrdersService } from './application/list-site-orders.service.ts';
 import { ReadWorkOrderService } from './application/read-work-order.service.ts';
+import { AssignCustomerService } from './application/assign-customer.service.ts';
 import { RestoreWorkOrderService } from './application/restore-work-order.service.ts';
 import { TransitionWorkOrderService } from './application/transition-work-order.service.ts';
 import { UpdateScopeItemService } from './application/update-scope-item.service.ts';
@@ -62,6 +63,7 @@ import {
     TransitionWorkOrderService,
     DeleteWorkOrderService,
     RestoreWorkOrderService,
+    AssignCustomerService,
     UpdateWorkOrderService,
     CreateScopeItemService,
     UpdateScopeItemService,

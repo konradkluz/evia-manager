@@ -6,6 +6,7 @@ export {
   type ScopeItemAddedEvent,
   type ScopeItemRemovedEvent,
   type ScopeItemUpdatedEvent,
+  type WorkOrderCustomerAssignedEvent,
   type WorkOrderEvent,
   type WorkOrderFieldsChangedEvent,
   type WorkOrderJournalChangeEvent,

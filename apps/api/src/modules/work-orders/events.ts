@@ -23,6 +23,7 @@ export const WORK_ORDER_EVENT_TYPES = [
   'work_order.deleted',
   'work_order.undeleted',
   'work_order.updated',
+  'work_order.customer_assigned',
   'scope_item.created',
   'scope_item.updated',
   'scope_item.deleted',
@@ -40,6 +41,16 @@ export interface WorkOrderEvent extends DomainEvent {
    * never a reason typed by a person.
    */
   readonly reasonCode?: 'step_up_verified';
+}
+
+/**
+ * A customer was assigned to a site survey (EVM-136; ADR-0024 pt 3): audited AND written to the journal of the order by `timeline` (like `work_order.created`).
+ * The audit trail keeps the actor and the order only; the identifier of the customer travels to the journal (an identifier, never a name, a phone or an
+ * address - the names are read from the current data when the journal is shown, so the anonymisation of the customer needs no change here).
+ */
+export interface WorkOrderCustomerAssignedEvent extends WorkOrderEvent {
+  readonly type: 'work_order.customer_assigned';
+  readonly customerId: string;
 }
 
 /**

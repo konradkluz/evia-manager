@@ -939,3 +939,22 @@ ScopeItemAddition:
       maxItems: 30
       items:
         $ref: catalog.yaml#/ConfigCode
+AssignWorkOrderCustomerRequest:
+  type: object
+  description: >-
+    Przypisanie klienta do wizji lokalnej (EVM-136; ADR-0024 pkt 3): `customerId` — istniejący, widoczny, nieusunięty i niezanonimizowany
+    klient; `version` — wersja zlecenia, na której klient podjął decyzję (z `ETag` odczytu). Przypisanie jest jednorazowe („pusty → X”):
+    ten sam klient ponowiony to `200` bez zmian, inny — `409 customer_already_set`. Pola serwera w treści — `400 read_only_field`, inne —
+    `400 unknown_field`.
+  required: [customerId, version]
+  additionalProperties: false
+  properties:
+    customerId:
+      type: string
+      format: uuid
+      maxLength: 36
+    version:
+      type: integer
+      minimum: 1
+      maximum: 2147483647
+      description: Wersja zlecenia (`ETag`/`version` z odczytu).

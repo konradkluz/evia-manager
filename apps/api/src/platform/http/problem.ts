@@ -53,6 +53,9 @@ export const PROBLEMS = Object.freeze({
   work_order_closed: { status: 409, title: 'The work order is closed' },
   has_active_dependents: { status: 409, title: 'The resource has active dependents' },
   customer_anonymized: { status: 409, title: 'The customer is anonymized' },
+  // EVM-136 (ADR-0024 pt 3, 4): the assignment of a customer to a site survey and the rule 'accepted needs a customer'
+  customer_already_set: { status: 409, title: 'The work order already has a customer' },
+  customer_required: { status: 409, title: 'The work order needs a customer' },
   already_anonymized: { status: 409, title: 'The customer is already anonymized' },
   entry_superseded: { status: 409, title: 'The entry already has a correction' },
   file_processing: { status: 409, title: 'The file is still being processed' },
@@ -66,6 +69,7 @@ export const PROBLEMS = Object.freeze({
   version_conflict: { status: 412, title: 'The resource was changed by someone else' },
   payload_too_large: { status: 413, title: 'Payload too large' },
   unsupported_media_type: { status: 415, title: 'Unsupported media type' },
+  customer_unavailable: { status: 422, title: 'The customer is not available' },
   idempotency_mismatch: { status: 422, title: 'Idempotency key reused with a different request' },
   limit_exceeded: { status: 422, title: 'A limit of the number of objects was exceeded' },
   template_unavailable: { status: 422, title: 'Work order template is not available' },

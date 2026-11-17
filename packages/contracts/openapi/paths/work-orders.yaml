@@ -875,6 +875,83 @@ workOrderCustomer:
         $ref: ../components/responses.yaml#/NotFound
       '429':
         $ref: ../components/responses.yaml#/RateLimited
+  put:
+    operationId: assignWorkOrderCustomer
+    tags: [work-orders]
+    summary: Wizja lokalna — przypisanie klienta (jednorazowe)
+    description: >-
+      Przypisanie klienta do otwartej wizji lokalnej (EVM-136 AC1–AC3; ADR-0024 pkt 3; SR-AUTHZ-02, SR-AUTHZ-05, SR-API-05, SR-API-06,
+      SR-LOG-03; CWE-639): `{ "customerId": "…", "version": 3 }`. Po przypisaniu wizja jest zwykłym zleceniem — ten sam numer,
+      identyfikatory mediów i wpisów, lokalizacja bez zmian. Role Administrator i Edytor (Tylko odczyt — `403 forbidden`, niezalogowany
+      — `401`; token mobilny — `403 channel_not_allowed`), kanał `web`, z audytem (`work_order.customer_assigned` — aktor i
+      identyfikator zlecenia, bez klienta, adresu i telefonu) i wpisem dziennika (`work_order_customer_assigned`). Wymaga
+      `X-CSRF-Token`; wersja jest w TREŚCI (nie w `If-Match`).
+      Jedno `UPDATE` ustawia `customerId` i zeruje termin wygaśnięcia, licznik przedłużeń, znacznik przypomnienia i telefon zamawiającego
+      (kolumny wizji wiąże CHECK bazy: bez terminu wizji nie ma telefonu, przedłużeń ani przypomnienia); status zostaje (Wycena albo
+      Wstrzymane), `version + 1`, nowy `ETag`.
+      Kolejność (decyzje zapadają na wierszu zlecenia zablokowanym `SELECT … FOR NO KEY UPDATE`, a klient jest blokowany `FOR KEY SHARE`
+      dopiero po nim, w jednej transakcji): guard (rola, CSRF, kanał), ścieżka i `Idempotency-Key` (`400`), zlecenie (`404` — brak,
+      usunięte i niewidoczne to jedna odpowiedź, przed treścią), treść (`400`), powtórka idempotentna, TEN SAM klient — `200` bez zmian
+      (PRZED wersją: powtórka po sukcesie niesie wersję sprzed niego), inny klient albo zlecenie z klientem —
+      `409 customer_already_set`, wizja anulowana — `409 invalid_state_transition` (najpierw przywraca ją Administrator ze step-upem;
+      Edytor nie omija przywrócenia ani 14-dniowego terminu odrzucenia), nieaktualna wersja — `412 version_conflict` (ten sam kod i
+      status co wszędzie w API; AC2 EVM-136 mówi „409 jak dziś”, a dziś to `412`), klient niedostępny — `422 customer_unavailable`
+      (nieistniejący, usunięty, zanonimizowany i niewidoczny — jedna odpowiedź), potem zapis, zdarzenia i rekord idempotencji; błąd
+      któregokolwiek kroku cofa całość, a dwa równoległe przypisania różnych klientów dają jeden sukces i jeden `409`.
+      Idempotencja (api-guidelines.md → Idempotencja): `Idempotency-Key` (UUIDv7) opcjonalny, panel wysyła go zawsze; klucz związany z
+      użytkownikiem, metodą, szablonem ścieżki I zleceniem. Powtórka — `200` z `Idempotent-Replayed: true`.
+    x-evia-authz:
+      roles: [administrator, editor]
+      channels: [web]
+      audit: true
+    parameters:
+      - $ref: '#/WorkOrderIdParameter'
+      - $ref: '#/IdempotencyKeyHeader'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/work-orders.yaml#/AssignWorkOrderCustomerRequest
+    responses:
+      '200':
+        description: >-
+          Zlecenie z klientem (albo powtórka: ten sam klient, albo ten sam klucz idempotencji — wtedy `Idempotent-Replayed: true`).
+        headers:
+          ETag:
+            description: Nowa wersja zasobu (`"<version>"`).
+            schema:
+              type: string
+              maxLength: 32
+          Idempotent-Replayed:
+            description: '`true` przy powtórce żądania z tym samym `Idempotency-Key`, zleceniem i treścią.'
+            schema:
+              type: string
+              enum: ['true']
+        content:
+          application/json:
+            schema:
+              $ref: ../components/work-orders.yaml#/WorkOrderDetails
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/responses.yaml#/AssignCustomerConflict
+      '412':
+        $ref: ../components/responses.yaml#/PreconditionFailed
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '422':
+        $ref: ../components/responses.yaml#/AssignCustomerUnprocessable
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
 workOrderSite:
   get:
     operationId: getWorkOrderSite

@@ -141,6 +141,11 @@ describe('journal event payloads (EVM-038 AC1, AC2; SR-LOG-03, SR-DATA-01)', () 
         'document_added',
         null,
       ],
+      [
+        { type: 'work_order.customer_assigned', actor, outcome: 'success', objectType: 'work_order', objectId: ORDER, customerId: PARTY },
+        'work_order_customer_assigned',
+        null,
+      ],
     ];
     expect(cases.map(([, code]) => code).sort()).toEqual([...JOURNAL_EVENT_CODES].sort());
     for (const [event, code, stageId] of cases) {
@@ -392,6 +397,54 @@ describe('journal events of the processes and stages added by hand (EVM-042 AC5;
       code: UNKNOWN_EVENT_CODE,
       objectType: null,
       procedureCodes: null,
+    });
+  });
+});
+
+describe('the journal event of the assignment of a customer (EVM-136 AC1; SR-LOG-03, SR-DATA-01, DO-K)', () => {
+  const CUSTOMER = '0198b0a0-0000-7000-8000-000000000007';
+  const assigned = {
+    type: 'work_order.customer_assigned',
+    actor,
+    outcome: 'success',
+    objectType: 'work_order',
+    objectId: ORDER,
+    customerId: CUSTOMER,
+  } as const;
+
+  it('EVM-136 AC1 the entry holds the order and the identifier of the customer - nothing else - and is part of the closed list of codes', () => {
+    expect(JOURNAL_EVENT_CODES).toContain('work_order_customer_assigned');
+    expect(toJournalEvent(assigned)).toEqual({
+      code: 'work_order_customer_assigned',
+      payload: { objectType: 'work_order', objectId: ORDER, customerId: CUSTOMER },
+      workOrderId: ORDER,
+      procedureStageId: null,
+      actorUserId: USER,
+    });
+  });
+
+  it('EVM-136 AC1 a key outside the list never reaches the entry (a name, a phone, an address put in the event are dropped or refused), and a customer that is no identifier is refused: fail closed', () => {
+    const leaky = {
+      ...assigned,
+      displayName: 'Jan Przykładowy',
+      phone: '+48600936001',
+      street: 'ul. Znacznik',
+    } as unknown as JournalSourceEvent;
+    const entry = toJournalEvent(leaky);
+    expect(Object.keys(entry.payload).sort()).toEqual(['customerId', 'objectId', 'objectType']);
+    expect(() => toJournalEvent({ ...assigned, customerId: 'Jan Przykładowy' })).toThrow();
+  });
+
+  it('EVM-136 AC1 reading gives the code and the order; a payload that does not fit is the neutral view', () => {
+    expect(
+      readJournalEvent('work_order_customer_assigned', { objectType: 'work_order', objectId: ORDER, customerId: CUSTOMER }),
+    ).toMatchObject({
+      code: 'work_order_customer_assigned',
+      objectType: 'work_order',
+      objectId: ORDER,
+    });
+    expect(readJournalEvent('work_order_customer_assigned', { objectType: 'work_order', objectId: ORDER })).toMatchObject({
+      code: UNKNOWN_EVENT_CODE,
     });
   });
 });

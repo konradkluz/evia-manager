@@ -69,6 +69,7 @@ AuditAction:
     - work_order.deleted
     - work_order.undeleted
     - work_order.updated
+    - work_order.customer_assigned
     - scope_item.created
     - scope_item.updated
     - scope_item.deleted
