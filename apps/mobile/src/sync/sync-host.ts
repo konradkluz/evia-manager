@@ -118,6 +118,9 @@ export class SyncHost implements SyncRuntime {
   orderDetail(workOrderId: string): Promise<OrderDetail | null> {
     return this.#service?.orderDetail(workOrderId) ?? Promise.resolve(null);
   }
+  isSurvey(workOrderId: string): Promise<boolean> {
+    return this.#service?.isSurvey(workOrderId) ?? Promise.resolve(false);
+  }
   features(): Promise<{ readonly siteSurveys: boolean }> {
     return this.#service?.features() ?? Promise.resolve({ siteSurveys: false });
   }

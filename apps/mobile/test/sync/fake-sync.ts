@@ -120,6 +120,11 @@ export class FakeSync implements SyncRuntime {
   readonly quickSourceRequests: number[] = [];
   /** The switches the server announced (EVM-137); the site survey is on by default in the fake, the tests of the switch turn it off. */
   featureSet: { siteSurveys: boolean } = { siteSurveys: true };
+  /** The orders that are site surveys (EVM-137): the camera starts with "Oględziny" for them. */
+  readonly surveyIds = new Set<string>();
+  isSurvey(workOrderId: string): Promise<boolean> {
+    return Promise.resolve(this.surveyIds.has(workOrderId));
+  }
   features(): Promise<{ readonly siteSurveys: boolean }> {
     return Promise.resolve(this.featureSet);
   }

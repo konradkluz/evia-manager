@@ -7,7 +7,17 @@ import { color, space, text } from '../ui/theme';
 import { ConnectionNotices } from './ConnectionNotices';
 import { HiddenDataNotice } from './DeviceNotices';
 import { OrderStatusBadge } from './OrderCard';
-import { CustomerCard, JournalEntry, LocationCard, ProcessesSection, ScopeSection, SectionHeading } from './OrderDetailSections';
+import {
+  CustomerCard,
+  JournalEntry,
+  LocationCard,
+  ProcessesSection,
+  ScopeSection,
+  SectionHeading,
+  SurveyHeader,
+  SurveyNoCustomer,
+  SurveyPhoneCard,
+} from './OrderDetailSections';
 import { SyncCapsule } from './SyncCapsule';
 import { useOrderDetail } from './order-detail-hooks';
 import { useSession } from './session-context';
@@ -15,6 +25,23 @@ import { useSession } from './session-context';
 function DetailHeader({ detail }: { detail: OrderDetail }) {
   const { t } = useTranslation();
   const waiting = detail.awaitingNumber === true;
+  // EVM-137 (M-03 "wizja"): the mark, the term, the address, the phone of the requester, "Brak klienta" - no client, scope or processes
+  if (detail.survey !== undefined && detail.survey !== null) {
+    return (
+      <View style={{ rowGap: space.stack.sm }}>
+        {waiting ? (
+          <StatusBadge icon={Clock} label={t('shell.orders.awaitingNumber')} tone={color.sync.queued} testID="order-detail-awaiting" />
+        ) : (
+          <OrderStatusBadge status={detail.status} testID="order-detail-status" />
+        )}
+        <SurveyHeader survey={detail.survey} />
+        {waiting ? <InlineAlert tone="info" body={t('orderDetail.surveyPendingBanner')} testID="order-detail-pending-banner" /> : null}
+        <LocationCard location={detail.location} />
+        <SurveyPhoneCard survey={detail.survey} />
+        <SurveyNoCustomer />
+      </View>
+    );
+  }
   return (
     <View style={{ rowGap: space.stack.sm }}>
       <View style={{ rowGap: space.stack.xs }} accessible accessibilityRole="header" testID="order-detail-header">
@@ -63,15 +90,17 @@ function DetailHeader({ detail }: { detail: OrderDetail }) {
 function useNumberAnnouncement(detail: OrderDetail | null): void {
   const { t } = useTranslation();
   const waitedFor = useRef<string | null>(null);
+  const waitedSurvey = useRef(false);
   const number = detail?.number ?? null;
   const id = detail?.id ?? null;
   useEffect(() => {
     if (detail === null) return;
     if (detail.awaitingNumber === true) {
       waitedFor.current = detail.id;
+      waitedSurvey.current = detail.survey !== undefined && detail.survey !== null;
     } else if (number !== null && waitedFor.current === id) {
       waitedFor.current = null;
-      AccessibilityInfo.announceForAccessibility(t('quickOrder.numberGiven', { number }));
+      AccessibilityInfo.announceForAccessibility(t(waitedSurvey.current ? 'siteSurvey.numberGiven' : 'quickOrder.numberGiven', { number }));
     }
   }, [detail, id, number, t]);
 }

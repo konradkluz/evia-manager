@@ -305,4 +305,13 @@ describe('the server rejects the survey or deletes it (EVM-137 AC6, W10)', () =>
     await service.enqueue(built.input);
     expect(await phone.marks.read()).toEqual([built.workOrderId]);
   });
+
+  it('EVM-137 AC3: isSurvey tells the camera that an order is a survey - while it waits in the queue and after it left the replica - and an ordinary order is not', async () => {
+    phone.online = false;
+    const service = await started(withFeature(true));
+    const built = surveyCommand();
+    await service.enqueue(built.input);
+    expect(await service.isSurvey(built.workOrderId)).toBe(true);
+    expect(await service.isSurvey(uid('work_order', 1))).toBe(false);
+  });
 });

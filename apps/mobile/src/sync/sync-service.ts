@@ -635,6 +635,14 @@ export class SyncService implements SyncControl {
     }
   }
 
+  async isSurvey(workOrderId: string): Promise<boolean> {
+    try {
+      return (await this.#surveyOrderIds(await this.#records())).has(workOrderId);
+    } catch {
+      return false;
+    }
+  }
+
   /** The orders that are or were site surveys: commands of the queue, the replica and the durable marks (EVM-137 W10). */
   async #surveyOrderIds(records: readonly QueueRecord[]): Promise<ReadonlySet<string>> {
     const extras = this.#deps.store.replicaExtras;

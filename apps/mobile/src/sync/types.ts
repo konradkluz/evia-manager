@@ -155,6 +155,11 @@ export interface SyncControl {
    * "Wizja lokalna" is offered (EVM-137 AC1); an existing survey and the camera work whatever it says.
    */
   features(): Promise<{ readonly siteSurveys: boolean }>;
+  /**
+   * Whether the order is (or was) a site survey - the queue, the replica and the durable marks; an id and a flag only, so it is safe in the
+   * hidden-data mode too (EVM-137 AC3: the camera starts with the category "Oględziny" for a survey).
+   */
+  isSurvey(workOrderId: string): Promise<boolean>;
   /** Entries that depend on this one, for the confirmation dialog. */
   dependentsOf(id: string): Promise<number>;
   discard(id: string): Promise<AttentionResult>;
