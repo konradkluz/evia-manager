@@ -149,7 +149,7 @@ export type QuickOrderProbe = { readonly kind: 'free' } | { readonly kind: 'own'
 
 export type QuickCreationResult =
   | { readonly ok: true; readonly number: string }
-  | { readonly ok: false; readonly reason: 'id_conflict' | 'template_unavailable' | 'target_unavailable' };
+  | { readonly ok: false; readonly reason: 'id_conflict' | 'template_unavailable' | 'target_unavailable' | 'site_survey_limit_exceeded' };
 
 export interface WorkOrderQuickCreation {
   /**

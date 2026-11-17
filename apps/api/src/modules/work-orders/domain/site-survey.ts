@@ -10,6 +10,24 @@ import type { WorkOrderStatus } from './work-order-status.ts';
 export const SITE_SURVEY_RETENTION_DAYS = 90;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * The limit of OPEN surveys (EVM-140 AC4; ADR-0024 pt 10; W7): a survey without a customer that is not cancelled (and not purged). 20 per creator and 100 in all -
+ * constants in code, like the retention. A creator who has 20 cannot make the 21st; nobody can make the 101st. The assignment of a customer and the
+ * cancellation free a place, the deletion of an unclaimed survey too.
+ */
+export const SITE_SURVEY_LIMIT_PER_CREATOR = 20;
+export const SITE_SURVEY_LIMIT_TOTAL = 100;
+
+/** What the limit needs: the open surveys of the creator and all the open surveys, counted under the lock of the creation. */
+export interface OpenSurveyCounts {
+  readonly ofCreator: number;
+  readonly total: number;
+}
+
+/** Is a new survey over the limit? The counts are those BEFORE the new one: the 20th is allowed, the 21st is not. */
+export const surveyLimitExceeded = (counts: OpenSurveyCounts): boolean =>
+  counts.ofCreator >= SITE_SURVEY_LIMIT_PER_CREATOR || counts.total >= SITE_SURVEY_LIMIT_TOTAL;
+
 /** The title of a survey whose creator named none (decision 8: the name in the interface is "Wizja lokalna"). */
 export const SITE_SURVEY_DEFAULT_TITLE = 'Wizja lokalna';
 

@@ -278,7 +278,8 @@ export interface MutationResult {
     | 'idempotency_in_progress'
     | 'template_unavailable'
     | 'quota_exceeded'
-    | 'feature_disabled';
+    | 'feature_disabled'
+    | 'site_survey_limit_exceeded';
   readonly warnings?: ReadonlyArray<'captured_at_out_of_range' | 'idempotency_expired'>;
   /** The number of the order: `applied` and `duplicate` of `CreateQuickWorkOrder` and `CreateSiteSurvey` only (EVM-099 AC1, AC6; EVM-135 AC1). */
   readonly workOrderNumber?: string;

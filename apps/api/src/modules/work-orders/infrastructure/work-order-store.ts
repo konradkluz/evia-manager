@@ -538,3 +538,27 @@ export async function restoreDeletedWorkOrder(
     .executeTakeFirst();
   return row?.version;
 }
+
+/**
+ * The lock of the creation of surveys (EVM-140 AC4): a transaction-scoped advisory lock, taken BEFORE the count, so two creations at the limit are serialised -
+ * the second one counts after the first has committed (it cannot read the count that the first is about to change). One key for all surveys: the global limit
+ * needs it, and a creation takes the counter of the numbers (one row) anyway. It is released at COMMIT or ROLLBACK, never held by a pooled connection.
+ */
+export async function lockSurveyCreation(db: WorkOrdersDb): Promise<void> {
+  await sql`select pg_advisory_xact_lock(hashtextextended('work_orders.site_survey_creation', 0))`.execute(db);
+}
+
+/** The open surveys: an unclaimed one (the marker is set), not cancelled, not deleted - those of the creator and all (counted under {@link lockSurveyCreation}). */
+export async function countOpenSurveys(db: WorkOrdersDb, creatorUserId: string): Promise<{ ofCreator: number; total: number }> {
+  const row = await db
+    .selectFrom('work_orders.work_orders')
+    .select((eb) => [
+      eb.fn.countAll<string>().as('total'),
+      eb.fn.countAll<string>().filterWhere('created_by', '=', creatorUserId).as('ofCreator'),
+    ])
+    .where('site_survey_expires_at', 'is not', null)
+    .where('status', '<>', 'cancelled')
+    .where('deleted_at', 'is', null)
+    .executeTakeFirstOrThrow();
+  return { ofCreator: Number(row.ofCreator), total: Number(row.total) };
+}
