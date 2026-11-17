@@ -88,3 +88,16 @@ export async function tombstoneSurvey(db: WorkOrdersDb, id: string, actorUserId:
     .executeTakeFirst();
   return row !== undefined;
 }
+
+/**
+ * The free text of the items of scope of the order (`notes` - the notes and the description of a "Inna usługa"; the `name` is a copy from the catalogue and the
+ * `parameters` hold technical values only), deleted items too: it becomes NULL, `version + 1` (the phones get the change through the trigger of the change log).
+ */
+export async function clearScopeItemNotes(db: WorkOrdersDb, workOrderId: string, actorUserId: string, now: Date): Promise<void> {
+  await db
+    .updateTable('work_orders.scope_items')
+    .set({ notes: null, updated_at: now, updated_by: actorUserId, version: sql<number>`version + 1` })
+    .where('work_order_id', '=', workOrderId)
+    .where('notes', 'is not', null)
+    .execute();
+}

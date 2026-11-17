@@ -1,6 +1,6 @@
 /**
  * The port through which other modules take part in the automatic purge of a site survey (EVM-139 AC2; ADR-0024 pt 9; SR-PRIV-11, SR-PRIV-04): `work-orders` owns the job,
- * `media` (the files) and `timeline` (the entries of the journal) own their data, and `media` and `timeline` import `work-orders`, so the dependency is inverted as in
+ * `media` (the files), `timeline` (the entries of the journal) and `procedures` (the free text of the stages) own their data, and `media` and `timeline` import `work-orders`, so the dependency is inverted as in
  * `WorkOrderDeletionRegistry` - there is no cycle.
  *
  * Rules of an implementation (the job relies on them):

@@ -23,6 +23,7 @@ import { RestoreProcedureService } from './application/restore-procedure.service
 import { RestoreStageService } from './application/restore-stage.service.ts';
 import { ProceduresCompositionContributor } from './application/procedures-contributor.ts';
 import { ProceduresScopeParticipant } from './application/procedures-scope-participant.ts';
+import { ProceduresSurveyPurgeParticipant } from './application/site-survey-purge.participant.ts';
 import { ProcedureStageDirectoryService } from './application/stage-directory.service.ts';
 import { TransitionStageService } from './application/transition-stage.service.ts';
 import { UpdateStageService } from './application/update-stage.service.ts';
@@ -48,6 +49,7 @@ import { PROCEDURE_PROJECTION_SOURCE, PROCEDURE_STAGE_SYNC_SOURCE } from './syst
     ListDeletedService,
     ProceduresCompositionContributor,
     ProceduresScopeParticipant,
+    ProceduresSurveyPurgeParticipant,
     { provide: PROCEDURE_STAGE_DIRECTORY, useClass: ProcedureStageDirectoryService },
     { provide: PROCEDURE_PROJECTION_SOURCE, useClass: ProcedureProjectionSourceService },
     { provide: PROCEDURE_STAGE_SYNC_SOURCE, useClass: ProcedureStageSyncSourceService },

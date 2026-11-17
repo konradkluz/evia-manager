@@ -43,6 +43,8 @@ export interface ProcedureStagesTable {
   /** Written as `YYYY-MM-DD`, read through `to_char`. */
   waiting_since: Generated<string | null>;
   blocked_reason: Generated<string | null>;
+  /** Free text, 1-2000 characters or NULL (0019). */
+  notes: Generated<string | null>;
   started_at: Generated<Date | null>;
   completed_on: Generated<string | null>;
   output_document_kind_codes: readonly string[];

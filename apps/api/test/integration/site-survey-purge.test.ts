@@ -18,6 +18,7 @@ import {
   NOTE,
   STREET,
   addMedia,
+  addScopeAndProcess,
   auditText,
   changeLogText,
   closeStarted,
@@ -48,18 +49,19 @@ describe('EVM-139 AC1: the candidates and the mode report', () => {
     await sql`update work_orders.work_orders set customer_id = ${customerId}, site_survey_expires_at = null, requester_phone = null where id = ${withCustomer.id}`.execute(
       db(current),
     );
+    await addScopeAndProcess(current, await survey(current, { deadline: inDays(current, -2) }));
     const before = await everything(current);
 
     const counts = await job(current).run();
 
     // a deadline ahead is no candidate, one that passed is (day 91), the deadline AT the instant is not (strict), a survey with a customer never is
-    expect(counts).toEqual({ candidates: 2, purged: 0, failed: 0 });
+    expect(counts).toEqual({ candidates: 3, purged: 0, failed: 0 });
     expect(await everything(current)).toBe(before);
     expect(register.calls).toHaveLength(0);
-    expect(metric(current, 'site_survey_purge_candidates')).toBe(2);
+    expect(metric(current, 'site_survey_purge_candidates')).toBe(3);
     const line = current.logs.lines.find((entry) => entry.includes(SITE_SURVEY_PURGE_JOB));
     expect(line).toContain('"mode":"report"');
-    expect(line).toContain('"candidates":2');
+    expect(line).toContain('"candidates":3');
     expectNoSentinel(current.logs.text);
   });
 
@@ -80,6 +82,7 @@ describe('EVM-139 AC2: enforce - the register first, then the erasure in one tra
     const order = await survey(current, { deadline: inDays(current, -9) });
     const keys = await addMedia(current, order);
     await insertEntries(db(current), order.id, order.creator, [{ body: NOTE }, { kind: 'event' }]);
+    await addScopeAndProcess(current, order);
     let seenBeforeTheFirstChange = '';
     register.onRecord = async () => {
       seenBeforeTheFirstChange = await everything(current);
