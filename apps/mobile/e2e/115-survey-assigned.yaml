@@ -22,5 +22,7 @@ appId: pl.eviacharge.manager
 - assertVisible: 'Zaakceptowane'
 - assertNotVisible: 'Brak klienta.*'
 - assertNotVisible: 'Wygasa.*'
-- assertNotVisible: 'Wizja lokalna'
+# the title of the order is still "Wizja lokalna" (the default title of a survey): the MARK is what must be gone
+- assertNotVisible:
+    id: 'order-detail-survey-badge'
 - takeScreenshot: m03-survey-assigned
