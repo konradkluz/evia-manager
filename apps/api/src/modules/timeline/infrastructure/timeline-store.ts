@@ -281,6 +281,23 @@ export function redactEntry(
     .executeTakeFirst();
 }
 
+/**
+ * The redaction of EVERY text of an order at once (EVM-139 AC2; the purge of a site survey): each note and comment, soft deleted ones too, becomes the marker; the events of
+ * the journal (no text) stay. The trigger of 0042 accepts the same marker once per entry; `redacted_at is null` is in the condition.
+ * @returns how many entries were redacted
+ */
+export async function redactEntriesOfOrder(db: TimelineDb, workOrderId: string, marker: string, by: string, at: Date): Promise<number> {
+  const rows = await db
+    .updateTable('timeline.timeline_entries')
+    .set({ body: marker, redacted_at: at, redacted_by: by, version: sql<number>`version + 1` })
+    .where('work_order_id', '=', workOrderId)
+    .where('kind', '<>', 'event')
+    .where('redacted_at', 'is', null)
+    .returning('id')
+    .execute();
+  return rows.length;
+}
+
 export type EntryRow = NonNullable<Awaited<ReturnType<typeof findEntry>>>;
 
 /** What {@link matchesOwnEntry} compares: every column of the rule of `idempotency_expired` (EVM-098 AC4). */

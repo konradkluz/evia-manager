@@ -65,6 +65,7 @@ import * as deviceInvalidation from './0064_device_invalidation.ts';
 import * as mediaSync from './0065_media_sync.ts';
 import * as siteSurvey from './0066_site_survey.ts';
 import * as emailOutboxSiteSurvey from './0067_email_outbox_site_survey.ts';
+import * as siteSurveyPurge from './0068_site_survey_purge.ts';
 
 export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0001_foundation': foundation,
@@ -132,4 +133,5 @@ export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0065_media_sync': mediaSync,
   '0066_site_survey': siteSurvey,
   '0067_email_outbox_site_survey': emailOutboxSiteSurvey,
+  '0068_site_survey_purge': siteSurveyPurge,
 });

@@ -24,7 +24,9 @@ import { CreateScopeItemService } from './application/create-scope-item.service.
 import { CreateSiteSurveyService } from './application/create-site-survey.service.ts';
 import { CreateWorkOrderService } from './application/create-work-order.service.ts';
 import { SiteSurveyReminderComposer } from './application/site-survey-reminder.composer.ts';
+import { SiteSurveyPurgeJob } from './application/site-survey-purge.job.ts';
 import { SiteSurveyReminderJob } from './application/site-survey-reminder.job.ts';
+import { SiteSurveyPurgeRegistry } from './site-survey-purge-participant.ts';
 import { ExtendSiteSurveyService } from './application/extend-site-survey.service.ts';
 import { DeleteWorkOrderService } from './application/delete-work-order.service.ts';
 import { DeleteScopeItemService } from './application/delete-scope-item.service.ts';
@@ -72,6 +74,8 @@ import {
     ExtendSiteSurveyService,
     SiteSurveyReminderComposer,
     SiteSurveyReminderJob,
+    SiteSurveyPurgeJob,
+    SiteSurveyPurgeRegistry,
     UpdateWorkOrderService,
     CreateScopeItemService,
     UpdateScopeItemService,
@@ -91,6 +95,8 @@ import {
   exports: [
     SiteSurveyReminderComposer,
     SiteSurveyReminderJob,
+    SiteSurveyPurgeJob,
+    SiteSurveyPurgeRegistry,
     WorkOrderCompositionRegistry,
     WorkOrderScopeRegistry,
     WorkOrderTransitionRegistry,

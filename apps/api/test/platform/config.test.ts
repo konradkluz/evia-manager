@@ -77,6 +77,15 @@ describe('configuration of the synchronisation of the phones (EVM-096; ADR-0021 
 });
 
 describe('the switch of the site survey (EVM-135 AC3; ADR-0024 pt 10)', () => {
+  it('EVM-139 AC1 SITE_SURVEY_PURGE_MODE is report when absent (nothing is erased by default), enforce only for the exact word, anything else stops the start', () => {
+    expect(loadConfig(validEnv()).siteSurveyPurgeMode).toBe('report');
+    expect(loadConfig(validEnv({ SITE_SURVEY_PURGE_MODE: 'report' })).siteSurveyPurgeMode).toBe('report');
+    expect(loadConfig(validEnv({ SITE_SURVEY_PURGE_MODE: 'enforce' })).siteSurveyPurgeMode).toBe('enforce');
+    for (const value of ['', 'ENFORCE', 'true', '1', 'enforced', ' enforce']) {
+      expect(errorOf(validEnv({ SITE_SURVEY_PURGE_MODE: value })).keys, JSON.stringify(value)).toEqual(['SITE_SURVEY_PURGE_MODE']);
+    }
+  });
+
   it('EVM-135 AC3 SITE_SURVEYS_ENABLED is off when absent (deny by default), on only for "true", off for "false"', () => {
     expect(loadConfig(validEnv()).features).toEqual({ siteSurveys: false });
     expect(loadConfig(validEnv({ SITE_SURVEYS_ENABLED: 'true' })).features).toEqual({ siteSurveys: true });
@@ -110,6 +119,7 @@ describe('configuration from the environment (EVM-008 AC1; ADR-0002, SR-LOG-02)'
       loginAlerts: { passwordFailures: 30, secondStepFailures: 3 },
       deletionRegister: { status: 'unconfigured' },
       features: { siteSurveys: false },
+      siteSurveyPurgeMode: 'report',
       sync: {
         cursorKeys: [{ id: 'derived', key: expect.any(Buffer) as Buffer }],
         closedOrdersInScopeDays: 30,

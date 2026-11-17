@@ -4,7 +4,7 @@ title: "API i worker: wizja lokalna — automatyczne trwałe usuwanie (90 / 14 d
 type: story
 milestone: M2
 epic: E15 Wizja lokalna
-status: ready
+status: in-progress
 priority: P1
 path: pelna             # pierwsze automatyczne usuwanie danych biznesowych, art. 17 RODO, nowy sekret
 owner: backend-developer
@@ -69,3 +69,4 @@ Rozmiar wg ADR-0024: **L**. Ostatnia w kolejności (po 138); do tego czasu wszys
 ## Dziennik
 - 2026-11-16 — szkic (product-owner)
 - 2026-11-16 — uzgodniono z ADR-0024, wpisano decyzje Konrada („akceptuję wg rekomendacji”); **status ready** (product-owner)
+- 2026-11-17 — start realizacji w kolejce `/noc-2026-11-16` (tor E, klon n1, gałąź `feature/queue-2026-11-17-wizja-lokalna-usuwanie` od części API EVM-140 `75050884`); **status `in-progress`** (Tech Lead)
