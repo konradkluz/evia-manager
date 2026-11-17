@@ -14,6 +14,15 @@ import type { ResolvedTransition, TransitionFields } from './work-order-transiti
 
 export const REASON_MAX_LENGTH = 500;
 
+/** The reasons of the rejection of a site survey (decision 11 of EVM-136): `offer_rejected` - "Oferta odrzucona", `customer_withdrew` - "Rezygnacja klienta". Codes, not text. */
+export const SURVEY_REJECTION_CODES = ['offer_rejected', 'customer_withdrew'] as const;
+export type SurveyRejectionCode = (typeof SURVEY_REJECTION_CODES)[number];
+
+/** What the row does not say: whether the order is an open site survey (its deadline is set). */
+export interface TransitionOrderContext {
+  readonly siteSurvey?: boolean;
+}
+
 /** Both bounds are inclusive; the upper one is today. */
 export const COMPLETED_ON_MIN = '2000-01-01';
 
@@ -21,6 +30,8 @@ export const COMPLETED_ON_MIN = '2000-01-01';
 export interface TransitionBody {
   readonly to: WorkOrderStatus;
   readonly reason?: string | undefined;
+  /** The fixed reason of the rejection of a site survey (EVM-136 AC5) - instead of the free `reason`. */
+  readonly reasonCode?: SurveyRejectionCode | undefined;
   readonly completedOn?: string | undefined;
 }
 
@@ -28,12 +39,27 @@ export type TransitionFieldsResult =
   { readonly ok: true; readonly fields: TransitionFields } | { readonly ok: false; readonly errors: readonly FieldIssue[] };
 
 /** @param today the current day in `Europe/Warsaw` (`YYYY-MM-DD`) */
-export function normalizeTransitionFields(body: TransitionBody, { rule }: ResolvedTransition, today: string): TransitionFieldsResult {
+export function normalizeTransitionFields(
+  body: TransitionBody,
+  { rule, to }: ResolvedTransition,
+  today: string,
+  order: TransitionOrderContext = {},
+): TransitionFieldsResult {
   const issues = new Collector();
 
   let reason: string | null = null;
-  if (rule.reason) reason = issues.required('/reason', body.reason, { maxLength: REASON_MAX_LENGTH });
-  else if (body.reason !== undefined) issues.fail('/reason', 'not_allowed');
+  // the rejection of a survey names a FIXED reason: no free text that could name a person
+  const rejection = rule.reason && to === 'cancelled' && order.siteSurvey === true;
+  if (rejection) {
+    if (body.reason !== undefined) issues.fail('/reason', 'not_allowed');
+    if (body.reasonCode === undefined) issues.fail('/reasonCode', 'required');
+    else if (SURVEY_REJECTION_CODES.includes(body.reasonCode)) reason = body.reasonCode;
+    else issues.fail('/reasonCode', 'invalid_value');
+  } else {
+    if (rule.reason) reason = issues.required('/reason', body.reason, { maxLength: REASON_MAX_LENGTH });
+    else if (body.reason !== undefined) issues.fail('/reason', 'not_allowed');
+    if (body.reasonCode !== undefined) issues.fail('/reasonCode', 'not_allowed');
+  }
 
   let completedOn: string | null = null;
   if (rule.completedOn === 'set') {

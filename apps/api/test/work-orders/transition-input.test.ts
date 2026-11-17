@@ -101,3 +101,53 @@ describe('the business day (Europe/Warsaw; EVM-030 AC1)', () => {
     expect(businessDate(new Date('2026-12-31T22:59:59Z'))).toBe('2026-12-31');
   });
 });
+
+describe('the reason code of the rejection of a site survey (EVM-136 AC5; decision 11)', () => {
+  const CANCEL = row('quoting', 'cancelled');
+  const survey = { siteSurvey: true } as const;
+
+  it('EVM-136 AC5 a survey is rejected with offer_rejected or customer_withdrew - a fixed code, stored as the reason - and the free text is not allowed', () => {
+    for (const code of ['offer_rejected', 'customer_withdrew'] as const) {
+      expect(normalizeTransitionFields({ to: 'cancelled', reasonCode: code }, CANCEL, TODAY, survey)).toEqual({
+        ok: true,
+        fields: { reason: code, completedOn: null },
+      });
+    }
+    expect(
+      normalizeTransitionFields({ to: 'cancelled', reasonCode: 'offer_rejected', reason: 'Jan Przykładowy' }, CANCEL, TODAY, survey),
+    ).toEqual({
+      ok: false,
+      errors: [{ pointer: '/reason', code: 'not_allowed' }],
+    });
+  });
+
+  it('EVM-136 AC5 the rejection of a survey without a code, or with an empty or unknown one, is "required" at /reasonCode - never an echo of a value', () => {
+    for (const reasonCode of [undefined, 'wrong', 'Oferta odrzucona']) {
+      const result = normalizeTransitionFields({ to: 'cancelled', reasonCode: reasonCode as never }, CANCEL, TODAY, survey);
+      expect(result, String(reasonCode)).toEqual({
+        ok: false,
+        errors: [{ pointer: '/reasonCode', code: reasonCode === undefined ? 'required' : 'invalid_value' }],
+      });
+    }
+  });
+
+  it('EVM-136 AC5 an ordinary order is cancelled as before - the free reason is required - and the code is "not_allowed" there (no dead write); the hold of a survey keeps its free reason', () => {
+    expect(normalizeTransitionFields({ to: 'cancelled', reason: 'Powód' }, CANCEL, TODAY)).toEqual({
+      ok: true,
+      fields: { reason: 'Powód', completedOn: null },
+    });
+    expect(normalizeTransitionFields({ to: 'cancelled', reason: 'Powód', reasonCode: 'offer_rejected' }, CANCEL, TODAY)).toEqual({
+      ok: false,
+      errors: [{ pointer: '/reasonCode', code: 'not_allowed' }],
+    });
+    const hold = row('quoting', 'on_hold');
+    expect(normalizeTransitionFields({ to: 'on_hold', reason: 'Czekamy' }, hold, TODAY, survey)).toEqual({
+      ok: true,
+      fields: { reason: 'Czekamy', completedOn: null },
+    });
+    expect(normalizeTransitionFields({ to: 'on_hold', reason: 'Czekamy', reasonCode: 'offer_rejected' }, hold, TODAY, survey)).toEqual({
+      ok: false,
+      errors: [{ pointer: '/reasonCode', code: 'not_allowed' }],
+    });
+  });
+});

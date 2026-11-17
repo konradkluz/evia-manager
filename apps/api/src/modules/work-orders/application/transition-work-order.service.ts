@@ -19,7 +19,8 @@
  *      the guard cannot know. The order is the guard's: a role that may not use the row never learns the row is protected;
  *   6. the version (`412 version_conflict`);
  *   6b. the customer (`409 customer_required`, EVM-136 AC4): a row whose target a work order without a customer (a site survey) may not have;
- *   7. the fields the row decides (the reason, the day of completion; `400`, a pointer and a code, never a value);
+ *   7. the fields the row decides (the reason, the day of completion; `400`, a pointer and a code, never a value) - the rejection of a site survey takes a
+ *      fixed `reasonCode` instead of the free reason, and with the status it moves the deadline of the survey (EVM-136 AC5);
  *   8. the conditions of the participants (`422 transition_condition_not_met`, `/to` and a code);
  *   9. the update, the effects of the participants, the event for the audit trail (a cancellation or a restoration), the idempotency record.
  * The reason is free text that may name a person: it goes into the column of the order and nowhere else — not into a log, an event, an
@@ -41,6 +42,7 @@ import { IDEMPOTENCY, type Idempotency } from '../../../platform/idempotency/ide
 import { CLOCK, DATABASE, EVENT_BUS } from '../../../platform/tokens.ts';
 import { lastStepUpAuthentication, stepUpFresh } from '../../identity/index.ts';
 import { businessDate } from '../domain/business-date.ts';
+import { deadlineAfterTransition, type SurveyTiming } from '../domain/site-survey-deadline.ts';
 import { normalizeTransitionFields, type TransitionBody } from '../domain/transition-input.ts';
 import { applyTransition, findTransition, mayUse, requiresCustomer, type TransitionState } from '../domain/work-order-transitions.ts';
 import type { WorkOrderEvent, WorkOrderStatusChangedEvent } from '../events.ts';
@@ -164,7 +166,11 @@ export class TransitionWorkOrderService {
     // caller with a stale version reads the order again first - and before the fields; the answer carries no value
     if (requiresCustomer(transition) && locked.customer_id === null) throw new ProblemException('customer_required');
 
-    const fields = normalizeTransitionFields(body, transition, businessDate(now));
+    const survey: SurveyTiming | null =
+      locked.site_survey_expires_at === null
+        ? null
+        : { expiresAt: locked.site_survey_expires_at, createdAt: locked.created_at, extensions: locked.site_survey_extensions };
+    const fields = normalizeTransitionFields(body, transition, businessDate(now), { siteSurvey: survey !== null });
     if (!fields.ok) throw new ProblemException('validation_failed', { errors: fields.errors });
 
     const participantContext: TransitionContext = {
@@ -191,6 +197,8 @@ export class TransitionWorkOrderService {
         statusReason: next.statusReason,
         closedAt: next.state.closedAt,
         completedOn: next.state.completedOn,
+        // EVM-136 AC5: the rejection shortens the deadline of a survey and the restoration gives it back; an ordinary order has none
+        siteSurveyExpiresAt: deadlineAfterTransition(transition, survey, now),
       },
       principal.userId,
       now,

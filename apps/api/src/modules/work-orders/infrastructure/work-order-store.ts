@@ -236,6 +236,10 @@ export function lockWorkOrderForTransition(db: WorkOrdersDb, principal: Principa
       'version',
       // EVM-136 AC4: the rule "a customer is needed to move on" is decided on THIS row
       'customer_id',
+      // EVM-136 AC5: the deadline of a site survey that is rejected or restored (the row of a survey has a deadline)
+      'site_survey_expires_at',
+      'site_survey_extensions',
+      'created_at',
     ])
     .where('id', '=', id)
     .where(visibleWorkOrders(principal))
@@ -251,6 +255,8 @@ export interface StatusColumns {
   readonly statusReason: string | null;
   readonly closedAt: Date | null;
   readonly completedOn: string | null;
+  /** EVM-136 AC5: the new deadline of a site survey (the rejection and the restoration); absent - the column is left alone. */
+  readonly siteSurveyExpiresAt?: Date | undefined;
 }
 
 /**
@@ -274,6 +280,7 @@ export async function updateWorkOrderStatus(
       status_changed_at: now,
       closed_at: columns.closedAt,
       completed_on: columns.completedOn,
+      ...(columns.siteSurveyExpiresAt === undefined ? {} : { site_survey_expires_at: columns.siteSurveyExpiresAt }),
       updated_at: now,
       updated_by: actorUserId,
       version: sql<number>`version + 1`,

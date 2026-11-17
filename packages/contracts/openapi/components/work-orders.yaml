@@ -773,6 +773,9 @@ TransitionWorkOrderRequest:
     1–500 znaków; kody `required`, `too_long`, `invalid_characters`) i niedozwolony w pozostałych przejściach (`not_allowed`);
     to pole swobodne, które może zawierać dane osobowe — nie trafia do audytu, logów ani odpowiedzi. `completedOn` (dzień
     zakończenia prac, `Europe/Warsaw`, nie z przyszłości, od 2000-01-01; kod `out_of_range`) tylko przy „Zakończ”; domyślnie dziś.
+    Odrzucenie wizji lokalnej (EVM-136; anulowanie zlecenia bez klienta, z terminem wygaśnięcia): zamiast `reason` jest wymagany
+    `reasonCode` — `offer_rejected` („Oferta odrzucona”) albo `customer_withdrew` („Rezygnacja klienta”), wartość stała, nie tekst;
+    `reason` jest tam niedozwolony (`not_allowed`), a `reasonCode` poza odrzuceniem wizji — też (`not_allowed`; brak martwego zapisu).
     Pola serwera (`status`, `resumeStatus`, `closedAt`, `statusChangedAt` …) w treści — `400 read_only_field`, inne — `400 unknown_field`.
   required: [to]
   additionalProperties: false
@@ -783,6 +786,12 @@ TransitionWorkOrderRequest:
       type: string
       description: Powód wstrzymania albo anulowania (pole swobodne — może zawierać dane osobowe).
       maxLength: 500
+    reasonCode:
+      type: string
+      description: >-
+        Powód odrzucenia wizji lokalnej (EVM-136): `offer_rejected` — „Oferta odrzucona”, `customer_withdrew` — „Rezygnacja klienta”.
+        Tylko przy anulowaniu wizji, zamiast `reason`.
+      enum: [offer_rejected, customer_withdrew]
     completedOn:
       type: string
       description: Dzień zakończenia prac, `RRRR-MM-DD` (tylko przy przejściu „Zakończ”).

@@ -838,7 +838,8 @@ stateDiagram-v2
 | `on_hold` | `active` (`resumeStatus`) | wraca do stanu sprzed wstrzymania; wznowienie do `accepted` wymaga klienta (`409 customer_required`, EVM-136) | A, E | nie |
 | `active` (dowolny: `new`, `quoting`, `accepted`, `in_progress`) | `cancelled` | wymagany `statusReason`; brak transz w `invoiced` (najpierw opłać albo anuluj — korekta płatności, A ↑); transze `planned` → `cancelled` (skutek, aktor jak w komendzie); `resumeStatus` = stan bieżący; ustawia `closedAt`; **audyt** | A, E | nie |
 | `on_hold` | `cancelled` | jak wyżej (`resumeStatus` bez zmian) | A, E | nie |
-| `cancelled` | `on_hold` | przywrócenie do „Wstrzymane” — dalej świadome wznowienie; transze nie są przywracane automatycznie; czyści `closedAt`; **audyt** | A (step-up) | nie |
+| `cancelled` | `on_hold` | przywrócenie do „Wstrzymane” — dalej świadome wznowienie; transze nie są przywracane automatycznie; czyści `closedAt`; **audyt**; wizja lokalna (EVM-136): termin wygaśnięcia = większa z (utworzenie + 90 dni × (1 + przedłużenia), teraz + 14 dni) | A (step-up) | nie |
+| `quoting`, `on_hold` (wizja lokalna) | `cancelled` | odrzucenie wizji (EVM-136): zamiast `statusReason` wymagany kod powodu `reasonCode` = `offer_rejected` („Oferta odrzucona”) albo `customer_withdrew` („Rezygnacja klienta”), zapisany jako powód; termin wygaśnięcia = mniejsza z (obecny termin, teraz + 14 dni); audyt `work_order.cancelled` bez kodu powodu | A, E | nie |
 | `in_progress` | `completed` | ustawia `completedOn` (domyślnie dziś); UI ostrzega o otwartych etapach (bez blokady) | A, E | nie |
 | `completed` | `in_progress` | ponowne otwarcie (poprawki); czyści `completedOn` | A, E | nie |
 | `completed` | `settled` | wszystkie transze w `paid` lub `cancelled`; ustawia `closedAt` | A, E | nie |

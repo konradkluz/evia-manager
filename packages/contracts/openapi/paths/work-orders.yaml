@@ -1006,6 +1006,12 @@ workOrderTransitions:
       przypisywany komendą `assignWorkOrderCustomer`); pola przejścia (`reason`, `completedOn` — `400`); warunki modułów
       (`422 transition_condition_not_met`, `errors[]` z `/to` i kodem powodu), potem zapis, skutki modułów w tej samej transakcji i
       audyt. Błąd któregokolwiek kroku cofa całość (status, skutki modułów, audyt i rekord idempotencji).
+      Wizja lokalna (EVM-136 AC5): anulowanie wizji to jej odrzucenie — zamiast `reason` wymaga `reasonCode` (`offer_rejected`,
+      `customer_withdrew`), zapisanego jako powód; termin wygaśnięcia wizji (`siteSurvey.expiresAt`) staje się mniejszą z wartości
+      (obecny termin, teraz + 14 dni), a audyt (`work_order.cancelled`) zostaje bez treści i bez kodu powodu. Przywrócenie
+      odrzuconej wizji (`cancelled → on_hold`, tylko Administrator ze step-upem jak każde przywrócenie, Edytor — `403 forbidden`)
+      ustawia termin na większą z wartości (utworzenie + 90 dni × (1 + `extensionCount`), teraz + 14 dni). Zwykłe zlecenie
+      anuluje się jak dotąd (`reason`); `reasonCode` jest tam `400 not_allowed`.
       Skutki: wstrzymanie i anulowanie zapisują powód i status źródłowy (`resumeStatus`); wznowienie wraca do `resumeStatus` (inny
       cel — `409`); anulowanie i rozliczenie ustawiają `closedAt`, przywrócenie je czyści; „Zakończ” ustawia `completedOn` (domyślnie
       dziś w `Europe/Warsaw`), ponowne otwarcie czyści. `reason` jest polem swobodnym i nigdy nie trafia do audytu, logów, odpowiedzi
