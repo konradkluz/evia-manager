@@ -306,3 +306,94 @@ describe('W-06 site survey: "Przedłuż o 90 dni" (EVM-140 AC6)', () => {
     expect(await axeViolations(await bannerOf())).toEqual([]);
   });
 });
+
+describe('W-06 site survey: other failures and edges of "Przedłuż o 90 dni" (EVM-140 AC6)', () => {
+  async function submitWith(api: ReturnType<typeof surveyApi>) {
+    const box = await openExtend(api);
+    await userEvent.click(box.getByRole('radio', { name: 'Czeka na decyzję klienta' }));
+    await userEvent.click(box.getByRole('button', { name: 'Przedłuż o 90 dni' }));
+    return box;
+  }
+
+  it('EVM-140 AC6 429 without Retry-After waits 60 s by default', async () => {
+    await submitWith(surveyApi(survey(0), { [EXTEND]: () => problem(429, 'rate_limited') }));
+    expect((await within(dialog()).findByRole('alert')).textContent).toContain('Zbyt wiele prób. Spróbuj ponownie za 60 s.');
+  });
+
+  it.each(['idempotency_mismatch', 'idempotency_in_progress'])(
+    'EVM-140 AC6 409 %s is a retryable failure: the network message with "Spróbuj ponownie"',
+    async (code) => {
+      await submitWith(surveyApi(survey(0), { [EXTEND]: () => problem(409, code) }));
+      const alert = await within(dialog()).findByRole('alert');
+      expect(alert.textContent).toContain('Nie udało się przedłużyć wizji. Spróbuj ponownie.');
+      expect(within(alert).getByRole('button', { name: 'Spróbuj ponownie' })).toBeTruthy();
+    },
+  );
+
+  it('EVM-140 AC6 an idempotency_mismatch makes the retry a new attempt with a new key', async () => {
+    const answers: Handler[] = [() => problem(409, 'idempotency_mismatch'), answered(survey(1, SECOND_DEADLINE, 6))];
+    let call = 0;
+    const api = surveyApi(survey(0), { [EXTEND]: (request) => answers[call++]?.(request) ?? problem(500, 'x') });
+    await submitWith(api);
+    await userEvent.click(await within(dialog()).findByRole('button', { name: 'Spróbuj ponownie' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('alertdialog')).toBeNull();
+    });
+    const [first, second] = api.calls(EXTEND);
+    expect(second?.headers.get('Idempotency-Key')).not.toBe(first?.headers.get('Idempotency-Key'));
+  });
+
+  it('EVM-140 AC6 an unknown 4xx names the trace id (8 characters) and offers a retry', async () => {
+    await submitWith(surveyApi(survey(0), { [EXTEND]: () => problem(422, 'unexpected') }));
+    const alert = await within(dialog()).findByRole('alert');
+    expect(alert.textContent).toContain('Nie udało się przedłużyć wizji. Spróbuj ponownie. Kod błędu: abcdef01.');
+    expect(within(alert).getByRole('button', { name: 'Spróbuj ponownie' })).toBeTruthy();
+  });
+
+  it('EVM-140 AC6 an unknown 4xx without a trace id names its code', async () => {
+    await submitWith(surveyApi(survey(0), { [EXTEND]: () => problem(422, 'unexpected', { traceId: undefined }) }));
+    expect((await within(dialog()).findByRole('alert')).textContent).toContain('Kod błędu: unexpected.');
+  });
+
+  it('EVM-140 AC6 "Odśwież zlecenie" clears the message and reads the header again', async () => {
+    let reads = 0;
+    const api = surveyApi(survey(0), {
+      [EXTEND]: () => problem(412, 'version_conflict'),
+      [HEADER_READ]: () => {
+        reads += 1;
+        return json(200, survey(0), { ETag: '"5"' });
+      },
+    });
+    await submitWith(api);
+    const refresh = await within(dialog()).findByRole('button', { name: 'Odśwież zlecenie' });
+    await waitFor(() => {
+      expect(reads).toBeGreaterThanOrEqual(2);
+    });
+    const before = reads;
+    await userEvent.click(refresh);
+    expect(within(dialog()).queryByRole('alert')).toBeNull();
+    await waitFor(() => {
+      expect(reads).toBeGreaterThan(before);
+    });
+  });
+
+  it('EVM-140 AC6 an answer without a deadline shows "Przedłużono wizję." without a date', async () => {
+    const api = surveyApi(survey(0), { [EXTEND]: answered(surveyOrder({ version: 6, siteSurvey: null })) });
+    await submitWith(api);
+    await waitFor(() => {
+      expect(screen.queryByRole('alertdialog')).toBeNull();
+    });
+    expect(screen.getByText('Przedłużono wizję.')).toBeTruthy();
+  });
+
+  it('EVM-140 AC6 going offline with the dialog open puts the hint on the confirm button', async () => {
+    const box = await openExtend(surveyApi());
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
+    fireEvent(globalThis as unknown as Window, new Event('offline'));
+    const confirm = await box.findByRole('button', { name: 'Przedłuż o 90 dni' });
+    await waitFor(() => {
+      expect(confirm.getAttribute('aria-disabled')).toBe('true');
+    });
+    expect(box.getByText('Przedłużysz po powrocie połączenia.')).toBeTruthy();
+  });
+});

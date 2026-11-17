@@ -11,7 +11,11 @@ import {
   siteMadeForSurveyWindow,
 } from '../../src/modules/work-orders/domain/site-survey-purge.ts';
 import { SITE_SURVEY_RETENTION_DAYS, siteSurveyExpiry } from '../../src/modules/work-orders/domain/site-survey.ts';
-import { SiteSurveyPurgeRegistry, type SiteSurveyPurgeParticipant } from '../../src/modules/work-orders/site-survey-purge-participant.ts';
+import {
+  SiteSurveyPurgeRegistry,
+  SurveyChangedDuringPurge,
+  type SiteSurveyPurgeParticipant,
+} from '../../src/modules/work-orders/site-survey-purge-participant.ts';
 
 const DAY = 86_400_000;
 const CREATED = new Date('2027-01-01T08:00:00.000Z');
@@ -83,5 +87,20 @@ describe('the registry of the participants of the purge (EVM-139 AC2)', () => {
     expect(() => {
       registry.register(participant('media', 1));
     }).toThrow('already registered');
+  });
+
+  it('EVM-139 AC2 participants of one position run by name whatever the order of registration', () => {
+    const registry = new SiteSurveyPurgeRegistry();
+    for (const name of ['c', 'a', 'd', 'b']) registry.register(participant(name, 10));
+    expect(registry.ordered().map((p) => p.name)).toEqual(['a', 'b', 'c', 'd']);
+  });
+});
+
+describe('the signal of a changed survey (EVM-139 AC2)', () => {
+  it('EVM-139 AC2 SurveyChangedDuringPurge is a named error that says the survey changed between the register entry and the erasure', () => {
+    const error = new SurveyChangedDuringPurge();
+    expect(error).toBeInstanceOf(Error);
+    expect(error.name).toBe('SurveyChangedDuringPurge');
+    expect(error.message).toBe('site survey purge: the survey changed between the register entry and the erasure');
   });
 });
