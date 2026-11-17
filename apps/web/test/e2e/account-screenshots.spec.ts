@@ -45,7 +45,7 @@ test.describe('UX review screenshots (EVM-028) @screenshots', () => {
       api.account.passkeys = api.account.passkeys.slice(0, 1);
       api.account.recovery = { remaining: 3, generatedAt: '2026-10-03T12:00:00.000Z' };
       await page.goto(ACCOUNT);
-      await expect(page.getByText('Dodaj drugi klucz dostępu, np. w telefonie')).toBeVisible();
+      await expect(page.getByText('Dodaj drugą metodę, np. kod z aplikacji albo klucz w telefonie')).toBeVisible();
       await shot(`w15-administrator-one-key-${px}`);
     });
 

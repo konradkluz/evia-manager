@@ -39,7 +39,7 @@ test.describe('W-16 operations on accounts in the browser (EVM-027)', () => {
     expect(problems.foreignRequests).toEqual([]);
   });
 
-  test('EVM-027 AC1 AC7 the role Administrator: the alert is announced, an account with a key is made, an account without a key is told to add one and nothing is sent', async ({
+  test('EVM-027 AC1 AC7 EVM-134 AC3 the role Administrator: the alert is announced, an account without a key is made as well as one with a key', async ({
     page,
     api,
   }) => {
@@ -51,9 +51,8 @@ test.describe('W-16 operations on accounts in the browser (EVM-027)', () => {
     await biuro.getByRole('radio', { name: /^Administrator/ }).check();
     await expect(biuro.getByText(ALERT)).toBeVisible();
     await biuro.getByRole('button', { name: 'Zmień rolę' }).click();
-    await expect(biuro.getByRole('alert')).toHaveText('To konto musi najpierw dodać klucz dostępu (Konto → Drugi krok logowania).');
-    expect(api.seen.filter((entry) => entry.method === 'PUT')).toHaveLength(0);
-    await biuro.getByRole('button', { name: 'Anuluj' }).click();
+    await expect(page.getByRole('row', { name: /^Biuro Testowe, Administrator, / })).toBeVisible();
+    await expect(page.getByText('To konto musi najpierw dodać klucz dostępu', { exact: false })).toHaveCount(0);
     await menu(page, 'Jan Przykładowy').click();
     await page.getByRole('menuitem', { name: 'Zmień rolę…' }).click();
     const jan = page.getByRole('dialog', { name: 'Zmienić rolę konta „Jan Przykładowy”?' });
@@ -61,9 +60,12 @@ test.describe('W-16 operations on accounts in the browser (EVM-027)', () => {
     await jan.getByRole('button', { name: 'Zmień rolę' }).click();
     await expect(page.getByRole('row', { name: /^Jan Przykładowy, Administrator, Aktywne$/ })).toBeVisible();
     const sent = api.seen.filter((entry) => entry.method === 'PUT');
-    expect(sent).toHaveLength(1);
-    expect(sent[0]?.headers['if-match']).toBe('"3"');
-    expect(JSON.parse(sent[0]?.postData ?? '{}')).toEqual({ role: 'administrator' });
+    expect(sent).toHaveLength(2);
+    expect(sent[1]?.headers['if-match']).toBe('"3"');
+    expect(sent.map((entry) => JSON.parse(entry.postData ?? '{}') as unknown)).toEqual([
+      { role: 'administrator' },
+      { role: 'administrator' },
+    ]);
   });
 
   test('EVM-027 AC2 the deactivation and the reactivation: the status follows, an account never activated returns to "Oczekuje na aktywację"', async ({

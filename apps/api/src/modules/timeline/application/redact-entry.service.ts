@@ -1,8 +1,8 @@
 /**
  * The redaction of the text of an entry (EVM-040 AC2, AC3, AC4, AC5, AC6; SR-PRIV-03, SR-PRIV-04, SR-SESS-08, SR-AUTHZ-02, SR-AUTHZ-05, SR-API-07,
  * SR-LOG-03, SR-DATA-08, SR-ERR-01, CWE-639). The guard has decided before this runs: a signed-in ADMINISTRATOR on the web channel with a valid CSRF
- * token and a passkey authentication in the last 15 minutes (`step_up_required`, after the role: the Editor and Read-only get `403 forbidden`,
- * so only an Administrator with a fresh key can ever see the `503` below).
+ * token and a step-up in the last 15 minutes (`step_up_required`, after the role: the Editor and Read-only get `403 forbidden`,
+ * so only an Administrator with a fresh step-up can ever see the `503` below).
  *
  * ONE transaction, in this order (the register is written AFTER every check and BEFORE the change, so a request that ends in 404, 409 or 412 leaves
  * no record, and the database never changes without the record):

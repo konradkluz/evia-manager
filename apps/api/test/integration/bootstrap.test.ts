@@ -15,6 +15,7 @@ import { PANEL_ORIGIN, UNREACHABLE_DATABASE_URL, validEnv } from '../support/app
 import { activateAdministrator, passkeyOptions, PATHS, registerPasskey, setPassword } from '../support/flows.ts';
 import { createIdentityApp, type IdentityApp } from '../support/identity-app.ts';
 import { createLink, createSession, createUser } from '../support/identity-fixtures.ts';
+import { codeNow, confirmTotp, insertTotpFactor, SECOND_STEP } from '../support/totp-flows.ts';
 import { VirtualAuthenticator } from '../support/virtual-authenticator.ts';
 
 let current: IdentityApp;
@@ -287,6 +288,39 @@ describe('the command with an active Administrator (EVM-016 AC2; RR-16, SR-LOG-0
       'active',
     );
     expect(await db().selectFrom('identity.passkeys').select('id').execute()).toHaveLength(1);
+  });
+
+  it('EVM-134 AC2 the emergency mode also deletes the code of the app and retires the recovery codes: the code of a lost phone is no way in any more', async () => {
+    const { user } = await activateAdministrator(current, ADMIN);
+    await insertTotpFactor(current, user.id);
+    await sql`
+      insert into identity.recovery_codes (user_id, generation_id, session_id, code_hash, created_at)
+      values (${user.id}, uuidv7(), uuidv7(), '$argon2id$v=19$m=19456,t=2,p=1$c3ludGhldGlj$c3ludGhldGlj', ${current.clock.now()})`.execute(
+      current.database.admin,
+    );
+    const result = await bootstrap().run({ mode: 'emergency', email: ADMIN, reason: 'lost_device' }, cli);
+    expect(result.kind).toBe('issued');
+    expect(await db().selectFrom('identity.totp_factors').select('id').where('user_id', '=', user.id).execute()).toEqual([]);
+    const codes = await db().selectFrom('identity.recovery_codes').select('superseded_at').where('user_id', '=', user.id).execute();
+    expect(codes).toEqual([{ superseded_at: current.clock.now() }]);
+  });
+
+  it('EVM-134 AC2 after the reset the Administrator activates the account again with a code of the app (the choice of a method, as an Editor)', async () => {
+    const { user } = await activateAdministrator(current, ADMIN);
+    await insertTotpFactor(current, user.id);
+    const result = await bootstrap().run({ mode: 'emergency', email: ADMIN, reason: 'lost_credentials' }, cli);
+    if (result.kind !== 'issued') throw new Error('expected a link');
+    current.clock.advance(61_000);
+    const panel = current.panel();
+    expect((await setPassword(panel, result.token, 'Another-Orbit-Lamp-7')).status).toBe(200);
+    const setup = await panel.post(SECOND_STEP.setup);
+    expect(setup.status).toBe(200);
+    const { secret } = setup.body as { secret: string };
+    expect((await confirmTotp(panel, codeNow(current, secret))).status).toBe(200);
+    expect((await db().selectFrom('identity.users').select('status').where('id', '=', user.id).executeTakeFirstOrThrow()).status).toBe(
+      'active',
+    );
+    expect(await db().selectFrom('identity.passkeys').select('id').execute()).toEqual([]);
   });
 
   it('EVM-016 AC2 the alert is emitted by the API process: one error entry with the stable fields, no address and no token, then marked as emitted', async () => {

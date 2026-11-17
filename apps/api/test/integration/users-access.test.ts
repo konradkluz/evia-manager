@@ -132,35 +132,36 @@ describe('a change of a role (EVM-027 AC1; SR-AUTHZ-09, SR-SESS-02)', () => {
   });
 });
 
-describe('an Administrator needs a passkey (EVM-027 D3, decision of Konrad 2026-10-19; SR-AUTH-06, P1)', () => {
-  it('EVM-027 D3 an Editor without a passkey does not become an Administrator: 409 administrator_passkey_required, role and version unchanged, no session ended, no window, no alert, no audit event', async () => {
+describe('the method of the second step does not decide the role (EVM-134 AC3; ADR-0023 — D3 of EVM-027 is gone)', () => {
+  it('EVM-134 AC3 an Editor whose only method is a code of the app becomes an Administrator: 200, version + 1, the sessions end (role_changed), every active Administrator is alerted, the audit event', async () => {
     const admin = await browserOf(current);
+    const colleague = await browserOf(current, { role: 'administrator' });
+    const inactive = await accountWithSessions(current, { role: 'administrator', status: 'deactivated', count: 0 });
     const anna = await accountWithSessions(current, { role: 'editor', count: 1, key: false });
-    const before = await current.snapshot();
-
-    const response = await changeRole(current, admin, anna.user.id, 'administrator');
-
-    expect(response.status).toBe(409);
-    expect(response.body).toMatchObject({ code: 'administrator_passkey_required' });
-    expect(await current.snapshot()).toBe(before);
-    expect(await userRow(current, anna.user.id)).toMatchObject({ role: 'editor', version: 1 });
-    expect((await sessionAnswer(anna.sessions[0]?.panel ?? current.panel())).status).toBe(200);
-    expect(await alertRows(current)).toEqual([]);
-    expect(await auditOf(current, 'user.role_changed')).toEqual([]);
-    const { rows } = await sql`select 1 from identity.one_time_links where user_id = ${anna.user.id}`.execute(db());
-    expect(rows).toEqual([]);
-  });
-
-  it('EVM-027 D3 a code of the app and recovery codes are not a passkey: an Editor with only a TOTP factor is refused too', async () => {
-    const admin = await browserOf(current);
-    const anna = await accountWithSessions(current, { role: 'editor', count: 1 });
     await insertTotpFactor(current, anna.user.id);
+
     const response = await changeRole(current, admin, anna.user.id, 'administrator');
-    expect(response.status).toBe(409);
-    expect(response.body).toMatchObject({ code: 'administrator_passkey_required' });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({ role: 'administrator', secondStepMethods: ['totp'] });
+    expect(await userRow(current, anna.user.id)).toMatchObject({ role: 'administrator', version: 2 });
+    expect(await sessionAnswer(anna.sessions[0]?.panel ?? current.panel())).toEqual(REVOKED);
+    const alerts = await alertRows(current);
+    expect(alerts.map((row) => row.variant)).toEqual(alerts.map(() => 'administrator_granted'));
+    expect(alerts.map((row) => row.recipient_user_id).sort()).toEqual([admin.user.id, colleague.user.id, anna.user.id].sort());
+    expect(alerts.map((row) => row.recipient_user_id)).not.toContain(inactive.user.id);
+    expect(await auditOf(current, 'user.role_changed')).toHaveLength(1);
   });
 
-  it('EVM-027 D3 an Editor with a passkey becomes an Administrator: 200, sessions end, every active Administrator is alerted', async () => {
+  it('EVM-134 AC3 the old refusal is gone for good: no answer of a change of the role is 409 administrator_passkey_required', async () => {
+    const admin = await browserOf(current);
+    const anna = await accountWithSessions(current, { role: 'read_only', count: 0, key: false });
+    const response = await changeRole(current, admin, anna.user.id, 'administrator');
+    expect(response.status).toBe(200);
+    expect(JSON.stringify(response.body)).not.toContain('passkey_required');
+  });
+
+  it('EVM-027 AC7 an Editor with a passkey becomes an Administrator: 200, sessions end, every active Administrator is alerted', async () => {
     const admin = await browserOf(current);
     const anna = await accountWithSessions(current, { role: 'editor', count: 1, key: true });
     const response = await changeRole(current, admin, anna.user.id, 'administrator');
@@ -539,7 +540,7 @@ describe('alerts for the Administrators (EVM-027 AC7; SR-LOG-07)', () => {
     expect((await deactivate(current, admin, anna.user.id)).status).toBe(200);
     expect((await reactivate(current, admin, anna.user.id)).status).toBe(200);
     expect((await resetSecondStep(current, admin, anna.user.id)).status).toBe(200);
-    expect((await changeRole(current, admin, anna.user.id, 'administrator')).status).toBe(409); // no passkey
+    expect((await changeRole(current, admin, anna.user.id, 'editor')).status).toBe(409); // the same role: a refusal
     expect((await deactivate(current, admin, admin.user.id)).status).toBe(409);
 
     expect(await alertRows(current)).toEqual([]);

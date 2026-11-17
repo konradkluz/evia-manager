@@ -200,7 +200,7 @@ MfaAlreadyConfigured:
 RecoveryCodesForbidden:
   description: >-
     Brak dostępu: `step_up_required` (ostatnie uwierzytelnienie kodem z aplikacji lub kluczem dostępu minęło 15 minut temu albo go nie
-    było — także sesja z kodu odzyskiwania), `recovery_codes_regeneration_unavailable` (zachowane dla zgodności: konfiguracja
+    było — także sesja z kodu odzyskiwania i sesja Administratora z logowania kodem, K1), `recovery_codes_regeneration_unavailable` (zachowane dla zgodności: konfiguracja
     po resecie — bieżące kody wygenerowała inna sesja; z konta nowe kody wymagają pełnego ponownego uwierzytelnienia — `reauthentication_required`, EVM-028), `forbidden`.
   content:
     application/problem+json:
@@ -309,8 +309,9 @@ NotFound:
         traceId: 4bf92f3577b34da6a3ce929d0e0e4736
 StepUpRequired:
   description: >-
-    Operacja wymaga ponownego uwierzytelnienia (`step_up_required`): ostatnie uwierzytelnienie kluczem dostępu w tej sesji
-    było 15 minut temu lub wcześniej albo go nie było (sesja z hasła, aktywacji lub kodu odzyskiwania). Zwracane dopiero po
+    Operacja wymaga ponownego uwierzytelnienia (`step_up_required`): ostatni step-up w tej sesji (klucz dostępu albo nowy kod z
+    aplikacji; logowanie Administratora kodem nie otwiera okna — K1) był 15 minut temu lub wcześniej albo go nie było (sesja z hasła, aktywacji, kodu odzyskiwania
+    albo z logowania Administratora kodem). Zwracane dopiero po
     kontroli kanału i roli — rola bez prawa do operacji dostaje `forbidden`.
   content:
     application/problem+json:
@@ -452,7 +453,6 @@ UserAccessConflict:
   description: >-
     Operacja na koncie jest niedozwolona (EVM-027): `last_active_administrator` — to jedyny aktywny Administrator (dezaktywacja albo
     zmiana roli); `own_account_not_allowed` — własne konto (zmiana roli, dezaktywacja, reset drugiego kroku, zakończenie sesji);
-    `administrator_passkey_required` — konto bez klucza dostępu nie może zostać Administratorem (tylko zmiana roli);
     `invalid_state_transition` — konto w stanie, z którego operacja nie jest możliwa (także ta sama rola). Bez danych konta.
   content:
     application/problem+json:
@@ -494,7 +494,7 @@ TransitionForbidden:
   description: >-
     Brak uprawnienia do tego przejścia (`forbidden`: Tylko odczyt zawsze; Edytor przy przywróceniu — przejściu `settled → completed` albo
     `cancelled → on_hold`), nieudana kontrola CSRF (`csrf_failed`) albo konto bez klucza dostępu (`mfa_enrollment_required`). Przywrócenie
-    przez Administratora bez uwierzytelnienia kluczem dostępu w ostatnich 15 minutach — `step_up_required` (sprawdzane po roli: rola bez
+    przez Administratora bez step-upu (klucz dostępu albo nowy kod z aplikacji w ostatnich 15 minutach; logowanie Administratora kodem nie otwiera okna — K1) — `step_up_required` (sprawdzane po roli: rola bez
     prawa do przejścia nigdy się nie dowiaduje o step-upie). Odpowiedzi nie podają stanu zlecenia.
   content:
     application/problem+json:
@@ -509,8 +509,8 @@ TransitionForbidden:
 WorkOrderDeleteForbidden:
   description: >-
     Brak uprawnienia (`forbidden`: Edytor i Tylko odczyt zawsze), nieudana kontrola CSRF (`csrf_failed`) albo konto bez klucza dostępu
-    (`mfa_enrollment_required`). Administrator przy zleceniu z transzą opłaconą bez uwierzytelnienia kluczem dostępu w ostatnich
-    15 minutach — `step_up_required` (sprawdzane po roli i po regule `409`). Odpowiedź nie mówi, czy zlecenie istnieje, i nie podaje
+    (`mfa_enrollment_required`). Administrator przy zleceniu z transzą opłaconą bez step-upu (klucz dostępu albo nowy kod z aplikacji w ostatnich
+    15 minutach; logowanie Administratora kodem nie otwiera okna — K1) — `step_up_required` (sprawdzane po roli i po regule `409`). Odpowiedź nie mówi, czy zlecenie istnieje, i nie podaje
     liczby ani kwot transz.
   content:
     application/problem+json:
@@ -829,7 +829,7 @@ PaymentMilestoneForbidden:
   description: >-
     Brak uprawnienia (`forbidden`: Tylko odczyt zawsze; Edytor przy korekcie płatności — wycofaniu i anulowaniu faktury, cofnięciu
     wpłaty, przywróceniu transzy i zmianie kwoty transzy „Wystawiona” albo „Opłacona”; każda rola przy zmianie kwoty transzy
-    „Anulowana”), Administrator bez uwierzytelnienia kluczem dostępu w ostatnich 15 minutach przy korekcie płatności
+    „Anulowana”), Administrator bez step-upu (klucz dostępu albo nowy kod z aplikacji w ostatnich 15 minutach; logowanie Administratora kodem nie otwiera okna — K1) przy korekcie płatności
     (`step_up_required` — sprawdzane po roli, EVM-057), nieudana kontrola CSRF (`csrf_failed`) albo konto bez klucza dostępu
     (`mfa_enrollment_required`). Odpowiedź nie podaje statusu ani kwoty transzy.
   content:
@@ -885,7 +885,7 @@ PaymentMilestoneUnprocessable:
             code: in_future
 PaymentMilestoneDeleteForbidden:
   description: >-
-    Brak uprawnienia (`forbidden`: Edytor i Tylko odczyt zawsze), Administrator bez uwierzytelnienia kluczem dostępu w ostatnich 15 minutach (`step_up_required` —
+    Brak uprawnienia (`forbidden`: Edytor i Tylko odczyt zawsze), Administrator bez step-upu (klucz dostępu albo nowy kod z aplikacji w ostatnich 15 minutach; logowanie Administratora kodem nie otwiera okna — K1) (`step_up_required` —
     sprawdzane po roli), nieudana kontrola CSRF (`csrf_failed`) albo konto bez klucza dostępu (`mfa_enrollment_required`). Odpowiedź
     nie mówi, czy transza istnieje.
   content:
@@ -1018,9 +1018,8 @@ ReauthenticationRequired:
         traceId: 4bf92f3577b34da6a3ce929d0e0e4736
 SecondStepConflict:
   description: >-
-    Konflikt reguł drugiego kroku (EVM-028 AC4): `last_second_step_method` — nie wolno usunąć ostatniego klucza Administratora
-    (`errors[0].code: passkey_required`) ani ostatniej metody innego konta (`errors[0].code: method_required`) — najpierw trzeba dodać
-    inną metodę; `mfa_already_configured` — konto ma już kod z aplikacji (sekret nigdy nie jest zwracany); `current_session` — bieżącą
+    Konflikt reguł drugiego kroku (EVM-028 AC4, EVM-134 AC3): `last_second_step_method` — nie wolno usunąć ostatniej metody konta (klucza
+    dostępu albo kodu z aplikacji; każda rola, także Administrator; `errors[0].code: method_required`) — najpierw trzeba dodać inną metodę; `mfa_already_configured` — konto ma już kod z aplikacji (sekret nigdy nie jest zwracany); `current_session` — bieżącą
     sesję kończy „Wyloguj”.
   content:
     application/problem+json:
@@ -1034,7 +1033,7 @@ SecondStepConflict:
         traceId: 4bf92f3577b34da6a3ce929d0e0e4736
         errors:
           - pointer: /passkeyId
-            code: passkey_required
+            code: method_required
 # Mobile channel (EVM-090 AC5): every response of the auth, device and sync operations — errors included — is `no-store`
 # problem+json. Codes are the catalogue of api-guidelines.md; no code is invented here.
 MobileValidationFailed:

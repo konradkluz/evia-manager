@@ -26,8 +26,8 @@ const STEP_NUMBER: Record<Step, number> = { method: 1, passkey: 2, totp: 2, code
 
 /**
  * W-03 "Skonfiguruj drugi krok logowania" (EVM-016 AC4, EVM-023 AC1, AC4, AC8; flows/01), variant "od EVM-023": three steps —
- * the choice of the method (a passkey or a code of an authenticator app; the Administrator has only the passkey and goes
- * straight to it), the registration, and the recovery codes shown once. The screen is a blocking state without navigation and
+ * the choice of the method (a passkey or a code of an authenticator app — for every role, the Administrator too since EVM-134 AC2,
+ * ADR-0023), the registration, and the recovery codes shown once. The screen is a blocking state without navigation and
  * data, with "Wyloguj" in the top right corner. The progress of the steps lives in the memory of the tab (offline it stays); a
  * refresh drops it. Once the method is active the session is `active`; the gate keeps this page until "Zakończ konfigurację"
  * (the codes are never shown a second time).
@@ -45,7 +45,7 @@ export function MfaSetupPage() {
   const { logout, pending: loggingOut, failed: logoutFailed } = useLogout();
   const titleRef = useRef<HTMLHeadingElement>(null);
   const stepRef = useRef<HTMLHeadingElement>(null);
-  const [step, setStep] = useState<Step>(role === 'administrator' ? 'passkey' : 'method');
+  const [step, setStep] = useState<Step>('method');
   const [choice, setChoice] = useState<Method>('passkey');
   // What the person set up — for the summary of step 3.
   const [method, setMethod] = useState<Method>('passkey');
@@ -103,12 +103,9 @@ export function MfaSetupPage() {
   };
 
   const current = STEP_NUMBER[step];
-  const back =
-    role === 'administrator'
-      ? undefined
-      : () => {
-          setStep('method');
-        };
+  const back = () => {
+    setStep('method');
+  };
 
   return (
     <BlockingState
@@ -138,7 +135,8 @@ export function MfaSetupPage() {
               { value: 'totp', label: t('mfa.method.totp') },
             ]}
           />
-          {role === 'editor' ? <InlineAlert tone="info">{t('mfa.method.phone')}</InlineAlert> : null}
+          {/* The phone application is for the field roles; Tylko odczyt has no use of it (EVM-023 AC8). */}
+          {role === 'read_only' ? null : <InlineAlert tone="info">{t('mfa.method.phone')}</InlineAlert>}
           <div>
             <Button
               size="lg"
@@ -153,7 +151,6 @@ export function MfaSetupPage() {
       ) : null}
       {step === 'passkey' ? (
         <section className="flex w-full flex-col gap-stack-md">
-          {role === 'administrator' ? <p className="text-body">{t('mfa.passkeyRequired')}</p> : null}
           <p className="text-body">{t('mfa.passkeyDescription')}</p>
           <div>
             <Button
@@ -168,20 +165,16 @@ export function MfaSetupPage() {
               {register.isPending ? t('mfa.inProgress') : t('mfa.add')}
             </Button>
           </div>
-          {back === undefined ? null : (
-            <div>
-              <Button variant="tertiary" disabled={register.isPending} onClick={back}>
-                {t('mfa.totp.back')}
-              </Button>
-            </div>
-          )}
+          <div>
+            <Button variant="tertiary" disabled={register.isPending} onClick={back}>
+              {t('mfa.totp.back')}
+            </Button>
+          </div>
           {online ? null : <p className="text-body-sm text-text-tertiary">{t('mfa.offlineHint')}</p>}
           {register.isError ? <InlineAlert tone="error">{t('mfa.failed')}</InlineAlert> : null}
         </section>
       ) : null}
-      {step === 'totp' ? (
-        <TotpEnrolment online={online} headingRef={stepRef} onConfirmed={confirmedTotp} {...(back === undefined ? {} : { onBack: back })} />
-      ) : null}
+      {step === 'totp' ? <TotpEnrolment online={online} headingRef={stepRef} onConfirmed={confirmedTotp} onBack={back} /> : null}
       {step === 'codes' ? <RecoveryCodesStep variant={method} role={role} online={online} headingRef={stepRef} onFinish={finish} /> : null}
       {logoutFailed ? <InlineAlert tone="error">{t('shell.logoutError')}</InlineAlert> : null}
     </BlockingState>

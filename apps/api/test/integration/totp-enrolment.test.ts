@@ -97,19 +97,26 @@ describe('setup of the code of the app (EVM-023 AC1; SR-AUTH-07, SR-CRYPTO-02, B
     expect((await confirmTotp(panel, codeNow(current, second))).status).toBe(200);
   });
 
-  it('EVM-023 AC8 every role may enrol except the Administrator in the panel (403, nothing stored): Editor and Read-only get the key', async () => {
-    for (const role of ['editor', 'read_only'] as const) {
+  it('EVM-023 AC8 EVM-134 AC2 every role may enrol — the Administrator too: each gets the key, and the Administrator confirms it and is active with the window of the setup open', async () => {
+    for (const role of ['editor', 'read_only', 'administrator'] as const) {
       const { user, panel } = await waitingForSecondStep(role);
       expect((await setup(panel)).response.status, role).toBe(200);
       expect((await factorOf(user.id))?.state, role).toBe('pending');
     }
     const { user, panel } = await waitingForSecondStep('administrator');
     const { response } = await setup(panel);
-    expect(response.status).toBe(403);
-    expect(response.body).toMatchObject({ code: 'forbidden' });
-    expect(await factorOf(user.id)).toBeUndefined();
-    const confirmation = await confirmTotp(panel, '123456');
-    expect(confirmation.status).toBe(403);
+    const { secret } = response.body as { secret: string };
+    const confirmation = await confirmTotp(panel, codeNow(current, secret));
+    expect(confirmation.status).toBe(200);
+    expect((await factorOf(user.id))?.state).toBe('active');
+    const live = await db()
+      .selectFrom('identity.sessions')
+      .select(['state', 'totp_authenticated_at'])
+      .where('user_id', '=', user.id)
+      .where('revoked_at', 'is', null)
+      .execute();
+    // the code was just proved: the third step of the setup may make the recovery codes (ADR-0023 keeps this window)
+    expect(live).toEqual([{ state: 'active', totp_authenticated_at: current.clock.now() }]);
   });
 
   it('EVM-023 AC1 B1 EVM-027 D2 the password alone gives no session to an account without a second step (403 mfa_setup_expired), and a session without a link enrols nothing: setup and confirmation are 403 (AB-01)', async () => {

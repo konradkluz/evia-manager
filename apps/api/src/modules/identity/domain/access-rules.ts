@@ -12,8 +12,7 @@ import type { AlertVariant } from './email-templates.ts';
 export type Role = 'administrator' | 'editor' | 'read_only';
 export type Status = 'invited' | 'active' | 'deactivated';
 
-export type Refusal =
-  'last_active_administrator' | 'own_account_not_allowed' | 'administrator_passkey_required' | 'invalid_state_transition';
+export type Refusal = 'last_active_administrator' | 'own_account_not_allowed' | 'invalid_state_transition';
 
 export type Verdict<T extends object = object> = ({ readonly ok: true } & T) | { readonly ok: false; readonly refusal: Refusal };
 
@@ -26,8 +25,6 @@ export interface AccessFacts {
     readonly status: Status;
     /** The first activation; null = never activated (decides where a reactivated account returns). */
     readonly activatedAt: Date | null;
-    /** Does the account have an ACTIVE passkey (a TOTP factor and recovery codes do not count — an Administrator signs in with a key only). */
-    readonly hasPasskey: boolean;
   };
   /** Active, not deleted Administrators now (the target and the actor included). */
   readonly activeAdministrators: number;
@@ -51,9 +48,8 @@ export function decideRoleChange(facts: AccessFacts, newRole: Role): Verdict<{ r
   const { target } = facts;
   if (target.status === 'deactivated' || target.role === newRole) return refuse('invalid_state_transition');
   if (isLastActiveAdministrator(facts)) return refuse('last_active_administrator');
+  // No method of the second step is required for the new role (EVM-134, ADR-0023: D3 of EVM-027 is gone — a code of the app serves an Administrator too).
   if (isOwn(facts)) return refuse('own_account_not_allowed');
-  // D3 (decision of Konrad, 2026-10-19): an Administrator signs in with a passkey only, so the account must already have one.
-  if (newRole === 'administrator' && !target.hasPasskey) return refuse('administrator_passkey_required');
   return { ok: true, alert: roleChangeAlert(target.role, newRole) };
 }
 

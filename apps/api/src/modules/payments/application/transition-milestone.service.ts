@@ -21,7 +21,7 @@
  *   5. a closed order (settled or cancelled, PO-8) is `409 work_order_closed` — before the table, so the answer does not depend on
  *      the status of the milestone;
  *   6. the row of the table for (the status NOW, `to`): none is `409 invalid_state_transition` — unless the version is stale, which is
- *      `412`; a role the row does not name is `403 forbidden`, then a correction without an authentication with a passkey in the last
+ *      `412`; a role the row does not name is `403 forbidden`, then a correction without a step-up in the last
  *      15 minutes is `403 step_up_required` (the role BEFORE the step-up; one implementation of freshness — `stepUpFresh` of
  *      `identity` with the injected clock). Both before the version and the fields; a `403` rolls back and leaves no idempotency
  *      record, so a retry with the same key after the step-up performs the correction;

@@ -518,7 +518,7 @@ procedureRestore:
     description: >-
       Przywrócenie usuniętego procesu razem z jego etapami (EVM-042 AC3, AC4, AC6; SR-AUTHZ-02, SR-AUTHZ-05, SR-API-05, SR-API-07,
       SR-LOG-03). Tylko Administrator (Edytor i Tylko odczyt — `403 forbidden` przed `If-Match` i sprawdzeniem istnienia;
-      niezalogowany — `401`; token mobilny — `403 forbidden` (kanał niedozwolony)); bez uwierzytelnienia kluczem dostępu (step-up dotyczy
+      niezalogowany — `401`; token mobilny — `403 forbidden` (kanał niedozwolony)); bez step-upu (step-up dotyczy
       przywracania zleceń, nie procesów). Kanał `web`, z audytem (`procedure.restored` — osobna akcja) i zdarzeniem dziennika
       (`procedure_restored`: kod procesu). Wymaga `X-CSRF-Token` i `If-Match` (silny ETag `"<version>"` usuniętego procesu, z
       `listDeletedWorkOrderProcedures`): brak — `428`; zniekształcony — `400`; nieaktualna wersja — `412`. Proces jest wyszukiwany

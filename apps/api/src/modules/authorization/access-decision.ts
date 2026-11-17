@@ -15,8 +15,8 @@
  *    (403 mfa_enrollment_required);
  * 8. channel, then role (403 forbidden). A channel outside the policy is forbidden too; the role that has no phone (Tylko odczyt) on an operation open
  *    to both the panel and the phone is 403 channel_not_allowed (EVM-127 AC2);
- * 9. step-up (EVM-029; SR-SESS-08): an operation with `stepUp: true` needs a passkey authentication of the session within
- *    the last 15 minutes (403 step_up_required). Last on purpose: a role that may not call the operation at all is
+ * 9. step-up (EVM-029; SR-SESS-08): an operation with `stepUp: true` needs a step-up of the session (a passkey or a code of the app; not a
+ *    sign-in of an Administrator with a code, K1 of ADR-0023) within the last 15 minutes (403 step_up_required). Last on purpose: a role that may not call the operation at all is
  *    forbidden and never learns that the operation exists and is protected (SR-AUTHZ-11);
  * 10. object policies are decided by the use case (404) — never here.
  * A policy without roles or channels is forbidden (fail closed).
@@ -66,7 +66,7 @@ export interface AccessRequest {
   readonly rateLimitUser: (principal: Principal) => RateDecision;
   /** Role × channel rule of `identity` (SR-AUTHZ-06). */
   readonly channelAllowed: (role: UserRole, channel: Channel) => boolean;
-  /** Does the passkey authentication of the session still open the step-up window at the (injected) clock's now? */
+  /** Does the last step-up of the session (a passkey or a code of the app; not a sign-in of an Administrator with a code, K1) still open the window at the (injected) clock's now? */
   readonly stepUpFresh: (principal: Principal) => boolean;
 }
 

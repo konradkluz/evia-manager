@@ -286,7 +286,7 @@ timelineEntryRestore:
     summary: Przywrócenie usuniętego wpisu (tylko Administrator)
     description: >-
       Przywrócenie wpisu usuniętego przez `deleteTimelineEntry` (EVM-040 AC1, AC4, AC6; SR-AUTHZ-02, SR-AUTHZ-05, SR-API-05, SR-API-07,
-      SR-LOG-03). Tylko Administrator, kanał `web`, bez uwierzytelnienia kluczem dostępu (cofnięcie ukrycia jest tak samo odwracalne jak
+      SR-LOG-03). Tylko Administrator, kanał `web`, bez step-upu (cofnięcie ukrycia jest tak samo odwracalne jak
       ukrycie), z audytem (`timeline_entry.restored` — osobna akcja, bez treści). Wymaga `X-CSRF-Token` i `If-Match` (silny ETag
       usuniętego wpisu z `getTimelineEntry`): brak — `428`, zniekształcony — `400`, nieaktualna wersja — `412`. Wpis jest wyszukiwany
       warunkiem `id AND work_order_id AND deleted_at is not null`: wpis innego zlecenia, nieistniejący i nieusunięty to jedna odpowiedź
@@ -346,8 +346,7 @@ timelineEntryRedact:
     description: >-
       Trwałe zastąpienie treści wpisu znacznikiem „Treść usunięta przez administratora DD.MM.RRRR.” (data w strefie Europe/Warsaw) — wyjątek
       od zasady tylko do dopisywania, niecofalny (EVM-040 AC2, AC3, AC4, AC5, AC6; SR-PRIV-03, SR-PRIV-04, SR-SESS-08, SR-AUTHZ-02,
-      SR-AUTHZ-05, SR-API-07, SR-LOG-03, SR-DATA-08). Tylko Administrator, kanał `web`, z `X-CSRF-Token`, z uwierzytelnieniem kluczem
-      dostępu w ciągu ostatnich 15 minut (`403 step_up_required`; rola przed step-upem — Edytor i Tylko odczyt dostają `403 forbidden`),
+      SR-AUTHZ-05, SR-API-07, SR-LOG-03, SR-DATA-08). Tylko Administrator, kanał `web`, z `X-CSRF-Token`, ze step-upem (klucz dostępu albo nowy kod z aplikacji; logowanie Administratora kodem nie otwiera okna — K1) w ciągu ostatnich 15 minut (`403 step_up_required`; rola przed step-upem — Edytor i Tylko odczyt dostają `403 forbidden`),
       z audytem (`timeline_entry.redacted` — aktor, identyfikator wpisu, wynik `success` albo `failed`, `traceId`; bez treści). Wymaga
       `If-Match` (silny ETag wpisu): brak — `428`, zniekształcony — `400`, nieaktualna wersja — `412 version_conflict`. Kolejność: zlecenie
       (`404`), wpis tego zlecenia (`id AND work_order_id`, także usunięty — dane osobowe usuniętego wpisu nadal są w bazie; wpis innego

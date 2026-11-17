@@ -14,15 +14,15 @@ export type AccountFailure =
         | 'currentSession'
         | 'configured'
         | 'unavailable'
-        | 'reauthenticationExpired';
+        | 'reauthenticationExpired'
+        | 'lastMethod';
     }
-  | { readonly kind: 'lastMethod'; readonly required: 'passkey' | 'method' }
   | { readonly kind: 'rate'; readonly minutes: number }
   | { readonly kind: 'server'; readonly code: string };
 
 /**
- * Maps the error of an operation of the account (EVM-028 AC3, AC4, AC8): `409 last_second_step_method` with the thing to add first
- * (`passkey_required` for an Administrator's last key, `method_required` for any other last method), `404` as an object that is
+ * Maps the error of an operation of the account (EVM-028 AC3, AC4, AC8): `409 last_second_step_method` — one rule of every role
+ * (EVM-134 AC3: any one method is enough, `method_required` at the method that would go), `404` as an object that is
  * not (or no longer) there — a stranger's and a missing one look the same —, `409 current_session`, `429` with the time from
  * `Retry-After`; no answer is a failure of the network and `503` the secret of the code of the app that is not available; The unknown is never shown raw — only a trace code to report.
  */
@@ -42,7 +42,7 @@ export function describeAccountFailure(error: unknown): AccountFailure {
     case 409:
       switch (error.code) {
         case 'last_second_step_method':
-          return { kind: 'lastMethod', required: error.errors[0]?.code === 'passkey_required' ? 'passkey' : 'method' };
+          return { kind: 'lastMethod' };
         case 'current_session':
           return { kind: 'currentSession' };
         case 'mfa_already_configured':

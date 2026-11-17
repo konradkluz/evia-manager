@@ -79,13 +79,13 @@ describe('the second step of EVM-023 in the contract (SR-AUTH-07, SR-AUTH-08, SR
     expect(schemas['RecoveryCodes']?.properties?.['codes']?.readOnly).toBe(true);
   });
 
-  it('EVM-023 AC8 the endpoints and their authorization: the sign-in codes are public, the setup belongs to the enrolment, the recovery codes need the mark of the full re-authentication or the window of the setup (EVM-028), every role may use them', () => {
+  it('EVM-023 AC8 EVM-134 AC2 the endpoints and their authorization: the sign-in codes are public, the setup belongs to the enrolment of every role, the recovery codes need the mark of the full re-authentication or the window of the setup (EVM-028), every role may use them', () => {
     expect(AUTHZ_MANIFEST['loginTotp']?.authz).toEqual({ public: true });
     expect(AUTHZ_MANIFEST['loginRecoveryCode']?.authz).toEqual({ public: true });
-    // the Administrator has no code of the app in the panel (P1): the manifest itself leaves them out, so the guard answers 403 before any handler
+    // EVM-134 AC2 (ADR-0023): every role — the Administrator too — may enrol a code of the app in the panel
     for (const id of ['startTotpEnrolment', 'confirmTotp'])
       expect(AUTHZ_MANIFEST[id]?.authz, id).toMatchObject({
-        roles: ['editor', 'read_only'],
+        roles: ['administrator', 'editor', 'read_only'],
         channels: ['web'],
         allowDuringMfaEnrollment: true,
       });
@@ -94,5 +94,59 @@ describe('the second step of EVM-023 in the contract (SR-AUTH-07, SR-AUTH-08, SR
     expect(AUTHZ_MANIFEST['generateRecoveryCodes']?.authz.stepUp).toBeUndefined();
     expect(AUTHZ_MANIFEST['generateRecoveryCodes']?.authz.allowDuringMfaEnrollment).toBeUndefined();
     expect(AUTHZ_MANIFEST['stepUp']?.authz.roles).toEqual(['administrator', 'editor', 'read_only']);
+  });
+});
+
+describe('the Administrator and the code of the app in the contract (EVM-134 AC6; ADR-0023)', () => {
+  const text = readFileSync('dist/openapi.json', 'utf8');
+
+  it('EVM-134 AC6 the codes administrator_passkey_required and passkey_required are gone from every description, example and catalogue of the contract', () => {
+    expect(text).not.toContain('administrator_passkey_required');
+    expect(text).not.toContain('passkey_required');
+  });
+
+  it('EVM-134 AC6 no description says that a passkey is the only way of the Administrator in the panel', () => {
+    for (const phrase of [
+      'Administrator w panelu',
+      'wyłącznie klucz dostępu',
+      'tylko do aplikacji na telefonie',
+      'uwierzytelnienia kluczem dostępu w ostatnich',
+    ])
+      expect(text, phrase).not.toContain(phrase);
+  });
+
+  it('EVM-134 AC4 AC6 every description of step_up_required names a passkey OR a code of the app, and the shared response names K1', () => {
+    const bundle = JSON.parse(text) as {
+      paths: Record<string, Record<string, { description?: string }>>;
+      components: { responses: Record<string, { description?: string }> };
+    };
+    const descriptions = [
+      ...Object.values(bundle.paths).flatMap((item) => Object.values(item).map((operation) => operation.description ?? '')),
+      ...Object.values(bundle.components.responses).map((response) => response.description ?? ''),
+    ];
+    // a step-up "by a passkey" alone is the rule before ADR-0023
+    for (const phrase of [
+      'uwierzytelnienie kluczem dostępu w tej sesji',
+      'kluczem dostępu < 15 min',
+      'uwierzytelnieniem kluczem',
+      'uwierzytelnienia kluczem w ciągu',
+    ])
+      expect(text, phrase).not.toContain(phrase);
+    for (const description of descriptions.filter((value) => /(bez step-upu|ze step-upem) \(klucz/.test(value)))
+      expect(description).toContain('nowy kod z aplikacji');
+    expect(bundle.components.responses['StepUpRequired']?.description).toMatch(/kod z aplikacji.*K1/s);
+  });
+
+  it('EVM-134 AC5 the operations of the administration of users say what the token of the phone really gets: 401 unauthenticated, never a 403', () => {
+    const bundle = JSON.parse(text) as { paths: Record<string, Record<string, { operationId?: string; description?: string }>> };
+    const users = Object.entries(bundle.paths)
+      .filter(([path]) => path.startsWith('/api/v1/users'))
+      .flatMap(([, item]) => Object.values(item))
+      .filter((operation) => /token/.test(operation.description ?? ''));
+    expect(users.length).toBeGreaterThanOrEqual(7);
+    for (const operation of users) {
+      expect(operation.description, operation.operationId).toContain('`401 unauthenticated`');
+      expect(operation.description, operation.operationId).not.toMatch(/token\s+mobilny/);
+    }
   });
 });

@@ -47,7 +47,6 @@ export const PROBLEMS = Object.freeze({
   email_conflict: { status: 409, title: 'A user with this e-mail address already exists' },
   last_active_administrator: { status: 409, title: 'The account is the last active Administrator' },
   own_account_not_allowed: { status: 409, title: 'The operation is not allowed on your own account' },
-  administrator_passkey_required: { status: 409, title: 'An Administrator needs a passkey' },
   idempotency_in_progress: { status: 409, title: 'A request with this idempotency key is in progress' },
   invalid_state_transition: { status: 409, title: 'Transition is not allowed from the current state' },
   work_order_closed: { status: 409, title: 'The work order is closed' },

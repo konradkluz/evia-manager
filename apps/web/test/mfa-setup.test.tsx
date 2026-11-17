@@ -80,6 +80,11 @@ afterEach(() => {
   FakePublicKeyCredential.parseCreationOptionsFromJSON.mockClear();
 });
 
+/** Step 1: the passkey is the default choice; "Dalej" leads to its step (EVM-134 AC2: the Administrator chooses too). */
+async function toPasskeyStep() {
+  await userEvent.click(screen.getByRole('button', { name: 'Dalej' }));
+}
+
 /** Step 3: the codes are shown, the box is ticked and "Zakończ konfigurację" leaves for the panel. */
 async function finishCodes() {
   await screen.findByRole('heading', { level: 2, name: 'Kody odzyskiwania' });
@@ -88,7 +93,7 @@ async function finishCodes() {
 }
 
 describe('W-03 Skonfiguruj drugi krok logowania (EVM-016 AC4; flows/01)', () => {
-  it('EVM-016 AC4 a session in mfa_enrollment lands every address on W-03: the Administrator goes straight to the passkey, no navigation, no data, "Wyloguj" on top', async () => {
+  it('EVM-016 AC4 EVM-134 AC2 a session in mfa_enrollment lands every address on W-03: the Administrator chooses the method like an Editor, no navigation, no data, "Wyloguj" on top', async () => {
     const api = enrollmentApi();
     const { history } = await renderPanel('/work-orders', api);
     expect(history.location.pathname).toBe('/mfa-setup');
@@ -96,18 +101,22 @@ describe('W-03 Skonfiguruj drugi krok logowania (EVM-016 AC4; flows/01)', () => 
     expect(document.activeElement).toBe(title);
     expect(document.title).toBe('Konfiguracja logowania · EVia Manager');
     expect(screen.getByText('Logowanie do EVia Manager wymaga drugiego kroku.')).toBeTruthy();
-    expect(screen.getByText('Krok 2 z 3')).toBeTruthy();
-    expect(screen.getByText('Klucz dostępu jest obowiązkowy.')).toBeTruthy();
-    expect(screen.getByText(/Klucz dostępu: Windows Hello, klucz bezpieczeństwa albo klucz dostępu w telefonie/)).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Dodaj klucz dostępu' })).toBeTruthy();
+    expect(screen.getByText('Krok 1 z 3')).toBeTruthy();
+    // EVM-134 AC2, AC6: the passkey is no longer obligatory for an Administrator — the same choice as an Editor.
+    expect(screen.queryByText('Klucz dostępu jest obowiązkowy.')).toBeNull();
+    expect(screen.getByRole('radio', { name: /Klucz dostępu — Windows Hello/ })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: 'Kod z aplikacji uwierzytelniającej' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Wyloguj' })).toBeTruthy();
-    // No choice of method for an Administrator (the code of the app is only for the phone — P1), no recovery codes yet.
-    expect(screen.queryByRole('radio')).toBeNull();
-    expect(screen.queryByText(/kod z aplikacji|Krok 1 z 3|kody odzyskiwania/i)).toBeNull();
+    expect(screen.queryByText(/kody odzyskiwania/i)).toBeNull();
     expect(screen.queryByRole('navigation')).toBeNull();
     expect(screen.queryByText('Zlecenia')).toBeNull();
     expect(api.requests.map((request) => request.path)).toEqual(['/api/v1/auth/session']);
     expect(await axeViolations(document.body, { bestPractice: true })).toEqual([]);
+    await toPasskeyStep();
+    expect(screen.getByText('Krok 2 z 3')).toBeTruthy();
+    expect(screen.getByText(/Klucz dostępu: Windows Hello, klucz bezpieczeństwa albo klucz dostępu w telefonie/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Dodaj klucz dostępu' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Wybierz inną metodę' })).toBeTruthy();
   });
 
   it('EVM-016 AC4 a refresh of W-03 reads the session again (and with it the CSRF token) — nothing is kept in storage', async () => {
@@ -120,6 +129,7 @@ describe('W-03 Skonfiguruj drugi krok logowania (EVM-016 AC4; flows/01)', () => 
     const create = stubWebAuthn();
     const api = enrollmentApi();
     const { history } = await renderPanel('/mfa-setup', api);
+    await toPasskeyStep();
     await userEvent.click(screen.getByRole('button', { name: 'Dodaj klucz dostępu' }));
     // The session is `active` now, yet W-03 stays for step 3 (the codes are shown once).
     expect(await screen.findByRole('heading', { level: 2, name: 'Kody odzyskiwania' })).toBeTruthy();
@@ -160,6 +170,7 @@ describe('W-03 Skonfiguruj drugi krok logowania (EVM-016 AC4; flows/01)', () => 
         }),
     );
     await renderPanel('/mfa-setup', enrollmentApi());
+    await toPasskeyStep();
     await userEvent.click(screen.getByRole('button', { name: 'Dodaj klucz dostępu' }));
     const busy = await screen.findByRole('button', { name: 'Postępuj zgodnie z instrukcją systemu.' });
     expect(busy.getAttribute('aria-busy')).toBe('true');
@@ -183,6 +194,7 @@ describe('W-03 Skonfiguruj drugi krok logowania (EVM-016 AC4; flows/01)', () => 
     setup();
     const api = enrollmentApi(overrides);
     const { history } = await renderPanel('/mfa-setup', api);
+    await toPasskeyStep();
     await userEvent.click(screen.getByRole('button', { name: 'Dodaj klucz dostępu' }));
     expect((await screen.findByRole('alert')).textContent).toContain('Nie udało się dodać klucza dostępu. Spróbuj ponownie.');
     expect(history.location.pathname).toBe('/mfa-setup');
@@ -202,6 +214,7 @@ describe('W-03 Skonfiguruj drugi krok logowania (EVM-016 AC4; flows/01)', () => 
       },
     });
     await renderPanel('/mfa-setup', api);
+    await toPasskeyStep();
     await userEvent.click(screen.getByRole('button', { name: 'Dodaj klucz dostępu' }));
     // The gate then reports the failed read of the session instead of guessing.
     expect(await screen.findByRole('heading', { level: 1, name: 'Coś poszło nie tak' })).toBeTruthy();
@@ -219,6 +232,7 @@ describe('W-03 offline (EVM-016 AC4; flows/01, § 4.10)', () => {
     const onLine = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
     const api = enrollmentApi();
     await renderPanel('/mfa-setup', api);
+    await toPasskeyStep();
     expect(
       screen
         .getByText('Brak połączenia. Konfiguracja wymaga połączenia z internetem. Postęp zostaje na tej karcie.')

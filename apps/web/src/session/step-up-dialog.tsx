@@ -11,13 +11,15 @@ import { getPasskey } from '../passkey/get-passkey.ts';
 import { useOnline } from '../shell/use-online.ts';
 import { setCsrfToken } from './csrf.ts';
 import { SESSION_KEY, useSession } from './session.ts';
-import { runStepUp } from './step-up.ts';
+import { isMissingMethod, runStepUp } from './step-up.ts';
 
 export type StepUpMethod = 'passkey' | 'totp';
 
 type Failure =
   | { readonly kind: 'key' }
   | { readonly kind: 'code' }
+  | { readonly kind: 'noKey' }
+  | { readonly kind: 'noCode' }
   | { readonly kind: 'rate'; readonly minutes: number }
   | { readonly kind: 'server'; readonly code: string };
 
@@ -35,9 +37,11 @@ function classify(error: unknown, method: StepUpMethod): Failure {
 }
 
 /**
- * W-04 "Potwierdź tożsamość, aby …" (EVM-029 AC1, AC3, AC4, EVM-023 AC7; styleguide § 3.13): the dialog of the step-up. An
- * Administrator confirms only with a passkey; an Editor and a Read-only user with a passkey or a code of the authenticator app
- * (one field, never sent on its own). No recovery code, no other way (decision 16). The key or the code is checked by the
+ * W-04 "Potwierdź tożsamość, aby …" (EVM-029 AC1, AC3, AC4, EVM-023 AC7, EVM-134 AC4; styleguide § 3.13): the dialog of the
+ * step-up. Every role is offered a passkey and a code of the authenticator app (one field, never sent on its own); an account
+ * without the chosen method gets `403 forbidden` and is told to use the other one. After a login of an Administrator with the
+ * code the server wants a NEW code (K1, ADR-0023): the field of the Administrator says that the same code does not work twice,
+ * and the code of the login is refused like a wrong one. No recovery code, no other way (decision 16). The key or the code is checked by the
  * server (its own challenge, the key of the account, user verification; the code with a counter of failures of the session);
  * the answer brings the new CSRF token of the rotated session, which replaces the old one at once. A failed key or code leaves
  * the dialog open with a message; "Anuluj" and Esc close it without doing anything. Offline the dialog says so and sends nothing.
@@ -51,7 +55,7 @@ export function StepUpDialog({
   readonly title: string;
   /** The summary of the operation under the title (EVM-057: what is corrected, then the instalment, the order and the amount). */
   readonly details?: readonly string[];
-  /** Methods offered; by default the role decides (Administrator — passkey only). The server checks the method anyway. */
+  /** Methods offered; by default the passkey and the code for every role. The server checks the method anyway. */
   readonly methods?: readonly StepUpMethod[] | undefined;
   readonly onDone: (confirmed: boolean) => void;
 }) {
@@ -61,9 +65,11 @@ export function StepUpDialog({
   const online = useOnline();
   const id = useId();
   const session = useSession();
-  const offered: readonly StepUpMethod[] = methods ?? (session.data?.user.role === 'administrator' ? ['passkey'] : ['passkey', 'totp']);
+  const isAdministrator = session.data?.user.role === 'administrator';
+  const offered: readonly StepUpMethod[] = methods ?? ['passkey', 'totp'];
   const withCode = offered.includes('totp');
   const codeInput = useRef<HTMLInputElement>(null);
+  const keyButton = useRef<HTMLButtonElement>(null);
   const [code, setCode] = useState('');
   const [failure, setFailure] = useState<Failure | null>(null);
 
@@ -88,6 +94,12 @@ export function StepUpDialog({
         onDone(false);
         return;
       }
+      if (withCode && isMissingMethod(error)) {
+        // No key on the account: the field of the code is the way on.
+        setFailure({ kind: 'noKey' });
+        codeInput.current?.focus();
+        return;
+      }
       setFailure(classify(error, 'passkey'));
     },
   });
@@ -102,6 +114,12 @@ export function StepUpDialog({
       if (isSessionProblem(error)) {
         setCode('');
         onDone(false);
+        return;
+      }
+      if (isMissingMethod(error)) {
+        // No code of the app on the account: the key is the way on (the typed code stays — it is no secret of the account).
+        setFailure({ kind: 'noCode' });
+        keyButton.current?.focus();
         return;
       }
       const next = classify(error, 'totp');
@@ -123,6 +141,10 @@ export function StepUpDialog({
         return t('stepUp.failed');
       case 'code':
         return t('stepUp.code.invalid');
+      case 'noKey':
+        return t('stepUp.noKey');
+      case 'noCode':
+        return t('stepUp.noCode');
       case 'rate':
         return t('stepUp.rateLimited', { minutes: failure.minutes });
       case 'server':
@@ -153,7 +175,10 @@ export function StepUpDialog({
     }
     confirmCode.mutate(value);
   };
-  const hint = session.data?.user.role === 'administrator' ? t('stepUp.resetHint') : t('stepUp.resetHintOther');
+  const hint = isAdministrator ? t('stepUp.resetHint') : t('stepUp.resetHintOther');
+  // K1: only an Administrator's login with the code leaves the window closed — the hint asking for a new code is theirs
+  // (one text; the field reads it with the label through `aria-describedby`).
+  const codeHint = isAdministrator ? t('stepUp.code.hintFresh') : t('stepUp.code.hint');
 
   return (
     <AlertDialog
@@ -163,6 +188,7 @@ export function StepUpDialog({
       actions={
         <>
           <Button
+            ref={keyButton}
             data-initial-focus
             icon={KeyRound}
             loading={confirm.isPending}
@@ -191,7 +217,7 @@ export function StepUpDialog({
         <form noValidate onSubmit={submitCode} className="flex flex-col gap-stack-sm">
           <TextField
             label={t('stepUp.code.label')}
-            hint={t('stepUp.code.hint')}
+            hint={codeHint}
             value={code}
             variant="one-time-code"
             inputRef={codeInput}

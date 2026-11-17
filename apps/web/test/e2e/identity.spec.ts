@@ -141,7 +141,9 @@ test.describe('W-13 Ustaw hasło in the browser (EVM-016 AC3, AC5)', () => {
 test.describe('W-03 and the panel after registering the key (EVM-016 AC4)', () => {
   test.use({ session: 'enrollment' });
 
-  test('EVM-016 AC4 a session without the second step sees only W-03 on every address, with "Wyloguj"', async ({ page }) => {
+  test('EVM-016 AC4 EVM-134 AC2 a session without the second step sees only W-03 on every address, with "Wyloguj" and the choice of the method', async ({
+    page,
+  }) => {
     for (const path of ['/work-orders', '/', '/nie-ma-takiej-strony']) {
       await page.goto(path);
       await expect(page).toHaveURL(`${ORIGIN}/mfa-setup`);
@@ -150,8 +152,10 @@ test.describe('W-03 and the panel after registering the key (EVM-016 AC4)', () =
     await expect(page).toHaveTitle('Konfiguracja logowania · EVia Manager');
     await expect(page.getByRole('navigation')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Wyloguj' })).toBeVisible();
+    // EVM-134 AC2: the Administrator chooses between the passkey and the code like an Editor.
+    await expect(page.getByRole('radio')).toHaveCount(2);
+    await page.getByRole('button', { name: 'Dalej' }).click();
     await expect(page.getByRole('button', { name: 'Dodaj klucz dostępu' })).toBeVisible();
-    await expect(page.getByRole('radio')).toHaveCount(0);
   });
 
   test('EVM-016 AC4 the passkey is created by the browser, verified against the origin and the challenge, and the panel opens', async ({
@@ -165,6 +169,7 @@ test.describe('W-03 and the panel after registering the key (EVM-016 AC4)', () =
     );
     await virtualAuthenticator(page);
     await page.goto('/mfa-setup');
+    await page.getByRole('button', { name: 'Dalej' }).click();
     await page.getByRole('button', { name: 'Dodaj klucz dostępu' }).click();
 
     // EVM-023 AC4: the key does not open the window of the step-up, so the codes ask for the key once more (W-04), then step 3 shows them.
@@ -198,6 +203,7 @@ test.describe('W-03 and the panel after registering the key (EVM-016 AC4)', () =
     await virtualAuthenticator(page);
     api.failNext.set('POST /api/v1/account/passkeys', { status: 400, code: 'passkey_verification_failed' });
     await page.goto('/mfa-setup');
+    await page.getByRole('button', { name: 'Dalej' }).click();
     await page.getByRole('button', { name: 'Dodaj klucz dostępu' }).click();
     await expect(page.getByRole('alert')).toContainText('Nie udało się dodać klucza dostępu. Spróbuj ponownie.');
     await expect(page).toHaveURL(`${ORIGIN}/mfa-setup`);

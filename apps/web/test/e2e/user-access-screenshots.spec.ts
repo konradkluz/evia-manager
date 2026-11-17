@@ -38,7 +38,7 @@ test.describe('UX review screenshots (EVM-027) @screenshots', () => {
       await shot(`w16-menu-deactivated-${px}`);
     });
 
-    test(`EVM-027 W-16 the dialog of the role: the present role, the alert for Administrators and the missing key at ${px} px`, async ({
+    test(`EVM-027 W-16 the dialog of the role: the present role and the alert for Administrators at ${px} px`, async ({
       page,
       api,
       shot,
@@ -53,9 +53,6 @@ test.describe('UX review screenshots (EVM-027) @screenshots', () => {
       await shot(`w16-role-${px}`);
       await dialog.getByRole('radio', { name: /^Administrator/ }).check();
       await shot(`w16-role-administrator-${px}`);
-      await dialog.getByRole('button', { name: 'Zmień rolę' }).click();
-      await expect(dialog.getByRole('alert')).toContainText('To konto musi najpierw dodać klucz dostępu');
-      await shot(`w16-role-passkey-required-${px}`);
     });
 
     test(`EVM-027 W-16 the dialog of the reset of the second step: empty, with the error, for an Administrator at ${px} px`, async ({

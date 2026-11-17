@@ -3,7 +3,7 @@
  * EVM-054 Q1; SR-API-05, SR-API-06, SR-API-07, SR-AUTHZ-02, SR-AUTHZ-05, SR-AUTHZ-10, SR-LOG-03, SR-SESS-08, ASVS V2.3.3, CWE-639).
  * Soft delete: the row stays (`deleted_at`, `deleted_by`), the milestone leaves every list, total and signal of payments for every
  * role, and the live ones after it move up by one place. The guard has decided before this runs: the Administrator on the web channel
- * with a valid CSRF token and an authentication with a passkey in the last 15 minutes (`stepUp` of the operation in the contract) —
+ * with a valid CSRF token and a step-up in the last 15 minutes (`stepUp` of the operation in the contract) —
  * the Editor and Read-only get `403 forbidden`, the Administrator without a fresh step-up `403 step_up_required`, an anonymous caller
  * `401`, none of them reaching the headers.
  *
