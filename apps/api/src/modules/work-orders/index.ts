@@ -29,5 +29,6 @@ export {
   type DeletedOrderRef,
   type WorkOrderDirectory,
   type WorkOrderListRef,
+  type SiteSurveyRef,
   type WorkOrderRef,
 } from './work-order-directory.ts';

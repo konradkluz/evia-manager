@@ -18,7 +18,15 @@ WorkOrderSort:
     niezamknięte czekające dłużej niż 14 dni (klucz: `waitingSince` najdłuższego oczekiwania), 3) zlecenie niezamknięte z
     terminem etapu od dziś (klucz: najbliższy termin), 4) pozostałe, także zamknięte. Rola bez odczytu płatności dostaje
     kolejność bez składowej płatności (grupa 1 tylko z etapów). Serwer odrzuca wartość spoza listy (`400 validation_failed`).
-  enum: [-number, number, -createdAt, createdAt, longestWaitingSince, nextDueDate, urgency]
+    `siteSurveyExpiresAt` (EVM-135): termin wygaśnięcia wizji lokalnej rosnąco, remis — identyfikator; tylko w `listWorkOrders` razem z
+    `siteSurvey=only` (bez niego, także w `searchWorkOrders`, `400 validation_failed` na `/sort`).
+  enum: [-number, number, -createdAt, createdAt, longestWaitingSince, nextDueDate, urgency, siteSurveyExpiresAt]
+WorkOrderSiteSurveyFilter:
+  type: string
+  description: >-
+    Filtr wizji lokalnych (EVM-135, ADR-0024): `only` — tylko otwarte wizje, `exclude` — bez otwartych wizji. Brak parametru — wizje razem
+    ze zwykłymi zleceniami (z etykietą `siteSurvey`).
+  enum: [only, exclude]
 SiteSurvey:
   type: object
   description: >-

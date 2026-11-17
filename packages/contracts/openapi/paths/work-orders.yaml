@@ -26,6 +26,10 @@ workOrders:
       wymagają prawa odczytu płatności (`restrictedParams` w `x-evia-authz`; v1: wszystkie trzy role). Bez niego widok płatności
       daje `403 forbidden` (po walidacji, przed odczytem), `urgency` liczy kolejność bez składowej płatności, a pole `payment` nie
       występuje. Domyślne sortowanie API się nie zmienia (`-number`); panel wysyła `sort=urgency` jawnie.
+      Wizje lokalne (EVM-135, ADR-0024): domyślnie na liście razem ze zleceniami, z obiektem `siteSurvey` (`customer: null`,
+      `site: null` — adres wizji tylko w szczegółach); `siteSurvey=only` — tylko otwarte wizje (wtedy także sortowanie
+      `siteSurveyExpiresAt` — termin rosnąco), `siteSurvey=exclude` — bez nich. Widoki raportowe `waiting_on_dso_over_14_days`,
+      `overdue_payments` i `unpaid` pomijają otwarte wizje. Tylko odczyt nie widzi otwartych wizji w żadnym widoku.
       Frazy wyszukiwania w adresie nie ma (SR-API-04): do tego służy `searchWorkOrders`. Lista czyta model odczytu (`overview`),
       kontrakt operacji — ścieżka, `operationId`, tag i `x-evia-authz` — jest bez zmian.
       Paginacja kursorem nieprzezroczystym (`nextCursor`; bez licznika wyników): zmieniony, wygasły (30 minut), wydany komu innemu
@@ -72,6 +76,12 @@ workOrders:
           type: string
           format: uuid
           maxLength: 36
+      - name: siteSurvey
+        in: query
+        required: false
+        description: Filtr wizji lokalnych (`only` albo `exclude`; EVM-135).
+        schema:
+          $ref: ../components/work-orders.yaml#/WorkOrderSiteSurveyFilter
       - name: siteType
         in: query
         required: false

@@ -131,6 +131,8 @@ describe('the default view and the columns of the list (EVM-017 AC1)', () => {
       // customer of the fixture; an order without a site has `null`
       customer: { id: FIXTURE_CUSTOMER_ID, displayName: expect.stringContaining('Fikstury') as string },
       site: null,
+      // the mark of the site survey (EVM-135, additive): an ordinary order has none
+      siteSurvey: null,
       // the column "Płatność" (EVM-056, additive; a role that may read payments): an order without milestones has nothing issued
       payment: {
         state: 'none',
@@ -150,6 +152,7 @@ describe('the default view and the columns of the list (EVM-017 AC1)', () => {
       'number',
       'payment',
       'site',
+      'siteSurvey',
       'status',
       'title',
       'waiting',

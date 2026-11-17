@@ -38,6 +38,8 @@ describe('work orders list contract (EVM-017 AC2, AC3, AC7; SR-AUTHZ-05, SR-INPU
         'cursor',
         'customerId',
         'limit',
+        // the filter of the site surveys (EVM-135, additive)
+        'siteSurvey',
         // "Więcej filtrów" (EVM-072, additive)
         'siteType',
         'sort',

@@ -35,6 +35,8 @@ function row(overrides: Partial<WorkOrderRow> = {}): WorkOrderRow {
     status: 'in_progress',
     createdAt: new Date('2026-10-01T08:00:00.000Z'),
     deletedAt: null,
+    // EVM-135: an ordinary order, not a site survey
+    siteSurveyExpiresAt: null,
     coordinatorUserId: null,
     customerId: null,
     siteId: null,

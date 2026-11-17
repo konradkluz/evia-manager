@@ -390,6 +390,8 @@ export interface VisibleOrderRef {
   readonly customerId: string | null;
   /** Settled or cancelled (PO-8). */
   readonly closed: boolean;
+  /** An open site survey (EVM-135): the reports of payments leave it out. */
+  readonly siteSurvey: boolean;
 }
 
 /**
@@ -405,15 +407,56 @@ export async function findVisibleRefs(
   if (ids.length === 0) return new Map();
   const rows = await db
     .selectFrom('work_orders.work_orders')
-    .select(['id', 'number', 'title', 'customer_id', 'status'])
+    .select(['id', 'number', 'title', 'customer_id', 'status', 'site_survey_expires_at'])
     .where(sql<SqlBool>`${sql.ref('work_orders.work_orders.id')} = any(${[...ids]}::uuid[])`)
     .where(visibleWorkOrders(principal))
     .execute();
   return new Map(
     rows.map((row) => [
       row.id,
-      { number: row.number, title: row.title, customerId: row.customer_id, closed: CLOSED_STATUSES.includes(row.status) },
+      {
+        number: row.number,
+        title: row.title,
+        customerId: row.customer_id,
+        closed: CLOSED_STATUSES.includes(row.status),
+        siteSurvey: row.site_survey_expires_at !== null,
+      },
     ]),
+  );
+}
+
+/** An open site survey as the list shows it (EVM-135 AC6): the deadline, the extensions and the phone of the requester - never the address. */
+export interface VisibleSiteSurvey {
+  readonly expiresAt: Date;
+  readonly extensionCount: number;
+  readonly requesterPhone: string | null;
+}
+
+/** The open site surveys among `ids` that the caller may see - ONE query with the read policy in it, the identifiers as ONE array parameter. */
+export async function findVisibleSiteSurveys(
+  db: WorkOrdersDb,
+  principal: Principal,
+  ids: readonly string[],
+): Promise<Map<string, VisibleSiteSurvey>> {
+  if (ids.length === 0) return new Map();
+  const rows = await db
+    .selectFrom('work_orders.work_orders')
+    .select(['id', 'site_survey_expires_at', 'site_survey_extensions', 'requester_phone'])
+    .where(sql<SqlBool>`${sql.ref('work_orders.work_orders.id')} = any(${[...ids]}::uuid[])`)
+    .where('site_survey_expires_at', 'is not', null)
+    .where(visibleWorkOrders(principal))
+    .execute();
+  return new Map(
+    rows.flatMap((row) =>
+      row.site_survey_expires_at === null
+        ? []
+        : [
+            [
+              row.id,
+              { expiresAt: row.site_survey_expires_at, extensionCount: row.site_survey_extensions, requesterPhone: row.requester_phone },
+            ],
+          ],
+    ),
   );
 }
 
