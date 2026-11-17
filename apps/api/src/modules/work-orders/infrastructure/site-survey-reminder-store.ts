@@ -1,4 +1,4 @@
-﻿/**
+/**
  * The queries of the reminder of a site survey that is about to be deleted (EVM-140 AC1; ADR-0024 pt 9). Every value is a bound parameter, the columns are named.
  * An open survey that is due: no customer, a deadline not later than the horizon, never reminded, not cancelled, not deleted, not purged. Neither the address nor
  * the phone of the requester is read.
@@ -41,7 +41,7 @@ export async function markReminded(db: WorkOrdersDb, id: string, now: Date): Pro
 export async function surveyForReminder(db: WorkOrdersDb, id: string) {
   return db
     .selectFrom('work_orders.work_orders')
-    .select(['id', 'number', 'site_survey_expires_at', 'created_by', 'customer_id', 'status', 'deleted_at'])
+    .select(['id', 'number', 'site_survey_expires_at', 'site_survey_extensions', 'created_by', 'customer_id', 'status', 'deleted_at'])
     .where('id', '=', id)
     .executeTakeFirst();
 }

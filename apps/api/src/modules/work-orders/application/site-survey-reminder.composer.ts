@@ -62,6 +62,7 @@ export class SiteSurveyReminderComposer implements EmailComposer {
       number: survey.number,
       workOrderId: survey.id,
       expiresAt,
+      extensions: survey.site_survey_extensions,
     });
     return { status: 'ready', email: createOutgoingEmail({ to, subject, text }) };
   }

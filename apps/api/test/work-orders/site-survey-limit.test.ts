@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
   SITE_SURVEY_LIMIT_PER_CREATOR,
   SITE_SURVEY_LIMIT_TOTAL,

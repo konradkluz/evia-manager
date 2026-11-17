@@ -202,8 +202,9 @@ describe('the message (EVM-140 AC1, AC5)', () => {
     expect(sender.sent.map((mail) => mail.to).sort()).toEqual(addresses);
     for (const mail of sender.sent) {
       expect(mail.subject).toBe(`EVia Manager: wizja lokalna ${due.number} zostanie usunięta`);
-      expect(mail.text).toContain(`Wizja lokalna ${due.number} zostanie usunięta dnia 14.02.2027.`);
+      expect(mail.text).toContain(`wizja lokalna ${due.number} zostanie usunięta dnia 14.02.2027.`);
       expect(mail.text).toContain('Przypisz klienta, przedłuż albo odrzuć.');
+      expect(mail.text).toContain('Wizję możesz przedłużyć najwyżej dwa razy, za każdym');
       expect(mail.text).toContain(`${PANEL_ORIGIN}/work-orders/${due.id}`);
       for (const secret of [STREET, CITY, POSTAL, TITLE, PHONE, '600140003']) {
         expect(mail.text).not.toContain(secret);
@@ -313,5 +314,23 @@ describe('what stays out of the trails, and a failure of one survey (EVM-140 AC5
       for (const haystack of haystacks) expect(haystack).not.toContain(secret);
     }
     expect(current.logs.text).toContain('site survey reminder: done');
+  });
+});
+
+describe('the two variants of the text (EVM-140 AC1; docs/ux/flows/e-maile.md section 10)', () => {
+  it('EVM-140 AC1 a survey extended twice gets the variant without the extension, with the date of the new deadline; the link is the same', async () => {
+    const creator = await user('editor');
+    const due = await survey({ creator, expiresAt: new Date('2027-08-13T08:00:00.000Z') });
+    await sql`update work_orders.work_orders set site_survey_extensions = 2 where id = ${due.id}`.execute(admin());
+    current.clock.set(new Date('2027-08-01T08:00:00.000Z'));
+    await job().run();
+    const { sender, send } = sendingJob();
+    await send.run({ ids: await outboxIds() });
+    const mail = sender.sent.find((candidate) => candidate.text.includes(due.number));
+    expect(mail?.text).toContain(`wizja lokalna ${due.number} zostanie usunięta dnia 13.08.2027.`);
+    expect(mail?.text).toContain('Przypisz klienta albo odrzuć.');
+    expect(mail?.text).not.toContain('przedłuż albo odrzuć');
+    expect(mail?.text).toContain('Ta wizja była już dwukrotnie przedłużona i nie można jej przedłużyć');
+    expect(mail?.text).toContain(`${PANEL_ORIGIN}/work-orders/${due.id}`);
   });
 });

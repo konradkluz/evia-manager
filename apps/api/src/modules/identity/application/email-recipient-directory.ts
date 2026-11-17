@@ -1,4 +1,4 @@
-﻿/**
+/**
  * What the composer of another module may ask `identity` to send a message of its own (the facade of ADR-0001; EVM-140 AC1; SR-DATA-01, SR-DATA-03): to lock the
  * account of the recipient (the first lock of the unit of work of the outbox) and to read, at the moment of SENDING, the address and the role of an ACTIVE account.
  * It exists for the composers of the outbox ONLY: the outbox holds identifiers, never an address, so the address is read here, in the transaction of the job, and

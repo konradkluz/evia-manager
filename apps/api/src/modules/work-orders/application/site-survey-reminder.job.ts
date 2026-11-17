@@ -1,4 +1,4 @@
-﻿/**
+/**
  * The reminder of a site survey that is about to be deleted (EVM-140 AC1, AC5; ADR-0024 pt 9; SR-DATA-01, SR-LOG-03, DO-K): a job of the worker, once a day, finds
  * the open surveys whose deadline is 15 days away or nearer and that were never reminded (no customer, not cancelled, not deleted, not purged), and for each of them -
  * in ONE transaction of its own - writes one message of the outbox to the creator and to every active Administrator (the same person once) and sets

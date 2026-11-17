@@ -357,7 +357,7 @@ tego nie da się cofnąć.
 
 [stopka]
 ```
-- **Link:** `[link: Zlecenie]` — W-06 wizji w panelu (`[adres panelu]/zlecenia/[identyfikator]`), **bez tokenu**; po kliknięciu zwykłe logowanie, a po zalogowaniu przejście do zlecenia (nieupoważniony odbiorca widzi „Nie znaleziono zlecenia…”). Identyfikator w ścieżce to identyfikator zlecenia, nie adres.
+- **Link:** `[link: Zlecenie]` — W-06 wizji w panelu (`[adres panelu]/work-orders/[identyfikator]` — ścieżka W-06 w panelu, `apps/web/src/paths.ts`), **bez tokenu**; po kliknięciu zwykłe logowanie, a po zalogowaniu przejście do zlecenia (nieupoważniony odbiorca widzi „Nie znaleziono zlecenia…”). Identyfikator w ścieżce to identyfikator zlecenia, nie adres.
 - **Brzmienie:** pierwsze zdanie wariantu A zgodne z EVM-140 AC1 („Wizja lokalna ZL-… zostanie usunięta dnia …. Przypisz klienta, przedłuż albo odrzuć.”); wariant B skraca drugie zdanie, bo „przedłuż” nie jest już dostępne (rozstrzygnięcie ux-designera, do potwierdzenia razem z kodami powodów — EVM-140 „Decyzje i ograniczenia”).
 - **Treść stała w szablonie:** wiadomość nie zawiera „za N dni” — mogłaby się zdezaktualizować, zanim odbiorca ją otworzy; data wystarcza.
 - **Test (EVM-140 AC5, Mailpit):** w treści i temacie nie ma adresu ani telefonu z danych testowych; polskie znaki poprawne; link nienaruszony.

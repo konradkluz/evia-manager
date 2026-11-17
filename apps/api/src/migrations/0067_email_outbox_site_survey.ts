@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 0067 - the e-mail of a site survey that is about to expire (EVM-140 AC1; ADR-0024 pt 9). Expand only: ONE CHECK that only grows - `platform.email_outbox.kind`
  * accepts `site_survey_expiring` besides the ten kinds of 0052 (the pattern of 0052 and 0058: the constraint is rewritten with the FULL list of the newest
  * definition plus the new value). Nothing is dropped, renamed or rewritten, there is NO backfill, no column and no index; every row that exists satisfies the wider
