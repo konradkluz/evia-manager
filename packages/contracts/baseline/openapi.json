@@ -2662,6 +2662,8 @@
           "work_order.updated",
           "work_order.customer_assigned",
           "work_order.site_survey_extended",
+          "work_order.site_survey_purged",
+          "work_order.site_survey_purge_failed",
           "scope_item.created",
           "scope_item.updated",
           "scope_item.deleted",
