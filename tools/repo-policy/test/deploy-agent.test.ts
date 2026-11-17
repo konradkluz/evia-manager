@@ -87,6 +87,15 @@ describe('the VM side of the channel (EVM-007 AC1, AC4, AC7; architect 3, 12–1
     expect('DELETION_REGISTER_S3_SECRET_ACCESS_KEY_FILE' in record(record(channel['worker'])['environment'])).toBe(false);
   });
 
+  it('EVM-139 AC1 AC6: the deployment keeps the purge of site surveys in the mode report - the worker has no register key yet, so `enforce` could not even start', () => {
+    const workerEnvironment = record(record(channel['worker'])['environment']);
+    expect(workerEnvironment['SITE_SURVEY_PURGE_MODE']).toBe('report');
+    expect('SITE_SURVEY_PURGE_MODE' in record(record(channel['api'])['environment'])).toBe(false);
+    for (const key of ['DELETION_REGISTER_BUCKET', 'DELETION_REGISTER_S3_ACCESS_KEY_ID', 'DELETION_REGISTER_S3_SECRET_ACCESS_KEY_FILE']) {
+      expect(key in workerEnvironment, key).toBe(false);
+    }
+  });
+
   it('EVM-084 (RR-42): api and worker each get their own media key under the same variable name, and neither file reaches the other service', () => {
     const holdersOf = (file: string) =>
       Object.entries(secrets)
