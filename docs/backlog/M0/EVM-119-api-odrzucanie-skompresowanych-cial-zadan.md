@@ -51,3 +51,4 @@ Jako **właściciel produktu** chcę, **aby API nie dekodowało skompresowanych 
 - 2026-10-27 — utworzono (product-owner) z RR-39
 - 2026-11-13 — triage wg decyzji „jedno środowisko” (product-owner): zostaje, P2 (mała, lekka); API z realnymi danymi jest bardziej wystawione, więc w pierwszych tygodniach użycia — w wolnym oknie między historyjkami; AC bez zmian.
 - 2026-11-18 — zaakceptowana przez Konrada („akceptuję EVM-111 i EVM-119”); status `ready` (Tech Lead)
+- 2026-11-18 — zaimplementowano (backend-developer): żaden klient (web, mobile wraz z natywnym silnikiem wysyłania, pakiety, infra, tools) nie wysyła skompresowanych ciał; jedyny parser ciał (`express.json` w `json-body.ts`; Nest z `bodyParser: false`) działa z `inflate: false`; testy: `apps/api/test/http/compressed-bodies.test.ts` (AC1, AC2, AC4), `apps/api/test/platform/body-parsers-config.test.ts` (AC3). Kontrakt OpenAPI bez zmian (415 `unsupported_media_type` już istnieje).
