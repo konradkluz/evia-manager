@@ -1,3 +1,5 @@
+import type { AuthCode } from './ports';
+
 /**
  * Answers of the device controls that the e2e variant may change (EVM-101; security K7). The object exists ONLY in the panel of the
  * e2e hooks (bundled by plugins/e2e-hooks-resolver.ts); in every other bundle `deviceOverrides` of `src/e2e-hooks` is `null`.
@@ -25,12 +27,9 @@ export function overrideLock<T extends { isDeviceSecure(): Promise<boolean> }>(p
 }
 
 /** The system unlock answers `success` while `autoUnlock` is set (e2e variant only); otherwise the real prompt. */
-export function overrideAuthenticator<T extends { authenticate(): Promise<'success' | 'cancelled' | 'error'> }>(
-  port: T,
-  overrides: DeviceOverrides | null,
-): T {
+export function overrideAuthenticator<T extends { authenticate(): Promise<AuthCode> }>(port: T, overrides: DeviceOverrides | null): T {
   if (overrides === null) return port;
-  return { ...port, authenticate: () => (overrides.autoUnlock ? Promise.resolve('success' as const) : port.authenticate()) };
+  return { ...port, authenticate: () => (overrides.autoUnlock ? Promise.resolve<AuthCode>('success') : port.authenticate()) };
 }
 
 /**

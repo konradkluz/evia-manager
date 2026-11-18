@@ -1,4 +1,5 @@
 import type { ContactReading } from '../../src/device-guard/device-guard';
+import type { AuthCode } from '../../src/device-guard/ports';
 import { DAY, MIN, rig } from './fakes';
 
 const settle = async () => {
@@ -188,16 +189,184 @@ describe('lock of the app (EVM-101 AC3, P7)', () => {
     expect(r.guard.getSnapshot().locked).toBe(false);
   });
 
-  it('EVM-101 AC3: unlock() while unlocked or already prompting is a no-op that never opens a second window', async () => {
+  it('EVM-101 AC3: unlock() while unlocked is a no-op; the automatic request never opens a second window while one is open', async () => {
     const r = await started();
     expect(await r.guard.unlock()).toBe(true);
     expect(r.facts.authCalls).toBe(0);
     r.guard.signedOut();
-    const first = r.guard.unlock();
-    const second = r.guard.unlock();
+    const first = r.guard.unlock({ auto: true });
+    const second = r.guard.unlock({ auto: true });
     expect(await second).toBe(false);
     expect(await first).toBe(true);
     expect(r.facts.authCalls).toBe(1);
+  });
+});
+
+/** A system unlock that answers only when the test says so (or never). */
+function manualRig(extra: { unlockTimeoutMs?: number } = {}) {
+  const pending: ((code: AuthCode) => void)[] = [];
+  const base = rig({
+    authenticator: {
+      authenticate: () =>
+        new Promise<AuthCode>((resolve) => {
+          pending.push(resolve);
+        }),
+    },
+    ...extra,
+  });
+  base.guard.start();
+  return { ...base, pending };
+}
+
+const lockEvents = (events: unknown[]) => events.filter((e) => (e as { event: string }).event === 'app-lock');
+
+describe('the unlock button is never dead (EVM-101 AC3 fix, P7)', () => {
+  it('EVM-101 AC3: a request that never answers - the next press asks again and its success unlocks', async () => {
+    const r = manualRig();
+    const first = r.guard.unlock({ auto: true });
+    expect(r.guard.getSnapshot()).toMatchObject({ prompting: true, locked: true });
+    const second = r.guard.unlock(); // the button, while the first request is still open
+    expect(r.pending).toHaveLength(2);
+    r.pending[1]?.('success');
+    expect(await second).toBe(true);
+    expect(await first).toBe(false);
+    expect(r.guard.getSnapshot()).toMatchObject({ locked: false, prompting: false, unlockFailed: false });
+  });
+
+  it('EVM-101 AC3: the late answer of the replaced request changes nothing (neither state nor diagnostics)', async () => {
+    const r = manualRig();
+    const first = r.guard.unlock({ auto: true });
+    const second = r.guard.unlock();
+    r.pending[0]?.('success'); // the old window "succeeds" after it was replaced: ignored
+    expect(await first).toBe(false);
+    expect(r.guard.getSnapshot()).toMatchObject({ locked: true, prompting: true });
+    expect(lockEvents(r.events)).toEqual([]);
+    r.pending[1]?.('cancelled');
+    expect(await second).toBe(false);
+    expect(r.guard.getSnapshot()).toMatchObject({ locked: true, prompting: false, unlockFailed: false });
+    expect(lockEvents(r.events)).toEqual([{ event: 'app-lock', outcome: 'cancelled' }]);
+  });
+
+  it('EVM-101 AC3: no answer within the time limit - not prompting, still locked, the failure is flagged; a new press works', async () => {
+    jest.useFakeTimers();
+    try {
+      const r = manualRig({ unlockTimeoutMs: 120_000 });
+      const attempt = r.guard.unlock({ auto: true });
+      await jest.advanceTimersByTimeAsync(119_999);
+      expect(r.guard.getSnapshot().prompting).toBe(true);
+      await jest.advanceTimersByTimeAsync(1);
+      expect(await attempt).toBe(false);
+      expect(r.guard.getSnapshot()).toMatchObject({ prompting: false, locked: true, unlockFailed: true });
+      expect(r.events).toContainEqual({ event: 'app-lock', outcome: 'js_timeout' });
+      const again = r.guard.unlock();
+      expect(r.pending).toHaveLength(2);
+      r.pending[1]?.('success');
+      expect(await again).toBe(true);
+      expect(r.guard.getSnapshot()).toMatchObject({ locked: false, unlockFailed: false });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('EVM-101 AC3: a real success that comes after the time limit still unlocks (nothing newer took over)', async () => {
+    jest.useFakeTimers();
+    try {
+      const r = manualRig({ unlockTimeoutMs: 1000 });
+      const attempt = r.guard.unlock();
+      await jest.advanceTimersByTimeAsync(1000);
+      expect(await attempt).toBe(false);
+      r.pending[0]?.('success');
+      await jest.advanceTimersByTimeAsync(0);
+      expect(r.guard.getSnapshot()).toMatchObject({ locked: false, unlockFailed: false });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('EVM-101 AC3: a late success of an attempt that a newer one replaced after the time limit is ignored', async () => {
+    jest.useFakeTimers();
+    try {
+      const r = manualRig({ unlockTimeoutMs: 1000 });
+      const attempt = r.guard.unlock();
+      await jest.advanceTimersByTimeAsync(1000);
+      expect(await attempt).toBe(false);
+      void r.guard.unlock();
+      r.pending[0]?.('success');
+      await jest.advanceTimersByTimeAsync(0);
+      expect(r.guard.getSnapshot()).toMatchObject({ locked: true, prompting: true });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it.each(['error', 'not_resumed_timeout', 'no_callback_timeout', 'js_timeout', 'cannot_authenticate', 'exception'] as const)(
+    'EVM-101 AC3 (F): the code %s keeps the app locked, flags the failure and reaches the diagnostics as the bare code',
+    async (code) => {
+      const r = manualRig();
+      const attempt = r.guard.unlock();
+      r.pending[0]?.(code);
+      expect(await attempt).toBe(false);
+      expect(r.guard.getSnapshot()).toMatchObject({ locked: true, prompting: false, unlockFailed: true });
+      expect(lockEvents(r.events)).toEqual([{ event: 'app-lock', outcome: code }]);
+    },
+  );
+
+  it('EVM-101 AC3: the default limit of the JS side is 120 s and a code typed for a minute is not cut', async () => {
+    jest.useFakeTimers();
+    try {
+      const r = manualRig();
+      const attempt = r.guard.unlock();
+      await jest.advanceTimersByTimeAsync(60_000);
+      expect(r.guard.getSnapshot().prompting).toBe(true);
+      r.pending[0]?.('success');
+      expect(await attempt).toBe(true);
+      const slow = manualRig();
+      slow.guard.signedOut();
+      const second = slow.guard.unlock();
+      await jest.advanceTimersByTimeAsync(120_000);
+      expect(await second).toBe(false);
+      expect(slow.events).toContainEqual({ event: 'app-lock', outcome: 'js_timeout' });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it.each(['cancelled', 'superseded'] as const)('EVM-101 AC3: the code %s is silent - no failure flag, still locked', async (code) => {
+    const r = manualRig();
+    const attempt = r.guard.unlock();
+    r.pending[0]?.(code);
+    expect(await attempt).toBe(false);
+    expect(r.guard.getSnapshot()).toMatchObject({ locked: true, prompting: false, unlockFailed: false });
+    expect(lockEvents(r.events)).toEqual([{ event: 'app-lock', outcome: code }]);
+  });
+
+  it('EVM-101 AC3: after the answer nothing is left to supersede - a later attempt has no stale resolver to call', async () => {
+    const r = manualRig();
+    const first = r.guard.unlock();
+    r.pending[0]?.('cancelled');
+    await first;
+    const second = r.guard.unlock();
+    expect(r.guard.getSnapshot().prompting).toBe(true);
+    r.pending[1]?.('success');
+    expect(await second).toBe(true);
+  });
+
+  it('EVM-101 AC3: cancelling flags no failure; a new attempt clears an earlier failure', async () => {
+    const r = manualRig();
+    const failed = r.guard.unlock();
+    r.pending[0]?.('error');
+    await failed;
+    expect(r.guard.getSnapshot().unlockFailed).toBe(true);
+    const next = r.guard.unlock();
+    expect(r.guard.getSnapshot().unlockFailed).toBe(false);
+    r.pending[1]?.('cancelled');
+    await next;
+    expect(r.guard.getSnapshot()).toMatchObject({ unlockFailed: false, locked: true });
+  });
+
+  it('EVM-101 AC3: the guard exposes its AppState source for the cover', () => {
+    const r = rig();
+    expect(r.guard.appState).toBe(r.appState);
   });
 });
 

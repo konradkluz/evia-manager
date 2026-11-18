@@ -10,7 +10,7 @@ import type { GuardDiagnostic } from '../logging/log';
 import { AppLock } from './app-lock';
 import { contactView, contactWarning, hiddenReason, UNKNOWN_CONTACT, type ContactView, type HiddenReason } from './hidden-mode';
 import { patchBanner, type PatchBanner } from './patch-level';
-import type { AppStateName, AppStateSource, Authenticator, BootClock, DeviceLock, PatchSource } from './ports';
+import type { AppStateName, AppStateSource, AuthCode, Authenticator, BootClock, DeviceLock, PatchSource } from './ports';
 
 /** Contact facts of the open session; `null` = no session (nothing to evaluate). */
 export type ContactReading = { readonly status: ContactStatus | null; readonly windowDays: unknown } | null;
@@ -20,6 +20,8 @@ export interface GuardSnapshot {
   readonly locked: boolean;
   /** The system unlock is on screen (its transitions of `AppState` are ignored). */
   readonly prompting: boolean;
+  /** The last unlock attempt failed (not cancelled): the cover shows the hint under the button. */
+  readonly unlockFailed: boolean;
   readonly contact: ContactView;
   readonly wiping: boolean;
   readonly hidden: HiddenReason | null;
@@ -37,7 +39,11 @@ export interface GuardDeps {
   readonly contact: () => Promise<ContactReading>;
   readonly now: () => number;
   readonly diagnostics?: (event: GuardDiagnostic) => void;
+  /** The last line of defence of the JS side (code `js_timeout`): without any answer the attempt counts as failed. Default 120 s - it must not cut the user typing a code. */
+  readonly unlockTimeoutMs?: number;
 }
+
+const UNLOCK_TIMEOUT_MS = 120_000;
 
 export class DeviceGuard {
   readonly #d: GuardDeps;
@@ -49,6 +55,11 @@ export class DeviceGuard {
   #contact: ContactView = UNKNOWN_CONTACT;
   #wiping = false;
   #prompting = false;
+  #unlockFailed = false;
+  /** Token of the newest unlock attempt: the answer of an older one (cancelled, late) never changes the state. */
+  #attempt = 0;
+  /** Ends the wait of the attempt in flight when a newer one starts (its promise does not hang until the time limit). */
+  #supersede: (() => void) | undefined;
   #patch: PatchBanner = 'none';
   #patchDismissed = false;
   #patchRead = false;
@@ -82,6 +93,11 @@ export class DeviceGuard {
       this.#listeners.delete(listener);
     };
   };
+
+  /** The source of `AppState` of this guard (the cover asks for the unlock only in the foreground). */
+  get appState(): AppStateSource {
+    return this.#d.appState;
+  }
 
   getSnapshot = (): GuardSnapshot => this.#snapshot;
 
@@ -163,22 +179,57 @@ export class DeviceGuard {
     this.#publish();
   }
 
-  /** The system unlock. Cancelling or an error leaves the app locked. */
-  async unlock(): Promise<boolean> {
-    if (this.#prompting || !this.#lock.locked) return !this.#lock.locked;
+  /**
+   * The system unlock. Cancelling, an error and a timeout leave the app locked (fail-closed). Pressing it while a request is open
+   * asks AGAIN (the native side cancels the older window): the button is never dead. `auto` = the cover asks by itself; it never
+   * opens a second request while one is open.
+   */
+  async unlock(options: { readonly auto?: boolean } = {}): Promise<boolean> {
+    if (!this.#lock.locked) return true;
+    if (options.auto === true && this.#prompting) return false;
+    this.#supersede?.();
+    this.#attempt += 1;
+    const token = this.#attempt;
     this.#prompting = true;
+    this.#unlockFailed = false;
     this.#publish();
-    let result: 'success' | 'cancelled' | 'error';
-    try {
-      result = await this.#d.authenticator.authenticate();
-    } catch {
-      result = 'error';
+    const answer: Promise<AuthCode> = this.#d.authenticator.authenticate().then(
+      (code) => code,
+      () => 'error' as const,
+    );
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<AuthCode>((resolve) => {
+      timer = setTimeout(() => {
+        resolve('js_timeout');
+      }, this.#d.unlockTimeoutMs ?? UNLOCK_TIMEOUT_MS);
+    });
+    const replaced = new Promise<AuthCode>((resolve) => {
+      this.#supersede = () => {
+        resolve('superseded');
+      };
+    });
+    const code = await Promise.race([answer, timeout, replaced]);
+    clearTimeout(timer);
+    if (token === this.#attempt) this.#supersede = undefined; // nothing left to end for this attempt
+    if (token !== this.#attempt) return false; // replaced by a newer attempt: its answer decides
+    const unlocked = this.#settleUnlock(code);
+    if (code === 'js_timeout') {
+      // a real success of the system that comes late (the user was slow) still counts, unless a newer attempt took over
+      void answer.then((late) => {
+        if (late === 'success' && token === this.#attempt && this.#lock.locked) this.#settleUnlock(late);
+      });
     }
+    return unlocked;
+  }
+
+  #settleUnlock(code: AuthCode): boolean {
     this.#prompting = false;
-    if (result === 'success') this.#lock.unlock();
-    this.#d.diagnostics?.({ event: 'app-lock', outcome: result });
+    // cancelled and superseded are silent: the user closed the window / a newer request took over
+    this.#unlockFailed = code !== 'success' && code !== 'cancelled' && code !== 'superseded';
+    if (code === 'success') this.#lock.unlock();
+    this.#d.diagnostics?.({ event: 'app-lock', outcome: code });
     this.#publish();
-    return result === 'success';
+    return code === 'success';
   }
 
   #compute(): GuardSnapshot {
@@ -189,6 +240,7 @@ export class DeviceGuard {
       // notice "Włącz blokadę ekranu"), the camera and the queue stay reachable (AC1); the lock returns with the screen lock
       locked: this.#lock.locked && this.#screenSecure !== false,
       prompting: this.#prompting,
+      unlockFailed: this.#unlockFailed,
       contact: this.#contact,
       wiping: this.#wiping,
       hidden,

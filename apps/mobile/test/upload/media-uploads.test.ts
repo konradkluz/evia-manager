@@ -493,14 +493,28 @@ describe('the state of a file in the view (EVM-130 AC4)', () => {
       r.native.emit('onFileState', event);
       await new Promise((resolve) => setTimeout(resolve, 100));
     };
+    // the view is rebuilt after the store is written (the handler of the event is not awaited by anyone): wait for the view instead of guessing a
+    // time - under a loaded machine the fixed pause was now and then too short (the store already said "uploaded", the view still "waiting")
+    const view = async (expected: readonly Record<string, unknown>[]): Promise<void> => {
+      const deadline = Date.now() + 5_000;
+      while (Date.now() < deadline) {
+        try {
+          expect(r.uploads.getSnapshot().files).toMatchObject(expected);
+          return;
+        } catch {
+          await new Promise((resolve) => setTimeout(resolve, 20));
+        }
+      }
+      expect(r.uploads.getSnapshot().files).toMatchObject(expected);
+    };
     await fire({ assetId: asset(1), state: 'queued', reason: null });
     expect(await states(r)).toEqual(['01:applied']);
     await fire({ assetId: asset(1), state: 'uploaded', reason: null });
     expect(await states(r)).toEqual(['01:uploaded']);
-    expect(r.uploads.getSnapshot().files).toMatchObject([{ status: 'sent', actions: [] }]);
+    await view([{ status: 'sent', actions: [] }]);
     await fire({ assetId: asset(1), state: 'queued', reason: 'checksum_mismatch' });
     expect(await states(r)).toEqual(['01:failed']);
-    expect(r.uploads.getSnapshot().files).toMatchObject([{ status: 'error', code: 'checksum_mismatch', actions: ['retry'] }]);
+    await view([{ status: 'error', code: 'checksum_mismatch', actions: ['retry'] }]);
     // a late event never undoes a later decision: the row is not in applied/uploaded any more
     await fire({ assetId: asset(1), state: 'uploaded', reason: null });
     await fire({ assetId: asset(1), state: 'needs_attention', reason: 'id_conflict' });

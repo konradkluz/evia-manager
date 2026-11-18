@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { describe, it } from 'node:test';
 import { E2E_HOOKS_MARKER, PLACEHOLDER_API_HOST } from '../src/contents.mjs';
 import { apkanalyzerCommand, verifyApk } from '../src/verify.mjs';
-import { DEX_PACKAGES, FINAL_CLAUSES } from './helpers.mjs';
+import { DEX_PACKAGES, FINAL_CLAUSES, withUnlockPermission } from './helpers.mjs';
 
 /** @param {string} name */
 const read = (name) => readFileSync(join(import.meta.dirname, 'fixtures', name), 'utf8');
@@ -24,7 +24,7 @@ function analyzer(overrides = {}) {
   const calls = [];
   /** @type {Record<string, string | null>} */
   const answers = {
-    'manifest print app.apk': read('manifest-print.txt'),
+    'manifest print app.apk': withUnlockPermission(read('manifest-print.txt')),
     'resources value --config default --type xml --name evia_network_security_config app.apk': 'res/xml/evia_network_security_config.xml\n',
     'resources value --config default --type xml --name evia_backup_rules app.apk': 'res/xml/evia_backup_rules.xml\n',
     'resources value --config default --type xml --name evia_data_extraction_rules app.apk': 'res/xml/evia_data_extraction_rules.xml\n',
@@ -121,7 +121,7 @@ describe('verification of the built APK (EVM-009 AC5, AC6)', () => {
     );
     const result = verifyApk(OPTIONS, analyzer({ 'resources xml --file res/xml/evia_network_security_config.xml app.apk': weakened }).host);
     assert.deepEqual(result.problems, ['evia_network_security_config: base-config does not forbid cleartext traffic']);
-    const manifest = read('manifest-print.txt').replace('android:allowBackup="false"', 'android:allowBackup="true"');
+    const manifest = withUnlockPermission(read('manifest-print.txt')).replace('android:allowBackup="false"', 'android:allowBackup="true"');
     assert.deepEqual(verifyApk(OPTIONS, analyzer({ 'manifest print app.apk': manifest }).host).problems, [
       'manifest: allowBackup is not false',
     ]);
@@ -188,7 +188,7 @@ describe('verification of the built APK (EVM-009 AC5, AC6)', () => {
 });
 
 describe('verification of a package with the camera (EVM-108 AC8; SR-MOB-12, SR-SUPPLY-06)', () => {
-  const MANIFEST = read('manifest-print.txt');
+  const MANIFEST = withUnlockPermission(read('manifest-print.txt'));
   const withCamera = MANIFEST.replace('</manifest>', '<uses-permission android:name="android.permission.CAMERA" /></manifest>');
 
   it('EVM-108 AC8: a package with CAMERA, CameraX and nothing of Google passes', () => {

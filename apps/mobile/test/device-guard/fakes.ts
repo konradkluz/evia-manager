@@ -1,7 +1,7 @@
 // Fakes of the device-control ports (EVM-101): every answer is set by the test; nothing touches a native module.
 import type { ContactReading, GuardDeps } from '../../src/device-guard/device-guard';
 import { DeviceGuard } from '../../src/device-guard/device-guard';
-import type { AppStateName, AppStateSource } from '../../src/device-guard/ports';
+import type { AppStateName, AppStateSource, AuthCode } from '../../src/device-guard/ports';
 
 export const MIN = 60_000;
 export const DAY = 86_400_000;
@@ -34,7 +34,9 @@ export interface Rig {
     secure: boolean | 'throws';
     contact: ContactReading | 'throws';
     patch: string | null;
-    auth: 'success' | 'cancelled' | 'error' | 'throws';
+    auth: AuthCode | 'throws' | 'pending' | 'manual';
+    /** `auth = 'manual'`: one resolver per request; the test answers it when it wants (like the system window does). */
+    answers: ((code: AuthCode) => void)[];
     authCalls: number;
     contactCalls: number;
     /** Runs while the system unlock window is open (it may emit AppState changes like the real one). */
@@ -54,6 +56,7 @@ export function rig(overrides: Partial<GuardDeps> = {}): Rig {
     contact: null,
     patch: '2026-10-05',
     auth: 'success',
+    answers: [],
     authCalls: 0,
     contactCalls: 0,
     duringAuth: null,
@@ -67,6 +70,12 @@ export function rig(overrides: Partial<GuardDeps> = {}): Rig {
       authenticate: () => {
         facts.authCalls += 1;
         facts.duringAuth?.();
+        if (facts.auth === 'manual') {
+          return new Promise<AuthCode>((resolve) => {
+            facts.answers.push(resolve);
+          });
+        }
+        if (facts.auth === 'pending') return new Promise<AuthCode>(() => undefined); // the window that never answers
         return facts.auth === 'throws' ? Promise.reject(new Error('native (synthetic)')) : Promise.resolve(facts.auth);
       },
     },

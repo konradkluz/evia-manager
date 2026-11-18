@@ -4,6 +4,15 @@ import { join } from 'node:path';
 const FIXTURES = join(import.meta.dirname, 'fixtures');
 const read = (/** @type {string} */ name) => readFileSync(join(FIXTURES, name), 'utf8');
 
+/**
+ * The fixture `manifest-print.txt` is the real output for a package built before the unlock window (EVM-101 AC3) and is not written by
+ * hand (README); the verifier REQUIRES USE_BIOMETRIC, so the tests read the fixture with the permission added, like the "with the
+ * camera" variant is built in verify.test.mjs.
+ * @param {string} manifest
+ */
+export const withUnlockPermission = (manifest) =>
+  manifest.replace('</manifest>', '<uses-permission android:name="android.permission.USE_BIOMETRIC" /></manifest>');
+
 /** The declaration of the build for approved clauses (apps/mobile/plugins/expo-config.ts `extra.privacyClauses`). */
 export const FINAL_CLAUSES = '{"extra":{"buildVariant":"release","privacyClauses":{"draft":false,"markers":false}}}';
 /** `apkanalyzer dex packages --defined-only` of the app: its own and androidx packages only. */
@@ -21,7 +30,7 @@ export function analyzerAnswers(args, apk, bundle, appConfig = FINAL_CLAUSES) {
   const key = args.slice(args.indexOf('com.android.tools.apk.analyzer.ApkAnalyzerCli') + 1).join(' ');
   /** @type {Record<string, string>} */
   const answers = {
-    [`manifest print ${apk}`]: read('manifest-print.txt'),
+    [`manifest print ${apk}`]: withUnlockPermission(read('manifest-print.txt')),
     [`files list ${apk}`]:
       bundle === undefined
         ? `${read('files-list.txt')}

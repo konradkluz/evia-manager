@@ -3,6 +3,7 @@ import { App } from '../src/App';
 import { pl } from '../src/i18n/pl';
 import type { StartupChecker } from '../src/startup';
 import { DAY, MIN } from './device-guard/fakes';
+import { frames } from './mocks/after-frames';
 import { okSignIn, stubOwner, stubPorts, type PortsRig } from './session-helpers';
 
 jest.mock('react-native-safe-area-context', () => {
@@ -199,6 +200,175 @@ describe('lock of the app (EVM-101 AC3)', () => {
     expect(screen.getAllByRole('switch').map((node) => String(node.props.accessibilityLabel))).toEqual(['Filmy tylko przez Wi-Fi']);
     expect(screen.queryByRole('switch', { name: /blokad/i })).toBeNull();
     expect(whole().toLowerCase()).not.toContain('blokada aplikacji');
+  });
+});
+
+describe('the cover asks at the right moment and its button is never dead (EVM-101 AC3 fix)', () => {
+  afterEach(() => {
+    frames.manual = false;
+    frames.queue = [];
+  });
+  const runFrames = () =>
+    act(() => {
+      const queued = frames.queue;
+      frames.queue = [];
+      for (const task of queued) task();
+    });
+
+  it('EVM-101 AC3: the automatic request waits for the first frames - none at mount, one after them, never two', async () => {
+    frames.manual = true;
+    const rig = stubPorts();
+    rig.device.facts.auth = 'cancelled';
+    await open(rig);
+    expect(screen.getByTestId('lock-overlay')).toBeOnTheScreen();
+    expect(rig.device.facts.authCalls).toBe(0);
+    expect(frames.queue).toHaveLength(1);
+    await runFrames();
+    await settle();
+    expect(rig.device.facts.authCalls).toBe(1);
+    expect(frames.queue).toHaveLength(0);
+  });
+
+  it('EVM-101 AC3: an app that starts in the background does not ask; the return to the foreground does, after the frames', async () => {
+    frames.manual = true;
+    const rig = stubPorts();
+    rig.device.facts.auth = 'cancelled';
+    rig.device.appState.state = 'background';
+    await open(rig);
+    await runFrames();
+    await settle();
+    expect(screen.getByTestId('lock-overlay')).toBeOnTheScreen();
+    expect(rig.device.facts.authCalls).toBe(0);
+    await act(() => {
+      rig.device.appState.emit('active');
+    });
+    expect(rig.device.facts.authCalls).toBe(0);
+    await runFrames();
+    await settle();
+    expect(rig.device.facts.authCalls).toBe(1);
+  });
+
+  it('EVM-101 AC3: after 5 minutes in the background the cover asks again by itself; the window of the system itself never loops it', async () => {
+    const rig = stubPorts();
+    await open(rig);
+    expect(screen.queryByTestId('lock-overlay')).toBeNull();
+    const before = rig.device.facts.authCalls; // the cold start asked once (and opened)
+    rig.device.facts.auth = 'cancelled';
+    await act(() => {
+      rig.device.appState.emit('background');
+      rig.device.time.boot = rig.device.time.boot + 6 * MIN;
+      rig.device.time.wall += 6 * MIN;
+      rig.device.appState.emit('active');
+    });
+    await settle();
+    expect(rig.device.facts.authCalls).toBe(before + 1);
+    // the cancelled window: no further request without the user (no loop)
+    await act(() => {
+      rig.device.appState.emit('inactive');
+      rig.device.appState.emit('active');
+    });
+    await settle();
+    expect(rig.device.facts.authCalls).toBe(before + 1);
+  });
+
+  let rigOf: PortsRig;
+  const emit = (...states: ('active' | 'background' | 'inactive')[]) =>
+    act(() => {
+      for (const state of states) rigOf.device.appState.emit(state);
+    });
+  const openManual = async () => {
+    rigOf = stubPorts();
+    rigOf.device.facts.auth = 'manual';
+    await open(rigOf);
+    expect(rigOf.device.facts.authCalls).toBe(1); // the automatic request of the cold start is open
+    expect(screen.getByTestId('lock-overlay')).toBeOnTheScreen();
+  };
+  const answer = async (code: 'cancelled' | 'success') => {
+    await act(() => {
+      rigOf.device.facts.answers.at(-1)?.(code);
+    });
+    await settle();
+  };
+
+  it('EVM-101 AC3: the system window itself (inactive <-> active, even in a loop) never asks again, while the request is open or after its cancel', async () => {
+    await openManual();
+    await emit('inactive', 'active', 'inactive', 'active');
+    await settle();
+    expect(rigOf.device.facts.authCalls).toBe(1);
+    await answer('cancelled');
+    await emit('inactive', 'active');
+    await settle();
+    expect(rigOf.device.facts.authCalls).toBe(1);
+  });
+
+  it('EVM-101 AC3: a real trip to the background while a request is open is remembered - the return after its cancel asks once', async () => {
+    await openManual();
+    await emit('background'); // Home: the system cancels the window meanwhile
+    await answer('cancelled');
+    expect(rigOf.device.facts.authCalls).toBe(1);
+    await emit('active');
+    await settle();
+    expect(rigOf.device.facts.authCalls).toBe(2);
+    await emit('inactive', 'active'); // and no loop after that
+    await settle();
+    expect(rigOf.device.facts.authCalls).toBe(2);
+  });
+
+  it('EVM-101 AC3: the background comes before the answer, the return after it - still one request (inactive on the way does not matter)', async () => {
+    await openManual();
+    await emit('inactive', 'background');
+    await answer('cancelled');
+    await emit('inactive', 'active');
+    await settle();
+    expect(rigOf.device.facts.authCalls).toBe(2);
+  });
+
+  it('EVM-101 AC3: a return while the window is still open asks nothing, also not after its later cancel', async () => {
+    await openManual();
+    await emit('background', 'active'); // the window survived the trip (the system window of the screen lock itself)
+    await settle();
+    expect(rigOf.device.facts.authCalls).toBe(1);
+    await answer('cancelled');
+    await emit('inactive', 'active');
+    await settle();
+    expect(rigOf.device.facts.authCalls).toBe(1);
+  });
+
+  it.each([
+    ['error', true],
+    ['not_resumed_timeout', true],
+    ['cancelled', false],
+  ] as const)(
+    'EVM-101 AC3: the answer %s -> the hint under the button: %s; the app stays locked; the next success opens it',
+    async (answer, hint) => {
+      const rig = stubPorts();
+      rig.device.facts.auth = answer;
+      await open(rig);
+      expect(screen.queryByText(pl.lock.failed) !== null).toBe(hint);
+      if (hint) expect(screen.getByTestId('lock-failed')).toHaveProp('accessibilityRole', 'alert');
+      expect(screen.getByTestId('lock-overlay')).toBeOnTheScreen();
+      rig.device.facts.auth = 'success';
+      await fireEvent.press(screen.getByTestId('lock-unlock'));
+      await settle();
+      expect(screen.queryByTestId('lock-overlay')).toBeNull();
+      expect(screen.queryByText(pl.lock.failed)).toBeNull();
+    },
+  );
+
+  it('EVM-101 AC3: the button is named "Odblokuj", is never disabled or busy, and asks again while a request is open', async () => {
+    const rig = stubPorts();
+    rig.device.facts.auth = 'pending'; // the system window that never answers
+    await open(rig);
+    expect(rig.device.facts.authCalls).toBe(1);
+    const button = screen.getByRole('button', { name: pl.lock.unlock });
+    expect(button).toHaveProp('accessibilityState', { disabled: false, busy: false });
+    await fireEvent.press(button);
+    expect(rig.device.facts.authCalls).toBe(2);
+    rig.device.facts.auth = 'success';
+    await fireEvent.press(screen.getByRole('button', { name: pl.lock.unlock }));
+    await settle();
+    expect(screen.queryByTestId('lock-overlay')).toBeNull();
+    expect(rig.device.facts.authCalls).toBe(3);
   });
 });
 
