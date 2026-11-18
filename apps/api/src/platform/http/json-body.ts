@@ -3,7 +3,8 @@
  * request is parsed only when it targets a public operation that takes a body (exact method and path from the
  * contract, small limit); every other anonymous request is answered 401 by the guard without touching its body, so a
  * malformed, oversized or oddly encoded body cannot turn the 401 into 400/413/415. A request with a session may send
- * up to 1 MB. A body that is not `application/json` is 415. Only methods that carry a body are parsed.
+ * up to 1 MB. A body that is not `application/json` is 415, and so is one with a Content-Encoding other than `identity`
+ * (the API never decodes a compressed body — defence in depth against decoder vulnerabilities, EVM-119, RR-39). Only methods that carry a body are parsed.
  */
 import express, { type NextFunction, type Request, type RequestHandler, type Response } from 'express';
 import { ProblemException } from './problem.ts';
@@ -38,7 +39,8 @@ export function jsonBody(policy: BodyPolicy): RequestHandler {
   const parserOf = (limit: string): RequestHandler => {
     let parser = parsers.get(limit);
     if (parser === undefined) {
-      parser = express.json({ limit });
+      // `inflate: false`: a body with any Content-Encoding other than identity is 415 before it is read, never decoded (EVM-119, RR-39).
+      parser = express.json({ limit, inflate: false });
       parsers.set(limit, parser);
     }
     return parser;
