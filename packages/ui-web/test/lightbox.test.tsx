@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { Lightbox, type LightboxProps } from '../src/index.ts';
+import { Lightbox, LightboxImage, type LightboxProps } from '../src/index.ts';
 import { axeViolations } from './a11y.ts';
 
 const base = (extra: Partial<LightboxProps> = {}): LightboxProps => ({
@@ -18,7 +18,7 @@ const base = (extra: Partial<LightboxProps> = {}): LightboxProps => ({
   onNext: vi.fn(),
   onDismiss: vi.fn(),
   itemKey: 'a',
-  children: <img src="https://bucket.example.test/a.webp" alt="Zdjęcie testowe" />,
+  children: <LightboxImage src="https://bucket.example.test/a.webp" alt="Zdjęcie testowe" />,
   details: <p>W trakcie prac</p>,
   ...extra,
 });
@@ -73,29 +73,44 @@ describe('Lightbox (styleguide § 3.11; EVM-045 AC1)', () => {
     const zoomIn = screen.getByRole<HTMLButtonElement>('button', { name: 'Powiększ' });
     const zoomOut = screen.getByRole<HTMLButtonElement>('button', { name: 'Pomniejsz' });
     expect(zoomOut.disabled).toBe(true);
-    const frame = screen.getByRole('img').parentElement as HTMLElement;
-    expect(frame.className).toContain('w-full');
     await userEvent.click(zoomIn);
-    expect(frame.className).toContain('scale-150');
     expect(screen.getByText('Powiększenie 150%')).toBeTruthy();
     await userEvent.click(zoomIn);
     await userEvent.click(zoomIn);
-    expect(frame.className).toContain('scale-300');
+    expect(screen.getByText('Powiększenie 300%')).toBeTruthy();
     expect(zoomIn.disabled).toBe(true);
     await userEvent.click(zoomOut);
-    expect(frame.className).toContain('scale-200');
+    expect(screen.getByText('Powiększenie 200%')).toBeTruthy();
     rerender(<Lightbox {...base({ itemKey: 'b' })} />);
-    expect(frame.className).toContain('w-full');
+    expect(screen.queryByText(/Powiększenie/)).toBeNull();
+    expect(zoomOut.disabled).toBe(true);
   });
 
-  it('EVM-045 AC1 the box of the picture is the whole scrolling area at the fit (the minimum) and at every step, so a photo is fitted by its height too', async () => {
-    render(<Lightbox {...base()} />);
-    const frame = screen.getByRole('img').parentElement as HTMLElement;
-    for (let step = 0; step < 4; step += 1) {
-      expect(frame.className).toContain('h-full');
-      expect(frame.className).toContain('w-full');
-      if (step === 0) expect(frame.className).not.toContain('scale-');
+  it('EVM-045 AC1 the picture is the fitted size at the fit and fitted size times the factor at a step (a measured area, a known natural size)', async () => {
+    const client = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(800);
+    const height = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(400);
+    try {
+      render(<Lightbox {...base()} />);
+      const image = screen.getByRole<HTMLImageElement>('img');
+      expect(image.style.width).toBe('');
+      Object.defineProperty(image, 'naturalWidth', { value: 1600 });
+      Object.defineProperty(image, 'naturalHeight', { value: 1200 });
+      fireEvent.load(image);
+      expect(parseFloat(image.style.width)).toBeCloseTo(533.33, 1);
+      expect(image.style.height).toBe('400px');
       await userEvent.click(screen.getByRole('button', { name: 'Powiększ' }));
+      expect(parseFloat(image.style.width)).toBeCloseTo(800, 3);
+      expect(image.style.height).toBe('600px');
+      await userEvent.click(screen.getByRole('button', { name: 'Powiększ' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Powiększ' }));
+      expect(image.style.height).toBe('1200px');
+      await userEvent.click(screen.getByRole('button', { name: 'Pomniejsz' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Pomniejsz' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Pomniejsz' }));
+      expect(image.style.height).toBe('400px');
+    } finally {
+      client.mockRestore();
+      height.mockRestore();
     }
   });
 

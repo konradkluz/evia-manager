@@ -17,7 +17,7 @@ export {
   type MarkKey,
 } from './status-badge.tsx';
 export { Combobox, type ComboboxOption, type ComboboxProps } from './combobox.tsx';
-export { Lightbox, type LightboxProps } from './lightbox.tsx';
+export { Lightbox, LightboxImage, type LightboxProps } from './lightbox.tsx';
 export { Dialog, type DialogProps } from './dialog.tsx';
 export { ProcedureProgress, type ProcedureProgressProps } from './procedure-progress.tsx';
 export { Disclosure, type DisclosureProps } from './disclosure.tsx';
