@@ -144,6 +144,7 @@ stalled | grep 'stall_kind="scan"' | grep -q ' 1$' || fail "scan is not counted 
 stalled | grep 'stall_kind="processor_unreachable"' | grep -q ' 2$' || fail "processor_unreachable (photo and film) is not counted twice"
 stalled | grep -v 'service="worker"' | grep -q . && fail "a stall counted from a service other than the worker"
 stalled | grep -Eq '1111|stuck|storedFileId|job=|someone|said' && fail "a free value (identifier, count, text) became a metric label"
+OUT | grep -qF 'stall_kind=\"' && fail "stall_kind became a Loki label (it must only feed the counter)"
 
 # --- 4. The rate limit drops the excess of a flooding service.
 # One request with 400 lines: the limiter sees them at once, so the result does not depend on the speed of the client.

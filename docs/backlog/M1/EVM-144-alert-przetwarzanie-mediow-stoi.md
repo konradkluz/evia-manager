@@ -4,7 +4,7 @@ title: "Alert: przetwarzanie mediów stoi (pliki czekają zbyt długo)"
 type: enabler
 milestone: M1
 epic: E8 Gotowość produkcyjna
-status: ready
+status: in-review
 priority: P1
 path: lekka             # tylko konfiguracja obserwowalności (Alloy, reguły, testy `promtool`, runbook), zero zmian w aplikacji, bez danych osobowych, bez `infra/deploy-agent/**`
 owner: devops-engineer
@@ -69,3 +69,4 @@ Jako **właściciel produktu** chcę **dostać e-mail, gdy pliki czekają na ska
 - 2026-11-18 — utworzono jako szkic (product-owner) na podstawie propozycji (a) z protokołu posiedzenia procesora mediów
 - 2026-11-18 — Konrad: „Akceptuję rekomendacje” — wszystkie pytania rozstrzygnięte wg rekomendacji; status `ready` (Tech Lead)
 - 2026-11-18 — część kodowa (devops-engineer): licznik `media_stalled_total{stall_kind}` w `pipeline.alloy` (AC1, test `alloy-tests`), reguła `EviaMediaProcessingStalled` + progi + 8 przypadków `promtool` (AC2), runbook `alerty.md` (AC4, część dokumentacyjna). **AC3 tylko częściowo:** `EviaStagingNoData` pokrywa wyłącznie ciszę całej telemetrii; sam zatrzymany `worker` przy żywym Alloy i metrykach hosta nie jest widoczny (test to dokumentuje) — pytanie do właściciela, bez zmiany agenta/aplikacji nie do domknięcia. **Do sesji infrastruktury:** załadowanie reguł do Grafany (z pakietem EVM-085), próba e-mailem, dowód w `docs/qa/EVM-144/`. Przy okazji: test potoku Alloy przeszedł na HTTP/1.0 (długi `/metrics` był ucinany w środku linii).
+- 2026-11-18 — przegląd kodu (jedyny recenzent): APPROVE z uwagami; poprawione w tej gałęzi: test polityki repo wiąże dokładne teksty ostrzeżeń aplikacji z selektorami `pipeline.alloy` (zmiana tekstu logu nie uciszy alertu po cichu), asercja, że `stall_kind` nie trafia do Loki, odsyłacz dla `scan` w runbooku, CHANGELOG; drobne do „Notatek”: brak przypadku `promtool` z licznikiem, który rośnie i gaśnie przed końcem okna. **AC3 częściowo:** założenie historyjki było błędne — `EviaStagingNoData` patrzy na metryki hosta, więc sam zatrzymany `worker` przy działającej telemetrii nie daje alertu; propozycja Tech Leada do decyzji Konrada: metryka stanu kontenera `worker` w EVM-145 (obok `evia_media_processor_up`). **AC4:** dowód na żywo czeka na sesję infrastruktury. Status `in-review` (Tech Lead)
