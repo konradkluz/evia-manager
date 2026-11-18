@@ -2,12 +2,14 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
+import { withUnlockPermission } from './helpers.mjs';
 import { API_BASE_URL_META, checkManifest, SCREENSHOTS_META, STORAGE_HOSTS_META, UPLOAD_E2E_CLEARTEXT_META } from '../src/manifest.mjs';
 
 const FIXTURES = join(import.meta.dirname, 'fixtures');
 const ID = 'pl.eviacharge.manager';
 /** The manifest decoded by apkanalyzer from the real package of the app (synthetic data only). */
-const MANIFEST = readFileSync(join(FIXTURES, 'manifest-print.txt'), 'utf8');
+const FIXTURE = readFileSync(join(FIXTURES, 'manifest-print.txt'), 'utf8');
+const MANIFEST = withUnlockPermission(FIXTURE);
 
 /** @param {string} from @param {string} to */
 const changed = (from, to) => {
@@ -48,11 +50,17 @@ describe('manifest of the built APK (EVM-009 AC6; SR-MOB-02, SR-MOB-07, SR-MOB-0
     }
   });
 
-  it('EVM-101 AC3: USE_BIOMETRIC (the system unlock window) is allowed, its deprecated twin USE_FINGERPRINT is not', () => {
-    const biometric = changed('</manifest>', '<uses-permission android:name="android.permission.USE_BIOMETRIC" /></manifest>');
-    assert.deepEqual(checkManifest(biometric, { applicationId: ID }), []);
+  it('EVM-101 AC3: USE_BIOMETRIC (the system unlock window) is required; without it the system refuses the window', () => {
+    assert.deepEqual(checkManifest(FIXTURE, { applicationId: ID }), [
+      'USE_BIOMETRIC permission is missing (the system unlock window of the app lock, EVM-101 AC3)',
+    ]);
+    assert.deepEqual(checkManifest(MANIFEST, { applicationId: ID }), []);
+  });
+
+  it('EVM-101 AC3: USE_FINGERPRINT (API 24-27, declared by androidx.biometric) is allowed, not required', () => {
     const fingerprint = changed('</manifest>', '<uses-permission android:name="android.permission.USE_FINGERPRINT" /></manifest>');
-    assert.deepEqual(checkManifest(fingerprint, { applicationId: ID }), ['unexpected permission android.permission.USE_FINGERPRINT']);
+    assert.deepEqual(checkManifest(fingerprint, { applicationId: ID }), []);
+    assert.deepEqual(checkManifest(MANIFEST, { applicationId: ID }), []);
   });
 
   it('EVM-009 AC6: a permission outside the white list is reported, the missing INTERNET too', () => {
@@ -161,7 +169,7 @@ describe('manifest of the built APK (EVM-009 AC6; SR-MOB-02, SR-MOB-07, SR-MOB-0
 
   it('EVM-009 AC6: a manifest without an application element is reported', () => {
     const bare =
-      '<manifest package="pl.eviacharge.manager"><uses-permission android:name="android.permission.INTERNET" /><uses-sdk android:targetSdkVersion="36" /></manifest>';
+      '<manifest package="pl.eviacharge.manager"><uses-permission android:name="android.permission.INTERNET" /><uses-permission android:name="android.permission.USE_BIOMETRIC" /><uses-sdk android:targetSdkVersion="36" /></manifest>';
     assert.deepEqual(checkManifest(bare, { applicationId: ID }), ['no application element']);
   });
 });

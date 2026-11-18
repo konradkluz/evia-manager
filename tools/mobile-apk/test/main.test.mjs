@@ -6,6 +6,7 @@ import { describe, it, mock } from 'node:test';
 import { digestSummary, sha256 } from '../src/digest.mjs';
 import { main, parseArguments, USAGE } from '../src/main.mjs';
 import { realHost } from '../src/process.mjs';
+import { withUnlockPermission } from './helpers.mjs';
 
 const APK_BYTES = new TextEncoder().encode('synthetic apk bytes');
 
@@ -123,7 +124,7 @@ describe('arguments and commands of the APK verification (EVM-009 AC5, AC6)', ()
       const read = (/** @type {string} */ name) => readFileSync(join(dir, name), 'utf8');
       /** @type {Record<string, string>} */
       const answers = {
-        'manifest print a.apk': read('manifest-print.txt'),
+        'manifest print a.apk': withUnlockPermission(read('manifest-print.txt')),
         'files list a.apk': `${read('files-list.txt')}
 /assets/app.config
 `,

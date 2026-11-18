@@ -2,6 +2,7 @@
  * The only logger of the app (SR-LOG-08, SR-MOB-10; MASVS-STORAGE-2): it accepts a fixed event name, never free text, so an
  * address, a response body or personal data cannot get into a log. Silent in release builds.
  */
+import type { AuthCode } from '../device-guard/ports';
 import type { StorageDiagnostic } from '../storage/ports';
 
 export type LogEvent = 'app-version-invalid' | 'min-version-invalid' | 'api-config-invalid';
@@ -46,7 +47,7 @@ export type SyncLogDiagnostic =
 /** Events of the device controls (EVM-101; SR-LOG-08, SR-MOB-12): codes of a fixed dictionary, never an id, a secret or a content. */
 export type GuardDiagnostic =
   | { readonly event: 'hidden-mode'; readonly reason: string }
-  | { readonly event: 'app-lock'; readonly outcome: string }
+  | { readonly event: 'app-lock'; readonly outcome: AuthCode }
   | { readonly event: 'patch-level'; readonly outcome: string };
 
 export function logDiagnostic(diagnostic: StorageDiagnostic | GuardDiagnostic | SyncLogDiagnostic): void {

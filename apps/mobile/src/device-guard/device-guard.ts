@@ -39,11 +39,11 @@ export interface GuardDeps {
   readonly contact: () => Promise<ContactReading>;
   readonly now: () => number;
   readonly diagnostics?: (event: GuardDiagnostic) => void;
-  /** The second line of defence: after this time without any answer of the system unlock the attempt counts as failed. Default 30 s. */
+  /** The last line of defence of the JS side (code `js_timeout`): without any answer the attempt counts as failed. Default 120 s - it must not cut the user typing a code. */
   readonly unlockTimeoutMs?: number;
 }
 
-const UNLOCK_TIMEOUT_MS = 30_000;
+const UNLOCK_TIMEOUT_MS = 120_000;
 
 export class DeviceGuard {
   readonly #d: GuardDeps;
@@ -200,7 +200,7 @@ export class DeviceGuard {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<AuthCode>((resolve) => {
       timer = setTimeout(() => {
-        resolve('no_callback_timeout');
+        resolve('js_timeout');
       }, this.#d.unlockTimeoutMs ?? UNLOCK_TIMEOUT_MS);
     });
     const replaced = new Promise<AuthCode>((resolve) => {
@@ -210,9 +210,10 @@ export class DeviceGuard {
     });
     const code = await Promise.race([answer, timeout, replaced]);
     clearTimeout(timer);
+    if (token === this.#attempt) this.#supersede = undefined; // nothing left to end for this attempt
     if (token !== this.#attempt) return false; // replaced by a newer attempt: its answer decides
     const unlocked = this.#settleUnlock(code);
-    if (code === 'no_callback_timeout') {
+    if (code === 'js_timeout') {
       // a real success of the system that comes late (the user was slow) still counts, unless a newer attempt took over
       void answer.then((late) => {
         if (late === 'success' && token === this.#attempt && this.#lock.locked) this.#settleUnlock(late);
@@ -223,7 +224,8 @@ export class DeviceGuard {
 
   #settleUnlock(code: AuthCode): boolean {
     this.#prompting = false;
-    this.#unlockFailed = code !== 'success' && code !== 'cancelled';
+    // cancelled and superseded are silent: the user closed the window / a newer request took over
+    this.#unlockFailed = code !== 'success' && code !== 'cancelled' && code !== 'superseded';
     if (code === 'success') this.#lock.unlock();
     this.#d.diagnostics?.({ event: 'app-lock', outcome: code });
     this.#publish();

@@ -27,7 +27,7 @@ export function LockOverlay({
   onUnlock: (auto: boolean) => void;
 }) {
   const { t } = useTranslation();
-  // the transitions of `AppState` caused by the system window itself are ignored (like in the guard): no loop after a cancel
+  // the `inactive` <-> `active` moves of the system window itself never ask again (no loop after a cancel); a `background` is remembered
   const busy = useRef(prompting);
   busy.current = prompting;
   const ask = useRef(onUnlock);
@@ -47,9 +47,12 @@ export function LockOverlay({
     };
     let left = appState.current() !== 'active'; // started in the background: the return asks
     const stop = appState.subscribe((next) => {
-      if (busy.current) return;
+      // a real trip to the background counts also while a request is open (the system may cancel the window meanwhile); only the
+      // inactive <-> active moves caused by the system window itself are ignored, and so is the return while the request is still open
       if (next === 'background') left = true;
-      else if (next === 'active' && left) {
+      else if (busy.current) {
+        if (next === 'active') left = false; // the window survived the trip: nothing to ask again
+      } else if (next === 'active' && left) {
         left = false;
         askWhenIdle();
       }

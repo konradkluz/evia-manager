@@ -29,9 +29,9 @@ export const BLOCKED_ANDROID_PERMISSIONS: readonly string[] = [
   'android.permission.SYSTEM_ALERT_WINDOW',
   'android.permission.VIBRATE',
   'android.permission.RECORD_AUDIO',
-  // Deprecated twin of USE_BIOMETRIC (API 23-27 fingerprint API); the unlock window of EVM-101 needs USE_BIOMETRIC only (API 28+).
-  // USE_BIOMETRIC itself is NOT blocked: without it the system refuses BiometricPrompt and BiometricManager without a window (EVM-101 AC3).
-  'android.permission.USE_FINGERPRINT',
+  // NOT blocked (EVM-101 AC3), both are normal permissions without a prompt: USE_BIOMETRIC (API 28+; without it the system refuses
+  // BiometricPrompt and BiometricManager without a window) and USE_FINGERPRINT (API 24-27, where androidx.biometric 1.1.0 uses
+  // FingerprintManagerCompat and declares it itself; blocked, the unlock window does not open on Android 7-8.1, minSdk is 24).
   // Added by expo-modules-core for the Google Play install referrer; the app is distributed outside Google Play.
   'com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE',
 ];

@@ -90,9 +90,11 @@ class EviaKeystoreModule : Module() {
      * EVM-101 AC3: the system unlock window, `BIOMETRIC_STRONG | DEVICE_CREDENTIAL` (API 28–29 cannot combine them: the deprecated
      * `setDeviceCredentialAllowed` is the way there). Resolves a code of a closed list, never a message of the system (SR-LOG-08):
      * `success`, `cancelled`, `superseded`, `error`, `not_resumed_timeout`, `no_callback_timeout`, `cannot_authenticate`, `exception`.
-     * No CryptoObject. Every call is settled exactly once: a newer call cancels the older one, the window is asked for only while the
+     * No CryptoObject. Every call is settled exactly once: a newer call replaces the older one (when the older window is on screen,
+     * the newer one is shown after the library reported the cancel or after a short limit), the window is asked for only while the
      * activity is resumed and has the window focus, and a request that the system drops silently is cancelled after a few seconds.
-     * Needs the permission USE_BIOMETRIC in the merged manifest (without it the system refuses the request without a window).
+     * Needs USE_BIOMETRIC in the merged manifest (API 28+; without it the system refuses the request without a window) and, on API
+     * 24-27, USE_FINGERPRINT (declared by androidx.biometric 1.1.0 itself, which uses FingerprintManagerCompat there).
      */
     AsyncFunction("authenticate") { title: String, promise: Promise ->
       val activity = appContext.currentActivity as? FragmentActivity
@@ -133,21 +135,40 @@ class EviaKeystoreModule : Module() {
   /** The attempt in flight (main thread only); a newer call replaces it. */
   private var current: Attempt? = null
 
+  /**
+   * An aborted attempt whose window the library is still closing (main thread only). All instances of `BiometricPrompt` of one
+   * activity share a ViewModel and a fragment, so a late `ERROR_CANCELED` of the old window could settle a newer attempt: the newer
+   * one begins only after that callback or after `WINDOW_CLOSE_MS`.
+   */
+  private var closing: Attempt? = null
+
   private fun startAttempt(activity: FragmentActivity, title: String, promise: Promise) {
     var attempt: Attempt? = null
     try {
+      // an older attempt without a window is only settled (nothing to cancel in the library); with a window it is cancelled
       current?.abort("superseded")
       val authenticators = pickAuthenticators(activity)
       if (authenticators == null) {
         promise.resolve("cannot_authenticate")
         return
       }
-      attempt = Attempt(activity, title, authenticators, promise)
-      current = attempt
-      attempt.begin()
+      val created = Attempt(activity, title, authenticators, promise)
+      attempt = created
+      current = created
+      val begin = { beginSafely(created) }
+      val waitFor = closing
+      if (waitFor == null) begin() else waitFor.afterGone(begin)
     } catch (error: Throwable) {
       // Throwable on purpose: a class missing after shrinking (NoClassDefFoundError) must not leave the promise open
       if (attempt != null) attempt.abort("exception") else promise.resolve("exception")
+    }
+  }
+
+  private fun beginSafely(attempt: Attempt) {
+    try {
+      attempt.begin()
+    } catch (error: Throwable) {
+      attempt.abort("exception")
     }
   }
 
@@ -183,9 +204,14 @@ class EviaKeystoreModule : Module() {
     private var shown = false
     private var focusLostAfterShow = false
     private var prompt: BiometricPrompt? = null
+    private val afterGoneActions = ArrayList<() -> Unit>()
+    private val gone = Runnable { fireGone() }
 
     private val lifecycleObserver = object : LifecycleEventObserver {
-      override fun onStateChanged(source: LifecycleOwner, event: Lifecycle.Event) = showWhenReady()
+      override fun onStateChanged(source: LifecycleOwner, event: Lifecycle.Event) {
+        // a destroyed activity must not stay in `current`; the window dies with it
+        if (event == Lifecycle.Event.ON_DESTROY) settle("error") else showWhenReady()
+      }
     }
     private val focusListener = object : ViewTreeObserver.OnWindowFocusChangeListener {
       override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -196,19 +222,40 @@ class EviaKeystoreModule : Module() {
         }
       }
     }
-    private val notResumed = Runnable { settle("not_resumed_timeout") }
+    // guarded: this timer is armed BEFORE the observer is added (the observer may show the window synchronously)
+    private val notResumed = Runnable { if (!shown) settle("not_resumed_timeout") }
     private val noCallback = Runnable {
-      // the window never took the focus and nothing came back: the system dropped the request silently
+      // the window never took the focus and nothing came back: the system dropped the request silently. Once the window took the
+      // focus (`focusLostAfterShow`) the user may take their time and this guard never fires
       if (!settled && !focusLostAfterShow && activity.hasWindowFocus()) abort("no_callback_timeout")
     }
 
     private fun ready() = activity.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) && activity.hasWindowFocus()
 
     fun begin() {
-      activity.lifecycle.addObserver(lifecycleObserver)
-      activity.window.decorView.viewTreeObserver.addOnWindowFocusChangeListener(focusListener)
+      if (settled) return // replaced while the older window was closing
+      if (activity.lifecycle.currentState == Lifecycle.State.DESTROYED) {
+        settle("error")
+        return
+      }
+      // order matters: `addObserver` replays the events of a resumed activity synchronously and may show the window right here
       handler.postDelayed(notResumed, WAIT_FOR_ACTIVITY_MS)
+      activity.window.decorView.viewTreeObserver.addOnWindowFocusChangeListener(focusListener)
+      activity.lifecycle.addObserver(lifecycleObserver)
       showWhenReady()
+    }
+
+    /** Runs `action` when the library has closed this (aborted) window, or after the short limit. */
+    fun afterGone(action: () -> Unit) {
+      afterGoneActions.add(action)
+    }
+
+    private fun fireGone() {
+      handler.removeCallbacks(gone)
+      if (closing === this) closing = null
+      val actions = ArrayList(afterGoneActions)
+      afterGoneActions.clear()
+      for (action in actions) action()
     }
 
     private fun showWhenReady() {
@@ -223,15 +270,22 @@ class EviaKeystoreModule : Module() {
     private fun show() {
       shown = true
       handler.removeCallbacks(notResumed)
-      activity.lifecycle.removeObserver(lifecycleObserver)
+      // the lifecycle observer stays: ON_DESTROY still has to settle the attempt
       val callback = object : BiometricPrompt.AuthenticationCallback() {
-        override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) = settle("success")
-        override fun onAuthenticationError(errorCode: Int, errString: CharSequence) = settle(
-          when (errorCode) {
-            BiometricPrompt.ERROR_USER_CANCELED, BiometricPrompt.ERROR_NEGATIVE_BUTTON, BiometricPrompt.ERROR_CANCELED -> "cancelled"
-            else -> "error"
-          },
-        )
+        override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+          settle("success")
+          fireGone()
+        }
+
+        override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+          settle(
+            when (errorCode) {
+              BiometricPrompt.ERROR_USER_CANCELED, BiometricPrompt.ERROR_NEGATIVE_BUTTON, BiometricPrompt.ERROR_CANCELED -> "cancelled"
+              else -> "error"
+            },
+          )
+          fireGone() // for an aborted attempt: the library has closed its window, the next attempt may begin
+        }
       }
       val info = BiometricPrompt.PromptInfo.Builder().setTitle(title).apply {
         if (authenticators == LEGACY_CREDENTIAL) {
@@ -244,7 +298,7 @@ class EviaKeystoreModule : Module() {
       val created = BiometricPrompt(activity, ContextCompat.getMainExecutor(activity), callback)
       prompt = created
       created.authenticate(info)
-      handler.postDelayed(noCallback, NO_CALLBACK_MS)
+      if (!settled) handler.postDelayed(noCallback, NO_CALLBACK_MS)
     }
 
     fun settle(code: String) {
@@ -263,12 +317,15 @@ class EviaKeystoreModule : Module() {
     }
 
     fun abort(code: String) {
-      val open = prompt
+      val open = if (settled) null else prompt
       settle(code)
+      if (open == null) return // no window was asked for: nothing to cancel in the library
+      closing = this
+      handler.postDelayed(gone, WINDOW_CLOSE_MS)
       try {
-        open?.cancelAuthentication()
+        open.cancelAuthentication() // asynchronous: the callback (ignored, settled) or the limit releases the next attempt
       } catch (error: Throwable) {
-        // the window is gone already
+        fireGone()
       }
     }
   }
@@ -286,5 +343,8 @@ class EviaKeystoreModule : Module() {
 
     /** How long a shown request may stay without a callback while the activity keeps the window focus (= the system dropped it). */
     private const val NO_CALLBACK_MS = 3000L
+
+    /** How long a newer attempt waits for the library to report the cancel of the older window. */
+    private const val WINDOW_CLOSE_MS = 500L
   }
 }

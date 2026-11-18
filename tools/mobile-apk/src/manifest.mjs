@@ -40,6 +40,7 @@ const FORBIDDEN_PERMISSION =
 
 /** EVM-108 AC8: the camera is the one permission let through next to the upload ones; the microphone is never requested (EVM-110: films have no sound). */
 const CAMERA_PERMISSION = 'android.permission.CAMERA';
+const UNLOCK_PERMISSION = 'android.permission.USE_BIOMETRIC';
 const RECORD_AUDIO_PERMISSION = 'android.permission.RECORD_AUDIO';
 
 /** EVM-130 AC7: no foreground service — Android 13 and older upload in a plain job, Android 14+ in a user-initiated one (ADR-0020a). */
@@ -72,9 +73,11 @@ export function checkManifest(manifestText, { applicationId, minimumTargetSdk = 
     'android.permission.POST_NOTIFICATIONS',
     // EVM-108 AC8: the camera of the app (CameraX through expo-camera; the library declares it, plugins/with-camera.ts adds nothing)
     CAMERA_PERMISSION,
-    // EVM-101 AC3: the system unlock window (BiometricPrompt of androidx.biometric); a normal permission, no consent of the user. Without it
-    // the system refuses the window. Allowed, not required: the fixtures are real output of a package built before the fix (USE_FINGERPRINT stays unexpected)
-    'android.permission.USE_BIOMETRIC',
+    // EVM-101 AC3: the system unlock window (BiometricPrompt of androidx.biometric); normal permissions, no consent of the user.
+    // USE_BIOMETRIC (API 28+) is REQUIRED below: without it the system refuses the window. USE_FINGERPRINT (API 24-27, where the library
+    // uses FingerprintManagerCompat) is declared by the library itself: allowed, not required
+    UNLOCK_PERMISSION,
+    'android.permission.USE_FINGERPRINT',
   ];
   for (const permission of permissions) {
     if (permission === RECORD_AUDIO_PERMISSION)
@@ -91,6 +94,8 @@ export function checkManifest(manifestText, { applicationId, minimumTargetSdk = 
   }
   problems.push(...forbiddenLibraryProblems(manifest));
   if (!permissions.includes('android.permission.INTERNET')) problems.push('INTERNET permission is missing');
+  if (!permissions.includes(UNLOCK_PERMISSION))
+    problems.push('USE_BIOMETRIC permission is missing (the system unlock window of the app lock, EVM-101 AC3)');
 
   const targetSdk = Number(childrenNamed(manifest, 'uses-sdk')[0]?.attributes['android:targetSdkVersion']);
   if (!(targetSdk >= minimumTargetSdk)) problems.push(`targetSdkVersion is below ${String(minimumTargetSdk)}`);

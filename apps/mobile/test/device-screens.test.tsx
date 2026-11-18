@@ -271,6 +271,69 @@ describe('the cover asks at the right moment and its button is never dead (EVM-1
     expect(rig.device.facts.authCalls).toBe(before + 1);
   });
 
+  let rigOf: PortsRig;
+  const emit = (...states: ('active' | 'background' | 'inactive')[]) =>
+    act(() => {
+      for (const state of states) rigOf.device.appState.emit(state);
+    });
+  const openManual = async () => {
+    rigOf = stubPorts();
+    rigOf.device.facts.auth = 'manual';
+    await open(rigOf);
+    expect(rigOf.device.facts.authCalls).toBe(1); // the automatic request of the cold start is open
+    expect(screen.getByTestId('lock-overlay')).toBeOnTheScreen();
+  };
+  const answer = async (code: 'cancelled' | 'success') => {
+    await act(() => {
+      rigOf.device.facts.answers.at(-1)?.(code);
+    });
+    await settle();
+  };
+
+  it('EVM-101 AC3: the system window itself (inactive <-> active, even in a loop) never asks again, while the request is open or after its cancel', async () => {
+    await openManual();
+    await emit('inactive', 'active', 'inactive', 'active');
+    await settle();
+    expect(rigOf.device.facts.authCalls).toBe(1);
+    await answer('cancelled');
+    await emit('inactive', 'active');
+    await settle();
+    expect(rigOf.device.facts.authCalls).toBe(1);
+  });
+
+  it('EVM-101 AC3: a real trip to the background while a request is open is remembered - the return after its cancel asks once', async () => {
+    await openManual();
+    await emit('background'); // Home: the system cancels the window meanwhile
+    await answer('cancelled');
+    expect(rigOf.device.facts.authCalls).toBe(1);
+    await emit('active');
+    await settle();
+    expect(rigOf.device.facts.authCalls).toBe(2);
+    await emit('inactive', 'active'); // and no loop after that
+    await settle();
+    expect(rigOf.device.facts.authCalls).toBe(2);
+  });
+
+  it('EVM-101 AC3: the background comes before the answer, the return after it - still one request (inactive on the way does not matter)', async () => {
+    await openManual();
+    await emit('inactive', 'background');
+    await answer('cancelled');
+    await emit('inactive', 'active');
+    await settle();
+    expect(rigOf.device.facts.authCalls).toBe(2);
+  });
+
+  it('EVM-101 AC3: a return while the window is still open asks nothing, also not after its later cancel', async () => {
+    await openManual();
+    await emit('background', 'active'); // the window survived the trip (the system window of the screen lock itself)
+    await settle();
+    expect(rigOf.device.facts.authCalls).toBe(1);
+    await answer('cancelled');
+    await emit('inactive', 'active');
+    await settle();
+    expect(rigOf.device.facts.authCalls).toBe(1);
+  });
+
   it.each([
     ['error', true],
     ['not_resumed_timeout', true],

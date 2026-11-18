@@ -250,14 +250,14 @@ describe('the unlock button is never dead (EVM-101 AC3 fix, P7)', () => {
   it('EVM-101 AC3: no answer within the time limit - not prompting, still locked, the failure is flagged; a new press works', async () => {
     jest.useFakeTimers();
     try {
-      const r = manualRig({ unlockTimeoutMs: 30_000 });
+      const r = manualRig({ unlockTimeoutMs: 120_000 });
       const attempt = r.guard.unlock({ auto: true });
-      await jest.advanceTimersByTimeAsync(29_999);
+      await jest.advanceTimersByTimeAsync(119_999);
       expect(r.guard.getSnapshot().prompting).toBe(true);
       await jest.advanceTimersByTimeAsync(1);
       expect(await attempt).toBe(false);
       expect(r.guard.getSnapshot()).toMatchObject({ prompting: false, locked: true, unlockFailed: true });
-      expect(r.events).toContainEqual({ event: 'app-lock', outcome: 'no_callback_timeout' });
+      expect(r.events).toContainEqual({ event: 'app-lock', outcome: 'js_timeout' });
       const again = r.guard.unlock();
       expect(r.pending).toHaveLength(2);
       r.pending[1]?.('success');
@@ -299,7 +299,7 @@ describe('the unlock button is never dead (EVM-101 AC3 fix, P7)', () => {
     }
   });
 
-  it.each(['error', 'not_resumed_timeout', 'no_callback_timeout', 'cannot_authenticate', 'exception', 'superseded'] as const)(
+  it.each(['error', 'not_resumed_timeout', 'no_callback_timeout', 'js_timeout', 'cannot_authenticate', 'exception'] as const)(
     'EVM-101 AC3 (F): the code %s keeps the app locked, flags the failure and reaches the diagnostics as the bare code',
     async (code) => {
       const r = manualRig();
@@ -310,6 +310,46 @@ describe('the unlock button is never dead (EVM-101 AC3 fix, P7)', () => {
       expect(lockEvents(r.events)).toEqual([{ event: 'app-lock', outcome: code }]);
     },
   );
+
+  it('EVM-101 AC3: the default limit of the JS side is 120 s and a code typed for a minute is not cut', async () => {
+    jest.useFakeTimers();
+    try {
+      const r = manualRig();
+      const attempt = r.guard.unlock();
+      await jest.advanceTimersByTimeAsync(60_000);
+      expect(r.guard.getSnapshot().prompting).toBe(true);
+      r.pending[0]?.('success');
+      expect(await attempt).toBe(true);
+      const slow = manualRig();
+      slow.guard.signedOut();
+      const second = slow.guard.unlock();
+      await jest.advanceTimersByTimeAsync(120_000);
+      expect(await second).toBe(false);
+      expect(slow.events).toContainEqual({ event: 'app-lock', outcome: 'js_timeout' });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it.each(['cancelled', 'superseded'] as const)('EVM-101 AC3: the code %s is silent - no failure flag, still locked', async (code) => {
+    const r = manualRig();
+    const attempt = r.guard.unlock();
+    r.pending[0]?.(code);
+    expect(await attempt).toBe(false);
+    expect(r.guard.getSnapshot()).toMatchObject({ locked: true, prompting: false, unlockFailed: false });
+    expect(lockEvents(r.events)).toEqual([{ event: 'app-lock', outcome: code }]);
+  });
+
+  it('EVM-101 AC3: after the answer nothing is left to supersede - a later attempt has no stale resolver to call', async () => {
+    const r = manualRig();
+    const first = r.guard.unlock();
+    r.pending[0]?.('cancelled');
+    await first;
+    const second = r.guard.unlock();
+    expect(r.guard.getSnapshot().prompting).toBe(true);
+    r.pending[1]?.('success');
+    expect(await second).toBe(true);
+  });
 
   it('EVM-101 AC3: cancelling flags no failure; a new attempt clears an earlier failure', async () => {
     const r = manualRig();
