@@ -92,6 +92,8 @@ describe('Tailwind theme from design tokens (EVM-008 AC3; styleguide § 7.2, ADR
       'text-sync-in-progress-text',
       'fill-sync-progress-fill',
       'min-h-touch-target-min',
+      // EVM-045: the disabled icon button
+      'disabled:text-icon-disabled',
       // Not tokens — must generate nothing:
       'p-4',
       'text-red-500',
@@ -137,6 +139,7 @@ describe('Tailwind theme from design tokens (EVM-008 AC3; styleguide § 7.2, ADR
     expect(css).toMatch(/\.border-w-strong \{[^}]*border-width: var\(--evm-border-width-strong\)/);
     expect(css).toContain('animation: skeleton var(--evm-motion-duration-skeleton) var(--evm-motion-easing-linear) infinite');
     expect(css).toMatch(/@keyframes skeleton \{[^}]*background-color: var\(--evm-color-bg-skeleton-highlight\)/);
+    expect(css).toContain('color: var(--evm-color-icon-disabled)');
     expect(css).toContain('z-index: var(--evm-layer-dropdown)');
     expect(css).toContain('outline-offset: calc(var(--evm-size-focus-ring-width) * -1)');
     expect(css).toContain('border-inline-start: var(--evm-border-width-indicator) solid var(--evm-color-feedback-error-border)');

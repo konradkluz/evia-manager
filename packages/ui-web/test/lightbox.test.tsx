@@ -13,7 +13,7 @@ const base = (extra: Partial<LightboxProps> = {}): LightboxProps => ({
   zoomInLabel: 'Powiększ',
   zoomOutLabel: 'Pomniejsz',
   zoomStatus: (percent) => `Powiększenie ${String(percent)}%`,
-  scrollAreaLabel: 'Powiększone zdjęcie',
+  scrollAreaLabel: 'Podgląd zdjęcia',
   onPrevious: vi.fn(),
   onNext: vi.fn(),
   onDismiss: vi.fn(),
@@ -87,8 +87,8 @@ describe('Lightbox (styleguide § 3.11; EVM-045 AC1)', () => {
   });
 
   it('EVM-045 AC1 the picture is the fitted size at the fit and fitted size times the factor at a step (a measured area, a known natural size)', async () => {
-    const client = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(800);
-    const height = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(400);
+    const client = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(800);
+    const height = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(400);
     try {
       render(<Lightbox {...base()} />);
       const image = screen.getByRole<HTMLImageElement>('img');
@@ -111,6 +111,57 @@ describe('Lightbox (styleguide § 3.11; EVM-045 AC1)', () => {
     } finally {
       client.mockRestore();
       height.mockRestore();
+    }
+  });
+
+  it('EVM-045 AC1 the fit is measured on the outer size: classic scrollbars (a smaller clientWidth) do not change the picture size at a step', async () => {
+    const outerWidth = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(800);
+    const outerHeight = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(400);
+    const clientWidth = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(783);
+    const clientHeight = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(383);
+    try {
+      render(<Lightbox {...base()} />);
+      const image = screen.getByRole<HTMLImageElement>('img');
+      Object.defineProperty(image, 'naturalWidth', { value: 2000 });
+      Object.defineProperty(image, 'naturalHeight', { value: 1000 });
+      fireEvent.load(image);
+      const fitted = parseFloat(image.style.width);
+      expect(fitted).toBeCloseTo(800, 3);
+      await userEvent.click(screen.getByRole('button', { name: 'Powiększ' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Powiększ' }));
+      expect(parseFloat(image.style.width)).toBeCloseTo(2 * fitted, 3);
+    } finally {
+      for (const spy of [outerWidth, outerHeight, clientWidth, clientHeight]) spy.mockRestore();
+    }
+  });
+
+  it('EVM-045 AC1 a new photo of another natural size resets the known size and the step (rerender with a new src)', async () => {
+    const outerWidth = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(800);
+    const outerHeight = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(400);
+    try {
+      const view = (src: string, itemKey: string) => (
+        <Lightbox {...base({ itemKey, children: <LightboxImage src={src} alt="Zdjęcie testowe" /> })} />
+      );
+      const { rerender } = render(view('https://bucket.example.test/a.webp', 'a'));
+      const first = screen.getByRole<HTMLImageElement>('img');
+      Object.defineProperty(first, 'naturalWidth', { value: 400, configurable: true });
+      Object.defineProperty(first, 'naturalHeight', { value: 200, configurable: true });
+      fireEvent.load(first);
+      await userEvent.click(screen.getByRole('button', { name: 'Powiększ' }));
+      expect(parseFloat(first.style.width)).toBeCloseTo(600, 3);
+      rerender(view('https://bucket.example.test/b.webp', 'b'));
+      const second = screen.getByRole<HTMLImageElement>('img');
+      // the old natural size does not apply to the new src and the step is back at the fit
+      expect(second.style.width).toBe('');
+      expect(screen.queryByText(/Powiększenie/)).toBeNull();
+      Object.defineProperty(second, 'naturalWidth', { value: 3000 });
+      Object.defineProperty(second, 'naturalHeight', { value: 1000 });
+      fireEvent.load(second);
+      expect(parseFloat(second.style.width)).toBeCloseTo(800, 3);
+      expect(parseFloat(second.style.height)).toBeCloseTo(266.67, 1);
+    } finally {
+      outerWidth.mockRestore();
+      outerHeight.mockRestore();
     }
   });
 
@@ -148,7 +199,7 @@ describe('Lightbox (styleguide § 3.11; EVM-045 AC1)', () => {
 
   it('EVM-045 AC1 the scrolling picture area is a focusable named region with a visible focus ring (WCAG 2.1.1, 2.4.7)', () => {
     render(<Lightbox {...base()} />);
-    const area = screen.getByRole('region', { name: 'Powiększone zdjęcie' });
+    const area = screen.getByRole('region', { name: 'Podgląd zdjęcia' });
     expect(area.getAttribute('tabindex')).toBe('0');
     expect(area.className).toContain('focus-visible:focus-ring');
     area.focus();

@@ -17,6 +17,7 @@
 *.ttf binary
 *.otf binary
 *.mp4 binary
+*.webm binary
 *.mov binary
 
 # Gradle wrapper of the Kotlin upload engine (EVM-109): the shell script keeps LF (it runs on Linux CI), the batch file CRLF, the jar is binary

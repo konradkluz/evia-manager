@@ -84,7 +84,10 @@ export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonEle
   readonly ref?: Ref<HTMLButtonElement>;
 }
 
-/** Icon button with a touch target of at least size.touch-target.min (styleguide § 3.1). */
+/**
+ * Icon button with a touch target of at least size.touch-target.min (styleguide § 3.1). Disabled (`disabled`; `aria-disabled` too) is visible:
+ * `color.icon.disabled`, no hover / pressed background, the default cursor.
+ */
 export function IconButton({ icon: IconComponent, label, tone = 'surface', className, ...rest }: IconButtonProps) {
   return (
     <button
@@ -94,8 +97,8 @@ export function IconButton({ icon: IconComponent, label, tone = 'surface', class
       className={classNames(
         'inline-flex items-center justify-center size-touch-target-min rounded-control',
         tone === 'surface'
-          ? 'text-icon-primary hover:bg-action-tertiary-bg-hover active:bg-action-tertiary-bg-pressed focus-visible:focus-ring '
-          : 'text-icon-inverse hover:bg-bg-brand focus-visible:focus-ring-inverse',
+          ? 'text-icon-primary enabled:not-aria-disabled:hover:bg-action-tertiary-bg-hover enabled:not-aria-disabled:active:bg-action-tertiary-bg-pressed focus-visible:focus-ring disabled:text-icon-disabled disabled:cursor-default aria-disabled:text-icon-disabled aria-disabled:cursor-default'
+          : 'text-icon-inverse enabled:not-aria-disabled:hover:bg-bg-brand focus-visible:focus-ring-inverse disabled:cursor-default aria-disabled:cursor-default',
         className,
       )}
     >

@@ -235,7 +235,7 @@ export function MediaViewer({
       );
     }
     return (
-      <div className="relative aspect-square w-full">
+      <div className="relative aspect-square max-h-full w-full">
         <Skeleton className="size-full" />
         <span
           className={

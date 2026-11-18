@@ -14,7 +14,7 @@ export interface LightboxProps {
   readonly zoomOutLabel: string;
   /** The text announced politely after a zoom step, e.g. "Powiększenie 150%". */
   readonly zoomStatus: (percent: number) => string;
-  /** The accessible name of the scrolling picture area (focusable for the keyboard, WCAG 2.1.1); a general text, never the file name. */
+  /** The accessible name of the picture area (it scrolls when zoomed; focusable for the keyboard, WCAG 2.1.1); a general text, never the file name. */
   readonly scrollAreaLabel: string;
   /** `undefined` disables the button (the first / the last item). */
   readonly onPrevious?: (() => void) | undefined;
@@ -25,7 +25,10 @@ export interface LightboxProps {
   readonly itemKey: string;
   /** False while the picture is not there (loading, error): zoom buttons are disabled. */
   readonly zoomable?: boolean;
-  /** The picture (`LightboxImage`, which zooms by the steps) or its Skeleton / error state, in a box the size of the area. */
+  /**
+   * The picture or its Skeleton / error state, in a box the size of the area. The zoom works only for `LightboxImage` (it fits and steps by
+   * the factor); a plain `<img>` or other content does not react to the zoom buttons.
+   */
   readonly children: ReactNode;
   /** The metadata and the actions under the picture. */
   readonly details: ReactNode;
@@ -37,7 +40,7 @@ const ZOOM_STEPS: readonly number[] = [100, 150, 200, 300];
 const ZoomContext = createContext<{ readonly factor: number; readonly area: Size | null }>({ factor: 1, area: null });
 
 /**
- * The picture of a `Lightbox`: fitted whole into the scrolling area (never above its natural size), and at a zoom step exactly the fitted
+ * The picture of a `Lightbox` (the only child that reacts to the zoom — a plain `<img>` does not): fitted whole into the scrolling area (never above its natural size), and at a zoom step exactly the fitted
  * size times the factor, so the scrolling area is the picture and nothing else. Until the natural size is known (and where nothing is
  * measured) it is fitted by CSS. The sizes in pixels are geometry, not a style from the tokens.
  */
@@ -122,12 +125,14 @@ export function Lightbox({
     const element = scroller.current;
     if (element === null || !open) return;
     const measure = () => {
-      const { clientWidth, clientHeight } = element;
+      // the outer size (the area has no border or padding): it does not shrink when classic scrollbars (about 17 px on Windows) appear
+      // after a zoom, so the fitted size, and with it every step, stays the same
+      const { offsetWidth, offsetHeight } = element;
       setArea((current) =>
-        clientWidth > 0 && clientHeight > 0
-          ? current?.width === clientWidth && current.height === clientHeight
+        offsetWidth > 0 && offsetHeight > 0
+          ? current?.width === offsetWidth && current.height === offsetHeight
             ? current
-            : { width: clientWidth, height: clientHeight }
+            : { width: offsetWidth, height: offsetHeight }
           : null,
       );
     };

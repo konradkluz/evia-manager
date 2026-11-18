@@ -9,7 +9,7 @@ test.use({ session: 'active' });
 
 const boxes = async (dialog: Locator) => {
   const image = await dialog.getByRole('img').boundingBox();
-  const area = await dialog.getByRole('region', { name: 'Powiększone zdjęcie' }).boundingBox();
+  const area = await dialog.getByRole('region', { name: 'Podgląd zdjęcia' }).boundingBox();
   if (image === null || area === null) throw new Error('the picture or its area is not laid out');
   return { image, area };
 };
@@ -39,7 +39,7 @@ test.describe('EVM-045 AC1 the preview of a photo is fitted to the window', () =
         expect(image.x + image.width).toBeLessThanOrEqual(area.x + area.width + 0.5);
         expect(image.y + image.height).toBeLessThanOrEqual(area.y + area.height + 0.5);
         const scrolls = await dialog
-          .getByRole('region', { name: 'Powiększone zdjęcie' })
+          .getByRole('region', { name: 'Podgląd zdjęcia' })
           .evaluate((element) => element.scrollHeight > element.clientHeight + 1 || element.scrollWidth > element.clientWidth + 1);
         expect(scrolls).toBe(false);
         // the proportions are kept and the photo is not drawn larger than its natural size
@@ -85,12 +85,23 @@ test.describe('EVM-045 AC1 the preview of a photo is fitted to the window', () =
     expect(back.height).toBeCloseTo(fit.height, 0);
     await expect(zoomOut).toBeDisabled();
   });
+
+  test('EVM-045 AC1 a disabled "Pomniejsz" looks disabled: its icon colour differs from the enabled "Powiększ"', async ({ page, api }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const dialog = await openLightbox(page, api, 1600, 1200);
+    const colour = (name: string) => dialog.getByRole('button', { name }).evaluate((element) => getComputedStyle(element).color);
+    await expect(dialog.getByRole('button', { name: 'Pomniejsz' })).toBeDisabled();
+    expect(await colour('Pomniejsz')).not.toBe(await colour('Powiększ'));
+    await dialog.getByRole('button', { name: 'Powiększ' }).click();
+    // enabled at 150%: the same colour as "Powiększ"
+    expect(await colour('Pomniejsz')).toBe(await colour('Powiększ'));
+  });
 });
 
 // The zoom scales the picture itself: the scrolling area is exactly the picture (no empty strips from the fit margins) and the view stays on
 // the same point of the picture. The geometry is read from the scrolling area (its scroll size, its position) and the picture in it.
 const view = (dialog: Locator) =>
-  dialog.getByRole('region', { name: 'Powiększone zdjęcie' }).evaluate((area) => {
+  dialog.getByRole('region', { name: 'Podgląd zdjęcia' }).evaluate((area) => {
     const image = area.querySelector('img');
     if (image === null) throw new Error('no picture');
     const box = image.getBoundingClientRect();
@@ -169,7 +180,7 @@ test.describe('EVM-045 AC1 the zoom scales the picture and keeps the view on its
   }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     const dialog = await openLightbox(page, api, 1600, 1200);
-    const area = dialog.getByRole('region', { name: 'Powiększone zdjęcie' });
+    const area = dialog.getByRole('region', { name: 'Podgląd zdjęcia' });
     const zoomIn = dialog.getByRole('button', { name: 'Powiększ' });
     const zoomOut = dialog.getByRole('button', { name: 'Pomniejsz' });
     const start = await view(dialog);
@@ -196,7 +207,7 @@ test.describe('EVM-045 AC1 the zoom scales the picture and keeps the view on its
     const dialog = await openLightbox(page, api, 1600, 1200);
     await dialog.getByRole('button', { name: 'Powiększ' }).click();
     await dialog.getByRole('button', { name: 'Powiększ' }).click();
-    await dialog.getByRole('region', { name: 'Powiększone zdjęcie' }).focus();
+    await dialog.getByRole('region', { name: 'Podgląd zdjęcia' }).focus();
     const before = await view(dialog);
     await page.keyboard.press('ArrowRight');
     await page.keyboard.press('ArrowDown');
@@ -242,7 +253,7 @@ test.describe('EVM-046 AC4 the preview of a film fits the area of the lightbox',
       test(`EVM-046 AC4 the ${film.name} film is whole inside the area, in its proportions, in ${window.px}`, async ({ page, api }) => {
         await page.setViewportSize({ width: window.width, height: window.height });
         const dialog = await openVideoLightbox(page, api, film.width, film.height);
-        const area = dialog.getByRole('region', { name: 'Powiększone zdjęcie' });
+        const area = dialog.getByRole('region', { name: 'Podgląd zdjęcia' });
         const player = await dialog.locator('video').boundingBox();
         const frame = await area.boundingBox();
         if (player === null || frame === null) throw new Error('the player or its area is not laid out');
