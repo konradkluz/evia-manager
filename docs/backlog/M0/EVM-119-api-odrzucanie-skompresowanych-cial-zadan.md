@@ -4,7 +4,7 @@ title: "API odrzuca skompresowane ciała żądań (inflate: false, RR-39)"
 type: enabler
 milestone: M0
 epic: E00 Fundamenty
-status: draft
+status: ready
 priority: P2
 path: lekka
 owner: backend-developer
@@ -50,3 +50,4 @@ Jako **właściciel produktu** chcę, **aby API nie dekodowało skompresowanych 
 ## Dziennik
 - 2026-10-27 — utworzono (product-owner) z RR-39
 - 2026-11-13 — triage wg decyzji „jedno środowisko” (product-owner): zostaje, P2 (mała, lekka); API z realnymi danymi jest bardziej wystawione, więc w pierwszych tygodniach użycia — w wolnym oknie między historyjkami; AC bez zmian.
+- 2026-11-18 — zaakceptowana przez Konrada („akceptuję EVM-111 i EVM-119”); status `ready` (Tech Lead)
