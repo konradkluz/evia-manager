@@ -112,7 +112,7 @@ describe('Maestro flows 90-9x and the video scenarios agree (EVM-110)', () => {
       "text: '1 film'",
       "text: '1 do wysłania'",
       'W trakcie prac, Film · 0:[0-9]{2} · [0-9]+ MB, .*, Oczekuje',
-      'files=1;waiting=1;uploading=0;sent=0;failed=0;attention=0;',
+      'files=1;waiting=1;uploading=0;failed=0;attention=0;',
     ])
       assert.ok(text.includes(part), part);
     // below the fold and under the bar: scrolled to with the element centred
@@ -208,9 +208,11 @@ describe('Maestro flows 90-9x and the video scenarios agree (EVM-110)', () => {
       "id: 'waiting-wifi-change'",
       "id: 'more-wifi-switch'",
       "text: 'Filmy wysyłamy przez każdą sieć.*'",
-      "text: '0 do wysłania'",
+      "notVisible: '.*Czeka na Wi-Fi.*'",
     ])
       assert.ok(off.includes(part), part);
+    // EVM-111 AC5: no "Wysłano" and no "0 do wysłania" on the phone - the end of the flows is "no longer waiting for Wi-Fi", the tool waits for the object
+    assert.doesNotMatch(off, /Wysłano|\b0 do wysłania/);
     // the explanation that follows the turning off is judged without a dialog in the way
     assert.match(off, /tapOn:\n {4}id: 'more-wifi-switch'\n- extendedWaitUntil:/);
   });
@@ -265,9 +267,10 @@ describe('Maestro flows 90-9x and the video scenarios agree (EVM-110)', () => {
     // two synthetic films of 64 MiB by the hook and one real recording of the camera, saved by the same path
     for (const part of ["MIB: '64'", "COUNT: '2'", "id: 'camera-mode-video'", "text: '3 do wysłania'", 'common/camera-from-order.yaml'])
       assert.ok(inject.includes(part), part);
-    assert.match(flowText('97-video-batch-after-kill.yaml'), /STATUS: 'files=3;waiting=3;uploading=0;sent=0;failed=0;attention=0;/);
+    assert.match(flowText('97-video-batch-after-kill.yaml'), /STATUS: 'files=3;waiting=3;uploading=0;failed=0;attention=0;/);
     assert.match(flowText('98-video-batch-held.yaml'), /3 filmy czekają na Wi-Fi/);
-    assert.match(flowText('92-video-wifi-sent.yaml'), /text: '0 do wysłania'/);
+    assert.match(flowText('92-video-wifi-sent.yaml'), /notVisible: '.*Czeka na Wi-Fi.*'/);
+    assert.doesNotMatch(flowText('92-video-wifi-sent.yaml'), /Wysłano|\b0 do wysłania/);
   });
 
   it('EVM-110 AC3: Home during a recording saves the film; a kill during a recording leaves no row and shows the Banner once', () => {

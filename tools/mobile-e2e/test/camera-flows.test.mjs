@@ -195,11 +195,13 @@ describe('Maestro flows 80-89 and the camera scenarios agree (EVM-108)', () => {
     // below the fold of the panel: scrolled to first, with the element centred
     assert.match(inject, /scrollUntilVisible:\n {4}element:\n {6}id: 'e2e-capture-batch'\n {4}direction: DOWN\n {4}centerElement: true/);
     assert.match(flowText('87-camera-batch-after-kill.yaml'), /text: '30 do wysłania'/);
-    assert.match(flowText('87-camera-batch-after-kill.yaml'), /STATUS: 'files=30;waiting=30;uploading=0;sent=0;failed=0;attention=0;/);
+    assert.match(flowText('87-camera-batch-after-kill.yaml'), /STATUS: 'files=30;waiting=30;uploading=0;failed=0;attention=0;/);
     assert.match(flowText('88-camera-batch-uploading.yaml'), /\.\*Wysyła się \[0-9\]\+%/);
     const sent = flowText('89-camera-batch-sent.yaml');
-    assert.match(sent, /text: '0 do wysłania'/);
-    assert.match(sent, /STATUS: 'files=30;waiting=0;uploading=0;sent=30;failed=0;attention=0;/);
+    // EVM-111 AC5: there is no "Wysłano" on the phone, so the flow does not wait for it - the thirty entries are still there, none failed, and the tool waits for the objects
+    assert.match(sent, /text: '30 do wysłania'/);
+    assert.doesNotMatch(sent, /Wysłano|\b0 do wysłania/);
+    assert.match(sent, /STATUS: 'files=30;waiting=\[0-9\]\+;uploading=\[0-9\]\+;failed=0;attention=0;/);
     assert.match(sent, /assertNotVisible: 'Wylogowano ten telefon'/);
     assert.match(flowText('common/media-status.yaml'), /text: \$\{STATUS\}/);
   });

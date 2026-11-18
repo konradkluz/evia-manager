@@ -1,7 +1,7 @@
 # EVM-110 AC4: the phone is on the mobile network with charges (set by tools/mobile-e2e: Wi-Fi off, data on). A synthetic film (16 MiB) and a picture are
 # saved by the hooks (the path of the camera) and the Queue shows what the setting "Filmy tylko przez Wi-Fi" (on by default) does: the film is "Czeka na
 # Wi-Fi" (not an error, not "Wymaga uwagi") with the ONE banner "1 film czeka na Wi-Fi. Zdjęcia i wpisy wysyłamy normalnie." and the link "Zmień ustawienie";
-# the picture goes through the same network ("Wysłano"). tools/mobile-e2e then proves the server received exactly the one part of the picture and none of the film.
+# the picture goes through the same network (its entry stays, "Oczekuje" or "Wysyła się n%": EVM-111 AC5). tools/mobile-e2e then proves the server received exactly the one part of the picture and none of the film.
 appId: pl.eviacharge.manager
 ---
 - launchApp:
@@ -30,11 +30,8 @@ appId: pl.eviacharge.manager
 - assertVisible: 'Czeka na Wi-Fi \(1\)'
 - assertVisible: 'Oględziny, Film · .*, Czeka na Wi-Fi'
 - takeScreenshot: m07-video-waiting-wifi
-# the picture is sent over the same network; the film is not
-- extendedWaitUntil:
-    visible:
-      id: 'files-sent'
-    timeout: 120000
+# the picture is sent over the same network; the film is not (tools/mobile-e2e waits for the one part of the picture)
+- assertVisible: '.*, Zdjęcie, .*, (Oczekuje|Wysyła się [0-9]+%)'
 - assertVisible:
     id: 'files-waiting-wifi'
 - assertNotVisible: 'Wymaga uwagi'

@@ -108,7 +108,7 @@ appId: pl.eviacharge.manager
 - tapOn:
     id: 'nav-queue'
 - extendedWaitUntil:
-    visible: 'Oględziny, Zdjęcie, .*, (Oczekuje|Wysyła się [0-9]+%|Wysłano)'
+    visible: 'Oględziny, Zdjęcie, .*, (Oczekuje|Wysyła się [0-9]+%)'
     timeout: 60000
 - assertNotVisible: '.*Fikcyjna.*'
 - assertNotVisible: 'ZL-E2E-3'

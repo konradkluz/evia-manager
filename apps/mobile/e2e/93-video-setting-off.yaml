@@ -1,6 +1,7 @@
 # EVM-110 AC4: on the mobile network with charges a film waits ("Czeka na Wi-Fi"); "Więcej" -> "Wysyłanie": the switch "Filmy tylko przez Wi-Fi" is turned
 # off with ONE tap (no dialog; the explanation under it changes) and the waiting film is handed to the system again with any network: it goes through the
-# mobile network and ends as "Wysłano". tools/mobile-e2e then proves the object at the scenario server.
+# mobile network (it is no longer "Czeka na Wi-Fi"; its entry stays until the server confirms it: EVM-111 AC5). tools/mobile-e2e then proves the object at
+# the scenario server.
 appId: pl.eviacharge.manager
 ---
 - launchApp:
@@ -42,9 +43,7 @@ appId: pl.eviacharge.manager
 - tapOn:
     id: 'nav-queue'
 - extendedWaitUntil:
-    visible:
-      id: 'files-summary'
-      text: '0 do wysłania'
+    notVisible: '.*Czeka na Wi-Fi.*'
     timeout: 300000
 - assertNotVisible:
     id: 'waiting-wifi-banner'

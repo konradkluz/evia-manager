@@ -1,0 +1,19 @@
+# EVM-130 AC4: the server confirmed the file (`clean`, set by tools/mobile-e2e before this flow; the app reads it when it comes back to the foreground): the
+# original is removed (tools/mobile-e2e asserts it afterwards) and - EVM-111 AC5 - the ENTRY of the file leaves the phone with it: the Queue has no file, no
+# "Wysłane pliki" and no "Wysłano", and the app is still signed in.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- tapOn:
+    id: 'nav-queue'
+- extendedWaitUntil:
+    notVisible:
+      id: 'queue-files'
+    timeout: 240000
+- assertNotVisible: '.*, Zdjęcie, .*, (Oczekuje|Wysyła się [0-9]+%|Wysłano)'
+- assertNotVisible: 'Wylogowano ten telefon'
+- takeScreenshot: u130-confirmed-entry-gone

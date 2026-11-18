@@ -1,0 +1,48 @@
+# EVM-111 AC1 AC2 AC3 AC6: no network (airplane mode, set by tools/mobile-e2e). Two pictures of the order ZL-E2E-1 are saved through the hook of the e2e variant
+# `media: capture N` (the path of a photograph). The details of the order have the row "Pliki z tego telefonu" above the journal with "2 do wysłania"; it opens
+# "Pliki zlecenia": a flat list of the two files, each "Oczekuje", the header "2 do wysłania", no customer, no address and no name of a file - and, offline,
+# no error and no banner of the connection (the capsule "Offline · n" of the bar is the only sign). "Wstecz" returns to the order. tools/mobile-e2e then proves
+# that the server has not seen a byte.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- extendedWaitUntil:
+    visible: 'Brak zasięgu.*'
+    timeout: 30000
+- runFlow:
+    file: common/hook-capture-photos.yaml
+    env:
+      COUNT: '2'
+- runFlow: common/order-files-open.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'order-files-row-second'
+      text: '2 do wysłania'
+    timeout: 20000
+- assertVisible: 'Pliki z tego telefonu'
+- takeScreenshot: m03-order-files-row
+- tapOn:
+    id: 'order-files-row'
+- extendedWaitUntil:
+    visible:
+      id: 'order-files-count'
+      text: '2 do wysłania'
+    timeout: 20000
+- assertVisible: 'Pliki zlecenia'
+- assertVisible: '.*, Zdjęcie, .*, Oczekuje'
+- assertNotVisible: '.*, Zdjęcie, .*, Wysłano'
+- assertNotVisible: 'Klient Testowy.*'
+- assertNotVisible: 'Testowa.*'
+- takeScreenshot: m08-order-files-offline
+# "Wstecz" returns to the ORDER, not to the list
+- tapOn:
+    id: 'order-files-back'
+- extendedWaitUntil:
+    visible: 'Zlecenie testowe 1'
+    timeout: 20000
+- assertVisible:
+    id: 'order-files-row'

@@ -1,6 +1,8 @@
-# EVM-130 AC1 AC2 AC4: the file ends as "Wysłano" (one file, none left in the queue) and the app is still signed in. tools/mobile-e2e asserts
-# afterwards, with the scenario server and adb: exactly one object per asset with the SHA-256 of the original, no orphaned multipart, the
-# original still on the phone until the server says `clean`, and no token or signed address in the log or the files of the app.
+# EVM-130 AC1 AC2 AC4: the file is on its way or has reached the server and the app is still signed in. The entry of the file STAYS in the Queue while the
+# server has not confirmed it (the replica says "uploading"): "Oczekuje" or "Wysyła się n%", counted as "1 do wysłania" - never "Wysłano" (EVM-111 AC5: there
+# is no such label on the phone; the entry leaves it with the confirmation, see 54-upload-confirmed.yaml). tools/mobile-e2e asserts afterwards, with the
+# scenario server and adb, WITHOUT waiting for the screen: it waits for the object itself - exactly one object per asset with the SHA-256 of the original, no
+# orphaned multipart, the original still on the phone until the server says `clean`, and no token or signed address in the log or the files of the app.
 appId: pl.eviacharge.manager
 ---
 - launchApp:
@@ -11,10 +13,11 @@ appId: pl.eviacharge.manager
 - tapOn:
     id: 'nav-queue'
 - extendedWaitUntil:
-    visible: 'Bez kategorii, Zdjęcie, .*, Wysłano'
+    visible: 'Bez kategorii, Zdjęcie, .*, (Oczekuje|Wysyła się [0-9]+%)'
     timeout: 240000
 - assertVisible:
     id: 'files-summary'
-    text: '0 do wysłania'
+    text: '1 do wysłania'
+- assertNotVisible: 'Bez kategorii, Zdjęcie, .*, Wysłano'
 - assertNotVisible: 'Wylogowano ten telefon'
 - takeScreenshot: u130-sent

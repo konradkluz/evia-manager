@@ -1,5 +1,5 @@
 # EVM-137 AC2 AC3: the network returns while the app was in the background. The survey is sent once and gets its number: the list shows "ZL-E2E-3"
-# with the mark, no "Oczekuje na numer"; the file goes after it and ends as "Wysłano". The counters of the scenario server (2 unique: the survey and
+# with the mark, no "Oczekuje na numer"; the file goes after it (its entry stays, "Oczekuje" or "Wysyła się n%": EVM-111 AC5). The counters of the scenario server (2 unique: the survey and
 # the command of the file, 0 duplicates, 0 rejected) are asserted by tools/mobile-e2e after this flow, and the log of the device must have no typed value.
 appId: pl.eviacharge.manager
 ---
@@ -22,8 +22,9 @@ appId: pl.eviacharge.manager
 - takeScreenshot: m05-survey-numbered
 - tapOn:
     id: 'nav-queue'
+# the file waits for the survey no more ("Wyślemy po utworzeniu wizji" is gone) and is on its way
 - extendedWaitUntil:
-    visible: 'Wysłane pliki'
+    visible: 'Oględziny, Zdjęcie, .*, (Oczekuje|Wysyła się [0-9]+%)'
     timeout: 120000
 - assertNotVisible: 'Wymaga uwagi.*'
 - assertNotVisible: 'Wyślemy po utworzeniu wizji'

@@ -1,5 +1,6 @@
 # EVM-130 AC5: after the full sign-in of the same user the paused transfer resumes (the scenario server no longer revokes the session) and the
-# file ends as "Wysłano" - nothing was lost while the phone was signed out.
+# file is still in the Queue ("Oczekuje" or "Wysyła się n%": the entry leaves only with the confirmation of the server, EVM-111 AC5) - nothing was lost
+# while the phone was signed out. tools/mobile-e2e then waits for the object at the scenario server.
 appId: pl.eviacharge.manager
 ---
 - runFlow: common/sign-in.yaml
@@ -13,9 +14,9 @@ appId: pl.eviacharge.manager
 - tapOn:
     id: 'nav-queue'
 - extendedWaitUntil:
-    visible: 'Bez kategorii, Zdjęcie, .*, Wysłano'
+    visible: 'Bez kategorii, Zdjęcie, .*, (Oczekuje|Wysyła się [0-9]+%)'
     timeout: 240000
 - assertVisible:
     id: 'files-summary'
-    text: '0 do wysłania'
+    text: '1 do wysłania'
 - takeScreenshot: u130-resumed-after-sign-in

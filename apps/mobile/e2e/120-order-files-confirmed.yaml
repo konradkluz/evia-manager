@@ -1,0 +1,44 @@
+# EVM-111 AC1 AC2 AC3 AC5: the server confirmed both files (`clean`, set by tools/mobile-e2e before this flow; the app reads it when it comes back to the foreground).
+# The entries leave the phone: the row of the order and the header say "Wszystko wysłane", "Pliki zlecenia" is empty with the sentence of the office and no
+# button, the Queue has no file, no "Wysłane pliki" and no "Wysłano", and the hook counts no file. tools/mobile-e2e then proves that the originals are gone.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- runFlow: common/order-files-open.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'order-files-row-second'
+      text: 'Wszystko wysłane'
+    timeout: 240000
+- assertVisible: 'Pliki z tego telefonu'
+- takeScreenshot: m03-order-files-all-sent
+- tapOn:
+    id: 'order-files-row'
+- extendedWaitUntil:
+    visible:
+      id: 'order-files-empty'
+    timeout: 20000
+- assertVisible: 'Wszystko wysłane\. Zdjęcia i filmy zlecenia przegląda biuro w panelu\.'
+- assertVisible:
+    id: 'order-files-count'
+    text: 'Wszystko wysłane'
+- assertNotVisible: '.*, Zdjęcie, .*, (Oczekuje|Wysyła się [0-9]+%|Wysłano)'
+- takeScreenshot: m08-order-files-empty
+- tapOn:
+    id: 'order-files-back'
+- tapOn:
+    id: 'nav-queue'
+- extendedWaitUntil:
+    notVisible:
+      id: 'queue-files'
+    timeout: 20000
+- assertNotVisible: '.*, Zdjęcie, .*, Wysłano'
+- takeScreenshot: m07-queue-no-files
+- runFlow:
+    file: common/media-status.yaml
+    env:
+      STATUS: 'files=0;waiting=0;uploading=0;failed=0;attention=0;notifications=[a-z_]+'

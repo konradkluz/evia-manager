@@ -23,4 +23,4 @@ appId: pl.eviacharge.manager
 - runFlow:
     file: common/media-status.yaml
     env:
-      STATUS: 'files=3;waiting=3;uploading=0;sent=0;failed=0;attention=0;notifications=[a-z_]+'
+      STATUS: 'files=3;waiting=3;uploading=0;failed=0;attention=0;notifications=[a-z_]+'
