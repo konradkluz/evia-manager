@@ -26,6 +26,11 @@ Film po przetworzeniu ma klatkę-miniaturę (WebP) i podgląd wideo 720p (MP4 be
 
 ## Kryteria akceptacji
 
+**AC0 — API wydaje telefonowi adres miniatury i podglądu filmu, nigdy oryginału**
+- Zakładając token telefonu Administratora albo Edytora i film zlecenia widoczny dla niego
+- Gdy prosi o adres `thumbnail` albo `preview` filmu
+- Wtedy dostaje krótkotrwały adres (≤ 300 s, `no-store`, bez zapisu w logach i audycie) pliku `image/webp` albo `video/mp4` (`inline`, bez metadanych); `original` filmu z telefonu → `403` przed odczytem medium; film innego zlecenia, usunięty, w `processing`, w kwarantannie, `failed` albo bez gotowej pochodnej → `404` w jednym kształcie; limity i testy macierzy ról i kanałów jak w EVM-142 AC1, rozszerzone o wideo.
+
 **AC1 — Film w siatce zdjęć**
 - Zakładając zlecenie z filmem ze stanem `ready` i sieć
 - Gdy otwieram „Zdjęcia zlecenia” (EVM-142)
@@ -34,7 +39,7 @@ Film po przetworzeniu ma klatkę-miniaturę (WebP) i podgląd wideo 720p (MP4 be
 **AC2 — Odtwarzanie po dotknięciu**
 - Zakładając film `ready`
 - Gdy go dotykam
-- Wtedy otwiera się odtwarzacz z podglądem 720p, odtwarzanie rusza dopiero po dotknięciu „Odtwórz” (nic nie pobiera się samo), mam odtwarzanie, pauzę i zamknięcie; wideo jest przesyłane strumieniowo z krótkotrwałego adresu, bez zapisu pliku, w galerii ani w pamięci trwałej.
+- Wtedy otwiera się odtwarzacz z podglądem 720p, odtwarzanie rusza dopiero po dotknięciu „Odtwórz” (nic nie pobiera się samo), mam odtwarzanie, pauzę i zamknięcie; wideo jest przesyłane strumieniowo z krótkotrwałego adresu, bez zapisu pliku, w galerii ani w pamięci trwałej. Odtwarzacz działa w oknie głównym aplikacji; pełny ekran, tryb obraz w obrazie, odtwarzanie w tle i powiadomienie multimedialne są wyłączone, a adres trafia wyłącznie do odtwarzacza (nie do `Linking`, przeglądarki, innych aplikacji ani schowka).
 
 **AC3 — Wygasły adres i błędy**
 - Zakładając oglądany film i adres, który wygasa albo zwraca błąd
@@ -49,21 +54,21 @@ Film po przetworzeniu ma klatkę-miniaturę (WebP) i podgląd wideo 720p (MP4 be
 **AC5 — Tło, blokada i tryb ukrytych danych**
 - Zakładając odtwarzany film
 - Gdy aplikacja idzie w tło, blokuje się, przechodzi w tryb ukrytych danych, `session_revoked` albo wylogowanie
-- Wtedy odtwarzanie zatrzymuje się natychmiast, odtwarzacz i adres są zwolnione, a po powrocie film nie startuje sam; nic nie jest ogłaszane czytnikowi; oryginał filmu nie jest nigdy pobierany na telefon.
+- Wtedy odtwarzanie zatrzymuje się natychmiast, odtwarzacz i adres są zwolnione, a po powrocie film nie startuje sam; nic nie jest ogłaszane czytnikowi; oryginał filmu nie jest nigdy pobierany na telefon. Odtwarzacz nie zapisuje wideo na dysku (pamięć podręczna wyłączona): po odtworzeniu, blokadzie i wylogowaniu katalogi aplikacji nie zawierają plików wideo (test na emulatorze w wariancie debug); żądanie adresu i odpowiedź spóźniona po tych zdarzeniach są odrzucane.
 
 **AC6 — Dostępność i dane**
 - Zakładając czytnik ekranu i 200% czcionki
 - Gdy używam odtwarzacza
-- Wtedy przyciski mają nazwy dostępne i cele ≥ 48 dp, a nazwa filmu w siatce to „Film, [kategoria], [czas]” (bez nazwy pliku); odtwarzacz nie dodaje uprawnień, powiadomień ani dźwięku w tle po zamknięciu.
+- Wtedy przyciski mają nazwy dostępne i cele ≥ 48 dp, a nazwa filmu w siatce to „Film, [kategoria], [czas]” (bez nazwy pliku); scalony manifest po dodaniu odtwarzacza przechodzi istniejący test `permissions-minimal` bez zmiany listy uprawnień (brak `FOREGROUND_SERVICE*`, `RECORD_AUDIO`, `POST_NOTIFICATIONS`) i bez usług odtwarzania w tle; po zamknięciu nie ma dźwięku ani powiadomień.
 
 ## Poza zakresem
 - Pobieranie i zapis filmu, odtwarzanie offline, pełny ekran obrócony, napisy, prędkości, przewijanie z podglądem klatek.
 - Odtwarzanie oryginału filmu; filmy 4K / HEVC jako obiecana funkcja (do pomiaru osobno); ostrzeżenie o zużyciu danych komórkowych (zob. pytanie 2).
-- Zmiany procesora mediów, kontraktu API (adresy `thumbnail` / `preview` wydaje EVM-142).
+- Zmiany procesora mediów; zmiany kontraktu API inne niż AC0 (adresy dla zdjęć wydaje EVM-142).
 
 ## Decyzje i ograniczenia
 - Odtwarzacz zapewne wymaga nowej zależności w aplikacji (Expo) — **wymaga konsultacji architekta i uzasadnienia SR-SUPPLY-06** (licencja, utrzymanie, brak własnej pamięci podręcznej na dysku, brak dostępu do plików lokalnych).
-- Bezpieczeństwo: te same zasady co EVM-142 (adres tylko w pamięci, bez logów, bez cache na dysku); SR-FILE-07, SR-FILE-10, SR-MOB-05, SR-MOB-08.
+- **Bezpieczeństwo i prywatność (konsultacja security, skrót; 2026-11-18):** film oglądamy wyłącznie jako `preview` 720p MP4 bez metadanych, strumieniowo z adresu ≤ 300 s; `original` filmu nigdy nie jest wydawany kanałowi `mobile`. **Serwis wydawania adresów dziś zwraca `404` dla wideo**, więc zmiana serwera i kontraktu należy do tej historyjki (AC0). Odtwarzacz działa w oknie głównym aplikacji: bez pełnego ekranu i trybu obraz w obrazie (osobna aktywność ominęłaby nakładkę blokady i `FLAG_SECURE`), bez odtwarzania w tle i powiadomień, bez zapisu na dysk i bez przekazywania adresu innym aplikacjom; WebView i zewnętrzny odtwarzacz są zakazane (SR-MOB-07). Kandydat: `expo-video` (dostawca jak pozostałe pakiety Expo); uzasadnienie wg SR-SUPPLY-06 w PR obejmuje licencję, wersję zgodną z SDK, aktualizację sum Gradle i brak zmian uprawnień. Reszta zasad jak w EVM-142 (SR-MOB-14); SR-FILE-07, SR-FILE-10, SR-MOB-05, SR-MOB-08.
 - UX: rozszerzenie makiety siatki o film i odtwarzacz, komponenty ze styleguide'u.
 
 ## Do akceptacji przez Konrada
@@ -73,6 +78,9 @@ Film po przetworzeniu ma klatkę-miniaturę (WebP) i podgląd wideo 720p (MP4 be
 
 ## Notatki
 - Czas trwania filmu nie jest w replice; jeśli ma być w siatce, wymaga osobnej decyzji (kontrakt).
+- Z konsultacji security (Low): w teście wymusić wygaśnięcie adresu w trakcie odtwarzania (żądania zakresów po wygaśnięciu kończą się błędem — AC3); logi natywne odtwarzacza sprawdzić w `adb logcat` jak w EVM-142; walidacja `https:` i hosta bucketu przed przekazaniem adresu odtwarzaczowi; do potwierdzenia w kodzie wybranej wersji: domyślne wyłączenie pamięci podręcznej i sposób otwierania pełnego ekranu.
+- Historyjka ma 7 kryteriów (AC0–AC6) — AC0 doszło z konsultacji; przy planie rozważyć wydzielenie AC0 do osobnego, małego kroku API.
 
 ## Dziennik
 - 2026-11-18 — utworzono jako szkic (product-owner); podział potrzeby Konrada z 2026-11-18 na zdjęcia (EVM-142) i filmy
+- 2026-11-18 — naniesiono konsultację security (Tech Lead): dodane AC0 (serwer dziś nie wydaje adresów wideo), AC2, AC5 i AC6 doprecyzowane (okno główne, brak zapisu na dysk, test uprawnień); status `draft`

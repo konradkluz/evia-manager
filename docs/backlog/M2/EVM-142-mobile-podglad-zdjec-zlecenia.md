@@ -41,7 +41,7 @@ Jako **technik (Administrator lub Edytor)** chcę **w szczegółach zlecenia obe
 **AC3 — Podgląd pełnoekranowy**
 - Zakładając zdjęcie ze stanem `ready`
 - Gdy je dotykam
-- Wtedy otwiera się podgląd (wariant 1600 px) z kategorią, czasem i opisem oraz zamknięciem; wygasły adres (po 5 min) jest odświeżany jednorazowo bez migania, a drugi błąd daje „Nie udało się wczytać zdjęcia” z „Spróbuj ponownie”.
+- Wtedy otwiera się podgląd (wariant 1600 px) z kategorią, czasem i opisem oraz zamknięciem; wygasły adres (po 5 min) jest odświeżany jednorazowo bez migania, a drugi błąd daje „Nie udało się wczytać zdjęcia” z „Spróbuj ponownie”. Podgląd pełnoekranowy jest widokiem w oknie głównym aplikacji (nie `Modal`, nie osobna aktywność): jest potomkiem korzenia `LockGate`, więc nakładka blokady go przykrywa, a w kompilacji produkcyjnej okno ma `FLAG_SECURE` (sprawdzenie `screencap` na buildzie release w demo).
 
 **AC4 — Offline i brak uprawnień**
 - Zakładając brak sieci albo token odrzucony przez serwer
@@ -49,9 +49,9 @@ Jako **technik (Administrator lub Edytor)** chcę **w szczegółach zlecenia obe
 - Wtedy siatka pokazuje wiersze z repliki (kategoria, czas) z jasnym komunikatem „Podgląd zdjęć wymaga internetu” zamiast miniatur i bez komunikatu o błędzie serwera; po powrocie sieci miniatury doładowują się same; rola Tylko odczyt nie loguje się do aplikacji, a odmowa `403` pokazuje komunikat ogólny bez szczegółów.
 
 **AC5 — Nic nie zostaje na telefonie; tryb ukrytych danych i blokada**
-- Zakładając otwarty podgląd lub siatkę
-- Gdy aplikacja przechodzi w tryb ukrytych danych, blokadę, `session_revoked` albo wylogowanie
-- Wtedy obrazy i adresy znikają z ekranu i z pamięci od razu (czytnik niczego nie ogłasza), wiersza „Zdjęcia zlecenia” w trybie ukrytym nie ma; obrazy nie trafiają do trwałej pamięci podręcznej ani galerii, a adres nie trafia do logów i nazw dostępnych; po wylogowaniu i „Wyczyść dane firmowe” nie zostaje żaden obraz.
+- Zakładając otwartą siatkę lub podgląd, także z żądaniem adresu albo pobieraniem obrazu w toku
+- Gdy aplikacja przechodzi w tryb ukrytych danych (dowolny powód z `hiddenReason`), blokadę, `session_revoked`, wylogowanie albo „Wyczyść dane firmowe”
+- Wtedy siatka i podgląd znikają z drzewa widoków od razu (czytnik niczego nie ogłasza), żądania w toku są przerywane, a odpowiedź spóźniona (obraz lub adres) jest odrzucana i niczego nie wyświetla; w tych stanach aplikacja nie prosi o nowe adresy i nie odświeża wygasłych; wiersza „Zdjęcia zlecenia” w trybie ukrytym nie ma. Obrazy są trzymane wyłącznie w pamięci procesu: po obejrzeniu zdjęć, po blokadzie i po wylogowaniu katalogi aplikacji (`cache/`, `files/`) nie zawierają plików obrazów (test na emulatorze w wariancie debug), a galeria jest bez zmian. Adres nie trafia do logów (`adb logcat` po wczytaniu udanym, nieudanym i po wygaśnięciu adresu nie zawiera hosta bucketu ani `X-Amz-Signature`), do nazw dostępnych, schowka, intencji ani innych aplikacji (bez `Linking`, przeglądarki i `DownloadManager`).
 
 **AC6 — Stan pusty, dostępność i spójność z EVM-111**
 - Zakładając zlecenie bez zdjęć albo użytkownika czytnika ekranu
@@ -65,7 +65,7 @@ Jako **technik (Administrator lub Edytor)** chcę **w szczegółach zlecenia obe
 
 ## Decyzje i ograniczenia
 - Zdjęcia online z pochodnych serwera (propozycja Tech Leada 2026-11-18); decyzja Konrada czeka — sekcja niżej.
-- **Bezpieczeństwo (konsultacja security przed planem):** adres krótkotrwały i tylko w pamięci; wyłączenie trwałego cache obrazów (dysk) i potwierdzenie, że biblioteka nie zapisuje adresów ani obrazów w kopiach; `FLAG_SECURE` zostaje; rozszerzenie reguł `createMediaAssetDownloadUrl` na kanał `mobile` tylko dla `thumbnail` i `preview`. Wymagania: SR-FILE-07, SR-FILE-10, SR-AUTHZ-02, SR-AUTHZ-06, SR-MOB-05, SR-MOB-08, SR-LOG-02.
+- **Bezpieczeństwo i prywatność (konsultacja security, skrót; 2026-11-18):** kanał `mobile` dla `createMediaAssetDownloadUrl` otwieramy wyłącznie dla `thumbnail` i `preview` (WebP bez metadanych, adres ≤ 300 s, `no-store`, bez logu i audytu); `original` z telefonu serwer odrzuca (`403`, przed odczytem medium), więc oryginał z lokalizacją zostaje w panelu. Aplikacja nie ma dziś żadnego komponentu obrazów zdalnych, a domyślny `Image` na Androidzie (Fresco) zapisuje pobrane obrazy w cache na dysku i nie da się tego wyłączyć z JS — **plan zaczyna się od próby (spike):** `fetch` bajtów i wyświetlenie z adresu `data:` (bez nowej zależności) oraz test, że po obejrzeniu, blokadzie i wylogowaniu nie powstają pliki obrazów w katalogach aplikacji; warianty zapasowe (czyszczenie cache Fresco, `expo-image` z `cachePolicy: 'none'` — nowa zależność) tylko po decyzji Tech Leada. Zdekodowane bitmapy zostają w pamięci procesu do jej przycięcia przez system (ryzyko rezydualne jak w EVM-146: zrzut pamięci, root). Przyrost ryzyka mały (telefon i tak trzyma oryginały czekające w kolejce), ale podgląd 1600 px może pokazywać twarze i tablice. Przy realizacji security dopisuje SR-MOB-14 (media zlecenia w aplikacji tylko online i w pamięci), wiersz Low w `threat-model.md` i wzmiankę w `rodo.md` (kanał mobilny, bez nowego celu i retencji). Wymagania: SR-FILE-07, SR-FILE-10, SR-AUTHZ-02, SR-AUTHZ-06, SR-MOB-05, SR-MOB-08, SR-LOG-02.
 - **UX:** komponenty ze styleguide'u; makieta M-08 z EVM-111 do rozszerzenia (siatka); stany: pusty, ładowanie (szkielet), błąd, offline, ukryte dane.
 - Zmiana kontraktu `packages/contracts` (kanały operacji) — wymaga baseline'u OpenAPI i testu zgodności.
 
@@ -78,6 +78,8 @@ Jako **technik (Administrator lub Edytor)** chcę **w szczegółach zlecenia obe
 ## Notatki
 - Siatka korzysta z repliki (bez nowego `list`); liczba zapytań o adresy mieści się w limicie (1000 / 10 min / użytkownik), ale leniwe ładowanie jest wymagane.
 - Test na emulatorze: Maestro (zdjęcie `ready` → podgląd; offline → komunikat).
+- Z konsultacji security (Low): `403` dla `original` przed odczytem medium, jak w web; do macierzy ról dodać „zlecenie niewidoczne dla roli → 404” i pełną macierz rola × kanał × wariant (`apps/api/test/authorization/role-matrix.test.ts`); limit 1000 / 10 min jest wspólny z panelem (alert od 600 zostaje, osobny limit mobilny niepotrzebny); obrazy zwalniać już przy przejściu w tło; przed `fetch` sprawdzić `https:` i host zgodny z konfiguracją bucketu (SR-MOB-10); `testID` i nazwy dostępne siatki bez identyfikatorów medium i zlecenia.
 
 ## Dziennik
 - 2026-11-18 — utworzono jako szkic (product-owner); potrzeba Konrada z 2026-11-18, zmiana decyzji z 2026-11-12
+- 2026-11-18 — naniesiono konsultację security (Tech Lead): AC3 (podgląd w oknie głównym) i AC5 (kryteria sprawdzalne: brak plików obrazów, brak adresu w logach, przerwanie żądań w toku) doprecyzowane, spike cache obrazów na początku planu; status `draft`
