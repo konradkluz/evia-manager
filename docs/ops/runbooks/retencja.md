@@ -15,7 +15,7 @@ Okresy są **nazwanymi stałymi w kodzie** albo regułami IaC / ustawieniami u d
 | Klucze idempotencji | 30 dni | zadanie `platform.purge-idempotency` (04:10) | `IDEMPOTENCY_RETENTION_MS` — `apps/api/src/platform/idempotency/idempotency.ts` | działa (EVM-079) |
 | Media w kwarantannie | 30 dni (bajty ok. 60 dni — RR-51) | zadanie `media.quarantine-retention` (co godzinę) + wygasanie starszych wersji | `QUARANTINE_RETENTION_DAYS` — `apps/api/src/modules/media/domain/quarantine.ts`; `noncurrent_days = 30` — `infra/tofu/modules/object-storage/main.tf` | działa (EVM-049) |
 | Niedokończone uploady | 7 dni | stan `failed` / `abandoned` + reguła multipart | `SESSION_LIFETIME_MS` — `media/domain/upload-plan.ts`; `abort_incomplete_multipart_upload_days = 7` — IaC | działa (EVM-049) |
-| Pliki eksportu ZIP | 24 h | worker po `expires_at` + reguła bucketu 1 dzień | `EXPORT_LIFETIME_MS` — `media/domain/export-plan.ts`; `expiration days = 1` — IaC | w kodzie i IaC (EVM-052); bucket z posiedzenia A EVM-084, eksport na żywo — po EVM-124 (A12) |
+| Pliki eksportu ZIP | 24 h | worker po `expires_at` + reguła bucketu 1 dzień | `EXPORT_LIFETIME_MS` — `media/domain/export-plan.ts`; `expiration days = 1` — IaC | w kodzie i IaC (EVM-052); bucket z posiedzenia A EVM-084, eksport na żywo — nie sprawdzono (A12; miniatury i film działają od 2026-11-18) |
 | Stare wersje obiektów mediów | 30 dni | reguła bucketu | IaC (`noncurrent_days = 30`) | działa |
 | Rejestr usunięć | 40 dni | reguła bucketu | IaC (`days = 40`) | działa |
 | Kopie bazy (PITR) / niezmienne wersje | 30 / 37 dni | pgBackRest + object lock | `infra/runtime/pgbackrest/pgbackrest.conf`; IaC (`days = 37`) | **nieaktywne do posiedzenia B** (RR-91) |
