@@ -4,7 +4,7 @@ title: "Wdrożenie: kontrola, że procesor mediów działa (i alert, gdy nie)"
 type: enabler
 milestone: M1
 epic: E8 Gotowość produkcyjna
-status: draft
+status: ready
 priority: P1
 path: pelna             # infrastruktura produkcyjna i kanał wdrożeń (`infra/deploy-agent/**`) — jedynym recenzentem jest security-engineer (workflow.md → „Ścieżki realizacji”)
 owner: devops-engineer
@@ -55,7 +55,7 @@ Kanał wdrożeń dziś nie uruchamia i nie sprawdza `media-processor` (osobny pr
 - **Wymaga sesji infrastruktury z Konradem:** nowy skrypt agenta trzeba zainstalować na VM (kanał wdraża agenta lub instalujemy go w sesji — do potwierdzenia przez devops-engineera w planie), załadować reguły do Grafany i sprawdzić alert na żywo; sam kod, testy agenta i reguły da się zrobić bez niego.
 - Zmiana `infra/deploy-agent/**` → jedyny recenzent `security-engineer`.
 
-## Do akceptacji przez Konrada
+## Decyzje Konrada (2026-11-18: przyjęte wszystkie rekomendacje poniżej)
 1. **Tylko kontrola i alert, bez automatycznego uruchamiania procesora przez kanał?** Rekomendacja: **tak** (najprostsze i bezpieczne — uruchamianie wymaga digestu z CI i zmiany uprawnień kanału). Konsekwencja: po świeżej instalacji VM ktoś nadal uruchamia procesor ręcznie w sesji, ale już nie „po cichu” — dostaniesz alert po ok. 10 min.
 2. **Wdrożenie z martwym procesorem ma tylko ostrzegać, nie blokować ani cofać?** Rekomendacja: **tak** (aplikacja działa, a pliki wrócą do przetwarzania same po naprawie). Konsekwencja „blokować”: błędny alert zablokowałby poprawkę produkcyjną.
 3. **Czy EVM-144 i 145 w jednej sesji z ładowaniem reguł EVM-085?** Rekomendacja: **tak** (jedna sesja zamiast trzech).
@@ -65,3 +65,4 @@ Kanał wdrożeń dziś nie uruchamia i nie sprawdza `media-processor` (osobny pr
 
 ## Dziennik
 - 2026-11-18 — utworzono jako szkic (product-owner) na podstawie propozycji (b) z protokołu posiedzenia procesora mediów
+- 2026-11-18 — Konrad: „Akceptuję rekomendacje” — wszystkie pytania rozstrzygnięte wg rekomendacji; status `ready` (Tech Lead)

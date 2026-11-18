@@ -4,7 +4,7 @@ title: "Aplikacja: pod nakładką blokady nie ma danych zleceń w drzewie widok�
 type: story
 milestone: M2
 epic: E9 Dostęp mobilny
-status: draft
+status: ready
 priority: P2
 path: pelna             # dane na urządzeniu, bezpieczeństwo aplikacji mobilnej (SR-MOB-03/05/06/08); zmiana wspólnej powłoki ekranów, ryzyko utraty niezapisanych danych
 owner: mobile-developer
@@ -69,7 +69,7 @@ Jako **właściciel firmy** chcę, aby **zablokowana aplikacja nie zawierała da
 - **Bezpieczeństwo i prywatność (konsultacja security, skrót; 2026-11-18):** model zagrożenia — odczyt drzewa widoków zablokowanej aplikacji przez autoryzowane adb (`uiautomator dump`) albo usługę dostępności; dotyczy telefonu pożyczonego, odblokowanego systemowo albo z malware, **nie** telefonu zgubionego z blokadą ekranu (SR-MOB-06). Kontrola obejmuje tylko stan zablokowany — usługa dostępności czyta dane także przy odblokowanej aplikacji, więc to redukcja ryzyka, nie bariera (ocena 2×2 = Medium, jak TM-04). Poza zakresem zostają zrootowany telefon, zrzut pamięci procesu (klucz bazy i dane w pamięci, synchronizacja w tle) i kompilacja debug; ryzyko rezydualne (Low) czeka na akceptację właściciela (pytanie 4). Zapis: rozszerzenie SR-MOB-08 (MASVS-PLATFORM-3) z odwołaniem w SR-MOB-03 oraz uzupełnienie TM-04. Termin: przed drugim telefonem lub technikiem; nie blokuje testu na telefonie Konrada.
 - **UX:** zdjęcie nakładki nie może pokazywać na ułamek sekundy danych ani „migać” — ux-designer potwierdza przejście.
 
-## Do akceptacji przez Konrada
+## Decyzje Konrada (2026-11-18: przyjęte wszystkie rekomendacje poniżej)
 1. **Czy to ma być zrobione przed drugim telefonem lub technikiem, z priorytetem P2?** Rekomendacja: **tak** (security: ryzyko Medium; test na Twoim telefonie tego nie wymaga, przy kilku technikach ryzyko rośnie). Konsekwencja „później”: znane ryzyko odczytu danych z zablokowanej aplikacji na pożyczonym lub zainfekowanym telefonie zostaje do zamknięcia.
 2. **Niezapisane dane formularza: wystarczy pamięć aplikacji (znikają, gdy system ubije aplikację w tle)?** Rekomendacja: **tak** — tak jest dziś i nie dokładamy danych klienta na dysk. Konsekwencja „zapisuj na dysku”: nowy szyfrowany magazyn szkiców, więcej kodu i przeglądów (osobna historyjka).
 3. **Kolejność względem EVM-142 (podgląd zdjęć)?** Rekomendacja: **EVM-146 przed EVM-142** — obie zmieniają wspólną powłokę aplikacji, więc ta kolejność oszczędza konfliktów (względy bezpieczeństwa są tu drugorzędne: pikseli zdjęć nie ma w drzewie widoków, a EVM-142 i tak musi znikać z drzewa przy blokadzie — AC5 tam).
@@ -83,3 +83,4 @@ Jako **właściciel firmy** chcę, aby **zablokowana aplikacja nie zawierała da
 ## Dziennik
 - 2026-11-18 — utworzono jako szkic (product-owner) na podstawie ustalenia security z przeglądu poprawki blokady (EVM-101, PR #150)
 - 2026-11-18 — naniesiono konsultację security (Tech Lead): test AC1 zaostrzony (`uiautomator dump`, najpierw czerwony), zapis wymagań w AC6 wskazany, priorytet P1 → P2 z terminem „przed drugim technikiem”, pytanie 4 o ryzyko rezydualne; status `draft`
+- 2026-11-18 — Konrad: „Akceptuję rekomendacje” — wszystkie pytania rozstrzygnięte wg rekomendacji; status `ready` (Tech Lead)

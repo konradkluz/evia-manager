@@ -4,7 +4,7 @@ title: "Aplikacja: podgląd zdjęć zlecenia (online, bez zapisu na telefonie)"
 type: story
 milestone: M2
 epic: E11 Zdjęcia i filmy
-status: draft
+status: ready
 priority: P2
 path: pelna             # nowy dostęp mobilny do plików (kanał `mobile` dla adresów pochodnych) i obrazy na urządzeniu — obszar „media” i „dane na urządzeniu”
 owner: mobile-developer
@@ -69,7 +69,7 @@ Jako **technik (Administrator lub Edytor)** chcę **w szczegółach zlecenia obe
 - **UX:** komponenty ze styleguide'u; makieta M-08 z EVM-111 do rozszerzenia (siatka); stany: pusty, ładowanie (szkielet), błąd, offline, ukryte dane.
 - Zmiana kontraktu `packages/contracts` (kanały operacji) — wymaga baseline'u OpenAPI i testu zgodności.
 
-## Do akceptacji przez Konrada
+## Decyzje Konrada (2026-11-18: przyjęte wszystkie rekomendacje poniżej)
 1. **Czy potwierdzasz zmianę decyzji z 2026-11-12 (galeria tylko w panelu) i zakres „zdjęcia najpierw, filmy osobno”?** Rekomendacja: **tak**. Konsekwencja „nie”: zostaje wersja z EVM-111, technik nie widzi zdjęć na telefonie.
 2. **Online bez zapisu na telefonie?** Rekomendacja: **tak** (najtaniej i najbezpieczniej: żadnych kopii obrazów na urządzeniu, żadnych nowych danych do czyszczenia). Konsekwencja: bez zasięgu zdjęć nie zobaczy; podgląd offline wymagałby szyfrowanego magazynu i osobnej historyjki.
 3. **Powiększanie szczypaniem w podglądzie?** Rekomendacja: **nie w pierwszym kroku** (może wymagać nowej biblioteki gestów; oceń po teście w terenie, 1600 px zwykle wystarcza). Konsekwencja „tak”: dochodzi AC lub osobna historyjka i konsultacja zależności.
@@ -83,3 +83,4 @@ Jako **technik (Administrator lub Edytor)** chcę **w szczegółach zlecenia obe
 ## Dziennik
 - 2026-11-18 — utworzono jako szkic (product-owner); potrzeba Konrada z 2026-11-18, zmiana decyzji z 2026-11-12
 - 2026-11-18 — naniesiono konsultację security (Tech Lead): AC3 (podgląd w oknie głównym) i AC5 (kryteria sprawdzalne: brak plików obrazów, brak adresu w logach, przerwanie żądań w toku) doprecyzowane, spike cache obrazów na początku planu; status `draft`
+- 2026-11-18 — Konrad: „Akceptuję rekomendacje” — wszystkie pytania rozstrzygnięte wg rekomendacji; status `ready` (Tech Lead)

@@ -4,7 +4,7 @@ title: "Alert: przetwarzanie mediów stoi (pliki czekają zbyt długo)"
 type: enabler
 milestone: M1
 epic: E8 Gotowość produkcyjna
-status: draft
+status: ready
 priority: P1
 path: lekka             # tylko konfiguracja obserwowalności (Alloy, reguły, testy `promtool`, runbook), zero zmian w aplikacji, bez danych osobowych, bez `infra/deploy-agent/**`
 owner: devops-engineer
@@ -58,7 +58,7 @@ Jako **właściciel produktu** chcę **dostać e-mail, gdy pliki czekają na ska
 - Progi startowe do kalibracji na produkcji: zdjęcia 30 min, skan 30 min, film 2 h — jak w aplikacji.
 - Jedno środowisko = produkcja: etykieta `env` zgodna z dzisiejszymi regułami (obecnie `staging` w nazwach — nie zmieniamy w tej historyjce).
 
-## Do akceptacji przez Konrada
+## Decyzje Konrada (2026-11-18: przyjęte wszystkie rekomendacje poniżej)
 1. **Alert tylko z istniejących logów aplikacji (bez nowej metryki w agencie)?** Rekomendacja: **tak** — najtaniej, bez zmian w kanale wdrożeń; wystarcza do przypadku z 13–18.11. Konsekwencja: alert wykrywa zastój po 30 min (zdjęcia) i dopiero gdy `worker` działa; „kontener procesora padł” bez plików w kolejce nie da alertu (to EVM-145).
 2. **Próg 30 min dla zdjęć i 2 h dla filmów, e-mail do Ciebie?** Rekomendacja: **tak** (zgodne z kodem). Konsekwencja: przy dużym zaległym imporcie po awarii alert może się odezwać mimo że procesor pracuje — kalibrujemy po tygodniu.
 
@@ -67,3 +67,4 @@ Jako **właściciel produktu** chcę **dostać e-mail, gdy pliki czekają na ska
 
 ## Dziennik
 - 2026-11-18 — utworzono jako szkic (product-owner) na podstawie propozycji (a) z protokołu posiedzenia procesora mediów
+- 2026-11-18 — Konrad: „Akceptuję rekomendacje” — wszystkie pytania rozstrzygnięte wg rekomendacji; status `ready` (Tech Lead)

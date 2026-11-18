@@ -4,7 +4,7 @@ title: "Aplikacja: odtwarzanie filmów zlecenia (online, bez zapisu na telefonie
 type: story
 milestone: M2
 epic: E11 Zdjęcia i filmy
-status: draft
+status: ready
 priority: P3
 path: pelna             # film na urządzeniu i prawdopodobna nowa zależność (odtwarzacz) — „media”, „dane na urządzeniu”, łańcuch dostaw
 owner: mobile-developer
@@ -71,7 +71,7 @@ Film po przetworzeniu ma klatkę-miniaturę (WebP) i podgląd wideo 720p (MP4 be
 - **Bezpieczeństwo i prywatność (konsultacja security, skrót; 2026-11-18):** film oglądamy wyłącznie jako `preview` 720p MP4 bez metadanych, strumieniowo z adresu ≤ 300 s; `original` filmu nigdy nie jest wydawany kanałowi `mobile`. **Serwis wydawania adresów dziś zwraca `404` dla wideo**, więc zmiana serwera i kontraktu należy do tej historyjki (AC0). Odtwarzacz działa w oknie głównym aplikacji: bez pełnego ekranu i trybu obraz w obrazie (osobna aktywność ominęłaby nakładkę blokady i `FLAG_SECURE`), bez odtwarzania w tle i powiadomień, bez zapisu na dysk i bez przekazywania adresu innym aplikacjom; WebView i zewnętrzny odtwarzacz są zakazane (SR-MOB-07). Kandydat: `expo-video` (dostawca jak pozostałe pakiety Expo); uzasadnienie wg SR-SUPPLY-06 w PR obejmuje licencję, wersję zgodną z SDK, aktualizację sum Gradle i brak zmian uprawnień. Reszta zasad jak w EVM-142 (SR-MOB-14); SR-FILE-07, SR-FILE-10, SR-MOB-05, SR-MOB-08.
 - UX: rozszerzenie makiety siatki o film i odtwarzacz, komponenty ze styleguide'u.
 
-## Do akceptacji przez Konrada
+## Decyzje Konrada (2026-11-18: przyjęte wszystkie rekomendacje poniżej)
 1. **Czy filmy robimy dopiero po teście zdjęć z EVM-142?** Rekomendacja: **tak** (zdjęcia dają 80% wartości, film dokłada nową zależność i pamięć). Konsekwencja: film pojawi się w aplikacji później.
 2. **Ostrzeżenie o danych komórkowych przed odtworzeniem?** Rekomendacja: **nie** (odtwarzanie dopiero po dotknięciu wystarcza; film 720p jest krótki). Konsekwencja „tak”: dodatkowy AC i ustawienie „tylko Wi-Fi” dla podglądu.
 3. **Czy filmy 4K z terenu mają być obiecane już teraz?** Rekomendacja: **nie** — najpierw pomiar procesora (propozycja (e) z posiedzenia 2026-11-18).
@@ -84,3 +84,4 @@ Film po przetworzeniu ma klatkę-miniaturę (WebP) i podgląd wideo 720p (MP4 be
 ## Dziennik
 - 2026-11-18 — utworzono jako szkic (product-owner); podział potrzeby Konrada z 2026-11-18 na zdjęcia (EVM-142) i filmy
 - 2026-11-18 — naniesiono konsultację security (Tech Lead): dodane AC0 (serwer dziś nie wydaje adresów wideo), AC2, AC5 i AC6 doprecyzowane (okno główne, brak zapisu na dysk, test uprawnień); status `draft`
+- 2026-11-18 — Konrad: „Akceptuję rekomendacje” — wszystkie pytania rozstrzygnięte wg rekomendacji; status `ready` (Tech Lead)
