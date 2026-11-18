@@ -777,7 +777,7 @@ export const pl = {
     types: { photo: 'Zdjęcie', video: 'Film' },
     noCategory: 'Bez kategorii',
     fileA11y: '{{category}}, {{type}}, {{time}}, {{state}}',
-    discardBody: 'Usuniemy to zdjęcie z telefonu — nie trafi do biura. Tego nie da się cofnąć.',
+    discardBody: 'Usuniemy ten plik z telefonu. Tego nie da się cofnąć.',
     discardA11y: 'Usuń plik z telefonu',
     sections: { files: 'Pliki', attention: 'Plik wymaga uwagi', waitingWifi: 'Czeka na Wi-Fi ({{count}})' },
     states: {
