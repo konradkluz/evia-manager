@@ -62,8 +62,9 @@ export interface MediaFileStore {
    * EVM-111 AC5: the entry of a file the server confirmed (the replica said `clean`, `processing` or `ready`) whose original is already gone: the
    * row of a file that is still `applied` / `uploaded` (the confirmation came first) or `clean` (a removal that failed earlier). NEVER a row in any other
    * state - a file that waits, is sent, failed or needs attention keeps its row whatever its age. Only the local row: no mutation of the queue.
+   * `only: 'clean'` (the sweep of leftovers) narrows it to a `clean` row. Returns the number of rows removed (0 = nothing was there to remove).
    */
-  discardConfirmed(assetId: string): Promise<void>;
+  discardConfirmed(assetId: string, only?: 'clean'): Promise<number>;
 }
 
 const ASSET_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -222,12 +223,10 @@ export class SqlMediaFileStore implements MediaFileStore {
     );
   }
 
-  async discardConfirmed(assetId: string): Promise<void> {
-    await this.#db.transaction((tx) =>
-      tx.run("DELETE FROM media_files WHERE asset_id = ? AND owner_user_id = ? AND state IN ('applied', 'uploaded', 'clean')", [
-        assetId,
-        this.#ownerUserId,
-      ]),
+  async discardConfirmed(assetId: string, only?: 'clean'): Promise<number> {
+    const states = only === 'clean' ? "state = 'clean'" : "state IN ('applied', 'uploaded', 'clean')";
+    return this.#db.transaction((tx) =>
+      tx.run(`DELETE FROM media_files WHERE asset_id = ? AND owner_user_id = ? AND ${states}`, [assetId, this.#ownerUserId]),
     );
   }
 

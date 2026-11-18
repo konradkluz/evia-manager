@@ -27,7 +27,7 @@ function rig(over?: { awaiting?: boolean }) {
     read: 'ready',
   });
   const guard = source({ locked: false, hidden: null as string | null, wiping: false });
-  const sync = source({ active: true, online: true, paused: null as string | null, syncing: false });
+  const sync = source({ active: true, online: true, paused: null as string | null, syncing: false, retryAt: null as number | null });
   let appState: 'active' | 'background' | 'inactive' = 'active';
   const appListeners = new Set<() => void>();
   const pulls: number[] = [];
@@ -224,6 +224,70 @@ describe('the confirmation is asked for without the user (EVM-111 AC2, AC5)', ()
     jest.advanceTimersByTime(9999);
     expect(r.pulls).toHaveLength(2);
     jest.advanceTimersByTime(1);
+    expect(r.pulls).toHaveLength(3);
+    r.stop();
+  });
+
+  it('EVM-111 AC2 (rate limit): a retryAt in the future of the synchronization postpones the next asking to max(interval, retryAt - now)', () => {
+    const r = rig();
+    expect(r.pulls).toHaveLength(1);
+    // the cycle that was just started ends with a 429: the server wants 30 s
+    r.sync.set({ retryAt: Date.now() + 30000 });
+    jest.advanceTimersByTime(29999);
+    expect(r.pulls).toHaveLength(1);
+    jest.advanceTimersByTime(1);
+    expect(at(r.pulls, 1_000_000)).toEqual([0, 30000]);
+    // a wait shorter than the interval changes nothing: the next one is still the interval (10 s)
+    r.sync.set({ retryAt: Date.now() + 2000 });
+    jest.advanceTimersByTime(9999);
+    expect(r.pulls).toHaveLength(2);
+    jest.advanceTimersByTime(1);
+    expect(r.pulls).toHaveLength(3);
+    r.stop();
+  });
+
+  it('EVM-111 AC2 (rate limit): a retryAt that is already known when the interval is set is honoured, and a past one is ignored', () => {
+    const r = rig();
+    jest.advanceTimersByTime(5000);
+    expect(r.pulls).toHaveLength(2);
+    r.sync.set({ retryAt: Date.now() - 1 });
+    jest.advanceTimersByTime(10000);
+    expect(r.pulls).toHaveLength(3);
+    r.sync.set({ retryAt: Date.now() + 90000 });
+    jest.advanceTimersByTime(89999);
+    expect(r.pulls).toHaveLength(3);
+    jest.advanceTimersByTime(1);
+    expect(r.pulls).toHaveLength(4);
+    r.stop();
+  });
+
+  it('EVM-111 AC2 (flicker): a condition that flips every second never gives more than one asking per 5 s', () => {
+    const r = rig();
+    expect(r.pulls).toHaveLength(1);
+    for (let second = 1; second <= 20; second += 1) {
+      r.sync.set({ online: second % 2 === 0 });
+      jest.advanceTimersByTime(1000);
+    }
+    const times = at(r.pulls, 1_000_000);
+    for (let n = 1; n < times.length; n += 1) expect((times[n] ?? 0) - (times[n - 1] ?? 0)).toBeGreaterThanOrEqual(5000);
+    expect(times.length).toBeLessThanOrEqual(5);
+    r.stop();
+  });
+
+  it('EVM-111 AC2 (flicker): a resume within 5 s of the last asking waits for the rest of the gap; a resume after a longer pause asks at once', () => {
+    const r = rig();
+    jest.advanceTimersByTime(2000);
+    r.sync.set({ online: false });
+    jest.advanceTimersByTime(1000);
+    r.sync.set({ online: true });
+    expect(r.pulls).toHaveLength(1);
+    jest.advanceTimersByTime(1999);
+    expect(r.pulls).toHaveLength(1);
+    jest.advanceTimersByTime(1);
+    expect(r.pulls).toHaveLength(2);
+    r.sync.set({ online: false });
+    jest.advanceTimersByTime(60000);
+    r.sync.set({ online: true });
     expect(r.pulls).toHaveLength(3);
     r.stop();
   });

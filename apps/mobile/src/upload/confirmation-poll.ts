@@ -13,6 +13,8 @@ import type { MediaUploadsSnapshot } from './types';
 /** The pauses before the next asking, one after another; after the last one {@link CONFIRMATION_REPEAT_MS} repeats. */
 export const CONFIRMATION_DELAYS_MS: readonly number[] = [5000, 10000, 20000, 40000];
 export const CONFIRMATION_REPEAT_MS = 60000;
+/** The least time between two askings, whatever restarts the poll (conditions that flicker never make a series of downloads). */
+export const CONFIRMATION_MIN_GAP_MS = 5000;
 
 type Subscribe = (listener: () => void) => () => void;
 
@@ -28,9 +30,18 @@ export interface ConfirmationPollDeps {
   readonly appState: { current: () => string; subscribe: Subscribe };
   readonly sync: {
     subscribe: Subscribe;
-    getSnapshot: () => { readonly active: boolean; readonly online: boolean; readonly paused: unknown; readonly syncing: boolean };
+    getSnapshot: () => {
+      readonly active: boolean;
+      readonly online: boolean;
+      readonly paused: unknown;
+      readonly syncing: boolean;
+      /** The server (or the engine) asked to wait until this time: no asking before it (`rate_limited` carries it too). */
+      readonly retryAt?: number | null;
+    };
     foreground: () => void;
   };
+  /** Wall clock in ms (tests set it); default `Date.now`. */
+  readonly now?: () => number;
 }
 
 /** Starts watching; returns the function that ends it (timer and subscriptions). */
@@ -38,6 +49,10 @@ export function pollConfirmation(deps: ConfirmationPollDeps): () => void {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let step = 0;
   let running = false;
+  let lastAskedAt: number | undefined;
+  const now = deps.now ?? Date.now;
+  /** Time left until the server's `retryAt`; 0 when there is none or it has passed. */
+  const backoffLeft = (): number => Math.max(0, (deps.sync.getSnapshot().retryAt ?? 0) - now());
 
   const wanted = (): boolean => {
     const files = deps.files.getSnapshot();
@@ -69,9 +84,18 @@ export function pollConfirmation(deps: ConfirmationPollDeps): () => void {
       halt();
       return;
     }
+    // the server asked to wait (429, a backoff of the engine): this interval passes without asking, the same step is tried when the wait ends
+    const wait = backoffLeft();
+    if (wait > 0) {
+      timer = setTimeout(tick, wait);
+      return;
+    }
     // one download at a time: a cycle in flight is not asked again - this interval only passes
-    if (!deps.sync.getSnapshot().syncing) deps.sync.foreground();
-    const delay = CONFIRMATION_DELAYS_MS[step] ?? CONFIRMATION_REPEAT_MS;
+    if (!deps.sync.getSnapshot().syncing) {
+      lastAskedAt = now();
+      deps.sync.foreground();
+    }
+    const delay = Math.max(CONFIRMATION_DELAYS_MS[step] ?? CONFIRMATION_REPEAT_MS, backoffLeft());
     step += 1;
     timer = setTimeout(tick, delay);
   };
@@ -84,7 +108,10 @@ export function pollConfirmation(deps: ConfirmationPollDeps): () => void {
     if (running) return;
     running = true;
     step = 0;
-    tick();
+    // a poll that restarts at once after it stopped (flickering conditions) waits out the minimum gap since the last asking
+    const sinceLast = lastAskedAt === undefined ? Infinity : now() - lastAskedAt;
+    if (sinceLast < CONFIRMATION_MIN_GAP_MS) timer = setTimeout(tick, CONFIRMATION_MIN_GAP_MS - Math.max(0, sinceLast));
+    else tick();
   };
 
   const subscriptions = [

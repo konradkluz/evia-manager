@@ -504,8 +504,7 @@ export class MediaUploads implements MediaControl {
    */
   async #purgeConfirmed(store: UnlockedStore): Promise<void> {
     for (const file of (await store.media.list()).filter((row) => row.state === 'clean')) {
-      await store.media.discardConfirmed(file.assetId);
-      this.#confirmed += 1;
+      if ((await store.media.discardConfirmed(file.assetId, 'clean')) > 0) this.#confirmed += 1;
     }
   }
 
@@ -588,8 +587,7 @@ export class MediaUploads implements MediaControl {
    */
   async #removeEntry(store: UnlockedStore, assetId: string, at: number): Promise<void> {
     try {
-      await store.media.discardConfirmed(assetId);
-      this.#confirmed += 1;
+      if ((await store.media.discardConfirmed(assetId)) > 0) this.#confirmed += 1;
     } catch {
       await store.media.setState(assetId, 'clean', null, at).catch(() => undefined);
     }

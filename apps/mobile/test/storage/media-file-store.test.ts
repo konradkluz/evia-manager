@@ -255,6 +255,49 @@ describe('the table of files of the queue (EVM-130 AC4; architect 6)', () => {
     expect((await store.list()).map((row) => row.assetId)).toEqual([asset(2)]);
   });
 
+  it('EVM-111 AC5: `discardConfirmed` removes only the own row in applied / uploaded / clean and reports how many rows went', async () => {
+    const { db } = await migratedDatabase(disk);
+    const store = new SqlMediaFileStore(db, OWNER);
+    const other = new SqlMediaFileStore(db, OTHER);
+    const states = ['pending', 'applied', 'uploaded', 'needs_attention', 'failed', 'clean'] as const;
+    for (const [index, state] of states.entries()) {
+      await store.register(file(index + 1));
+      if (state !== 'pending') await store.setState(asset(index + 1), state, null, 5);
+    }
+    await other.register(file(20, { ownerUserId: OTHER }));
+    await other.setState(asset(20), 'clean', null, 5);
+    expect(await store.discardConfirmed(asset(20))).toBe(0); // another installation's row
+    expect(await store.discardConfirmed(asset(1))).toBe(0); // pending
+    expect(await store.discardConfirmed(asset(4))).toBe(0); // needs_attention
+    expect(await store.discardConfirmed(asset(5))).toBe(0); // failed
+    expect(await store.discardConfirmed(asset(404))).toBe(0); // nothing there
+    expect((await store.list()).map((row) => row.state)).toEqual([...states]);
+    expect(await other.list()).toHaveLength(1);
+    expect(await store.discardConfirmed(asset(2))).toBe(1);
+    expect(await store.discardConfirmed(asset(3))).toBe(1);
+    expect(await store.discardConfirmed(asset(6))).toBe(1);
+    expect((await store.list()).map((row) => row.state)).toEqual(['pending', 'needs_attention', 'failed']);
+  });
+
+  it("EVM-111 AC5: the sweep of leftovers (only: 'clean') removes a clean row of its own installation and nothing else", async () => {
+    const { db } = await migratedDatabase(disk);
+    const store = new SqlMediaFileStore(db, OWNER);
+    const other = new SqlMediaFileStore(db, OTHER);
+    const states = ['pending', 'applied', 'uploaded', 'needs_attention', 'failed', 'clean'] as const;
+    for (const [index, state] of states.entries()) {
+      await store.register(file(index + 1));
+      if (state !== 'pending') await store.setState(asset(index + 1), state, null, 5);
+    }
+    await other.register(file(20, { ownerUserId: OTHER }));
+    await other.setState(asset(20), 'clean', null, 5);
+    for (const n of [1, 2, 3, 4, 5, 20, 404]) expect(await store.discardConfirmed(asset(n), 'clean')).toBe(0);
+    expect((await store.list()).map((row) => row.state)).toEqual([...states]);
+    expect(await other.list()).toHaveLength(1);
+    expect(await store.discardConfirmed(asset(6), 'clean')).toBe(1);
+    expect(await store.discardConfirmed(asset(6), 'clean')).toBe(0);
+    expect((await store.list()).map((row) => row.state)).toEqual(['pending', 'applied', 'uploaded', 'needs_attention', 'failed']);
+  });
+
   it('EVM-130 AC4: the state of the file on the server comes from the active generation of the replica; nothing else of the entity leaves', async () => {
     const { db } = await migratedDatabase(disk);
     const replica = new SqlReplicaStore(db);

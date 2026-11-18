@@ -1348,7 +1348,7 @@ describe('the entry of a file the server confirmed leaves the phone (EVM-111 AC5
       setState: (...args) => real.setState(...args),
       remove: (id) => real.remove(id),
       discard: (id) => real.discard(id),
-      discardConfirmed: (id) => real.discardConfirmed(id),
+      discardConfirmed: (id, only) => real.discardConfirmed(id, only),
       ...patch,
     };
     return { store: () => ({ ...r.store, media }) };
@@ -1366,7 +1366,7 @@ describe('the entry of a file the server confirmed leaves the phone (EVM-111 AC5
           withMedia(r, {
             discardConfirmed: async (id) => {
               order.push(r.native.deleted.includes(id) ? 'entry-after-original' : 'entry-BEFORE-original');
-              await r.store.media.discardConfirmed(id);
+              return r.store.media.discardConfirmed(id);
             },
           }),
         );
@@ -1471,7 +1471,7 @@ describe('the entry of a file the server confirmed leaves the phone (EVM-111 AC5
             failures -= 1;
             throw new Error('synthetic');
           }
-          await r.store.media.discardConfirmed(id);
+          return r.store.media.discardConfirmed(id);
         },
       }),
     );
@@ -1487,6 +1487,58 @@ describe('the entry of a file the server confirmed leaves the phone (EVM-111 AC5
     expect(uploads.getSnapshot().confirmed).toBe(1);
     // the module was asked once: the second run needed no replica and no module
     expect(r.native.completed).toHaveLength(1);
+  });
+
+  it('EVM-111 AC5: the count of confirmed files grows only when a row was really removed (a removal of 0 rows counts nothing)', async () => {
+    const r = await armedRig();
+    await r.store.media.setState(asset(1), 'uploaded', null, 5);
+    await serverState(r, 1, 'clean');
+    const asked: unknown[] = [];
+    const uploads = r.setup(
+      withMedia(r, {
+        discardConfirmed: (_id, only) => {
+          asked.push(only);
+          return Promise.resolve(0);
+        },
+      }),
+    );
+    await uploads.reconcile();
+    expect(uploads.getSnapshot().confirmed).toBe(0);
+    expect(asked.length).toBeGreaterThan(0);
+  });
+
+  it("EVM-111 AC5: the sweep of leftovers asks for the narrow predicate ('clean') and counts only what it removed", async () => {
+    const r = await rig();
+    for (const [n, state] of [
+      [1, 'clean'],
+      [2, 'clean'],
+    ] as const) {
+      await r.store.media.register({
+        assetId: asset(n),
+        mutationId: asset(n + 1000),
+        workOrderId: WO,
+        ownerUserId: USER,
+        fileName: asset(n),
+        sizeBytes: 5,
+        sha256: SHA,
+        mime: 'image/jpeg',
+        createdAt: n,
+      });
+      await r.store.media.setState(asset(n), state, null, n);
+    }
+    const asked: unknown[] = [];
+    const uploads = r.setup(
+      withMedia(r, {
+        discardConfirmed: (id, only) => {
+          asked.push(only);
+          return id === asset(1) ? Promise.resolve(0) : r.store.media.discardConfirmed(id, only);
+        },
+      }),
+    );
+    await uploads.reconcile();
+    expect(asked.length).toBeGreaterThan(0);
+    expect(asked.every((only) => only === 'clean')).toBe(true);
+    expect(uploads.getSnapshot().confirmed).toBe(1);
   });
 
   it('EVM-111 AC5: when even the mark fails, the row stays as it was and the next run asks the module and removes the entry', async () => {
