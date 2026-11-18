@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { Lightbox, LightboxImage, type LightboxProps } from '../src/index.ts';
@@ -190,6 +190,122 @@ describe('Lightbox (styleguide § 3.11; EVM-045 AC1)', () => {
     rerender(view(false));
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(document.activeElement).toBe(opener);
+  });
+
+  it('EVM-045 AC1 an unmeasured (zero) area leaves the picture fitted by CSS and a load without a natural size is ignored', () => {
+    render(<Lightbox {...base()} />);
+    const image = screen.getByRole<HTMLImageElement>('img');
+    Object.defineProperty(image, 'naturalWidth', { value: 1600, configurable: true });
+    Object.defineProperty(image, 'naturalHeight', { value: 1200, configurable: true });
+    fireEvent.load(image);
+    expect(image.style.width).toBe('');
+    expect(image.className).toContain('max-w-full');
+  });
+
+  it('EVM-045 AC1 an image that loads without a natural size (0x0) keeps the CSS fit even in a measured area; onLoad still runs', () => {
+    const outerWidth = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(800);
+    const outerHeight = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(400);
+    try {
+      const onLoad = vi.fn();
+      render(
+        <Lightbox
+          {...base({ children: <LightboxImage src="https://bucket.example.test/a.svg" alt="Zdjęcie testowe" onLoad={onLoad} /> })}
+        />,
+      );
+      const image = screen.getByRole<HTMLImageElement>('img');
+      fireEvent.load(image);
+      expect(onLoad).toHaveBeenCalledTimes(1);
+      expect(image.style.width).toBe('');
+      expect(image.className).toContain('max-w-full');
+      Object.defineProperty(image, 'naturalWidth', { value: 100, configurable: true });
+      Object.defineProperty(image, 'naturalHeight', { value: 0, configurable: true });
+      fireEvent.load(image);
+      expect(image.style.height).toBe('');
+    } finally {
+      outerWidth.mockRestore();
+      outerHeight.mockRestore();
+    }
+  });
+
+  it('EVM-045 AC1 the area is measured again when it is resized (ResizeObserver), an unchanged size is ignored, a zero size drops the measure, and it disconnects on closing', () => {
+    let notify: () => void = () => undefined;
+    const observe = vi.fn();
+    const disconnect = vi.fn();
+    class FakeObserver {
+      constructor(callback: () => void) {
+        notify = callback;
+      }
+      observe = observe;
+      disconnect = disconnect;
+    }
+    vi.stubGlobal('ResizeObserver', FakeObserver);
+    let width = 800;
+    let height = 400;
+    const outerWidth = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(() => width);
+    const outerHeight = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(() => height);
+    try {
+      const { unmount } = render(<Lightbox {...base()} />);
+      expect(observe).toHaveBeenCalledTimes(1);
+      expect(observe.mock.calls[0]?.[0]).toBe(screen.getByRole('region', { name: 'Podgląd zdjęcia' }));
+      const image = screen.getByRole<HTMLImageElement>('img');
+      Object.defineProperty(image, 'naturalWidth', { value: 2000, configurable: true });
+      Object.defineProperty(image, 'naturalHeight', { value: 1000, configurable: true });
+      fireEvent.load(image);
+      expect(parseFloat(image.style.width)).toBeCloseTo(800, 3);
+      width = 400;
+      height = 400;
+      act(() => {
+        notify();
+      });
+      expect(parseFloat(image.style.width)).toBeCloseTo(400, 3);
+      expect(parseFloat(image.style.height)).toBeCloseTo(200, 3);
+      // the same size again: nothing changes
+      act(() => {
+        notify();
+      });
+      expect(parseFloat(image.style.width)).toBeCloseTo(400, 3);
+      width = 0;
+      act(() => {
+        notify();
+      });
+      expect(image.style.width).toBe('');
+      expect(disconnect).not.toHaveBeenCalled();
+      unmount();
+      expect(disconnect).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+      outerWidth.mockRestore();
+      outerHeight.mockRestore();
+    }
+  });
+
+  it('EVM-045 AC1 after a zoom step the same point of the picture stays in the middle of the view (scroll position, both axes)', async () => {
+    render(<Lightbox {...base()} />);
+    const area = screen.getByRole('region', { name: 'Podgląd zdjęcia' });
+    // the content grows from 1000x500 to 2000x1000 at the step; the view is 400x200 and was scrolled to 100,50
+    let widthReads = 0;
+    let heightReads = 0;
+    Object.defineProperty(area, 'scrollWidth', { configurable: true, get: () => (widthReads++ === 0 ? 1000 : 2000) });
+    Object.defineProperty(area, 'scrollHeight', { configurable: true, get: () => (heightReads++ === 0 ? 500 : 1000) });
+    Object.defineProperty(area, 'clientWidth', { configurable: true, value: 400 });
+    Object.defineProperty(area, 'clientHeight', { configurable: true, value: 200 });
+    Object.defineProperty(area, 'scrollLeft', { configurable: true, writable: true, value: 100 });
+    Object.defineProperty(area, 'scrollTop', { configurable: true, writable: true, value: 50 });
+    await userEvent.click(screen.getByRole('button', { name: 'Powiększ' }));
+    expect(area.scrollLeft).toBe(400);
+    expect(area.scrollTop).toBe(200);
+  });
+
+  it('EVM-045 AC1 a new item (the step reset without a remembered position) does not touch the scroll position', async () => {
+    const { rerender } = render(<Lightbox {...base()} />);
+    const area = screen.getByRole('region', { name: 'Podgląd zdjęcia' });
+    await userEvent.click(screen.getByRole('button', { name: 'Powiększ' }));
+    Object.defineProperty(area, 'scrollLeft', { configurable: true, writable: true, value: 77 });
+    Object.defineProperty(area, 'scrollTop', { configurable: true, writable: true, value: 33 });
+    rerender(<Lightbox {...base({ itemKey: 'b' })} />);
+    expect(screen.queryByText(/Powiększenie/)).toBeNull();
+    expect(area.scrollLeft).toBe(77);
+    expect(area.scrollTop).toBe(33);
   });
 
   it('EVM-045 AC1 an element marked data-initial-focus gets the focus on opening', () => {
