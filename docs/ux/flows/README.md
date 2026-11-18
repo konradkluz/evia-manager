@@ -162,7 +162,7 @@ flowchart LR
   M05 --> M03["M-03 Szczegóły zlecenia"]
   M03 --> M06["M-06 Aparat"]
   M03 --> M04["M-04 Nowy wpis lub komentarz"]
-  M03 --> M08["M-08 Media zlecenia"]
+  M03 --> M08["M-08 Pliki zlecenia"]
   DODAJ -->|"Zdjęcie lub film"| M06
   DODAJ -->|"Wpis"| M04
   DODAJ -->|"Nowe zlecenie"| M10["M-10 Szybkie zlecenie"]
@@ -203,7 +203,7 @@ flowchart LR
 | M-05 | Lista zleceń | mobile | 7 | [tak](07-lista-zlecen-i-filtry.md#m-05-lista-zleceń) | E10 |
 | M-06 | Aparat (z arkuszem wyboru zlecenia) | mobile | 9 | [tak](09-mobile-zdjecia-filmy-offline.md#m-06-aparat) | E11 |
 | M-07 | Kolejka | mobile | 9 | [tak](09-mobile-zdjecia-filmy-offline.md#m-07-kolejka) | E11, E12 |
-| M-08 | Media zlecenia | mobile | 9 | [tak](09-mobile-zdjecia-filmy-offline.md#m-08-media-zlecenia) | E11 |
+| M-08 | Pliki zlecenia (od EVM-111; dawniej „Media zlecenia”) | mobile | 9 | [tak](09-mobile-zdjecia-filmy-offline.md#m-08-pliki-zlecenia) | E11 |
 | M-09 | Więcej (ustawienia, wylogowanie, czyszczenie danych) | mobile | 9 | [tak](09-mobile-zdjecia-filmy-offline.md#m-09-więcej) | E9, E11 |
 | M-10 | Szybkie nowe zlecenie | mobile | 10 | [tak](10-mobile-szybkie-zlecenie.md#m-10-szybkie-zlecenie) | E13 |
 | M-11 | Prywatność i pomoc (klauzula informacyjna) | mobile | 16 | [tak](16-m2-uzupelnienia-teren-i-urzadzenia.md#m-11-prywatność-i-pomoc) | E14 |
