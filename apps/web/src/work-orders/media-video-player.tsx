@@ -133,7 +133,7 @@ export function VideoPlayer({
       tabIndex={0}
       preload="metadata"
       aria-label={label}
-      className="h-auto w-full bg-bg-canvas"
+      className="m-auto max-h-full max-w-full bg-bg-canvas"
       onKeyDown={onPlayerKey}
       onLoadedMetadata={(event) => {
         const place = resume.current;

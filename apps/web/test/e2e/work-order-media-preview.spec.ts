@@ -1,6 +1,6 @@
 import type { Locator } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
-import { openLightbox } from './media-support.ts';
+import { openLightbox, openVideoLightbox } from './media-support.ts';
 
 // The preview of a photo in the lightbox of W-09 in a real browser (EVM-045 AC1): the picture is fitted to the window when it opens
 // (all of it visible, proportions kept) and the zoom buttons step from the fit and back to it. jsdom lays nothing out, so the geometry is
@@ -85,4 +85,38 @@ test.describe('EVM-045 AC1 the preview of a photo is fitted to the window', () =
     expect(back.height).toBeCloseTo(fit.height, 0);
     await expect(zoomOut).toBeDisabled();
   });
+});
+
+// The player of a film in the same lightbox (EVM-046 AC4): the film keeps its proportions and the whole player (the picture and the control
+// bar) lies inside the area, so the controls are visible without scrolling; the film has no zoom.
+const FILMS = [
+  { name: 'landscape 1920 x 1080', width: 1920, height: 1080 },
+  { name: 'portrait 1080 x 1920', width: 1080, height: 1920 },
+];
+
+test.describe('EVM-046 AC4 the preview of a film fits the area of the lightbox', () => {
+  for (const film of FILMS) {
+    for (const window of WINDOWS.filter((value) => value.width !== 1440 && value.width !== 768)) {
+      test(`EVM-046 AC4 the ${film.name} film is whole inside the area, in its proportions, in ${window.px}`, async ({ page, api }) => {
+        await page.setViewportSize({ width: window.width, height: window.height });
+        const dialog = await openVideoLightbox(page, api, film.width, film.height);
+        const area = dialog.getByRole('region', { name: 'Powiększone zdjęcie' });
+        const player = await dialog.locator('video').boundingBox();
+        const frame = await area.boundingBox();
+        if (player === null || frame === null) throw new Error('the player or its area is not laid out');
+        expect(player.x).toBeGreaterThanOrEqual(frame.x - 0.5);
+        expect(player.y).toBeGreaterThanOrEqual(frame.y - 0.5);
+        expect(player.x + player.width).toBeLessThanOrEqual(frame.x + frame.width + 0.5);
+        expect(player.y + player.height).toBeLessThanOrEqual(frame.y + frame.height + 0.5);
+        expect(
+          await area.evaluate(
+            (element) => element.scrollHeight > element.clientHeight + 1 || element.scrollWidth > element.clientWidth + 1,
+          ),
+        ).toBe(false);
+        expect(player.width / player.height).toBeCloseTo(film.width / film.height, 1);
+        // the zoom is for photos only
+        await expect(dialog.getByRole('button', { name: 'Powiększ' })).toBeDisabled();
+      });
+    }
+  }
 });

@@ -68,7 +68,8 @@ const problem = (status: number, code: string): Answer =>
 const shown = (entry: Media, withName: boolean, role: Input['role'] = 'administrator') => ({
   id: entry.id,
   workOrderId: entry.orderId,
-  mediaType: 'photo',
+  // EVM-046: a file named *.mp4 is a film (scanned, 3 s); the rest are photos as before
+  ...(entry.fileName.endsWith('.mp4') ? { mediaType: 'video', durationSeconds: 3, avScanned: true } : { mediaType: 'photo' }),
   category: entry.category,
   description: null,
   procedureStageId: entry.stageId,
