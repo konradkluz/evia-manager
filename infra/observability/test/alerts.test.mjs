@@ -29,6 +29,7 @@ const AC2_ITEMS = [
   'usage-limits',
   'host-capacity',
   'api-errors',
+  'media-stalled', // EVM-144
 ];
 
 describe('EVM-085 AC2 rules', () => {
@@ -100,9 +101,9 @@ describe('EVM-085 AC8 runbook', () => {
 });
 
 describe('EVM-085 AC2 notifications carry no log content (security A14)', () => {
-  it('EVM-085 AC2 annotations use only env, alertCode, token and mount labels (closed sets: metrics.sh)', () => {
+  it('EVM-085 AC2 annotations use only env, alertCode, token, mount and stall_kind labels (closed sets: metrics.sh, pipeline.alloy)', () => {
     for (const match of rules.matchAll(/\{\{\s*([^}]*?)\s*\}\}/gu)) {
-      assert.match(match[1] ?? '', /^\$labels\.(env|alertCode|token|mount)$/u, match[0]);
+      assert.match(match[1] ?? '', /^\$labels\.(env|alertCode|token|mount|stall_kind)$/u, match[0]);
     }
     assert.doesNotMatch(rules, /\$value|\$externalLabels|\.Labels|humanize/u);
   });

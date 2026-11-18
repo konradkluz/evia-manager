@@ -128,6 +128,39 @@ declare "evia_pipeline" {
 			}
 		}
 
+		// Media processing stalled (EVM-144): the worker logs four exact warnings (media-processing.service.ts, video-processing.service.ts,
+		// media-scan.service.ts). Only the worker service, only those exact messages; the kind is a label from a closed list
+		// (`stall_kind`), the text, the file identifiers and the counts (`stuck`) never become labels. Counted before the rate limit;
+		// `stall_kind` is dropped by label_keep below, so it does not reach Loki.
+		stage.match {
+			selector = "{service=\"worker\"} |= \"media: \""
+
+			stage.template {
+				source   = "stall_kind_safe"
+				template = "{{ if eq .msg \"media: photos wait for their derivatives for over 30 minutes\" }}photo_derivatives{{ else if eq .msg \"media: films wait for their previews for over 2 hours\" }}video_preview{{ else if eq .msg \"media: files wait for a scan for over 30 minutes\" }}scan{{ else if or (eq .msg \"media: the processor is unreachable; the photo waits\") (eq .msg \"media: the processor is unreachable; the film waits\") }}processor_unreachable{{ end }}"
+			}
+
+			stage.labels {
+				values = {
+					stall_kind = "stall_kind_safe",
+				}
+			}
+
+			stage.match {
+				selector = "{stall_kind=~\".+\"}"
+
+				stage.metrics {
+					metric.counter {
+						name              = "media_stalled_total"
+						description       = "Warnings of the worker that media processing is stalled, by closed-list kind."
+						action            = "inc"
+						match_all         = true
+						max_idle_duration = "720h"
+					}
+				}
+			}
+		}
+
 		// Rate limit per service (shared free limits of Grafana): excess lines are dropped.
 		stage.limit {
 			rate          = 50
