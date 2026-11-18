@@ -337,6 +337,7 @@ describe('a series of photos and the return to the order (EVM-108 AC2)', () => {
       files: [
         {
           assetId: 'a',
+          workOrderId: '10000000-0000-4000-8000-000000000001',
           status: 'waiting',
           percent: null,
           sizeBytes: 1,

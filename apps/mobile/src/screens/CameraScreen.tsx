@@ -217,7 +217,7 @@ function CameraCapture({ orderId, onClose, focused }: { orderId: string; onClose
   const [stopping, setStopping] = useState(false);
   // the latest values for the handlers that outlive a render (the system "back")
   const taken = count + videoCount;
-  const queued = snapshot.files.some((file) => file.status !== 'sent');
+  const queued = snapshot.files.length > 0;
   const latest = useRef({ count, taken, notifications: snapshot.notifications, queued });
   latest.current = { count, taken, notifications: snapshot.notifications, queued };
 

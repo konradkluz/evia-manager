@@ -11,6 +11,7 @@ import { EntryTargetPicker } from './EntryTargetPicker';
 import { MediaTargetPicker } from './MediaTargetPicker';
 import { MoreScreen, useSignOutFlow } from './MoreScreen';
 import { OrderDetailScreen } from './OrderDetailScreen';
+import { OrderFilesScreen } from './OrderFilesScreen';
 import { OrdersScreen } from './OrdersScreen';
 import { QuickOrderScreen, type QuickSavedKind } from './QuickOrderScreen';
 import { SiteSurveyScreen } from './SiteSurveyScreen';
@@ -89,6 +90,8 @@ export function Shell() {
   // The order that is open (EVM-104): the id is the only datum of the navigation; it lives in this state only - never stored, never
   // restored after the process dies (security K6). The list stays mounted under the details (its query and position are kept).
   const [openOrderId, setOpenOrderId] = useState<string | null>(null);
+  // "Pliki zlecenia" (EVM-111): a flag over the open order - the id of the order is the only datum and it is the one above; closing the order closes it too
+  const [filesOpen, setFilesOpen] = useState(false);
   // The orders opened in THIS process, newest first, for "Ostatnio otwierane" of the camera picker (EVM-108 AC5; security 17): ids only, in this state
   // only - never stored; they go with the shell when the session ends (sign-out, wipe of the phone, another user: the shell is not drawn without a session)
   const [recentOrders, setRecentOrders] = useState<readonly string[]>([]);
@@ -98,9 +101,11 @@ export function Shell() {
   }, []);
   const closeOrder = useCallback(() => {
     setOpenOrderId(null);
+    setFilesOpen(false);
   }, []);
   const openQueue = useCallback(() => {
     setOpenOrderId(null);
+    setFilesOpen(false);
     setTab('queue');
   }, []);
   const wipe = useWipeFlow();
@@ -191,7 +196,9 @@ export function Shell() {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       // the open entry form handles "back" itself (it asks before dropping a typed text); its handler is registered later, so it is asked first
       if (openOrderId !== null) {
-        setOpenOrderId(null);
+        // "Pliki zlecenia" is closed first: it returns to the order, not to the list
+        if (filesOpen) setFilesOpen(false);
+        else setOpenOrderId(null);
         return true;
       }
       if (tab !== 'orders') {
@@ -203,7 +210,7 @@ export function Shell() {
     return () => {
       subscription.remove();
     };
-  }, [tab, openOrderId]);
+  }, [tab, openOrderId, filesOpen]);
 
   // One polite announcement when the server is reachable again after a problem (styleguide § 5.4, no spam).
   useEffect(() => {
@@ -222,6 +229,7 @@ export function Shell() {
   const shownPicker = pickingMedia && guard.hidden !== 'wipe_in_progress';
   const covered = dialog !== null || adding || shownEntry !== null || cameraOrderId !== null || shownPicker;
   const detailOpen = openOrderId !== null;
+  const filesShown = filesOpen && openOrderId !== null;
   return (
     <View style={{ flex: 1, backgroundColor: color.bg.canvas }}>
       {/* while the dialog is open the content behind it is hidden from the screen reader and cannot be touched */}
@@ -253,7 +261,12 @@ export function Shell() {
                 />
               </View>
               {openOrderId !== null ? (
-                <View style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}>
+                <View
+                  style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}
+                  accessibilityElementsHidden={filesShown}
+                  importantForAccessibility={filesShown ? 'no-hide-descendants' : 'auto'}
+                  pointerEvents={filesShown ? 'none' : 'auto'}
+                >
                   <OrderDetailScreen
                     orderId={openOrderId}
                     onBack={closeOrder}
@@ -261,6 +274,20 @@ export function Shell() {
                     onAddEntry={() => {
                       setEntry({ stage: 'form', orderId: openOrderId });
                     }}
+                    onOpenFiles={() => {
+                      setFilesOpen(true);
+                    }}
+                  />
+                </View>
+              ) : null}
+              {filesShown ? (
+                <View style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}>
+                  <OrderFilesScreen
+                    orderId={openOrderId}
+                    onBack={() => {
+                      setFilesOpen(false);
+                    }}
+                    onOpenQueue={openQueue}
                   />
                 </View>
               ) : null}
@@ -270,6 +297,7 @@ export function Shell() {
               onOpenQueue={openQueue}
               onOpenUploadSettings={() => {
                 setOpenOrderId(null);
+                setFilesOpen(false);
                 setTab('more');
               }}
               onRecreate={(item) => {
@@ -301,6 +329,7 @@ export function Shell() {
               selected: tab === 'orders',
               onPress: () => {
                 setOpenOrderId(null);
+                setFilesOpen(false);
                 setTab('orders');
               },
               testID: 'nav-orders',
@@ -320,6 +349,7 @@ export function Shell() {
               selected: tab === 'more',
               onPress: () => {
                 setOpenOrderId(null);
+                setFilesOpen(false);
                 setTab('more');
               },
               testID: 'nav-more',

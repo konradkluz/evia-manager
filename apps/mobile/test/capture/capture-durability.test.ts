@@ -445,14 +445,17 @@ describe('space and a series (EVM-108 AC4, AC7)', () => {
 });
 
 describe('the sweep of the module is part of every reconcile (EVM-108 AC1)', () => {
-  it("EVM-108 AC1: the list to keep is every row that is not clean; a clean row's file is not kept", async () => {
+  it('EVM-108 AC1, EVM-111 AC5: the list to keep is the file of every row that is there; the leftover of a confirmed file (a row in clean) goes first - its entry is removed, its file is not kept', async () => {
     const w = await world();
     const { pipeline, uploads } = w.boot();
     for (let i = 0; i < 3; i += 1) await pipeline.capture(request);
     const list = await rows(w);
+    // the server applied the command of the first file (the settled command leaves the queue) and confirmed the file: its original is gone, its row is "clean"
+    await w.queue.settle(list[0]?.mutationId ?? '', { outcome: 'applied', warnings: [] });
     await w.store.media.setState(list[0]?.assetId ?? '', 'clean', null, 9);
     await w.store.media.setState(list[1]?.assetId ?? '', 'needs_attention', 'quarantined', 9);
     await settle(uploads);
+    expect((await rows(w)).map((row) => row.assetId)).toEqual([list[1]?.assetId, list[2]?.assetId]);
     expect(w.phone.sweeps.at(-1)).toEqual({ keep: [list[1]?.assetId, list[2]?.assetId], olderThanMs: 600_000 });
   });
 

@@ -7,7 +7,8 @@
  *   idempotently (a file in `needs_attention` waits for "Ponów");
  * - the original stays until the replica says `clean`, `processing` or `ready` (the last two follow `clean` only, and the replica keeps
  *   just the latest state, so `clean` may never be seen; the native OriginalPolicy decides; `uploaded` of the module changes nothing);
- *   `failed` + `checksum_mismatch` is "Ponów", `quarantined` is "Wymaga uwagi", the row stays after `clean`;
+ *   `failed` + `checksum_mismatch` is "Ponów", `quarantined` is "Wymaga uwagi"; after `clean` the original goes FIRST and the entry of the file
+ *   right after it (EVM-111 AC5): no row of a file stays that the server confirmed, and no row goes without that confirmation;
  * - the percentage comes from the native status and its events and is never written to the database;
  * - a command that is in the queue without a row (the process died between the two writes) is repaired from its payload and the
  *   digest of the original — nothing the technician registered is lost.
@@ -63,16 +64,13 @@ export interface MediaUploadsDeps {
   };
 }
 
-/** Files confirmed by the server stay in the view as "Wysłano" this many (newest first). */
-export const CLEAN_KEPT = 20;
-
 /** How long a sign-out or a wipe waits for a recording to stop and be saved (SEC-110-12). */
 const STOP_RECORDING_MS = 3000;
 /**
  * The sweep of the module removes only files older than this (EVM-108): a picture that is being saved right now has no row yet and is never touched.
  */
 export const SWEEP_MIN_AGE_MS = 10 * 60 * 1000;
-const EMPTY: MediaUploadsSnapshot = { files: [], notifications: 'granted' };
+const EMPTY: MediaUploadsSnapshot = { files: [], notifications: 'granted', confirmed: 0, read: 'loading' };
 
 /** The codes of "Wymaga uwagi" for which "Usuń z telefonu" is offered (EVM-108 AC6, decision of Konrad 2026-11-15). */
 const DISCARDABLE_CODES: readonly string[] = [
@@ -102,6 +100,8 @@ export class MediaUploads implements MediaControl {
   /** Files retried by the user whose replica may still show the old failure. */
   readonly #retried = new Set<string>();
   #snapshot: MediaUploadsSnapshot = EMPTY;
+  /** How many entries of confirmed files this service removed (EVM-111 AC2: the screens announce "Wszystko wysłane" only after a confirmation, never after "Usuń z telefonu"). */
+  #confirmed = 0;
   #running: Promise<void> | undefined;
   #again = false;
   #againSweep = false;
@@ -420,6 +420,9 @@ export class MediaUploads implements MediaControl {
       await this.#repairOrphans(store);
       // a failing adoption never stops the arming, the sweep and the statuses below it
       await this.#adoptRejections(store).catch(() => undefined);
+      // a leftover of a removal that failed (or of a version before EVM-111): the server confirmed the file and its original is gone - needs no replica,
+      // so it works in the hidden-data mode too and reveals nothing
+      await this.#purgeConfirmed(store).catch(() => undefined);
       if (sweep) await this.#sweep(store);
       await this.#arm(store);
       await this.#syncStatuses(store);
@@ -486,12 +489,24 @@ export class MediaUploads implements MediaControl {
   }
 
   /**
-   * The native sweep (EVM-108): originals nobody knows and leftovers of imports go; every file of a row that is not `clean` is kept, whatever its
-   * state. Only files older than [SWEEP_MIN_AGE_MS] — a picture saved right now has no row yet.
+   * The native sweep (EVM-108): originals nobody knows and leftovers of imports go; every file of a row that is still there is kept, whatever its
+   * state (a row exists only for a file the server has not confirmed, and the entry goes AFTER the original, never before - EVM-111 AC5).
+   * Only files older than [SWEEP_MIN_AGE_MS] — a picture saved right now has no row yet.
    */
   async #sweep(store: UnlockedStore): Promise<void> {
     const keep = (await store.media.list()).filter((file) => file.state !== 'clean').map((file) => file.assetId);
     await this.#deps.native.sweepOriginals(keep, SWEEP_MIN_AGE_MS).catch(() => 0);
+  }
+
+  /**
+   * EVM-111 AC5: a row in `clean` is only a leftover - the state was written after the server confirmed the file and the module removed its original, so the
+   * entry goes now (the original is gone, nothing is lost). Any other state is never touched here, whatever its age.
+   */
+  async #purgeConfirmed(store: UnlockedStore): Promise<void> {
+    for (const file of (await store.media.list()).filter((row) => row.state === 'clean')) {
+      await store.media.discardConfirmed(file.assetId);
+      this.#confirmed += 1;
+    }
   }
 
   /** Every `applied` file gets its job (idempotent); a file that is gone or refused goes to "Wymaga uwagi" (nothing is deleted). */
@@ -552,7 +567,7 @@ export class MediaUploads implements MediaControl {
       if (server.fileState === 'clean' || server.fileState === 'processing' || server.fileState === 'ready') {
         // `processing` and `ready` follow `clean` only (SR-FILE-05); the replica keeps the last state, so `clean` may never be seen
         const verdict = await this.#deps.native.completeUpload(file.assetId, server.fileState, null);
-        if (verdict === 'delete') await store.media.setState(file.assetId, 'clean', null, at);
+        if (verdict === 'delete') await this.#removeEntry(store, file.assetId, at);
       } else if (
         file.state === 'uploaded' &&
         server.fileState === 'failed' &&
@@ -564,6 +579,22 @@ export class MediaUploads implements MediaControl {
         await store.media.setState(file.assetId, 'needs_attention', 'quarantined', at);
       }
     }
+  }
+
+  /**
+   * EVM-111 AC5: the module removed the original (the server confirmed the file), so the entry goes AFTER it - never before (a sweep treats an
+   * original without an entry as nobody's and removes it). Only the local row; the queue of the synchronization is not touched. A removal that
+   * fails leaves the row as `clean` (the view keeps it as not sent) and every next run removes it again.
+   */
+  async #removeEntry(store: UnlockedStore, assetId: string, at: number): Promise<void> {
+    try {
+      await store.media.discardConfirmed(assetId);
+      this.#confirmed += 1;
+    } catch {
+      await store.media.setState(assetId, 'clean', null, at).catch(() => undefined);
+    }
+    this.#progress.delete(assetId);
+    this.#retried.delete(assetId);
   }
 
   // ---- "Ponów" --------------------------------------------------------------------------------------------------------------
@@ -669,19 +700,26 @@ export class MediaUploads implements MediaControl {
     return this.reconcile();
   }
 
+  /** EVM-111 AC3: only the read of the table (a failed one is shown by the screens and repeated here). */
+  reload(): Promise<void> {
+    return this.#rebuild();
+  }
+
   // ---- the view -------------------------------------------------------------------------------------------------------------
 
   async #rebuild(): Promise<void> {
     const store = this.#deps.store();
     const notifications = this.#permission();
     if (store === null) {
-      this.#publish({ files: [], notifications });
+      this.#publish({ files: [], notifications, confirmed: this.#confirmed, read: 'loading' });
       return;
     }
     let rows: readonly MediaFileRecord[];
     try {
       rows = await store.media.list();
     } catch {
+      // EVM-111 AC3: the rows are unknown - the screens say so ("Spróbuj ponownie"); nothing is changed
+      this.#publish({ files: [], notifications, confirmed: this.#confirmed, read: 'failed' });
       return;
     }
     const statuses = new Map<string, UploadStatus>(this.#progress);
@@ -690,11 +728,6 @@ export class MediaUploads implements MediaControl {
         if (!statuses.has(status.assetId)) statuses.set(status.assetId, status);
       }
     }
-    const clean = rows
-      .filter((row) => row.state === 'clean')
-      .sort((a, b) => b.updatedAt - a.updatedAt)
-      .slice(0, CLEAN_KEPT);
-    const open = rows.filter((row) => row.state !== 'clean');
     // the orders whose site survey is still only a command of the queue: their files wait for the survey (EVM-137)
     const surveys = new Set<string>();
     // only a file that waits can carry the mark, so the queue is read only then (not on every progress event)
@@ -711,10 +744,10 @@ export class MediaUploads implements MediaControl {
       // without the queue the files are still shown, only without the words about the survey
     }
     this.#publish({
-      files: [...open, ...clean].map((row) =>
-        viewOf(row, statuses.get(row.assetId), row.state === 'pending' && surveys.has(row.workOrderId)),
-      ),
+      files: rows.map((row) => viewOf(row, statuses.get(row.assetId), row.state === 'pending' && surveys.has(row.workOrderId))),
       notifications,
+      confirmed: this.#confirmed,
+      read: 'ready',
     });
   }
 
@@ -730,6 +763,7 @@ export class MediaUploads implements MediaControl {
 function viewOf(row: MediaFileRecord, status: UploadStatus | undefined, awaitsSurvey = false): MediaFileView {
   const base = {
     assetId: row.assetId,
+    workOrderId: row.workOrderId,
     sizeBytes: row.sizeBytes,
     updatedAt: row.updatedAt,
     code: row.lastCode,
@@ -751,9 +785,11 @@ function viewOf(row: MediaFileRecord, status: UploadStatus | undefined, awaitsSu
       return status?.waitingForWifi === true && base.mediaType === 'video'
         ? { ...base, status: 'waiting_wifi', percent: null, actions: [] }
         : { ...base, status: 'waiting', percent: null, actions: [] };
+    // EVM-111 AC1, AC5: there is no "Wysłano" on the phone - a file the module sent but the server has not confirmed yet (`uploaded`) is still to be
+    // confirmed, so it stays on the list as "Oczekuje"; a `clean` row is a removal that failed and is repeated
     case 'uploaded':
     case 'clean':
-      return { ...base, status: 'sent', percent: null, actions: [] };
+      return { ...base, status: 'waiting', percent: null, actions: [] };
     case 'failed':
       return { ...base, status: 'error', percent: null, actions: ['retry'] };
     case 'needs_attention':

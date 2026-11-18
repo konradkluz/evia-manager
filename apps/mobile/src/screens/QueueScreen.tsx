@@ -7,11 +7,13 @@ import type { AttentionReason, GroupSummary, QueueItem, TargetOption } from '../
 import { AlertDialog, AppBar, AttentionCard, Button, EmptyState, InlineAlert, ListChecks, type AttentionAction } from '../ui';
 import { borderWidth, color, size, space, text } from '../ui/theme';
 import { ConnectionNotices } from './ConnectionNotices';
+import { FileDiscardDialog } from './FileDiscardDialog';
 import { QueueFiles } from './QueueFiles';
 import { SyncCapsule } from './SyncCapsule';
 import { SyncNotices } from './SyncNotices';
 import { surveyDiscardBody } from './survey-discard-text';
 import { useMediaSnapshot, useQueueView, useSession } from './session-context';
+import { useAllSentAnnouncement } from './use-all-sent-announcement';
 
 const NOTICE_MS = 4_000;
 
@@ -37,7 +39,11 @@ export function QueueScreen({
   const { t } = useTranslation();
   const session = useSession();
   const { hidden, view, reload } = useQueueView();
-  const files = useMediaSnapshot().files;
+  const mediaSnapshot = useMediaSnapshot();
+  const files = mediaSnapshot.files;
+  // "Wszystko wysłane." once, when the server confirmed the last file (the list goes away, a screen reader does not see it); here, not in the list, because the
+  // list is not drawn when it is empty
+  useAllSentAnnouncement(files.length, mediaSnapshot.confirmed ?? 0, true, t('upload.allSent'));
   const [notice, setNotice] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<{ item: QueueItem; dependents: number; summary: GroupSummary | null } | null>(null);
   const [targets, setTargets] = useState<{ item: QueueItem; options: readonly TargetOption[] } | null>(null);
@@ -377,39 +383,18 @@ export function QueueScreen({
         </AlertDialog>
       )}
       {fileToDiscard === null ? null : (
-        <AlertDialog
-          title={t('attention.discard.title')}
+        <FileDiscardDialog
           onCancel={() => {
             setFileToDiscard(null);
           }}
-          actions={
-            <>
-              <Button
-                variant="danger"
-                label={t('attention.discard.confirm')}
-                onPress={() => {
-                  const assetId = fileToDiscard;
-                  setFileToDiscard(null);
-                  void session.media.discard(assetId).then((removed) => {
-                    if (!removed) fail();
-                  }, fail);
-                }}
-                testID="file-discard-confirm"
-              />
-              <Button
-                variant="tertiary"
-                label={t('attention.discard.cancel')}
-                onPress={() => {
-                  setFileToDiscard(null);
-                }}
-                testID="file-discard-cancel"
-              />
-            </>
-          }
-          testID="file-discard-dialog"
-        >
-          <Text style={{ ...text.body, color: color.text.primary }}>{t('upload.discardBody')}</Text>
-        </AlertDialog>
+          onConfirm={() => {
+            const assetId = fileToDiscard;
+            setFileToDiscard(null);
+            void session.media.discard(assetId).then((removed) => {
+              if (!removed) fail();
+            }, fail);
+          }}
+        />
       )}
       {targets === null ? null : (
         <AlertDialog

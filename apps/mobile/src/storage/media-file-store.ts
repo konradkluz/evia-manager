@@ -11,7 +11,8 @@ import type { DbAccess, Tx } from './database';
  * States: `pending` — the command `CreateMediaAsset` waits in the queue; `applied` — the server applied it (the same transaction that
  * settles the mutation sets it, so it survives any kill) and the file is to be uploaded; `uploaded` — the module sent it, the server
  * has not confirmed `clean` yet (the original stays); `needs_attention` — a decision of the user ("Wymaga uwagi"); `failed` — "Ponów";
- * `clean` — the server confirmed the file, the original was removed, the row stays.
+ * `clean` — the server confirmed the file and the original was removed; the row is removed right after (EVM-111 AC5), so this state is only
+ * a leftover of a removal that failed (or of a version before EVM-111) and the next run of the queue removes the row.
  */
 export const MEDIA_FILE_STATES = ['pending', 'applied', 'uploaded', 'needs_attention', 'failed', 'clean'] as const;
 export type MediaFileState = (typeof MEDIA_FILE_STATES)[number];
@@ -57,6 +58,12 @@ export interface MediaFileStore {
   remove(assetId: string): Promise<void>;
   /** "Usuń z telefonu" (EVM-108 AC6): the row of a file in `needs_attention` — only after the native file is gone (the caller removes it first). */
   discard(assetId: string): Promise<void>;
+  /**
+   * EVM-111 AC5: the entry of a file the server confirmed (the replica said `clean`, `processing` or `ready`) whose original is already gone: the
+   * row of a file that is still `applied` / `uploaded` (the confirmation came first) or `clean` (a removal that failed earlier). NEVER a row in any other
+   * state - a file that waits, is sent, failed or needs attention keeps its row whatever its age. Only the local row: no mutation of the queue.
+   */
+  discardConfirmed(assetId: string): Promise<void>;
 }
 
 const ASSET_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -209,6 +216,15 @@ export class SqlMediaFileStore implements MediaFileStore {
   async discard(assetId: string): Promise<void> {
     await this.#db.transaction((tx) =>
       tx.run("DELETE FROM media_files WHERE asset_id = ? AND owner_user_id = ? AND state = 'needs_attention'", [
+        assetId,
+        this.#ownerUserId,
+      ]),
+    );
+  }
+
+  async discardConfirmed(assetId: string): Promise<void> {
+    await this.#db.transaction((tx) =>
+      tx.run("DELETE FROM media_files WHERE asset_id = ? AND owner_user_id = ? AND state IN ('applied', 'uploaded', 'clean')", [
         assetId,
         this.#ownerUserId,
       ]),

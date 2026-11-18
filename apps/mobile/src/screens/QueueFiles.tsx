@@ -1,36 +1,19 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AccessibilityInfo, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { pluralKey } from '../i18n/plural';
 import { useStartup } from '../startup';
 import type { MediaFileView } from '../upload/types';
 import { BellOff, Button, InlineAlert, Wifi } from '../ui';
 import { color, space, text } from '../ui/theme';
 import { FileRow } from './FileRow';
+import { fileReason } from './file-reasons';
 import { useMediaSnapshot, useSession } from './session-context';
-
-/** Key of the plain-words reason of a file that needs attention (a code of the module or of the table of files; anything else is generic). */
-type ReasonKey =
-  | 'quarantined'
-  | 'id_conflict'
-  | 'missing_original'
-  | 'order_gone'
-  | 'survey_photo_gone'
-  | 'survey_video_gone'
-  | 'command_rejected'
-  | 'unknown';
-function reasonKey(file: MediaFileView): ReasonKey {
-  const { code } = file;
-  if (code === 'quarantined' || code === 'id_conflict' || code === 'missing_original') return code;
-  if (code === 'order_gone' || code === 'command_rejected') return code;
-  if (code === 'survey_gone') return file.mediaType === 'video' ? 'survey_video_gone' : 'survey_photo_gone';
-  return 'unknown';
-}
 
 /**
  * The files of the queue in "Kolejka" (EVM-130 AC4, AC6; EVM-108 AC6; flow 09): the Banner of the notifications that are off, the counter of the
  * files still to be sent, the files that need attention ("Ponów" where a retry makes sense, "Usuń z telefonu" where it does not), the files waiting,
- * uploading with the percentage and the error with "Ponów", and the files that were sent. Every file is a row of the shared `FileRow`; it shows a
+ * uploading with the percentage and the error with "Ponów". A file the server confirmed is not here any more (EVM-111 AC5). Every file is a row of the shared `FileRow`; it shows a
  * category, the time and a type and a state - no order, name, address, thumbnail or path, so the list is the same in the hidden-data mode (the
  * upload goes on there). "Usuń z telefonu" asks the screen for the confirmation (`onDiscard`).
  */
@@ -52,15 +35,9 @@ export function QueueFiles({
   const { media } = useSession();
   const snapshot = useMediaSnapshot();
   const files = snapshot.files;
-  const unsent = files.filter((file) => file.status !== 'sent').length;
+  // every entry is a file that is still to be sent or confirmed (EVM-111 AC5)
+  const unsent = files.length;
   const [busy, setBusy] = useState<string | null>(null);
-
-  // "Wszystko wysłane." once, when the last unsent file is gone (a screen reader does not see the list change)
-  const before = useRef(unsent);
-  useEffect(() => {
-    if (before.current > 0 && unsent === 0 && files.length > 0) AccessibilityInfo.announceForAccessibility(t('upload.allSent'));
-    before.current = unsent;
-  }, [unsent, files.length, t]);
 
   if (files.length === 0) return null;
 
@@ -83,19 +60,7 @@ export function QueueFiles({
 
   const attention = files.filter((file) => file.status === 'attention');
   const waitingWifi = files.filter((file) => file.status === 'waiting_wifi');
-  const rest = files.filter((file) => file.status !== 'attention' && file.status !== 'sent' && file.status !== 'waiting_wifi');
-  const sent = files.filter((file) => file.status === 'sent');
-  const reasons: Readonly<Record<ReasonKey, string>> = {
-    quarantined: t('upload.reasons.quarantined'),
-    id_conflict: t('upload.reasons.id_conflict'),
-    missing_original: t('upload.reasons.missing_original'),
-    order_gone: t('upload.reasons.order_gone'),
-    survey_photo_gone: t('upload.reasons.survey_photo_gone'),
-    survey_video_gone: t('upload.reasons.survey_video_gone'),
-    command_rejected: t('upload.reasons.command_rejected'),
-    unknown: t('upload.reasons.unknown'),
-  };
-
+  const rest = files.filter((file) => file.status !== 'attention' && file.status !== 'waiting_wifi');
   const row = (file: MediaFileView) => (
     <FileRow
       key={file.assetId}
@@ -171,7 +136,7 @@ export function QueueFiles({
             <FileRow
               key={file.assetId}
               file={file}
-              reason={reasons[reasonKey(file)]}
+              reason={fileReason(t, file)}
               busy={busy === file.assetId}
               {...(file.actions.includes('retry')
                 ? {
@@ -208,14 +173,6 @@ export function QueueFiles({
             {t('upload.sections.files')}
           </Text>
           {rest.map(row)}
-        </View>
-      )}
-      {sent.length === 0 ? null : (
-        <View style={{ rowGap: space.stack.xs }} testID="files-sent">
-          <Text accessibilityRole="header" style={{ ...text.heading4, color: color.text.primary }}>
-            {t('upload.sections.sent')}
-          </Text>
-          {sent.map(row)}
         </View>
       )}
     </View>
