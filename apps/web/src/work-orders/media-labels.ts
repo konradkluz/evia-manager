@@ -182,7 +182,7 @@ export const mediaText = {
   next: 'Następne',
   zoomIn: 'Powiększ',
   zoomOut: 'Pomniejsz',
-  scrollAreaLabel: 'Powiększone zdjęcie',
+  scrollAreaLabel: 'Podgląd zdjęcia',
   zoomStatus: (percent: number) => `Powiększenie ${String(percent)}%`,
   previewLoading: 'Wczytywanie podglądu',
   previewOffline: 'Brak połączenia — podgląd wczyta się po jego powrocie.',

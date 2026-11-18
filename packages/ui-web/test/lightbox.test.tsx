@@ -1,7 +1,7 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { Lightbox, type LightboxProps } from '../src/index.ts';
+import { Lightbox, LightboxImage, type LightboxProps } from '../src/index.ts';
 import { axeViolations } from './a11y.ts';
 
 const base = (extra: Partial<LightboxProps> = {}): LightboxProps => ({
@@ -13,12 +13,12 @@ const base = (extra: Partial<LightboxProps> = {}): LightboxProps => ({
   zoomInLabel: 'Powiększ',
   zoomOutLabel: 'Pomniejsz',
   zoomStatus: (percent) => `Powiększenie ${String(percent)}%`,
-  scrollAreaLabel: 'Powiększone zdjęcie',
+  scrollAreaLabel: 'Podgląd zdjęcia',
   onPrevious: vi.fn(),
   onNext: vi.fn(),
   onDismiss: vi.fn(),
   itemKey: 'a',
-  children: <img src="https://bucket.example.test/a.webp" alt="Zdjęcie testowe" />,
+  children: <LightboxImage src="https://bucket.example.test/a.webp" alt="Zdjęcie testowe" />,
   details: <p>W trakcie prac</p>,
   ...extra,
 });
@@ -73,19 +73,96 @@ describe('Lightbox (styleguide § 3.11; EVM-045 AC1)', () => {
     const zoomIn = screen.getByRole<HTMLButtonElement>('button', { name: 'Powiększ' });
     const zoomOut = screen.getByRole<HTMLButtonElement>('button', { name: 'Pomniejsz' });
     expect(zoomOut.disabled).toBe(true);
-    const frame = screen.getByRole('img').parentElement as HTMLElement;
-    expect(frame.className).toContain('w-full');
     await userEvent.click(zoomIn);
-    expect(frame.className).toContain('scale-150');
     expect(screen.getByText('Powiększenie 150%')).toBeTruthy();
     await userEvent.click(zoomIn);
     await userEvent.click(zoomIn);
-    expect(frame.className).toContain('scale-300');
+    expect(screen.getByText('Powiększenie 300%')).toBeTruthy();
     expect(zoomIn.disabled).toBe(true);
     await userEvent.click(zoomOut);
-    expect(frame.className).toContain('scale-200');
+    expect(screen.getByText('Powiększenie 200%')).toBeTruthy();
     rerender(<Lightbox {...base({ itemKey: 'b' })} />);
-    expect(frame.className).toContain('w-full');
+    expect(screen.queryByText(/Powiększenie/)).toBeNull();
+    expect(zoomOut.disabled).toBe(true);
+  });
+
+  it('EVM-045 AC1 the picture is the fitted size at the fit and fitted size times the factor at a step (a measured area, a known natural size)', async () => {
+    const client = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(800);
+    const height = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(400);
+    try {
+      render(<Lightbox {...base()} />);
+      const image = screen.getByRole<HTMLImageElement>('img');
+      expect(image.style.width).toBe('');
+      Object.defineProperty(image, 'naturalWidth', { value: 1600 });
+      Object.defineProperty(image, 'naturalHeight', { value: 1200 });
+      fireEvent.load(image);
+      expect(parseFloat(image.style.width)).toBeCloseTo(533.33, 1);
+      expect(image.style.height).toBe('400px');
+      await userEvent.click(screen.getByRole('button', { name: 'Powiększ' }));
+      expect(parseFloat(image.style.width)).toBeCloseTo(800, 3);
+      expect(image.style.height).toBe('600px');
+      await userEvent.click(screen.getByRole('button', { name: 'Powiększ' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Powiększ' }));
+      expect(image.style.height).toBe('1200px');
+      await userEvent.click(screen.getByRole('button', { name: 'Pomniejsz' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Pomniejsz' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Pomniejsz' }));
+      expect(image.style.height).toBe('400px');
+    } finally {
+      client.mockRestore();
+      height.mockRestore();
+    }
+  });
+
+  it('EVM-045 AC1 the fit is measured on the outer size: classic scrollbars (a smaller clientWidth) do not change the picture size at a step', async () => {
+    const outerWidth = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(800);
+    const outerHeight = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(400);
+    const clientWidth = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(783);
+    const clientHeight = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(383);
+    try {
+      render(<Lightbox {...base()} />);
+      const image = screen.getByRole<HTMLImageElement>('img');
+      Object.defineProperty(image, 'naturalWidth', { value: 2000 });
+      Object.defineProperty(image, 'naturalHeight', { value: 1000 });
+      fireEvent.load(image);
+      const fitted = parseFloat(image.style.width);
+      expect(fitted).toBeCloseTo(800, 3);
+      await userEvent.click(screen.getByRole('button', { name: 'Powiększ' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Powiększ' }));
+      expect(parseFloat(image.style.width)).toBeCloseTo(2 * fitted, 3);
+    } finally {
+      for (const spy of [outerWidth, outerHeight, clientWidth, clientHeight]) spy.mockRestore();
+    }
+  });
+
+  it('EVM-045 AC1 a new photo of another natural size resets the known size and the step (rerender with a new src)', async () => {
+    const outerWidth = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(800);
+    const outerHeight = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(400);
+    try {
+      const view = (src: string, itemKey: string) => (
+        <Lightbox {...base({ itemKey, children: <LightboxImage src={src} alt="Zdjęcie testowe" /> })} />
+      );
+      const { rerender } = render(view('https://bucket.example.test/a.webp', 'a'));
+      const first = screen.getByRole<HTMLImageElement>('img');
+      Object.defineProperty(first, 'naturalWidth', { value: 400, configurable: true });
+      Object.defineProperty(first, 'naturalHeight', { value: 200, configurable: true });
+      fireEvent.load(first);
+      await userEvent.click(screen.getByRole('button', { name: 'Powiększ' }));
+      expect(parseFloat(first.style.width)).toBeCloseTo(600, 3);
+      rerender(view('https://bucket.example.test/b.webp', 'b'));
+      const second = screen.getByRole<HTMLImageElement>('img');
+      // the old natural size does not apply to the new src and the step is back at the fit
+      expect(second.style.width).toBe('');
+      expect(screen.queryByText(/Powiększenie/)).toBeNull();
+      Object.defineProperty(second, 'naturalWidth', { value: 3000 });
+      Object.defineProperty(second, 'naturalHeight', { value: 1000 });
+      fireEvent.load(second);
+      expect(parseFloat(second.style.width)).toBeCloseTo(800, 3);
+      expect(parseFloat(second.style.height)).toBeCloseTo(266.67, 1);
+    } finally {
+      outerWidth.mockRestore();
+      outerHeight.mockRestore();
+    }
   });
 
   it('EVM-045 AC1 while the picture is not there the zoom is disabled', () => {
@@ -115,6 +192,122 @@ describe('Lightbox (styleguide § 3.11; EVM-045 AC1)', () => {
     expect(document.activeElement).toBe(opener);
   });
 
+  it('EVM-045 AC1 an unmeasured (zero) area leaves the picture fitted by CSS and a load without a natural size is ignored', () => {
+    render(<Lightbox {...base()} />);
+    const image = screen.getByRole<HTMLImageElement>('img');
+    Object.defineProperty(image, 'naturalWidth', { value: 1600, configurable: true });
+    Object.defineProperty(image, 'naturalHeight', { value: 1200, configurable: true });
+    fireEvent.load(image);
+    expect(image.style.width).toBe('');
+    expect(image.className).toContain('max-w-full');
+  });
+
+  it('EVM-045 AC1 an image that loads without a natural size (0x0) keeps the CSS fit even in a measured area; onLoad still runs', () => {
+    const outerWidth = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(800);
+    const outerHeight = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(400);
+    try {
+      const onLoad = vi.fn();
+      render(
+        <Lightbox
+          {...base({ children: <LightboxImage src="https://bucket.example.test/a.svg" alt="Zdjęcie testowe" onLoad={onLoad} /> })}
+        />,
+      );
+      const image = screen.getByRole<HTMLImageElement>('img');
+      fireEvent.load(image);
+      expect(onLoad).toHaveBeenCalledTimes(1);
+      expect(image.style.width).toBe('');
+      expect(image.className).toContain('max-w-full');
+      Object.defineProperty(image, 'naturalWidth', { value: 100, configurable: true });
+      Object.defineProperty(image, 'naturalHeight', { value: 0, configurable: true });
+      fireEvent.load(image);
+      expect(image.style.height).toBe('');
+    } finally {
+      outerWidth.mockRestore();
+      outerHeight.mockRestore();
+    }
+  });
+
+  it('EVM-045 AC1 the area is measured again when it is resized (ResizeObserver), an unchanged size is ignored, a zero size drops the measure, and it disconnects on closing', () => {
+    let notify: () => void = () => undefined;
+    const observe = vi.fn();
+    const disconnect = vi.fn();
+    class FakeObserver {
+      constructor(callback: () => void) {
+        notify = callback;
+      }
+      observe = observe;
+      disconnect = disconnect;
+    }
+    vi.stubGlobal('ResizeObserver', FakeObserver);
+    let width = 800;
+    let height = 400;
+    const outerWidth = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(() => width);
+    const outerHeight = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(() => height);
+    try {
+      const { unmount } = render(<Lightbox {...base()} />);
+      expect(observe).toHaveBeenCalledTimes(1);
+      expect(observe.mock.calls[0]?.[0]).toBe(screen.getByRole('region', { name: 'Podgląd zdjęcia' }));
+      const image = screen.getByRole<HTMLImageElement>('img');
+      Object.defineProperty(image, 'naturalWidth', { value: 2000, configurable: true });
+      Object.defineProperty(image, 'naturalHeight', { value: 1000, configurable: true });
+      fireEvent.load(image);
+      expect(parseFloat(image.style.width)).toBeCloseTo(800, 3);
+      width = 400;
+      height = 400;
+      act(() => {
+        notify();
+      });
+      expect(parseFloat(image.style.width)).toBeCloseTo(400, 3);
+      expect(parseFloat(image.style.height)).toBeCloseTo(200, 3);
+      // the same size again: nothing changes
+      act(() => {
+        notify();
+      });
+      expect(parseFloat(image.style.width)).toBeCloseTo(400, 3);
+      width = 0;
+      act(() => {
+        notify();
+      });
+      expect(image.style.width).toBe('');
+      expect(disconnect).not.toHaveBeenCalled();
+      unmount();
+      expect(disconnect).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+      outerWidth.mockRestore();
+      outerHeight.mockRestore();
+    }
+  });
+
+  it('EVM-045 AC1 after a zoom step the same point of the picture stays in the middle of the view (scroll position, both axes)', async () => {
+    render(<Lightbox {...base()} />);
+    const area = screen.getByRole('region', { name: 'Podgląd zdjęcia' });
+    // the content grows from 1000x500 to 2000x1000 at the step; the view is 400x200 and was scrolled to 100,50
+    let widthReads = 0;
+    let heightReads = 0;
+    Object.defineProperty(area, 'scrollWidth', { configurable: true, get: () => (widthReads++ === 0 ? 1000 : 2000) });
+    Object.defineProperty(area, 'scrollHeight', { configurable: true, get: () => (heightReads++ === 0 ? 500 : 1000) });
+    Object.defineProperty(area, 'clientWidth', { configurable: true, value: 400 });
+    Object.defineProperty(area, 'clientHeight', { configurable: true, value: 200 });
+    Object.defineProperty(area, 'scrollLeft', { configurable: true, writable: true, value: 100 });
+    Object.defineProperty(area, 'scrollTop', { configurable: true, writable: true, value: 50 });
+    await userEvent.click(screen.getByRole('button', { name: 'Powiększ' }));
+    expect(area.scrollLeft).toBe(400);
+    expect(area.scrollTop).toBe(200);
+  });
+
+  it('EVM-045 AC1 a new item (the step reset without a remembered position) does not touch the scroll position', async () => {
+    const { rerender } = render(<Lightbox {...base()} />);
+    const area = screen.getByRole('region', { name: 'Podgląd zdjęcia' });
+    await userEvent.click(screen.getByRole('button', { name: 'Powiększ' }));
+    Object.defineProperty(area, 'scrollLeft', { configurable: true, writable: true, value: 77 });
+    Object.defineProperty(area, 'scrollTop', { configurable: true, writable: true, value: 33 });
+    rerender(<Lightbox {...base({ itemKey: 'b' })} />);
+    expect(screen.queryByText(/Powiększenie/)).toBeNull();
+    expect(area.scrollLeft).toBe(77);
+    expect(area.scrollTop).toBe(33);
+  });
+
   it('EVM-045 AC1 an element marked data-initial-focus gets the focus on opening', () => {
     render(<Lightbox {...base({ details: <button data-initial-focus>Pobierz oryginał</button> })} />);
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Pobierz oryginał' }));
@@ -122,7 +315,7 @@ describe('Lightbox (styleguide § 3.11; EVM-045 AC1)', () => {
 
   it('EVM-045 AC1 the scrolling picture area is a focusable named region with a visible focus ring (WCAG 2.1.1, 2.4.7)', () => {
     render(<Lightbox {...base()} />);
-    const area = screen.getByRole('region', { name: 'Powiększone zdjęcie' });
+    const area = screen.getByRole('region', { name: 'Podgląd zdjęcia' });
     expect(area.getAttribute('tabindex')).toBe('0');
     expect(area.className).toContain('focus-visible:focus-ring');
     area.focus();

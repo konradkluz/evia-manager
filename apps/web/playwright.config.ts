@@ -51,6 +51,7 @@ const uxReviewDirCodes = fileURLToPath(new URL('../../docs/ux/reviews/EVM-023/',
 const uxReviewDirAccess = fileURLToPath(new URL('../../docs/ux/reviews/EVM-027/', import.meta.url));
 const uxReviewDirAccount = fileURLToPath(new URL('../../docs/ux/reviews/EVM-028/', import.meta.url));
 const uxReviewDirMedia = fileURLToPath(new URL('../../docs/ux/reviews/EVM-044/', import.meta.url));
+const uxReviewDirPreview = fileURLToPath(new URL('../../docs/ux/reviews/EVM-045/', import.meta.url));
 const uxReviewDirQuarantine = fileURLToPath(new URL('../../docs/ux/reviews/EVM-049/', import.meta.url));
 const uxReviewDirAdminTotp = fileURLToPath(new URL('../../docs/ux/reviews/EVM-134/', import.meta.url));
 const uxReviewDirSurveyExtension = fileURLToPath(new URL('../../docs/ux/reviews/EVM-140/', import.meta.url));
@@ -120,6 +121,7 @@ export default defineConfig({
         uxReviewDirAccess,
         uxReviewDirAccount,
         uxReviewDirMedia,
+        uxReviewDirPreview,
         uxReviewDirQuarantine,
         uxReviewDirAdminTotp,
         uxReviewDirSiteSurveys,

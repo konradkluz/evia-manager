@@ -208,7 +208,9 @@ describe('EVM-045 AC8 the states of the lightbox', () => {
   it('EVM-045 AC8 while the preview is awaited there is a Skeleton with a text, and the zoom is disabled', async () => {
     await openGallery({ assets: [ready(1)], downloadUrl: byVariant({ preview: () => new Promise<Response>(() => undefined) }) });
     const dialog = await openFirst();
-    expect(within(dialog).getByText('Wczytywanie podglądu')).toBeTruthy();
+    const status = within(dialog).getByText('Wczytywanie podglądu');
+    // the skeleton keeps its proportions but never grows past the area of the preview (a wide, low window)
+    expect(status.parentElement?.className).toContain('max-h-full');
     expect(within(dialog).getByRole<HTMLButtonElement>('button', { name: 'Powiększ' }).disabled).toBe(true);
   });
 

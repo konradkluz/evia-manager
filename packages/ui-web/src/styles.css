@@ -27,6 +27,7 @@
   --color-icon-primary: var(--evm-color-icon-primary);
   --color-icon-secondary: var(--evm-color-icon-secondary);
   --color-icon-inverse: var(--evm-color-icon-inverse);
+  --color-icon-disabled: var(--evm-color-icon-disabled);
   --color-brand-accent: var(--evm-color-brand-accent);
   --color-action-primary-bg: var(--evm-color-action-primary-bg);
   --color-action-primary-bg-hover: var(--evm-color-action-primary-bg-hover);

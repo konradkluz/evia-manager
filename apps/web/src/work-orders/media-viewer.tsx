@@ -1,5 +1,5 @@
 import type { MediaAsset } from '@evia/contracts';
-import { Button, Dialog, ImageIcon, InlineAlert, Lightbox, Skeleton } from '@evia/ui-web';
+import { Button, Dialog, ImageIcon, InlineAlert, Lightbox, LightboxImage, Skeleton } from '@evia/ui-web';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ApiError } from '../api/client.ts';
 import { formatClock, formatDate } from './format.ts';
@@ -214,12 +214,11 @@ export function MediaViewer({
     }
     if (view.kind === 'ready') {
       return (
-        <img
+        <LightboxImage
           src={view.url}
           alt={mediaAlt(asset)}
           decoding="async"
           referrerPolicy="no-referrer"
-          className="h-auto w-full object-contain"
           onError={() => {
             loadedFor.current = null;
             setState({ id: asset.id, view: { kind: 'error', text: mediaText.thumbnailUnavailable } });
@@ -236,7 +235,7 @@ export function MediaViewer({
       );
     }
     return (
-      <div className="relative aspect-square w-full">
+      <div className="relative aspect-square max-h-full w-full">
         <Skeleton className="size-full" />
         <span
           className={

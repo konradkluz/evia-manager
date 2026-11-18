@@ -29,6 +29,18 @@ describe('Button and IconButton (styleguide § 3.1; EVM-008 AC3)', () => {
     expect(screen.getByRole('button', { name: 'Menu' }).className).toContain('focus-visible:focus-ring-inverse');
   });
 
+  it('EVM-045 AC1 a disabled IconButton is visibly disabled: the icon colour of the disabled state, no hover or pressed background, the default cursor (§ 3.1)', () => {
+    const { rerender } = render(<IconButton icon={Menu} label="Menu" disabled />);
+    const button = screen.getByRole<HTMLButtonElement>('button', { name: 'Menu' });
+    expect(button.disabled).toBe(true);
+    for (const token of ['disabled:text-icon-disabled', 'aria-disabled:text-icon-disabled', 'disabled:cursor-default'])
+      expect(button.className).toContain(token);
+    expect(button.className).toContain('enabled:not-aria-disabled:hover:bg-action-tertiary-bg-hover');
+    expect(button.className).not.toMatch(/(^|\s)hover:/);
+    rerender(<IconButton icon={Menu} label="Menu" tone="brand" disabled />);
+    expect(screen.getByRole('button', { name: 'Menu' }).className).toContain('disabled:cursor-default');
+  });
+
   it('EVM-138 AC5 the tertiary-danger variant (§ 3.1) is the text button of a harmful action among others — "Odrzuć wizję…"', async () => {
     const onClick = vi.fn();
     const { container } = render(
