@@ -39,6 +39,7 @@ import { CameraRequests } from './capture/camera-requests';
 import { expoDiskSpace } from './capture/disk-space';
 import { MediaUploads } from './upload/media-uploads';
 import { nativeUploadOf } from './upload/native-upload';
+import { pollConfirmation } from './upload/confirmation-poll';
 import { reconcileOnSyncChange } from './upload/reconcile-trigger';
 
 /** Fixed path of the password reset of the panel (apps/web `LOGIN_RESET_PATH`); no part of it comes from input (security W9). */
@@ -183,6 +184,13 @@ export function createSessionPorts(
   mediaUploads = media;
   // a session starts, a cycle ends, something settles or the replica changes: the rows are reconciled again (single-flight)
   reconcileOnSyncChange(sync, media);
+  // EVM-111 AC2: a file sent but not yet confirmed makes the app ask for the confirmation by itself (the same download as at the return to the foreground)
+  pollConfirmation({
+    files: media,
+    guard,
+    appState: { current: () => guard.appState.current(), subscribe: (listener) => guard.onAppStateChange(listener) },
+    sync,
+  });
   owner.onBeforeSessionEnd(() => {
     sync.stop();
     clipboard.clear();

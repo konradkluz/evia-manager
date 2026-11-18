@@ -50,6 +50,7 @@ export class DeviceGuard {
   readonly #lock: AppLock;
   readonly #listeners = new Set<() => void>();
   readonly #foreground = new Set<() => void>();
+  readonly #appStateChange = new Set<() => void>();
   #unsubscribe: (() => void) | undefined;
   #screenSecure: boolean | null = null;
   #contact: ContactView = UNKNOWN_CONTACT;
@@ -109,7 +110,19 @@ export class DeviceGuard {
     };
   }
 
+  /**
+   * Callbacks for EVERY change of `AppState` (also while the unlock window is on screen), after the source says the new state: for what only needs to know
+   * that the app went to the background or came back (EVM-111 AC2: the asking for the confirmation of the files); no second `AppState` listener.
+   */
+  onAppStateChange(listener: () => void): () => void {
+    this.#appStateChange.add(listener);
+    return () => {
+      this.#appStateChange.delete(listener);
+    };
+  }
+
   #onAppState(next: AppStateName): void {
+    for (const listener of [...this.#appStateChange]) listener();
     if (this.#prompting) return; // the unlock window itself must not lock the app again (loop)
     if (next === 'active') {
       this.#lock.returned();

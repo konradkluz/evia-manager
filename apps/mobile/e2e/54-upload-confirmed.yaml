@@ -1,4 +1,4 @@
-# EVM-130 AC4: the server confirmed the file (`clean`, set by tools/mobile-e2e before this flow; the app reads it when it comes back to the foreground): the
+# EVM-130 AC4: the server confirmed the file (`clean`, set by tools/mobile-e2e before this flow; the app stays in the foreground and asks for the confirmation itself, EVM-111 AC2): the
 # original is removed (tools/mobile-e2e asserts it afterwards) and - EVM-111 AC5 - the ENTRY of the file leaves the phone with it: the Queue has no file, no
 # "Wysłane pliki" and no "Wysłano", and the app is still signed in.
 appId: pl.eviacharge.manager

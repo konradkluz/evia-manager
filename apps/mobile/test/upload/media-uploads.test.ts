@@ -10,6 +10,7 @@ import { SqlQueueStore } from '../../src/storage/queue-store';
 import { SqlReplicaStore } from '../../src/storage/replica-store';
 import { SqlSurveyMarks } from '../../src/storage/survey-marks';
 import type { NativeUpload } from '../../src/upload/native-upload';
+import { pollConfirmation } from '../../src/upload/confirmation-poll';
 import { MediaUploads, type MediaUploadsDeps } from '../../src/upload/media-uploads';
 import { migratedDatabase } from '../storage/harness';
 import { newDisk, removeDisk, type TestDisk } from '../storage/node-sqlite-engine';
@@ -487,7 +488,7 @@ describe('the state of a file in the view (EVM-130 AC4)', () => {
     expect(r.uploads.getSnapshot().files[0]?.percent).toBe(100);
   });
 
-  it('EVM-130 AC4: events of a file — uploaded is still "Oczekuje" (EVM-111 AC5: no "Wysłano" before the server confirms), needs_attention keeps its reason, checksum_mismatch is "Ponów"; each one tells the contact to merge', async () => {
+  it('EVM-130 AC4: events of a file — uploaded is "Wysyła się 100%" (EVM-111 AC5: no "Wysłano" before the server confirms), needs_attention keeps its reason, checksum_mismatch is "Ponów"; each one tells the contact to merge', async () => {
     const r = await armed();
     r.uploads.start();
     const fire = async (event: FileStateEvent): Promise<void> => {
@@ -512,7 +513,7 @@ describe('the state of a file in the view (EVM-130 AC4)', () => {
     expect(await states(r)).toEqual(['01:applied']);
     await fire({ assetId: asset(1), state: 'uploaded', reason: null });
     expect(await states(r)).toEqual(['01:uploaded']);
-    await view([{ status: 'waiting', actions: [] }]);
+    await view([{ status: 'uploading', percent: 100, actions: [] }]);
     await fire({ assetId: asset(1), state: 'queued', reason: 'checksum_mismatch' });
     expect(await states(r)).toEqual(['01:failed']);
     await view([{ status: 'error', code: 'checksum_mismatch', actions: ['retry'] }]);
@@ -579,12 +580,12 @@ describe('the state of a file in the view (EVM-130 AC4)', () => {
       expect(r.native.completed).toEqual([]);
       expect(r.native.deleted).toEqual([]);
       expect(await states(r)).toEqual(['01:uploaded']);
-      // EVM-111 AC5: sent but not confirmed - the entry stays and is still "Oczekuje" (never "Wysłano")
-      expect(r.uploads.getSnapshot().files).toMatchObject([{ status: 'waiting' }]);
+      // EVM-111 AC5: sent but not confirmed - the entry stays as "Wysyła się 100%" (never "Wysłano", never "Oczekuje")
+      expect(r.uploads.getSnapshot().files).toMatchObject([{ status: 'uploading', percent: 100, awaitsConfirmation: true }]);
     }
   });
 
-  it('EVM-130 AC4: the module reporting uploaded does not delete the original either — it is "sent, waiting for the confirmation" (the view says "Oczekuje": EVM-111 AC5)', async () => {
+  it('EVM-130 AC4: the module reporting uploaded does not delete the original either — it is "sent, waiting for the confirmation" (the view says "Wysyła się 100%": EVM-111 AC5)', async () => {
     const r = await armed();
     r.uploads.start();
     r.native.emit('onFileState', { assetId: asset(1), state: 'uploaded', reason: null });
@@ -592,7 +593,7 @@ describe('the state of a file in the view (EVM-130 AC4)', () => {
     expect(await states(r)).toEqual(['01:uploaded']);
     expect(r.native.completed).toEqual([]);
     expect(r.native.deleted).toEqual([]);
-    expect(r.uploads.getSnapshot().files).toMatchObject([{ status: 'waiting' }]);
+    expect(r.uploads.getSnapshot().files).toMatchObject([{ status: 'uploading', percent: 100, awaitsConfirmation: true }]);
   });
 
   it('EVM-130 AC4, EVM-111 AC5: clean in the replica removes the original exactly once and the entry goes with it (no "Wysłano" row stays)', async () => {
@@ -620,6 +621,47 @@ describe('the state of a file in the view (EVM-130 AC4)', () => {
     await new Promise((resolve) => setTimeout(resolve, 30));
     expect(await states(r)).toEqual([]);
     expect(r.native.deleted).toEqual([asset(1)]);
+  });
+
+  it('EVM-111 AC2: the module says uploaded and the app stays in the foreground - the poll asks for the confirmation, the replica says clean and the entry goes without a pass through the background', async () => {
+    jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick', 'queueMicrotask'] });
+    try {
+      const r = await armed();
+      r.uploads.start();
+      await r.store.media.setState(asset(1), 'uploaded', null, 5);
+      await r.uploads.reload();
+      expect(r.uploads.getSnapshot().files).toMatchObject([{ status: 'uploading', percent: 100, awaitsConfirmation: true }]);
+      let confirmation = 0;
+      const stop = pollConfirmation({
+        files: r.uploads,
+        guard: { subscribe: () => () => undefined, getSnapshot: () => ({ locked: false, hidden: null, wiping: false }) },
+        appState: { current: () => 'active', subscribe: () => () => undefined },
+        sync: {
+          subscribe: () => () => undefined,
+          getSnapshot: () => ({ active: true, online: true, paused: null, syncing: false }),
+          // the download of the replica: from the third asking on the server's answer is in the replica and the reconciliation (as in session.ts) reads it
+          foreground: () => {
+            confirmation += 1;
+            void (async () => {
+              if (confirmation >= 3) await serverState(r, 1, 'clean');
+              await r.uploads.reconcile();
+            })();
+          },
+        },
+      });
+      for (const ms of [0, 5000, 10000]) {
+        await jest.advanceTimersByTimeAsync(ms);
+        for (let n = 0; n < 50; n += 1) await new Promise((resolve) => setImmediate(resolve));
+      }
+      stop();
+      expect(confirmation).toBe(3);
+      expect(await states(r)).toEqual([]);
+      expect(r.uploads.getSnapshot().files).toEqual([]);
+      expect(r.uploads.getSnapshot().confirmed).toBe(1);
+      expect(r.native.deleted).toEqual([asset(1)]);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('EVM-130 AC4: a module that does not delete (unavailable, invalid) leaves the row uploaded — the next run asks again', async () => {
@@ -1389,7 +1431,9 @@ describe('the entry of a file the server confirmed leaves the phone (EVM-111 AC5
       await r.uploads.reconcile();
       await r.setup().reconcile();
       expect(await states(r)).toEqual(['01:uploaded']);
-      expect(r.uploads.getSnapshot().files).toMatchObject([{ assetId: asset(1), status: 'waiting' }]);
+      expect(r.uploads.getSnapshot().files).toMatchObject([
+        { assetId: asset(1), status: 'uploading', percent: 100, awaitsConfirmation: true },
+      ]);
       expect(r.native.deleted).toEqual([]);
     }
   });
@@ -1458,7 +1502,7 @@ describe('the entry of a file the server confirmed leaves the phone (EVM-111 AC5
     );
     await uploads.reconcile();
     expect(await states(r)).toEqual(['01:uploaded']);
-    expect(uploads.getSnapshot().files).toMatchObject([{ status: 'waiting' }]);
+    expect(uploads.getSnapshot().files).toMatchObject([{ status: 'uploading', percent: 100, awaitsConfirmation: true }]);
     broken = false;
     await uploads.reconcile();
     expect(await states(r)).toEqual([]);
@@ -1482,7 +1526,9 @@ describe('the entry of a file the server confirmed leaves the phone (EVM-111 AC5
     }
     await r.uploads.reconcile();
     expect(await states(r)).toEqual(['23:uploaded']);
-    expect(r.uploads.getSnapshot().files).toMatchObject([{ assetId: asset(23), status: 'waiting' }]);
+    expect(r.uploads.getSnapshot().files).toMatchObject([
+      { assetId: asset(23), status: 'uploading', percent: 100, awaitsConfirmation: true },
+    ]);
     expect(r.uploads.getSnapshot().confirmed).toBe(22);
   });
 

@@ -10,8 +10,8 @@
  *    banner of the connection); the server has not seen a byte;
  * 2. the network is back and the files go: the server has the two objects, yet the phone still counts "2 do wysłania" (the end of the transfer is no
  *    confirmation) and the originals are still on it;
- * 3. the server confirms the files (`clean`; the app reads it when it comes back to the foreground, so the step is `background`): the row and the header say
- *    "Wszystko wysłane", the entries are gone from the screen, the Queue and the counters of the hook, and the originals are gone.
+ * 3. the server confirms the files (`clean`) while the app STAYS in the foreground - no step `background`, the technician does nothing (EVM-111 AC2): the app asks
+ *    for the confirmation itself (5, 10, 20, 40 s, then every 60 s), so the row and the header say "Wszystko wysłane", the entries are gone from the screen, the Queue and the counters of the hook, and the originals are gone.
  */
 
 /** The checks at the end of a scenario that sent a file: nothing of a token or a signed address in the log or the files of the app. @type {import('./device.mjs').DeviceAction[]} */
@@ -42,7 +42,6 @@ export const ORDER_FILES_SCENARIOS = [
         flow: '120-order-files-confirmed.yaml',
         server: 'ok',
         airplane: false,
-        background: true,
         upload: true,
         before: ['upload-file-state:clean'],
         after: ['original-absent', ...CLEAN_LOG],

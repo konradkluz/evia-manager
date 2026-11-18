@@ -1,4 +1,5 @@
-# EVM-111 AC1 AC2 AC3 AC5: the server confirmed both files (`clean`, set by tools/mobile-e2e before this flow; the app reads it when it comes back to the foreground).
+# EVM-111 AC1 AC2 AC3 AC5: the server confirmed both files (`clean`, set by tools/mobile-e2e before this flow; the app STAYS in the foreground - no
+# "background" step: it asks for the confirmation itself, at most a minute later, EVM-111 AC2).
 # The entries leave the phone: the row of the order and the header say "Wszystko wysłane", "Pliki zlecenia" is empty with the sentence of the office and no
 # button, the Queue has no file, no "Wysłane pliki" and no "Wysłano", and the hook counts no file. tools/mobile-e2e then proves that the originals are gone.
 appId: pl.eviacharge.manager

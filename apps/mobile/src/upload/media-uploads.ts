@@ -785,9 +785,11 @@ function viewOf(row: MediaFileRecord, status: UploadStatus | undefined, awaitsSu
       return status?.waitingForWifi === true && base.mediaType === 'video'
         ? { ...base, status: 'waiting_wifi', percent: null, actions: [] }
         : { ...base, status: 'waiting', percent: null, actions: [] };
-    // EVM-111 AC1, AC5: there is no "Wysłano" on the phone - a file the module sent but the server has not confirmed yet (`uploaded`) is still to be
-    // confirmed, so it stays on the list as "Oczekuje"; a `clean` row is a removal that failed and is repeated
+    // EVM-111 AC1, AC2, AC5: there is no "Wysłano" on the phone - a file the module sent but the server has not confirmed yet (`uploaded`) is still on
+    // the list as "Wysyła się 100%" (the transfer is done, the confirmation is not; "Oczekuje" would look as if nothing had started) and counts as not sent;
+    // the app asks for the confirmation itself (confirmation-poll.ts). A `clean` row is a removal that failed and is repeated
     case 'uploaded':
+      return { ...base, status: 'uploading', percent: 100, actions: [], awaitsConfirmation: true };
     case 'clean':
       return { ...base, status: 'waiting', percent: null, actions: [] };
     case 'failed':

@@ -407,6 +407,20 @@ describe('one listener, foreground callbacks, wipe flag, patch banner (EVM-101 A
     expect(calls).toBe(1);
   });
 
+  it('EVM-111 AC2: onAppStateChange callbacks run on every change of the state (also while the unlock window is on screen), without a second AppState listener, and can be removed', async () => {
+    const r = await started();
+    let calls = 0;
+    const off = r.guard.onAppStateChange(() => {
+      calls += 1;
+    });
+    r.appState.emit('background');
+    r.appState.emit('active');
+    expect(calls).toBe(2);
+    off();
+    r.appState.emit('background');
+    expect(calls).toBe(2);
+  });
+
   it('EVM-101 AC4: a running wipe hides the data until it ends', async () => {
     const r = await started();
     r.guard.setWiping(true);

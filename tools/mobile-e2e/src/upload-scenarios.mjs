@@ -80,7 +80,8 @@ export const UPLOAD_SCENARIOS = [
     ],
   },
   // AC4: the original stays after the upload while the server has not confirmed `clean` (the replica says "uploading"); after `clean` the
-  // original is deleted and - EVM-111 AC5 - the entry of the file leaves the phone with it (no "Wysłano" row stays).
+  // original is deleted and - EVM-111 AC5 - the entry of the file leaves the phone with it (no "Wysłano" row stays); the app stays in the foreground (no
+  // step `background`): it asks for the confirmation itself (EVM-111 AC2).
   {
     name: 'upload-original-until-clean',
     ac: 'EVM-130 AC4',
@@ -92,7 +93,6 @@ export const UPLOAD_SCENARIOS = [
         flow: '54-upload-confirmed.yaml',
         server: 'ok',
         airplane: false,
-        background: true,
         upload: true,
         before: ['upload-file-state:clean'],
         after: ['original-absent'],

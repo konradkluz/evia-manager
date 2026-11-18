@@ -192,6 +192,16 @@ describe('the row "Pliki z tego telefonu" in the details of the order (EVM-111 A
 });
 
 describe('"Pliki zlecenia" - the list (EVM-111 AC1)', () => {
+  it('EVM-111 AC2: a file after the transfer, before the confirmation, is "Wysyła się 100%" (in progress, counted as to send, above the waiting ones) - never "Oczekuje"', async () => {
+    const rig = rigWith([file(1), file(2, { status: 'uploading', percent: 100, awaitsConfirmation: true })]);
+    await openFiles(rig);
+    expect(screen.getByTestId('order-files-count')).toHaveTextContent('2 do wysłania', { exact: true });
+    expect(screen.getByTestId(`order-file-${ID(2)}`)).toHaveTextContent('Wysyła się 100%', { exact: false });
+    expect(screen.getByTestId(`order-file-${ID(2)}`)).not.toHaveTextContent('Oczekuje', { exact: false });
+    const shown = screen.getAllByTestId(/^order-file-[0-9a-f-]+$/).map((node) => String(node.props.testID).slice('order-file-'.length));
+    expect(shown).toEqual([2, 1].map(ID));
+  });
+
   it('EVM-111 AC1: a flat list of the files of THIS order only - the order Wymaga uwagi, Nie wysłano, w toku, oczekujące (newest first inside a group); no file of another order', async () => {
     const rig = rigWith([
       file(1),

@@ -33,6 +33,8 @@ export interface MediaFileView {
   readonly capturedAt: number;
   /** The file waits for a site survey that is still only in the queue ("Wyślemy po utworzeniu wizji"; EVM-137). */
   readonly awaitsSurvey?: boolean;
+  /** The transfer is done (the module reported it) and the server has not confirmed the file yet; the view says "Wysyła się 100%" (EVM-111 AC2, AC5). */
+  readonly awaitsConfirmation?: boolean;
 }
 
 export interface MediaUploadsSnapshot {

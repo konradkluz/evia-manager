@@ -55,7 +55,7 @@ describe('Maestro flows 120-129 and the scenario "order-files-status" agree (EVM
     }
   });
 
-  it('EVM-111 AC1 AC5: the scenario signs in, goes offline, back online, and then the server confirms - the last step comes back to the foreground to read it', () => {
+  it('EVM-111 AC1 AC2 AC5: the scenario signs in, goes offline, back online, and then the server confirms - the last step does NOT go to the background: the app asks for the confirmation itself (EVM-111 AC2)', () => {
     assert.equal(scenario.name, 'order-files-status');
     assert.deepEqual(
       scenario.steps.map((step) => [step.flow, step.airplane, step.background === true]),
@@ -63,7 +63,7 @@ describe('Maestro flows 120-129 and the scenario "order-files-status" agree (EVM
         ['80-camera-sign-in.yaml', false, false],
         ['120-order-files-offline.yaml', true, false],
         ['120-order-files-sending.yaml', false, false],
-        ['120-order-files-confirmed.yaml', false, true],
+        ['120-order-files-confirmed.yaml', false, false],
       ],
     );
     for (const step of steps) assert.equal(step.upload, true, step.flow);
@@ -113,6 +113,8 @@ describe('Maestro flows 120-129 and the scenario "order-files-status" agree (EVM
       original.steps.map((step) => step.flow),
       ['50-upload-sign-in.yaml', '55-upload-inject-small.yaml', '54-upload-sent.yaml', '54-upload-confirmed.yaml'],
     );
+    // the app stays in the foreground: it asks for the confirmation itself (EVM-111 AC2)
+    assert.equal(stepAt(original, 3).background, undefined);
     assert.deepEqual(stepAt(original, 3).before, ['upload-file-state:clean']);
     assert.deepEqual(stepAt(original, 3).after, ['original-absent']);
     // no flow waits for a row "Wysłano" any more (there is none on the phone)
