@@ -72,6 +72,9 @@ export function checkManifest(manifestText, { applicationId, minimumTargetSdk = 
     'android.permission.POST_NOTIFICATIONS',
     // EVM-108 AC8: the camera of the app (CameraX through expo-camera; the library declares it, plugins/with-camera.ts adds nothing)
     CAMERA_PERMISSION,
+    // EVM-101 AC3: the system unlock window (BiometricPrompt of androidx.biometric); a normal permission, no consent of the user. Without it
+    // the system refuses the window. Allowed, not required: the fixtures are real output of a package built before the fix (USE_FINGERPRINT stays unexpected)
+    'android.permission.USE_BIOMETRIC',
   ];
   for (const permission of permissions) {
     if (permission === RECORD_AUDIO_PERMISSION)

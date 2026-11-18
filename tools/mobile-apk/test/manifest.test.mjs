@@ -48,6 +48,13 @@ describe('manifest of the built APK (EVM-009 AC6; SR-MOB-02, SR-MOB-07, SR-MOB-0
     }
   });
 
+  it('EVM-101 AC3: USE_BIOMETRIC (the system unlock window) is allowed, its deprecated twin USE_FINGERPRINT is not', () => {
+    const biometric = changed('</manifest>', '<uses-permission android:name="android.permission.USE_BIOMETRIC" /></manifest>');
+    assert.deepEqual(checkManifest(biometric, { applicationId: ID }), []);
+    const fingerprint = changed('</manifest>', '<uses-permission android:name="android.permission.USE_FINGERPRINT" /></manifest>');
+    assert.deepEqual(checkManifest(fingerprint, { applicationId: ID }), ['unexpected permission android.permission.USE_FINGERPRINT']);
+  });
+
   it('EVM-009 AC6: a permission outside the white list is reported, the missing INTERNET too', () => {
     const extra = changed('</manifest>', '<uses-permission android:name="android.permission.READ_PHONE_STATE" /></manifest>');
     assert.deepEqual(checkManifest(extra, { applicationId: ID }), ['unexpected permission android.permission.READ_PHONE_STATE']);
