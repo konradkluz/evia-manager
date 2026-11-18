@@ -88,6 +88,17 @@ describe('Lightbox (styleguide § 3.11; EVM-045 AC1)', () => {
     expect(frame.className).toContain('w-full');
   });
 
+  it('EVM-045 AC1 the box of the picture is the whole scrolling area at the fit (the minimum) and at every step, so a photo is fitted by its height too', async () => {
+    render(<Lightbox {...base()} />);
+    const frame = screen.getByRole('img').parentElement as HTMLElement;
+    for (let step = 0; step < 4; step += 1) {
+      expect(frame.className).toContain('h-full');
+      expect(frame.className).toContain('w-full');
+      if (step === 0) expect(frame.className).not.toContain('scale-');
+      await userEvent.click(screen.getByRole('button', { name: 'Powiększ' }));
+    }
+  });
+
   it('EVM-045 AC1 while the picture is not there the zoom is disabled', () => {
     render(<Lightbox {...base({ zoomable: false })} />);
     expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Powiększ' }).disabled).toBe(true);

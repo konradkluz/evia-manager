@@ -1,4 +1,4 @@
-import type { Page, Route } from '@playwright/test';
+import type { Locator, Page, Route } from '@playwright/test';
 import { expect } from './fixtures.ts';
 import type { MockApi } from './mock-api.ts';
 import { BUCKET_ORIGIN } from './mock-media.ts';
@@ -50,4 +50,46 @@ export async function installBucket(page: Page, api: MockApi): Promise<Bucket> {
     return route.fulfill({ status: 200, headers: { ...cors, ETag: '"e2e-etag"' } });
   });
   return bucket;
+}
+
+const svg = (width: number, height: number): string =>
+  `<svg xmlns="http://www.w3.org/2000/svg" width="${String(width)}" height="${String(height)}" viewBox="0 0 ${String(width)} ${String(height)}"><rect width="100%" height="100%" fill="#7a8"/><circle cx="${String(width / 2)}" cy="${String(height / 2)}" r="${String(Math.min(width, height) / 3)}" fill="#fff"/></svg>`;
+
+/**
+ * Uploads a photo that the media processor has already processed, opens its lightbox and waits for the preview. The preview of the server is a
+ * WebP with the longer side of 1600 px; an SVG with the natural size given stands in for it (the tile keeps a small thumbnail).
+ */
+export async function openLightbox(page: Page, api: Parameters<typeof installBucket>[1], width: number, height: number): Promise<Locator> {
+  await installBucket(page, api);
+  api.media.derivativesReady = true;
+  await page.route(/\/media-assets\/[^/]+\/download-url$/, async (route) => {
+    const body = JSON.parse(route.request().postData() ?? '{}') as { variant?: string };
+    const kind = body.variant === 'thumbnail' ? 'thumbnail' : 'preview';
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: { 'Cache-Control': 'no-store' },
+      body: JSON.stringify({ url: `${BUCKET_ORIGIN}/media/synthetic/${kind}.svg`, expiresAt: '2099-01-01T00:00:00.000Z' }),
+    });
+  });
+  await page.route(`${BUCKET_ORIGIN}/media/synthetic/*.svg`, async (route) => {
+    const thumbnail = route.request().url().endsWith('thumbnail.svg');
+    await route.fulfill({ status: 200, contentType: 'image/svg+xml', body: thumbnail ? svg(320, 240) : svg(width, height) });
+  });
+  await createOrder(page);
+  await openMediaTab(page);
+  await page.getByRole('button', { name: 'Dodaj zdjęcia lub filmy' }).click();
+  await page
+    .getByRole('dialog')
+    .getByLabel('Wybrane pliki')
+    .setInputFiles([photo('IMG_0412.jpg')]);
+  await page.getByRole('dialog').getByRole('button', { name: 'Wyślij 1 plik' }).click();
+  await expect(page.getByText('Wysłano 1 zdjęcie', { exact: false })).toBeVisible();
+  await page.getByRole('button', { name: /^Powiększ: Zdjęcie/ }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('img')).toBeVisible();
+  await expect
+    .poll(async () => dialog.getByRole('img').evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0))
+    .toBe(true);
+  return dialog;
 }

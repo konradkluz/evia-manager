@@ -20,22 +20,26 @@ export interface LightboxProps {
   readonly onNext?: (() => void) | undefined;
   /** Esc and `x`. */
   readonly onDismiss: () => void;
-  /** Changes with the item shown; the zoom goes back to 100%. */
+  /** Changes with the item shown; the zoom goes back to the fit (100%). */
   readonly itemKey: string;
   /** False while the picture is not there (loading, error): zoom buttons are disabled. */
   readonly zoomable?: boolean;
-  /** The picture (or its Skeleton / error state). It fills the width of the area; the zoom widens it. */
+  /** The picture (or its Skeleton / error state), in a box the size of the area; a picture fits it with `m-auto max-h-full max-w-full`, the zoom scales the box. */
   readonly children: ReactNode;
   /** The metadata and the actions under the picture. */
   readonly details: ReactNode;
 }
 
-/** Zoom steps as the scale of the picture inside a scrolling area (percent; scaled from the top left corner, so the scrolling area grows right and down; classes written out so that Tailwind finds them). */
+/**
+ * Zoom steps as the scale of the picture box inside a scrolling area (percent; scaled from the top left corner, so the scrolling area grows
+ * right and down; classes written out so that Tailwind finds them). The box at 100% is exactly the area (`h-full w-full`): that is the fit,
+ * the minimum - a picture that is taller than the area is fitted by its parent with `max-h-full max-w-full`, never by the width alone.
+ */
 const ZOOM_STEPS: ReadonlyArray<{ readonly percent: number; readonly className: string }> = [
-  { percent: 100, className: 'w-full' },
-  { percent: 150, className: 'w-full origin-top-left scale-150' },
-  { percent: 200, className: 'w-full origin-top-left scale-200' },
-  { percent: 300, className: 'w-full origin-top-left scale-300' },
+  { percent: 100, className: 'h-full w-full' },
+  { percent: 150, className: 'h-full w-full origin-top-left scale-150' },
+  { percent: 200, className: 'h-full w-full origin-top-left scale-200' },
+  { percent: 300, className: 'h-full w-full origin-top-left scale-300' },
 ];
 
 /**
@@ -139,7 +143,7 @@ export function Lightbox({
             tabIndex={0}
             className="flex min-h-0 flex-1 overflow-auto bg-bg-canvas p-inset-sm focus-visible:focus-ring"
           >
-            <div className={`m-auto shrink-0 ${zoom?.className ?? 'origin-top-left'}`}>{children}</div>
+            <div className={`m-auto flex shrink-0 items-start ${zoom?.className ?? 'h-full w-full'}`}>{children}</div>
           </div>
           <div className="flex flex-col gap-stack-sm p-inset-md">{details}</div>
         </>

@@ -19,7 +19,7 @@ interface Media {
   readonly fileName: string;
   readonly size: number;
   readonly userId: string;
-  state: 'pending_upload' | 'uploaded' | 'scanning' | 'clean' | 'quarantined' | 'failed';
+  state: 'pending_upload' | 'uploaded' | 'scanning' | 'clean' | 'ready' | 'quarantined' | 'failed';
   reason: 'checksum_mismatch' | null;
   readonly createdAt: string;
   sessionId: string | null;
@@ -41,6 +41,8 @@ export interface MediaServer {
   sessionsCreated: number;
   /** The number of accepted `rescan` calls (EVM-049). */
   rescans: number;
+  /** EVM-045: the media processor has made the thumbnail and the preview - a clean file is `ready` (the gallery opens it) instead of `clean`. */
+  derivativesReady: boolean;
 }
 
 export const newMediaServer = (): MediaServer => ({
@@ -51,6 +53,7 @@ export const newMediaServer = (): MediaServer => ({
   completes: 0,
   sessionsCreated: 0,
   rescans: 0,
+  derivativesReady: false,
 });
 
 const json = (status: number, body: unknown, headers: Record<string, string> = {}): Answer => ({
@@ -266,7 +269,14 @@ export function answerMedia(server: MediaServer, method: string, path: string, q
     if (confirmed.size !== count) return problem(422, 'upload_incomplete');
     server.completes += 1;
     // The scan is quick in the synthetic server: the next read shows its verdict.
-    entry.state = server.verdict === 'clean' ? 'clean' : server.verdict === 'quarantined' ? 'quarantined' : 'failed';
+    entry.state =
+      server.verdict === 'clean'
+        ? server.derivativesReady
+          ? 'ready'
+          : 'clean'
+        : server.verdict === 'quarantined'
+          ? 'quarantined'
+          : 'failed';
     entry.reason = server.verdict === 'checksum_mismatch' ? 'checksum_mismatch' : null;
     entry.quarantine = server.verdict === 'quarantined' ? 'held' : null;
     const shownState = { ...shown(entry, false), fileState: 'uploaded', stateReasonCode: null, needsAttention: false };

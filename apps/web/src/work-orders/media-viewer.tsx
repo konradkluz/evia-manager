@@ -219,7 +219,7 @@ export function MediaViewer({
           alt={mediaAlt(asset)}
           decoding="async"
           referrerPolicy="no-referrer"
-          className="h-auto w-full object-contain"
+          className="m-auto max-h-full max-w-full object-contain"
           onError={() => {
             loadedFor.current = null;
             setState({ id: asset.id, view: { kind: 'error', text: mediaText.thumbnailUnavailable } });
