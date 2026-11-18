@@ -9,3 +9,9 @@ appId: pl.eviacharge.manager
 - extendedWaitUntil:
     visible: 'Zlecenie testowe 1'
     timeout: 20000
+# the row sits in the scrolled content of M-03 (above the journal), below the fold on a phone: bring it on screen
+- scrollUntilVisible:
+    element:
+      id: 'order-files-row'
+    direction: DOWN
+    centerElement: true

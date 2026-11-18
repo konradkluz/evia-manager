@@ -42,7 +42,8 @@ appId: pl.eviacharge.manager
 - tapOn:
     id: 'order-files-back'
 - extendedWaitUntil:
-    visible: 'Zlecenie testowe 1'
+    visible:
+      id: 'order-detail'
     timeout: 20000
 - assertVisible:
     id: 'order-files-row'
