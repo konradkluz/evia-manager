@@ -4,7 +4,7 @@ title: "Aplikacja: status każdego pliku w kolejce telefonu"
 type: story
 milestone: M2
 epic: E11 Zdjęcia i filmy
-status: draft
+status: ready
 priority: P2
 path: lekka             # tylko ekran nad lokalną kolejką; bez pobierania miniatur i podpisanych adresów (zawężone 2026-11-12); decyzja Konrada 2026-11-15
 owner: mobile-developer
@@ -16,7 +16,7 @@ depends_on: [EVM-108, EVM-110, EVM-131]
 
 # EVM-111: Aplikacja — status każdego pliku w kolejce telefonu
 
-> **Szkic do akceptacji treści przez Konrada (2026-11-15; decyzje Konrada naniesione wieczorem).** Zakres zawężony 2026-11-12: galeria i przegląd mediów zlecenia (zdjęcia i filmy z biura, miniatury z serwera) **tylko w panelu web**.
+> **Treść zaakceptowana przez Konrada 2026-11-18 (decyzje z 2026-11-15 naniesione).** Zakres zawężony 2026-11-12: galeria i przegląd mediów zlecenia (zdjęcia i filmy z biura, miniatury z serwera) **tylko w panelu web**.
 
 ## Cel
 Jako **technik** chcę **w szczegółach zlecenia zobaczyć, które pliki z mojego telefonu jeszcze nie dotarły do biura i co się z nimi dzieje („3 do wysłania” albo „Wszystko wysłane”)**, aby **mieć pewność, że nic nie brakuje, zanim odjadę sprzed domu klienta**. Kolejka (EVM-108, EVM-110) pokazuje pliki wszystkich zleceń naraz; ta historyjka dodaje widok **jednego zlecenia**, przyczyny w prostych słowach i usuwanie wpisu o pliku z telefonu zaraz po potwierdzeniu wysłania.
@@ -67,7 +67,7 @@ Miniatury i podgląd pliku, także lokalny (decyzja Konrada 2026-11-15); retencj
 - **Ścieżka `lekka`:** 6 AC, jeden moduł (aplikacja), bez API; jedyny recenzent `security-engineer` (warunek przeglądu: usuwanie wpisu po potwierdzeniu, kolejność z oryginałem, testy z DoD).
 - **Dokumenty UX po akceptacji historyjki** (zrobi ux-designer, nie teraz): makieta 09 — M-08 z „Media zlecenia” (siatka) na uproszczone „Pliki zlecenia” (lista płaska, „n do wysłania”), wiersz w opisie M-03, znaczniki „od EVM-111” (nagłówek, diagram, linie ok. 9, 31, 374, 419), usunięcie „Wysłane pliki” z opisu Kolejki, mikrocopy; styleguide § 4.18 (M-08 = „Pliki zlecenia”, tekst EmptyState) i wpis w changelogu; wiersz nawigacyjny w specyfikacji M-03.
 
-## Do akceptacji przez Konrada
+## Pytanie z doprecyzowania (rozstrzygnięte 2026-11-18: przyjęta rekomendacja „tak”)
 Po decyzji 2 historyjka jest mniejsza (brak retencji, `sentAt`, migracji i licznika „n z m”), ale ekran zachowuje sens: Kolejka nie pokazuje, do którego zlecenia należy plik (bez numerów — tryb ukrytych danych), a wiersz w zleceniu odpowiada na „czy z tego zlecenia coś jeszcze nie dotarło”. **Jedno pytanie:** czy potwierdzasz, że „od razu po przesłaniu można usunąć z telefonu” oznacza usunięcie wpisu po **potwierdzeniu przez serwer** (nie po samym końcu transferu) — z konsekwencją, że na telefonie nie ma już śladu „Wysłano” (znika sekcja „Wysłane pliki” w Kolejce, a technik widzi tylko, że licznik spadł do „Wszystko wysłane”)? **Rekomendacja: tak** — potwierdzenie serwera jest bezpieczne (oryginał też kasujemy dopiero wtedy), a historię wysłanych zdjęć i filmów technik zobaczy w panelu biura. Alternatywa: zostawić wpis w Kolejce do końca dnia (więcej kodu, wróci pytanie o retencję).
 
 ## Notatki techniczne
@@ -92,3 +92,4 @@ Po decyzji 2 historyjka jest mniejsza (brak retencji, `sentAt`, migracji i liczn
 - 2026-11-15 — szkic `/refine` (product-owner): 6 AC, miniatury i „Szczegóły techniczne” do „Poza zakresem”, ścieżka `lekka`, 5 pytań do Konrada; status `draft`
 - 2026-11-15 — naniesiono konsultacje UX i security; status draft, czeka na decyzje Konrada (product-owner)
 - 2026-11-15 — decyzje Konrada: miniatury wycięte, wpis o wysłanym pliku usuwany od razu po potwierdzeniu serwera (zamiast retencji 7 dni i „n z m” — „n do wysłania”), stały wiersz w zleceniu, `lekka` z recenzentem security-engineer, `depends_on` + EVM-110; status draft do akceptacji treści (product-owner)
+- 2026-11-18 — treść zaakceptowana przez Konrada („akceptuję EVM-111 i EVM-119”); pytanie o usuwanie wpisu rozstrzygnięte wg rekomendacji: wpis znika po **potwierdzeniu przez serwer** (interpretacja Tech Leada: akceptacja szkicu obejmuje rekomendowaną odpowiedź); status `ready` (Tech Lead)
