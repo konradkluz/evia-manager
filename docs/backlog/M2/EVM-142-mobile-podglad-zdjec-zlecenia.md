@@ -84,3 +84,4 @@ Jako **technik (Administrator lub Edytor)** chcę **w szczegółach zlecenia obe
 - 2026-11-18 — utworzono jako szkic (product-owner); potrzeba Konrada z 2026-11-18, zmiana decyzji z 2026-11-12
 - 2026-11-18 — naniesiono konsultację security (Tech Lead): AC3 (podgląd w oknie głównym) i AC5 (kryteria sprawdzalne: brak plików obrazów, brak adresu w logach, przerwanie żądań w toku) doprecyzowane, spike cache obrazów na początku planu; status `draft`
 - 2026-11-18 — Konrad: „Akceptuję rekomendacje” — wszystkie pytania rozstrzygnięte wg rekomendacji; status `ready` (Tech Lead)
+- 2026-11-19 — AC1 (backend): kanał `mobile` dla `createMediaAssetDownloadUrl` tylko dla `thumbnail`/`preview` zdjęć (`original` → 403 przed odczytem medium, film → 404), kontrakt i baseline (ADR-0021, aneks), testy macierzy i integracyjne (backend-developer)
