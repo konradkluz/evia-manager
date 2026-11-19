@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { Activity, useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Text, View } from 'react-native';
@@ -125,7 +125,7 @@ export function LockGate({
         accessibilityElementsHidden={locked}
         importantForAccessibility={locked ? 'no-hide-descendants' : 'auto'}
       >
-        {children}
+        <Activity mode={locked ? 'hidden' : 'visible'}>{children}</Activity>
       </View>
       {locked ? <LockOverlay prompting={prompting} failed={failed} appState={appState} onUnlock={onUnlock} /> : null}
     </View>
