@@ -21,7 +21,8 @@ fail() {
 http() {
   local method="$1" port="$2" path="$3" body="${4:-}"
   exec 3<> "/dev/tcp/127.0.0.1/$port" || return 1
-  printf '%s %s HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: %s\r\n\r\n%s' \
+  # HTTP/1.0: the server does not use chunked encoding, so a long /metrics body (chunk sizes inside a line) is not cut mid-line.
+  printf '%s %s HTTP/1.0\r\nHost: 127.0.0.1\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: %s\r\n\r\n%s' \
     "$method" "$path" "${#body}" "$body" >&3
   cat <&3
   exec 3<&-
@@ -107,12 +108,25 @@ push 3100 '{"compose_service":"api"}' '{"level":"error","msg":"another failure, 
 push 3100 '{"compose_service":"api"}' '{"level":"info","msg":"request completed"}'
 push 3100 '{"compose_service":"worker"}' '{"level":"error","msg":"unhandled error"}'
 push 3100 '{"compose_service":"web"}' '{"level":"error","msg":"unhandled error"}'
+# Media processing stalled (EVM-144 AC1): the four exact warnings of the worker, by a closed kind; nothing else counts.
+push 3100 '{"compose_service":"worker"}' '{"level":"warn","job":"media.process","stuck":4,"msg":"media: photos wait for their derivatives for over 30 minutes"}'
+push 3100 '{"compose_service":"worker"}' '{"level":"warn","job":"media.process","stuck":4,"msg":"media: photos wait for their derivatives for over 30 minutes"}'
+push 3100 '{"compose_service":"worker"}' '{"level":"warn","job":"media.process.video","stuck":1,"msg":"media: films wait for their previews for over 2 hours"}'
+push 3100 '{"compose_service":"worker"}' '{"level":"warn","job":"media.scan","stuck":9,"msg":"media: files wait for a scan for over 30 minutes"}'
+push 3100 '{"compose_service":"worker"}' '{"level":"warn","job":"media.process","storedFileId":"11111111-2222-3333-4444-555555555555","code":"unreachable","msg":"media: the processor is unreachable; the photo waits"}'
+push 3100 '{"compose_service":"worker"}' '{"level":"warn","job":"media.process.video","storedFileId":"11111111-2222-3333-4444-555555555555","code":"unreachable","msg":"media: the processor is unreachable; the film waits"}'
+# not counted: other messages of the worker (also one that only mentions a part of the text), the same text from other services
+push 3100 '{"compose_service":"worker"}' '{"level":"warn","msg":"media: photos wait for their derivatives for over 30 minutes, said a user","stall_kind":"scan"}'
+push 3100 '{"compose_service":"worker"}' '{"level":"info","msg":"media: derivatives done"}'
+push 3100 '{"compose_service":"worker"}' '{"level":"warn","msg":"media: something else is waiting"}'
+push 3100 '{"compose_service":"api"}' '{"level":"warn","msg":"media: files wait for a scan for over 30 minutes"}'
+push 3100 '{"compose_service":"web"}' '{"level":"warn","msg":"media: photos wait for their derivatives for over 30 minutes"}'
 sleep 2
 metrics="$(http GET 12345 /metrics)"
 series() { printf '%s\n' "$metrics" | grep '^loki_process_custom_security_alerts_total' ; }
 series | grep 'alertCode="account_locked"' | grep -q ' 2$' || fail "account_locked is not counted exactly twice: $(series | tr '\n' ';')"
 series | grep 'alertCode="login_failure_spike"' | grep -q ' 1$' || fail "login_failure_spike is not counted once"
-series | grep 'alertCode="mass_download"' | grep -q ' 1$' || fail "mass_download is not counted once"
+series | grep 'alertCode="mass_download"' | grep -q ' 1$' || fail "mass_download is not counted once: $(series | tr '\n' ';')"
 series | grep 'alertCode="other"' | grep -q ' 1$' || fail "an unknown code is not counted as other"
 series | grep -q 'example.test' && fail "a free value became a metric label"
 series | grep -q 'service="web"' && fail "an alert from the web service was counted"
@@ -122,6 +136,15 @@ unhandled() { printf '%s\n' "$metrics" | grep '^loki_process_custom_unhandled_er
 unhandled | grep -q 'service="api"' || fail "unhandled errors are not labelled with the api service"
 unhandled | grep -q ' 3$' || fail "unhandled errors of the api are not counted exactly three times: $(unhandled | tr '\n' ';')"
 unhandled | grep -q 'boom' && fail "an error text became a metric label"
+stalled() { printf '%s\n' "$metrics" | grep '^loki_process_custom_media_stalled_total' ; }
+[ "$(stalled | wc -l)" -eq 4 ] || fail "media stalled: expected exactly four series (one per kind), got: $(stalled | tr '\n' ';')"
+stalled | grep 'stall_kind="photo_derivatives"' | grep -q ' 2$' || fail "photo_derivatives is not counted exactly twice: $(stalled | tr '\n' ';')"
+stalled | grep 'stall_kind="video_preview"' | grep -q ' 1$' || fail "video_preview is not counted once"
+stalled | grep 'stall_kind="scan"' | grep -q ' 1$' || fail "scan is not counted once (other texts, api and web must not count)"
+stalled | grep 'stall_kind="processor_unreachable"' | grep -q ' 2$' || fail "processor_unreachable (photo and film) is not counted twice"
+stalled | grep -v 'service="worker"' | grep -q . && fail "a stall counted from a service other than the worker"
+stalled | grep -Eq '1111|stuck|storedFileId|job=|someone|said' && fail "a free value (identifier, count, text) became a metric label"
+OUT | grep -qF 'stall_kind=\"' && fail "stall_kind became a Loki label (it must only feed the counter)"
 
 # --- 4. The rate limit drops the excess of a flooding service.
 # One request with 400 lines: the limiter sees them at once, so the result does not depend on the speed of the client.

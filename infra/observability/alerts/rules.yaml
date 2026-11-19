@@ -149,6 +149,24 @@ groups:
         annotations:
           summary: 'The API logged an unhandled error in the last 5m (env {{ $labels.env }})'
           runbook: docs/ops/runbooks/alerty.md#eviaapiunhandlederror
+  - name: media
+    rules:
+      # EVM-144: the worker WARNS on every pass (every 5-10 s) while files wait too long (photos 30 min, films 2 h, scan 30 min) or the
+      # processor is unreachable; Alloy counts those warnings by a closed kind (stall_kind). A stall is a state that PERSISTS: the counter
+      # grew by at least 2 passes in each window of 5m for 5m (the unreachable
+      # processor: 15m, so a restart or a deployment does not alert). One pass or a short stall that ends is quiet.
+      - alert: EviaMediaProcessingStalled
+        expr: |
+          min_over_time(sum by (env, stall_kind) (increase(loki_process_custom_media_stalled_total{env="staging", stall_kind!="processor_unreachable"}[5m]))[5m:1m]) >= 2
+          and on (env, stall_kind) sum by (env, stall_kind) (loki_process_custom_media_stalled_total{env="staging"} offset 5m)
+          or
+          min_over_time(sum by (env, stall_kind) (increase(loki_process_custom_media_stalled_total{env="staging", stall_kind="processor_unreachable"}[5m]))[15m:1m]) >= 2
+          and on (env, stall_kind) sum by (env, stall_kind) (loki_process_custom_media_stalled_total{env="staging"} offset 15m)
+        for: 0m
+        labels: { severity: warning, ac2: media-stalled }
+        annotations:
+          summary: 'Media processing is stalled: kind {{ $labels.stall_kind }}, warnings of the worker persist for 5m (processor_unreachable: 15m) (env {{ $labels.env }})'
+          runbook: docs/ops/runbooks/alerty.md#eviamediaprocessingstalled
   - name: security
     rules:
       # The counter of Alloy (stage.metrics) is BORN at the first event with the value 1 (and again after a restart of Alloy or an idle
