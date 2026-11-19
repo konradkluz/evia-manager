@@ -52,7 +52,7 @@ appId: pl.eviacharge.manager
 - tapOn:
     id: 'entry-save'
 - extendedWaitUntil:
-    visible: 'Zapisano w telefonie'
+    visible: 'Zapisano w telefonie. Wyślemy, gdy wróci zasięg.'
     timeout: 15000
 - extendedWaitUntil:
     notVisible: 'Nowy wpis'
