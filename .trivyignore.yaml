@@ -174,17 +174,17 @@ vulnerabilities:
   # Go stdlib 1.27.3 of Caddy 2.11.9 (edge Caddy and evia-web) and of Alloy v1.21.3: CVE-2026-97054 (GO-2026-6859, net/http,
   # fix Go 1.26.11 / 1.27.4 of 2026-11-10): an HTTP/1 server panics when the limit of http.MaxBytesReader is hit while the
   # handler writes the response header concurrently (unsynchronised "Connection: close"). Checked 2026-11-19 (EVM-120,
-  # RR-103): Caddy calls MaxBytesReader only in the request_body handler with max_size (used in NEITHER Caddyfile, nor in
+  # RR-104): Caddy calls MaxBytesReader only in the request_body handler with max_size (used in NEITHER Caddyfile, nor in
   # upstream.caddy of deploy.sh) and in the config load of the admin API (edge: localhost:2019 inside the container, body
   # read before the response; evia-web: admin off); certmagic and acmez do not call it. Condition: no `request_body`
   # max_size in any Caddyfile while this entry exists. Alloy: no network listener (HTTP server on 127.0.0.1 in its own
   # network namespace, no ports, no receivers; loki.write and remote_write are clients). No fixed upstream image yet:
   # caddy:2.11.9-alpine was rebuilt 2026-11-13 with the SAME release binary (downloaded by checksum), Alloy v1.22.0
-  # declares go 1.27.3. The Caddy entry needs Konrad's acceptance (RR-103), the Alloy entry is within the policy.
+  # declares go 1.27.3. The Caddy entry needs Konrad's acceptance (RR-104), the Alloy entry is within the policy.
   - id: CVE-2026-97054
     paths: ['usr/bin/caddy', 'usr/local/bin/caddy']
     purls: ['pkg:golang/stdlib@v1.27.3']
-    statement: 'High in Go stdlib 1.27.3 (net/http) of Caddy 2.11.9 (crash of an HTTP/1 server by a race of http.MaxBytesReader with a response header write); not reachable in our configuration — Caddy uses MaxBytesReader only in request_body max_size (not configured) and in the admin API config load (localhost only, sequential); worst case a crash and restart of the edge (availability only, no data exposure); single environment with real data, acceptance of Konrad in RR-103; no Caddy release built with Go >= 1.27.4 yet · owner: security-engineer · EVM-120'
+    statement: 'High in Go stdlib 1.27.3 (net/http) of Caddy 2.11.9 (crash of an HTTP/1 server by a race of http.MaxBytesReader with a response header write); not reachable in our configuration — Caddy uses MaxBytesReader only in request_body max_size (not configured) and in the admin API config load (localhost only, sequential); worst case a crash and restart of the edge (availability only, no data exposure); single environment with real data, acceptance of Konrad in RR-104; no Caddy release built with Go >= 1.27.4 yet · owner: security-engineer · EVM-120'
     expired_at: 2026-12-10
   - id: CVE-2026-97054
     paths: ['usr/bin/alloy']
