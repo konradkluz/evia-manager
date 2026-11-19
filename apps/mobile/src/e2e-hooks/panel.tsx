@@ -78,6 +78,7 @@ const LABELS = {
   contactBack: 'clock back',
   contactReset: 'contact reset',
   background6: 'background 6 min',
+  unlockHold: 'unlock held',
   syncAdd: 'sync: add notes',
   syncStatus: 'sync: status',
   mediaInject: 'media: inject file',
@@ -558,6 +559,13 @@ export function E2eHooks({ deps: injected }: { deps?: E2eHooksDeps } = {}) {
             o.backgroundShiftMs = 6 * 60_000;
           })}
           testID="e2e-background-6"
+        />
+        <Button
+          label={LABELS.unlockHold}
+          onPress={device('unlock_held', (o) => {
+            o.unlockHeld = true;
+          })}
+          testID="e2e-unlock-hold"
         />
         <Button
           label={LABELS.close}

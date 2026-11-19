@@ -16,6 +16,7 @@ import type { OrderDetail } from '../orders/order-detail-model';
 import { AlertDialog, AppBar, BottomBar, Button, EmptyState, FilterChip, Inbox, InlineAlert, Skeleton, TextArea } from '../ui';
 import { borderWidth, color, radius, size, space, text } from '../ui/theme';
 import { SyncCapsule } from './SyncCapsule';
+import { useSettled } from './use-settled';
 import { useOrderDetail } from './order-detail-hooks';
 import { useSession } from './session-context';
 
@@ -90,14 +91,14 @@ export function EntryFormScreen({ orderId, onClose, onSaved }: { orderId: string
   const [stageOpen, setStageOpen] = useState(false);
   const [discardAsk, setDiscardAsk] = useState(false);
   const busy = useRef(false);
-  const alive = useRef(true);
+  const settled = useSettled();
   // a non-empty text is never dropped by one touch or one gesture (no draft exists in M2): ask first
   const hasText = body.trim() !== '';
   const requestClose = useCallback(() => {
     if (hasText) setDiscardAsk(true);
     else onClose();
   }, [hasText, onClose]);
-  // registered after the shell's handler (which leaves the open form to us) and before the dialogs' own handlers, which win while open
+  // the shell's handler yields to the open form (it does not rely on the order of the registrations)
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       requestClose();
@@ -108,12 +109,6 @@ export function EntryFormScreen({ orderId, onClose, onSaved }: { orderId: string
     };
   }, [requestClose]);
   const field = useRef<ComponentRef<typeof TextInput>>(null);
-  useEffect(
-    () => () => {
-      alive.current = false;
-    },
-    [],
-  );
 
   const errorText = (value: SaveProblem): string => {
     switch (value) {
@@ -158,16 +153,18 @@ export function EntryFormScreen({ orderId, onClose, onSaved }: { orderId: string
     session.sync.enqueue(built.input).then(
       (result) => {
         busy.current = false;
-        if (!alive.current) return;
-        setSaving(false);
-        if (result.ok) onSaved();
-        else setProblem(problemOf(result.code));
+        settled(() => {
+          setSaving(false);
+          if (result.ok) onSaved();
+          else setProblem(problemOf(result.code));
+        });
       },
       () => {
         busy.current = false;
-        if (!alive.current) return;
-        setSaving(false);
-        setProblem('failed');
+        settled(() => {
+          setSaving(false);
+          setProblem('failed');
+        });
       },
     );
   };

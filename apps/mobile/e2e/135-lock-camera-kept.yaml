@@ -1,0 +1,51 @@
+# EVM-146 AC3 AC5: the camera of the order is open (the permission is granted by tools/mobile-e2e); the app lock closes after 6 minutes in the background and
+# opens at once. The preview must be alive again (the screen listens to the foreground again): a shot is saved ("Zapisano w telefonie", counter "1 zdjęcie"),
+# which a dark, released camera could not do.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- runFlow: common/camera-from-order.yaml
+- tapOn:
+    id: 'camera-category-site_survey'
+- tapOn:
+    id: 'evia-e2e-hooks-panel'
+- scrollUntilVisible:
+    element:
+      id: 'e2e-background-6'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'e2e-background-6'
+- scrollUntilVisible:
+    element:
+      id: 'e2e-close'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'e2e-close'
+- pressKey: home
+- launchApp:
+    stopApp: false
+- extendedWaitUntil:
+    notVisible:
+      id: 'lock-overlay'
+    timeout: 20000
+- extendedWaitUntil:
+    visible:
+      id: 'camera'
+    timeout: 20000
+- tapOn:
+    id: 'camera-shutter'
+- extendedWaitUntil:
+    visible: 'Zapisano w telefonie'
+    timeout: 20000
+- extendedWaitUntil:
+    visible:
+      id: 'camera-count'
+      text: '1 zdjęcie'
+    timeout: 10000
+- takeScreenshot: m06-lock-camera-kept

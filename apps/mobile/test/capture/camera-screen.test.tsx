@@ -11,6 +11,7 @@ import { BLOCK_BELOW_BYTES } from '../../src/capture/disk-space';
 import { pl } from '../../src/i18n/pl';
 import { buildOrderList } from '../../src/orders/order-list-model';
 import { CameraScreen } from '../../src/screens/CameraScreen';
+import { LockGate } from '../../src/screens/LockOverlay';
 import { SessionContext, type SessionActions } from '../../src/screens/session-context';
 import { StartupProvider, type StartupChecker } from '../../src/startup';
 import type { CapturedPhoto } from '../../src/upload/create-media-asset';
@@ -847,5 +848,51 @@ describe('the category of a site survey (EVM-137 AC3)', () => {
     await shoot();
     expect(photos).toHaveLength(1);
     expect(photos[0]).toMatchObject({ workOrderId: WO, category: 'site_survey' });
+  });
+});
+
+describe('the camera under the cover of the lock (EVM-146 AC5)', () => {
+  it('EVM-146 AC5: an "active" that arrives while the screen is hidden under the cover is not lost - the unlocked camera shows the live preview', async () => {
+    const { rig } = setup();
+    // the listeners of the real AppState: removed when the screen is hidden (its effects are cleaned), so an event in that time reaches nobody
+    const listeners = new Set<(state: string) => void>();
+    jest.spyOn(AppState, 'addEventListener').mockImplementation((_type, listener) => {
+      listeners.add(listener as (state: string) => void);
+      return { remove: () => listeners.delete(listener as (state: string) => void) };
+    });
+    const emit = (state: 'active' | 'background') => {
+      rig.device.appState.state = state; // what the guard (the app state of the whole app) answers
+      for (const listener of [...listeners]) listener(state);
+    };
+    await act(async () => {
+      await rig.device.guard.refresh();
+      await rig.device.guard.unlock();
+    });
+    const tree = (locked: boolean) => (
+      <SafeAreaProvider>
+        <StartupProvider checker={online}>
+          <SessionContext.Provider value={actionsOf(rig)}>
+            <LockGate locked={locked} prompting={false} failed={false} appState={rig.device.guard.appState} onUnlock={() => undefined}>
+              <CameraScreen orderId={WO} onClose={jest.fn()} />
+            </LockGate>
+          </SessionContext.Provider>
+        </StartupProvider>
+      </SafeAreaProvider>
+    );
+    const view = await render(tree(false));
+    await settle();
+    expect(cameraMock.props?.['active']).toBe(true);
+    await act(() => {
+      emit('background');
+    });
+    expect(cameraMock.props?.['active']).toBe(false);
+    await view.rerender(tree(true)); // the lock covers the app: the effects of the screen are cleaned
+    await settle();
+    await act(() => {
+      emit('active'); // the return to the foreground comes while nobody listens
+    });
+    await view.rerender(tree(false));
+    await settle();
+    expect(cameraMock.props?.['active']).toBe(true);
   });
 });

@@ -237,11 +237,14 @@ describe('the target of a notification passes through the lock of the app (EVM-1
     expect(screen.getByTestId('lock-overlay')).toBeOnTheScreen();
     expect(screen.getByTestId('lock-content', { includeHiddenElements: true })).toHaveProp('pointerEvents', 'none');
     expect(screen.getByTestId('lock-content', { includeHiddenElements: true })).toHaveProp('accessibilityElementsHidden', true);
-    expect(rig.media.calls).toContain('consumeLaunchTarget');
+    // EVM-146: the shell sits in a hidden `Activity` under the cover, so its effects (the read of the target) run only at the unlock - the target waits
+    expect(rig.media.calls).not.toContain('consumeLaunchTarget');
+    expect(screen.queryByTestId('queue-files')).toBeNull();
     rig.device.facts.auth = 'success';
     await fireEvent.press(screen.getByTestId('lock-unlock'));
     await settle();
     expect(screen.queryByTestId('lock-overlay')).toBeNull();
+    expect(rig.media.calls).toContain('consumeLaunchTarget');
     expect(screen.getByTestId('queue-files')).toBeOnTheScreen();
   });
 

@@ -1,0 +1,59 @@
+# EVM-146 AC2: the same path as 130 but the automatic unlock of the e2e variant is NOT held - the app locks after 6 minutes in the background, unlocks
+# at once and must show the same form with the typed word ("Kontrolka146") still in the field; the save after the unlock must end (review B1).
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- tapOn:
+    id: 'order-row-30000000-0000-4000-8000-000000000001'
+- extendedWaitUntil:
+    visible: 'Zlecenie testowe 1'
+    timeout: 20000
+- tapOn:
+    id: 'order-detail-add-entry'
+- extendedWaitUntil:
+    visible: 'Nowy wpis'
+    timeout: 10000
+- tapOn:
+    id: 'entry-body'
+- inputText: 'Kontrolka146'
+- hideKeyboard
+- tapOn:
+    id: 'evia-e2e-hooks-panel'
+- scrollUntilVisible:
+    element:
+      id: 'e2e-background-6'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'e2e-background-6'
+- scrollUntilVisible:
+    element:
+      id: 'e2e-close'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'e2e-close'
+- pressKey: home
+- launchApp:
+    stopApp: false
+- extendedWaitUntil:
+    notVisible:
+      id: 'lock-overlay'
+    timeout: 20000
+- extendedWaitUntil:
+    visible: 'Nowy wpis'
+    timeout: 10000
+- assertVisible: 'Kontrolka146'
+# B1 of the review: the save AFTER the unlock must end (the form closes, the toast says it is saved) - the effects of the screen were cleaned by the lock
+- tapOn:
+    id: 'entry-save'
+- extendedWaitUntil:
+    visible: 'Zapisano w telefonie. Wyślemy, gdy wróci zasięg.'
+    timeout: 15000
+- extendedWaitUntil:
+    notVisible: 'Nowy wpis'
+    timeout: 10000

@@ -9,13 +9,21 @@ export interface DeviceOverrides {
   screenSecure: boolean | null;
   /** `true` = the system unlock answers `success` without a prompt (the scenario emulator has no credential to enter). */
   autoUnlock: boolean;
+  /** `true` = the system unlock answers `cancelled` (the app stays locked, so a scenario can read the tree of views under the cover; EVM-146 AC1). */
+  unlockHeld: boolean;
   /** Added to the wall and monotonic clocks of the session owner (contact with the server: days without a connection). */
   contactShiftMs: number;
   /** Added to the boot and wall clocks of the app lock (time spent in the background). */
   backgroundShiftMs: number;
 }
 
-export const NO_OVERRIDES: DeviceOverrides = { screenSecure: null, autoUnlock: false, contactShiftMs: 0, backgroundShiftMs: 0 };
+export const NO_OVERRIDES: DeviceOverrides = {
+  screenSecure: null,
+  autoUnlock: false,
+  unlockHeld: false,
+  contactShiftMs: 0,
+  backgroundShiftMs: 0,
+};
 
 /** Applies the overrides to the production ports; with `null` the ports are returned untouched. */
 export function overrideLock<T extends { isDeviceSecure(): Promise<boolean> }>(port: T, overrides: DeviceOverrides | null): T {
@@ -29,7 +37,13 @@ export function overrideLock<T extends { isDeviceSecure(): Promise<boolean> }>(p
 /** The system unlock answers `success` while `autoUnlock` is set (e2e variant only); otherwise the real prompt. */
 export function overrideAuthenticator<T extends { authenticate(): Promise<AuthCode> }>(port: T, overrides: DeviceOverrides | null): T {
   if (overrides === null) return port;
-  return { ...port, authenticate: () => (overrides.autoUnlock ? Promise.resolve<AuthCode>('success') : port.authenticate()) };
+  return {
+    ...port,
+    authenticate: () => {
+      if (overrides.unlockHeld) return Promise.resolve<AuthCode>('cancelled');
+      return overrides.autoUnlock ? Promise.resolve<AuthCode>('success') : port.authenticate();
+    },
+  };
 }
 
 /**

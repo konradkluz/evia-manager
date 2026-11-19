@@ -1,0 +1,26 @@
+# EVM-146 AC1 (first half of `lock-view-tree`): the form of a new entry of the order ZL-E2E-1 is open with a typed word and the app is UNLOCKED.
+# tools/mobile-e2e then reads the tree of views with `uiautomator dump` (step `view-tree-unlocked`): the positive control - the same read that finds nothing
+# under the cover must FIND the number, the title and the typed word here, or the scenario fails (an empty dump would pass every negative check).
+# The typed word is invented ("Kontrolka146"; tools/mobile-e2e/src/device-lock.mjs LOCK_CONTROL_VALUES).
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- tapOn:
+    id: 'order-row-30000000-0000-4000-8000-000000000001'
+- extendedWaitUntil:
+    visible: 'Zlecenie testowe 1'
+    timeout: 20000
+- tapOn:
+    id: 'order-detail-add-entry'
+- extendedWaitUntil:
+    visible: 'Nowy wpis'
+    timeout: 10000
+- tapOn:
+    id: 'entry-body'
+- inputText: 'Kontrolka146'
+- hideKeyboard
+- assertVisible: 'Kontrolka146'

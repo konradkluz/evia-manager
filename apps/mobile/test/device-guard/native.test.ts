@@ -142,6 +142,8 @@ describe('overrides of the e2e variant (EVM-101; security K7)', () => {
     expect(await auth.authenticate()).toBe('cancelled');
     o.autoUnlock = true;
     expect(await auth.authenticate()).toBe('success');
+    o.unlockHeld = true; // EVM-146 AC1: the hold wins over the automatic unlock
+    expect(await auth.authenticate()).toBe('cancelled');
   });
 
   it('EVM-101 AC2: the contact clocks move together', () => {

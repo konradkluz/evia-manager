@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { Activity, useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Text, View } from 'react-native';
@@ -100,7 +100,16 @@ export function LockOverlay({
   );
 }
 
-/** The signed-in content, taken out of reach (touch and screen reader) while the app is locked; the cover sits above it. */
+/**
+ * The signed-in content, taken out of reach (touch and screen reader) while the app is locked; the cover sits above it.
+ *
+ * EVM-146 (SR-MOB-03, SR-MOB-08): covering is not enough - the views under an opaque cover are still in the tree that `adb shell uiautomator dump` and
+ * the accessibility services read (also the views "not important for accessibility"). `Activity mode="hidden"` puts them under ONE invisible parent (the views stay in the native hierarchy, as `dumpsys activity top` shows, but are not
+ * visible, so `uiautomator` and the accessibility services leave them out) while the React state stays in memory (typed fields, the open order, the search): an unmount would lose it, and the data may not go to the disk. Its effects
+ * are cleaned while hidden and run again at the unlock, so a screen must not depend on an event that came meanwhile (see `useForeground`); it does not render again until the unlock either, so what must change under the cover (the camera) is changed by the cleanup of an effect (see `CameraScreen`). The `pointerEvents`,
+ * `accessibilityElementsHidden` and `importantForAccessibility` props stay as a second safeguard. The emulator test (`tools/mobile-e2e`, flows 130-135)
+ * reads the real tree and is the safeguard of THIS choice: the test renderer lists a hidden `Activity` anyway, so Jest cannot see the difference.
+ */
 export function LockGate({
   locked,
   prompting,
@@ -125,7 +134,7 @@ export function LockGate({
         accessibilityElementsHidden={locked}
         importantForAccessibility={locked ? 'no-hide-descendants' : 'auto'}
       >
-        {children}
+        <Activity mode={locked ? 'hidden' : 'visible'}>{children}</Activity>
       </View>
       {locked ? <LockOverlay prompting={prompting} failed={failed} appState={appState} onUnlock={onUnlock} /> : null}
     </View>

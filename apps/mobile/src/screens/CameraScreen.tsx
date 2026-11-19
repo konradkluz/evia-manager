@@ -1,5 +1,5 @@
 import { CameraView } from 'expo-camera';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AccessibilityInfo, AppState, BackHandler, Text, View } from 'react-native';
 import { PICTURE_OPTIONS, VIDEO_MAX_SECONDS, VIDEO_VIEW_PROPS, VIDEO_WARN_AT_SECONDS, consentMemory } from '../capture/camera-options';
@@ -75,7 +75,11 @@ const CATEGORY_KEY: Readonly<Record<MediaCategory, string>> = {
 /** `true` while the app is in the foreground (the camera is released in the background and while the app is locked); the screen opens in the foreground. */
 function useForeground(onLoseForeground: () => void): boolean {
   const [active, setActive] = useState(true);
+  const { guard } = useSession();
   useEffect(() => {
+    // EVM-146: while the app is locked the screen sits in a hidden `Activity` with its effects cleaned, so a change that came meanwhile reached nobody:
+    // the state is read again at every subscription (the unlock), or the preview would stay dark after a return to the foreground under the cover
+    setActive(guard.appState.current() === 'active');
     const subscription = AppState.addEventListener('change', (next) => {
       // EVM-110 AC3: a recording is told to stop BEFORE the view is deactivated (the same turn), so the library ends the file instead of losing it
       if (next !== 'active') onLoseForeground();
@@ -84,7 +88,7 @@ function useForeground(onLoseForeground: () => void): boolean {
     return () => {
       subscription.remove();
     };
-  }, [onLoseForeground]);
+  }, [onLoseForeground, guard]);
   return active;
 }
 
@@ -315,6 +319,24 @@ function CameraCapture({ orderId, onClose, focused }: { orderId: string; onClose
     },
     [media],
   );
+  // EVM-146: the camera of the phone is released while the app is locked. On Android the prop `active` of the view does nothing (it is for iOS), and the screen
+  // under the cover sits in a hidden `Activity` that renders nothing again until the unlock - so a change of `locked` reaches no render. What runs at the hide
+  // is the cleanup of an effect, and at the unlock its setup: they pause and resume the preview (`pausePreview` unbinds the camera). It must be a LAYOUT effect: the
+  // hide detaches the refs of the children right after the layout cleanup of their parent, and a library view whose inner ref is gone ignores `pausePreview`.
+  // A recording in progress is not cut by unbinding the camera: it is stopped and saved (the effect above) and the camera stays bound until the unlock.
+  const heldByLock = useRef(false);
+  useLayoutEffect(() => {
+    if (heldByLock.current) {
+      heldByLock.current = false;
+      cameraRef.current?.resumePreview().catch(() => undefined);
+    }
+    return () => {
+      const view = cameraRef.current;
+      if (view === null || recordingRef.current !== null) return;
+      heldByLock.current = true;
+      view.pausePreview().catch(() => undefined);
+    };
+  }, []);
 
   const finish = useCallback(() => {
     setFinishing(true);
