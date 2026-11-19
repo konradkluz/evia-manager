@@ -290,6 +290,8 @@ jobs:
       EXPO_NO_TELEMETRY: '1'
       EXPO_PUBLIC_API_BASE_URL: ${{ vars.EVIA_API_BASE_URL || 'https://api.example.invalid' }}
       EVIA_STORAGE_HOSTS: ${{ vars.EVIA_STORAGE_HOSTS }}
+      # EVM-133: the help address shown in the app (a functional mailbox, not a secret); empty = the app says "ask your supervisor".
+      EVIA_CONTACT_EMAIL: ${{ vars.EVIA_CONTACT_EMAIL }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

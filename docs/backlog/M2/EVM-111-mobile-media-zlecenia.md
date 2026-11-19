@@ -4,7 +4,7 @@ title: "Aplikacja: status każdego pliku w kolejce telefonu"
 type: story
 milestone: M2
 epic: E11 Zdjęcia i filmy
-status: in-review
+status: done
 priority: P2
 path: lekka             # tylko ekran nad lokalną kolejką; bez pobierania miniatur i podpisanych adresów (zawężone 2026-11-12); decyzja Konrada 2026-11-15
 owner: mobile-developer
@@ -105,3 +105,4 @@ Po decyzji 2 historyjka jest mniejsza (brak retencji, `sentAt`, migracji i liczn
 - 2026-11-18 — runda poprawek (mobile-developer): luka z implementacji — wpis znikał dopiero po powrocie na pierwszy plan, więc technik, który nie wychodzi z aplikacji, widział „n do wysłania” bez końca (AC2); aplikacja sama pobiera potwierdzenie (`confirmation-poll.ts`: od razu po transferze, potem 5/10/20/40 s i co 60 s; tylko na pierwszym planie, bez blokady/trybu ukrytego, z siecią i sesją; jedno pobranie naraz); plik po transferze przed potwierdzeniem ma etykietę „Wysyła się 100%” zamiast „Oczekuje” (decyzja Tech Leada w granicach listy etykiet z AC1); przepływy Maestro `120-order-files-confirmed` i `54-upload-confirmed` bez wyjścia w tło
 - 2026-11-18 — runda poprawek po przeglądzie bezpieczeństwa (mobile-developer): blokada zawodzi „zamknięta” (słuchacze `onAppStateChange` wywoływani po obsłudze blokady, każdy w `try/catch`); pobieranie potwierdzenia szanuje `retryAt`/`rate_limited` serwera i nie pyta częściej niż co 5 s przy migotaniu warunków; sprzątanie pozostałości używa predykatu `state = 'clean'`, a `discardConfirmed` zwraca liczbę usuniętych wierszy (licznik potwierdzonych rośnie tylko po faktycznym usunięciu); dokumenty (CHANGELOG, `rodo.md`) dostosowane; L4, L6 i M1 do backlogu
 - 2026-11-18 — przeglądy (Tech Lead): **security** — bez ścieżki utraty danych; jedno ustalenie Medium = odstępstwo od AC5 (R-111-1, do decyzji Konrada, zapis w „Decyzjach i ograniczeniach”), uwagi Low L1–L3, L5, L7 poprawione w `b0a7ff1e`; do backlogu: L4 (po podwójnej awarii usunięcia plik potwierdzony przez serwer może dostać „Wymaga uwagi” — uruchamiać potwierdzenie przed ponownym uzbrojeniem) i L6 (plik, którego serwer nigdy nie potwierdzi, stoi na „Wysyła się 100%” bez akcji). **UX (statycznie)** — APPROVE z uwagami; tekst dialogu usuwania poprawiony (`a5875287`), dokumenty UX zaktualizowane (`8356ff39`); drobne: komunikat o nieudanym ponowieniu znika po 4 s, podwójne „Wszystko wysłane” w stanie pustym, ikona błędu odczytu; pytanie do właściciela: czy po teście terenowym zastąpić „Wysyła się 100%” etykietą „Sprawdzanie pliku” (poza listą AC1). Status `in-review`.
+- 2026-11-19 — PR #154 scalony przez Konrada; odstępstwo od AC5 (R-111-1) zaakceptowane przez Konrada 2026-11-19 („Akceptuję”; „zmergowanie 154 oznacza akceptacje”); status `done` (Tech Lead)
