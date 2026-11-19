@@ -4,7 +4,7 @@ title: Klauzule prywatności w wersji ostatecznej (panel i aplikacja) — odblok
 type: story
 milestone: M2
 epic: E14 Dystrybucja i utrzymanie
-status: in-progress
+status: in-review
 priority: P0
 path: lekka             # zmiana treści statycznej (bez nowych endpointów, danych i komponentów); ryzyko prawne ogranicza obowiązkowy przegląd agenta prawnego, nie liczba recenzentów kodu
 owner: web-developer    # jeden wykonawca dla obu plików `content.ts` (zwykła edycja stałych i testów; wspólna treść)
@@ -91,3 +91,4 @@ Warunek `ready`; bez nich nie wpisujemy niczego do kodu.
 - 2026-11-19 — Konrad podał dane spółki i adres kontaktowy, zgodził się na sprawdzenie sądu rejestrowego w publicznym KRS i na dopisanie marki; pozostałe punkty z delegacji (RR-95); status `ready` (Tech Lead)
 - 2026-11-19 — realizacja (web-developer): treść 1.0 w obu `content.ts` (A1–A8, B, C1–C6, C8, C11–C17; akapit o wizji lokalnej z `rodo.md`), testy `EVM-133 AC1–AC5`, `rodo.md` („Rozstrzygnięcia klauzul informacyjnych”, pkt 9 checklisty, punkty 3–5, 7, 9, 14), S8 w `checklista-wydania.md`; bez C7 (biuro rachunkowe — brak faktu), C9 i C10 (poza kodem); status `in-progress`
 - 2026-11-19 — runda poprawek treści po przeglądach (prawny: ZATWIERDZAM Z WARUNKAMI dla testu wewnętrznego; security: REQUEST CHANGES → poprawione): rozróżnienie plików z aplikacji i z panelu (dźwięk, lokalizacja), sesja aplikacji 14 / 30 dni, kopia zamkniętego zlecenia, zakres lokalnej bazy, IP, wizja lokalna zamówiona przez inną osobę, źródło danych osób kontaktowych, podział akapitu o utracie telefonu; `rodo.md` uzupełnione danymi spółki; status `in-progress` (tester)
+- 2026-11-19 — bramka lokalna zielona (68/68) przed rundą poprawek treści; po poprawkach testy klauzul, typy, lint i walidator dokumentacji zielone; pełne testy w CI; status `in-review` (Tech Lead)
