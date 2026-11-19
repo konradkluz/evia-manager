@@ -111,8 +111,13 @@ describe('the content of M-11 (EVM-102 AC1)', () => {
     }
   });
 
-  it('EVM-102 AC1: the data of the controller are shown as the panel has them (markers while the owner has not filled them in)', async () => {
+  it('EVM-133 AC1: the data of the controller are shown as the panel has them (the data of the register, one version and one date)', async () => {
     await render(<PrivacyHelpScreen {...props()} />);
+    expect(ADMINISTRATOR.name).toBe('Electroplus Realty');
+    expect(ADMINISTRATOR.registry).toContain('KRS 0001109597');
+    expect(ADMINISTRATOR.dataContact).toContain('kontakt@electroplus.io');
+    expect(new Set(CLAUSES.map((clause) => `${clause.version} ${clause.validFrom}`))).toEqual(new Set(['1.0 19.11.2026']));
+    expect(screen.getAllByText('Wersja 1.0 · od 19.11.2026')).toHaveLength(3);
     expect(screen.getByText(`Nazwa: ${ADMINISTRATOR.name}`)).toBeOnTheScreen();
     expect(screen.getByText(`Kontakt w sprawach danych: ${ADMINISTRATOR.dataContact}`)).toBeOnTheScreen();
   });

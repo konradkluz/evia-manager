@@ -441,6 +441,19 @@ describe('local signing of the package (EVM-009 AC5; security-engineer K-A)', ()
     assert.equal(signApk(options(), approved.host), 0, approved.logs.join('\n'));
   });
 
+  it('EVM-133 AC5: the declaration the build writes for the final clauses (version 1.0, no draft, no marker) does not stop the signature; a draft or a marker still does', () => {
+    const declaration = '{"extra":{"buildVariant":"release","privacyClauses":{"draft":false,"markers":false,"versions":"1.0"}}}';
+    const approved = world({ appConfig: declaration });
+    assert.equal(signApk(options(), approved.host), 0, approved.logs.join('\n'));
+    assert.ok(approved.runs.some((run) => run.args[2] === 'sign'));
+    assert.doesNotMatch(approved.logs.join('\n'), /privacy clauses/);
+    for (const state of ['"draft":true,"markers":false,"versions":"1.0"', '"draft":false,"markers":true,"versions":"1.0"']) {
+      const refused = world({ appConfig: `{"extra":{"privacyClauses":{${state}}}}` });
+      assert.equal(signApk(options({ allowPlaceholderApi: true }), refused.host), 1);
+      assert.ok(!refused.runs.some((run) => run.args[2] === 'sign'));
+    }
+  });
+
   it('EVM-009 AC5: without the password variables apksigner prompts on the inherited terminal and gets no password option', () => {
     const { host, runs, logs } = world({ env: { ...SHELL_ENV } });
     assert.equal(signApk(options(), host), 0, logs.join('\n'));
