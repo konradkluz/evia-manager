@@ -163,7 +163,7 @@ describe('the tree of views of the locked app (EVM-146 AC1)', () => {
   it('EVM-146 AC1: the lock scenario is selectable by the prefix `lock-` and ends with the step after the flow of the lock', () => {
     assert.deepEqual(
       selectScenarios(['lock-']).map((scenario) => scenario.name),
-      ['lock-view-tree'],
+      ['lock-view-tree', 'lock-state-kept'],
     );
     const [scenario] = LOCK_SCENARIOS;
     assert.ok(scenario);

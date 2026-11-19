@@ -19,4 +19,13 @@ export const LOCK_SCENARIOS = [
       { flow: '130-lock-view-tree.yaml', server: 'ok', airplane: false, upload: true, after: ['view-tree-locked'] },
     ],
   },
+  // AC2 (spike): the same path with the automatic unlock - the form and the typed word are still there.
+  {
+    name: 'lock-state-kept',
+    ac: 'EVM-146 AC2',
+    steps: [
+      { flow: '80-camera-sign-in.yaml', server: 'ok', airplane: false, upload: true, before: ['upload-reset'] },
+      { flow: '131-lock-state-kept.yaml', server: 'ok', airplane: false, upload: true },
+    ],
+  },
 ];
