@@ -35,8 +35,15 @@ appId: pl.eviacharge.manager
 - assertVisible: 'Pliki zlecenia'
 - assertVisible: '.*, Zdjęcie, .*, Oczekuje'
 - assertNotVisible: '.*, Zdjęcie, .*, Wysłano'
-- assertNotVisible: 'Klient Testowy.*'
-- assertNotVisible: 'Testowa.*'
+# scoped to this screen: the screens below (list, order) stay in the view tree and do show the customer
+- assertNotVisible:
+    text: 'Klient Testowy.*'
+    childOf:
+      id: 'order-files'
+- assertNotVisible:
+    text: 'Testowa.*'
+    childOf:
+      id: 'order-files'
 - takeScreenshot: m08-order-files-offline
 # "Wstecz" returns to the ORDER, not to the list
 - tapOn:
