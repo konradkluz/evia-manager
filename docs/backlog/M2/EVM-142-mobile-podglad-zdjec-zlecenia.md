@@ -85,3 +85,4 @@ Jako **technik (Administrator lub Edytor)** chcę **w szczegółach zlecenia obe
 - 2026-11-18 — naniesiono konsultację security (Tech Lead): AC3 (podgląd w oknie głównym) i AC5 (kryteria sprawdzalne: brak plików obrazów, brak adresu w logach, przerwanie żądań w toku) doprecyzowane, spike cache obrazów na początku planu; status `draft`
 - 2026-11-18 — Konrad: „Akceptuję rekomendacje” — wszystkie pytania rozstrzygnięte wg rekomendacji; status `ready` (Tech Lead)
 - 2026-11-19 — specyfikacja UI (ux-designer): M-08a siatka i M-08b podgląd w `docs/ux/flows/09-mobile-zdjecia-filmy-offline.md`, wiersz w M-03 (`flows/03`), changelog styleguide'u
+- 2026-11-19 — AC1 (backend): kanał `mobile` dla `createMediaAssetDownloadUrl` tylko dla `thumbnail`/`preview` zdjęć (`original` → 403 przed odczytem medium, film → 404), kontrakt i baseline (ADR-0021, aneks), testy macierzy i integracyjne (backend-developer)

@@ -237,7 +237,7 @@ describe('EVM-045 AC2 AC3 the signed address of the original', () => {
 });
 
 describe('EVM-045 AC4 AC7 the roles by variant', () => {
-  it('EVM-045 AC7 the matrix: Administrator and Editor 200 for all three variants, Read-only 200, 200 and 403 forbidden for the original, anonymous 401, a mobile token 403 (the guard refuses the channel), no CSRF token 403', async () => {
+  it('EVM-045 AC7 the matrix: Administrator and Editor 200 for all three variants, Read-only 200, 200 and 403 forbidden for the original, anonymous 401, the cookie of a mobile session is no credential of the panel 401, no CSRF token 403', async () => {
     const orderId = await order();
     const owner = await signIn('editor');
     const photo = await readyPhoto(orderId, owner.userId);
@@ -260,9 +260,10 @@ describe('EVM-045 AC4 AC7 the roles by variant', () => {
     noCsrf.panel.csrfToken = undefined;
     for (const variant of ['thumbnail', 'preview', 'original'] as const) {
       expect((await downloadUrl(anonymous, orderId, photo.mediaAssetId, { variant })).status, `anonymous ${variant}`).toBe(401);
+      // EVM-142: the operation is open to the phone, whose credential is the Bearer token (the tests of the phone: media-download-mobile.test.ts); a COOKIE of a session of the phone counts for nothing - it is 401, like an anonymous caller
       const refused = await downloadUrl(mobile, orderId, photo.mediaAssetId, { variant });
-      expect(refused.status, `mobile ${variant}`).toBe(403);
-      expect(refused.body).toMatchObject({ code: 'forbidden' });
+      expect(refused.status, `mobile cookie ${variant}`).toBe(401);
+      expect(refused.body).toMatchObject({ code: 'unauthenticated' });
       expect((await downloadUrl(noCsrf, orderId, photo.mediaAssetId, { variant })).status, `no csrf ${variant}`).toBe(403);
     }
   });

@@ -284,11 +284,19 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
       ]);
     }
     // EVM-131: the five operations of the upload session are open to the phone too - their IDOR cells are the entitled roles on the web (cookie) AND on the phone (Bearer token; the phone has no enrolment state)
-    const dualObjects = ['createUploadSession', 'listUploadParts', 'getUploadPartUrl', 'completeUploadSession', 'abortUploadSession'];
+    // EVM-142: so is the address of a thumbnail or a preview (three roles on the web; Read-only has no phone, so its cell is the web one only)
+    const dualObjects = [
+      'createUploadSession',
+      'listUploadParts',
+      'getUploadPartUrl',
+      'completeUploadSession',
+      'abortUploadSession',
+      'createMediaAssetDownloadUrl',
+    ];
     for (const operationId of all) {
       const callers = rolesOf(operationId).flatMap((role) => [
         JSON.stringify({ kind: 'session', role, channel: 'web', state: 'active' }),
-        ...(dualObjects.includes(operationId)
+        ...(dualObjects.includes(operationId) && role !== 'read_only'
           ? [
               JSON.stringify({ kind: 'session', role, channel: 'mobile', state: 'active' }),
               JSON.stringify({ kind: 'session', role, channel: 'mobile', state: 'mfa_enrollment' }),
@@ -478,10 +486,29 @@ describe('the operation of the signed address of a file has variants (EVM-045 AC
     });
   });
 
-  it('EVM-045 AC7 the guard admits Read-only to the operation (the variant is restricted in the service) and the web channel only', () => {
+  it('EVM-045 AC7 EVM-142 AC1 the guard admits Read-only to the operation (the variant is restricted in the service) and the panel AND the phone as channels', () => {
     const entry = AUTHZ_MANIFEST['createMediaAssetDownloadUrl'];
     expect(entry?.authz.roles).toEqual(['administrator', 'editor', 'read_only']);
-    expect(entry?.authz.channels).toEqual(['web']);
+    expect(entry?.authz.channels).toEqual(['web', 'mobile']);
+  });
+
+  it('EVM-142 AC1 the role x channel x variant table: the phone never gets the original, Read-only has no phone, the panel keeps its rules', () => {
+    const table = Object.fromEntries(
+      (['administrator', 'editor', 'read_only'] as const).flatMap((role) =>
+        (['web', 'mobile'] as const).map((channel) => [
+          `${role}/${channel}`,
+          Object.fromEntries(DOWNLOAD_VARIANTS.map((variant) => [variant, mayRequest(role, variant, channel)])),
+        ]),
+      ),
+    );
+    expect(table).toEqual({
+      'administrator/web': { thumbnail: true, preview: true, original: true },
+      'administrator/mobile': { thumbnail: true, preview: true, original: false },
+      'editor/web': { thumbnail: true, preview: true, original: true },
+      'editor/mobile': { thumbnail: true, preview: true, original: false },
+      'read_only/web': { thumbnail: true, preview: true, original: false },
+      'read_only/mobile': { thumbnail: true, preview: true, original: false },
+    });
   });
 });
 

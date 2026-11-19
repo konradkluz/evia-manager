@@ -54,7 +54,7 @@ export const AUTHENTICATION_OPERATIONS: readonly string[] = Object.freeze([
  */
 export const PASSIVE_OPERATIONS: readonly string[] = Object.freeze(['getCurrentSession', 'extendSession']);
 
-/** The version of the app is checked on the sign-in, the renewal of tokens, the logout, the pull of changes (426, EVM-096), the snapshot of an order (EVM-097) and the push of mutations (EVM-098), the catalog of order templates (EVM-127) and the five operations of the upload session of a medium (EVM-131), only for a Bearer token — the panel is never asked; not on getClientConfig (the app must read the minimum) nor on the confirmation of the wipe. */
+/** The version of the app is checked on the sign-in, the renewal of tokens, the logout, the pull of changes (426, EVM-096), the snapshot of an order (EVM-097) and the push of mutations (EVM-098), the catalog of order templates (EVM-127) and the five operations of the upload session of a medium (EVM-131) and the address of a thumbnail or a preview (EVM-142), only for a Bearer token — the panel is never asked; not on getClientConfig (the app must read the minimum) nor on the confirmation of the wipe. */
 export const CLIENT_VERSION_OPERATIONS: readonly string[] = Object.freeze([
   'mobileLogin',
   'mobileLoginTotp',
@@ -69,6 +69,7 @@ export const CLIENT_VERSION_OPERATIONS: readonly string[] = Object.freeze([
   'getUploadPartUrl',
   'completeUploadSession',
   'abortUploadSession',
+  'createMediaAssetDownloadUrl',
 ]);
 
 export const CONTRACT_POLICIES: PolicySource = Object.freeze({
