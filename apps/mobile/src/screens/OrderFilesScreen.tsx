@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AccessibilityInfo, ScrollView, Text, View } from 'react-native';
 import { filesOfOrder } from '../upload/order-files';
@@ -11,9 +11,9 @@ import { fileReason } from './file-reasons';
 import { SyncCapsule } from './SyncCapsule';
 import { useGuard, useMediaSnapshot, useSession } from './session-context';
 import { useAllSentAnnouncement } from './use-all-sent-announcement';
+import { useNotice } from './use-notice';
 import { useStartup } from '../startup';
 
-const NOTICE_MS = 4_000;
 /** The count of the header is announced after this much quiet, once (not at every change of a file: EVM-111 AC2). */
 const COUNT_ANNOUNCE_MS = 1_500;
 
@@ -43,28 +43,14 @@ export function OrderFilesScreen({ orderId, onBack, onOpenQueue }: { orderId: st
   const concealed = guard.hidden !== null || guard.locked;
   const [busy, setBusy] = useState<string | null>(null);
   const [toDiscard, setToDiscard] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  useEffect(
-    () => () => {
-      clearTimeout(timer.current);
-    },
-    [],
-  );
-  const say = useCallback((message: string) => {
-    setNotice(message);
-    clearTimeout(timer.current);
-    timer.current = setTimeout(() => {
-      setNotice(null);
-    }, NOTICE_MS);
-  }, []);
+  const { notice, say, clear: clearNotice } = useNotice();
 
   // a dialog or a notice never outlives the concealment of the data
   useEffect(() => {
     if (!concealed) return;
     setToDiscard(null);
-    setNotice(null);
-  }, [concealed]);
+    clearNotice();
+  }, [concealed, clearNotice]);
 
   const ready = snapshot.read === undefined || snapshot.read === 'ready';
   const files = ready && !concealed ? filesOfOrder(snapshot.files, orderId) : [];

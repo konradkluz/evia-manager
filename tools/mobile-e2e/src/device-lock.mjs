@@ -8,25 +8,39 @@
  * An empty dump, a dump that is not the tree of the app, or a tree without the cover "Aplikacja zablokowana" is a FAILURE (an empty proof is not a pass; the same
  * rule as `device-video.mjs`): the check must see the cover, so that "no values" cannot come from a dump taken of the wrong screen.
  * The tree is sampled several times (SAMPLES, a second apart): the decision to lock comes before the first render of the content, so no sample may hold a value.
- * The step `view-tree-unlocked` is the POSITIVE CONTROL: the same read of the same screen with the app unlocked must FIND the control values (a dump that is empty
+ * The step `view-tree-unlocked` is the POSITIVE CONTROL: the same read of the same screen with the app unlocked must FIND the control values (all of them but the two of `UNLOCKED_NOT_VISIBLE`) (a dump that is empty
  * for another reason would pass every negative check). `view-tree-resume` presses Home, starts the app again and reads the tree several times at once, while the
  * cover is being put on (the decision to lock comes before the first render of the content).
- * @typedef {'view-tree-locked' | 'view-tree-unlocked' | 'view-tree-resume'} LockAction
+ * @typedef {'view-tree-locked' | 'view-tree-unlocked' | 'view-tree-resume' | 'camera-client-present' | 'camera-client-absent'} LockAction
  * @typedef {{ status: number | null, stdout: string, stderr: string }} Outcome
  * @typedef {{ adb: (...args: string[]) => Outcome, sleep: (ms: number) => Promise<void> }} LockContext
  * @typedef {{ text: string, contentDesc: string, hint: string, resourceId: string, packageName: string }} ViewNode
  */
 import { APPLICATION_ID } from './commands.mjs';
 
-export const LOCK_ACTION_NAMES = new Set(['view-tree-locked', 'view-tree-unlocked', 'view-tree-resume']);
+export const LOCK_ACTION_NAMES = new Set([
+  'view-tree-locked',
+  'view-tree-unlocked',
+  'view-tree-resume',
+  'camera-client-present',
+  'camera-client-absent',
+]);
 /** How many times the tree is read, and the pause between the reads. */
 export const SAMPLES = 3;
 export const SAMPLE_PAUSE_MS = 1000;
 /** The reads while the app comes back from the background (the last one must show the cover) and the pause between them. */
 export const RESUME_SAMPLES = 5;
 export const RESUME_PAUSE_MS = 200;
-/** What the open form of the order shows: the positive control must find all of these in the unlocked app (names of `LOCK_CONTROL_VALUES`). */
-export const UNLOCKED_MUST_SHOW = Object.freeze(['order number', 'order title', 'typed value']);
+/**
+ * Control values that the dump of the unlocked form does NOT hold, and why (measured on the emulator, flow 130): the positive control must find EVERY other value, so
+ * "none of them while locked" proves something only for values seen when unlocked.
+ * - `phone`: the stub gives the phone only as E.164 (src/sync-stub.mjs), so the text "000 000 000" is not on any screen.
+ * - `journal text`: the journal sits below the fold of the details; `uiautomator` leaves out what is outside the window (hypothesis: not confirmed on the device).
+ */
+export const UNLOCKED_NOT_VISIBLE = Object.freeze({
+  phone: 'the stub gives the phone only as E.164',
+  'journal text': 'the journal is below the fold of the details (outside the window)',
+});
 
 /**
  * The synthetic values the flows put on the screens below the cover (the order ZL-E2E-1 of the scenario server, src/sync-stub.mjs, and the word the flow types
@@ -48,20 +62,23 @@ export const LOCK_CONTROL_VALUES = Object.freeze({
   'typed value': 'Kontrolka146',
 });
 
+/** What the positive control must find in the unlocked form: every control value except the two of `UNLOCKED_NOT_VISIBLE`. */
+export const UNLOCKED_MUST_SHOW = Object.freeze(Object.keys(LOCK_CONTROL_VALUES).filter((name) => !(name in UNLOCKED_NOT_VISIBLE)));
+
 /** The text of the cover of the locked app (apps/mobile/src/i18n: `lock.title`) and its test id. */
 export const COVER_TITLE = 'Aplikacja zablokowana';
 export const COVER_ID = 'lock-overlay';
 
-/** The dump goes to a file that only the shell can read and is removed in the same command (the tree holds no real data on the e2e device anyway). */
+/** The dump goes to a file that only the shell can read, is read back and is removed in the same command (the tree holds no real data on the e2e device anyway). */
 const DUMP_FILE = '/data/local/tmp/evia-view-tree.xml';
 
-/** Commands of the lock step: the dump goes to the standard output (no file on the device), with the views not important for accessibility (no `--compressed`). */
+/** Commands of the lock step: the dump is read from a file that is removed at once, with the views not important for accessibility (no `--compressed`). */
 export const lockCommands = {
   dump: () => ['shell', `uiautomator dump ${DUMP_FILE} > /dev/null; cat ${DUMP_FILE}; rm -f ${DUMP_FILE}`],
-  /** The compressed one - used only to show that the uncompressed dump holds MORE (the proof that the step looks at the right thing). */
   home: () => ['shell', 'input', 'keyevent', 'KEYCODE_HOME'],
   /** Starts the app from its launcher entry, like the icon does (the process is alive: a return from the background). */
   launch: () => ['shell', 'monkey', '-p', APPLICATION_ID, '-c', 'android.intent.category.LAUNCHER', '1'],
+  /** The compressed one - used only to show that the uncompressed dump holds MORE (the proof that the step looks at the right thing). */
   dumpCompressed: () => ['shell', `uiautomator dump --compressed ${DUMP_FILE} > /dev/null; cat ${DUMP_FILE}; rm -f ${DUMP_FILE}`],
 };
 
@@ -135,7 +152,7 @@ export function findLeaks(nodes, values = LOCK_CONTROL_VALUES) {
 
 /**
  * Judges one dump: it must be the tree of the app WITH the cover, and hold no control value.
- * @param {Outcome} dump the output of `uiautomator dump /dev/tty`
+ * @param {Outcome} dump the output of `uiautomator dump` (the file read back)
  * @returns {{ ok: boolean, detail: string, nodes: number }}
  */
 export function judgeViewTree(dump) {
@@ -261,6 +278,9 @@ export function compareDumps(full, compressed) {
  * @returns {Promise<{ action: LockAction, ok: boolean, detail: string }>}
  */
 export async function runLockAction(action, context) {
+  // TMPMEASURE
+  await tmpMeasure(action, context);
+  if (action.startsWith('camera-client')) return { action, ok: true, detail: 'measure only' };
   if (action === 'view-tree-unlocked') {
     const verdict = judgeViewTreeUnlocked(context.adb(...lockCommands.dump()));
     return { action, ok: verdict.ok, detail: verdict.detail };
@@ -292,4 +312,20 @@ export async function runLockAction(action, context) {
   const sizes = compareDumps(context.adb(...lockCommands.dump()), context.adb(...lockCommands.dumpCompressed()));
   if (sizes !== null) details.push(`nodes of the app: uncompressed ${String(sizes.full)}, compressed ${String(sizes.compressed)}`);
   return { action, ok, detail: details.join(' | ') };
+}
+
+// TMPMEASURE
+import { mkdirSync, writeFileSync } from 'node:fs';
+/** @param {string} action @param {LockContext} context */
+async function tmpMeasure(action, context) {
+  const dir = process.env['EVIA_LOCK_MEASURE_DIR'];
+  if (dir === undefined) return;
+  mkdirSync(dir, { recursive: true });
+  const stamp = String(Date.now());
+  if (action.startsWith('camera-client')) {
+    writeFileSync(`${dir}/${action}-${stamp}-camera.txt`, context.adb('shell', 'dumpsys', 'media.camera').stdout);
+  } else {
+    await context.sleep(1500);
+    writeFileSync(`${dir}/${action}-${stamp}-top.txt`, context.adb('shell', 'dumpsys', 'activity', 'top').stdout);
+  }
 }

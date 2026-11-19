@@ -1,16 +1,21 @@
 import { Activity, useEffect, useState } from 'react';
-import { AccessibilityInfo, Text, TextInput } from 'react-native';
+import { AccessibilityInfo, AppState, BackHandler, Text, TextInput } from 'react-native';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { App } from '../src/App';
 import { pl } from '../src/i18n/pl';
 import { buildOrderList, type OrderListSource } from '../src/orders/order-list-model';
 import type { OrderDetail } from '../src/orders/order-detail-model';
+import type { TemplateSet } from '../src/orders/templates';
 import { LockGate } from '../src/screens/LockOverlay';
 import { useAllSentAnnouncement } from '../src/screens/use-all-sent-announcement';
+import { NOTICE_MS, useNotice } from '../src/screens/use-notice';
 import type { StartupChecker } from '../src/startup';
 import { EMPTY_COUNTS } from '../src/sync/types';
 import { MIN, rig as guardRig } from './device-guard/fakes';
+import { cameraMock } from './mocks/expo-camera';
 import { stubPorts, type PortsRig } from './session-helpers';
+
+jest.mock('expo-camera', () => jest.requireActual<typeof import('./mocks/expo-camera')>('./mocks/expo-camera'));
 
 jest.mock('react-native-safe-area-context', () => {
   const actual = jest.requireActual<typeof import('react-native-safe-area-context')>('react-native-safe-area-context');
@@ -123,6 +128,8 @@ describe('LockGate: hidden, not unmounted (EVM-146 AC1, AC2)', () => {
       'importantForAccessibility',
       'no-hide-descendants',
     );
+    // The second safeguard (the flags of accessibility above) is what `queryByTestId` proves here: the test renderer lists a hidden `Activity` anyway.
+    // That the hidden `Activity` takes the tree away is proved by the cleaned effects (the log) and by the emulator flows 130/131/132.
     expect(screen.queryByTestId('probe')).toBeNull(); // out of the accessible tree
   });
 
@@ -144,6 +151,7 @@ describe('the state of the screens comes back after the lock (EVM-146 AC2)', () 
     await fireEvent.press(screen.getByTestId('entry-category-meeting'));
     await typeIn('entry-body', MARKER);
     await lock(rig);
+    // `queryByTestId(...) === null` proves the second safeguard (the flags of accessibility); the hidden `Activity` is proved by the cleaned effects and the emulator
     expect(screen.queryByTestId('entry-body')).toBeNull();
     await unlock(rig);
     expect(screen.getByTestId('entry-body').props.value).toBe(MARKER);
@@ -245,6 +253,7 @@ describe('sending and the counters do not depend on the content (EVM-146 AC3)', 
     await view.rerender(tree(false, 0, 2)); // a confirmation in front of the user is still announced
     expect(announce).toHaveBeenCalledWith('ALL-SENT');
     announce.mockRestore();
+    jest.restoreAllMocks();
   });
 });
 
@@ -259,6 +268,7 @@ describe('negative cases (EVM-146 AC4)', () => {
       await fireEvent.press(screen.getByTestId('lock-unlock'));
       await settle();
       expect(screen.getByTestId('lock-overlay')).toBeOnTheScreen();
+      // the second safeguard (the flags of accessibility), not the hidden `Activity` itself (see the first test and the emulator flows)
       expect(screen.queryByTestId('entry-body')).toBeNull();
       expect(screen.getByTestId('lock-content', { includeHiddenElements: true })).toHaveProp('pointerEvents', 'none');
     }
@@ -271,6 +281,7 @@ describe('negative cases (EVM-146 AC4)', () => {
     rig.device.facts.auth = 'cancelled';
     await open(rig);
     expect(screen.getByTestId('lock-overlay')).toBeOnTheScreen();
+    // the second safeguard (the flags of accessibility); the hidden `Activity` is proved by the cleaned effects and the emulator flows
     expect(screen.queryByTestId('orders-search')).toBeNull();
     expect(screen.queryByTestId('order-row-o1')).toBeNull();
   });
@@ -278,6 +289,8 @@ describe('negative cases (EVM-146 AC4)', () => {
   it.each([
     ['sign-out', { reason: 'signed_out', unsentItems: 0 }],
     ['a revoked session', { reason: 'session_revoked', unsentItems: 1 }],
+    ['an expired session', { reason: 'session_expired', unsentItems: 0 }],
+    ['the remote wipe of the company data', { reason: 'device_wipe_required', unsentItems: 2 }],
   ] as const)('EVM-146 AC4: %s while the app is locked removes the content and the typed text for good', async (_name, ended) => {
     const rig = rigWith();
     await openEntryForm(rig);
@@ -290,5 +303,280 @@ describe('negative cases (EVM-146 AC4)', () => {
     expect(screen.queryByTestId('lock-overlay')).toBeNull();
     expect(screen.queryByTestId('entry-form', { includeHiddenElements: true })).toBeNull();
     expect(JSON.stringify(screen.toJSON())).not.toContain(MARKER);
+  });
+});
+
+// EVM-146 review round: a hidden `Activity` cleans the effects of the screens and runs them again at the unlock (the state stays).
+const T_HOUSE = '0194c2a0-0000-7000-8000-000000000a01';
+const TEMPLATES: TemplateSet = {
+  fetchedAt: 1,
+  items: [
+    {
+      id: T_HOUSE,
+      code: 'house',
+      name: 'Dom — sam montaż',
+      siteTypeHint: 'single_family_house',
+      itemCount: 3,
+      procedureCount: 1,
+      milestoneCount: 1,
+    },
+  ],
+};
+const openQuick = async (rig: PortsRig) => {
+  rig.sync.templateSet = TEMPLATES;
+  await open(rig);
+  await fireEvent.press(screen.getByTestId('orders-add'));
+  await fireEvent.press(screen.getByTestId('add-new-order'));
+  await settle();
+  await typeIn('quick-first-name', 'Anna');
+  await typeIn('quick-last-name', 'Fikcyjna');
+  await typeIn('quick-phone', '600 000 009');
+  await fireEvent.press(screen.getByTestId('quick-site-type'));
+  await fireEvent.press(screen.getByTestId('quick-site-type-single_family_house'));
+  await typeIn('quick-street', 'ul. Testowa');
+  await typeIn('quick-building', '5');
+  await typeIn('quick-postal', '05-500');
+  await typeIn('quick-city', 'Piaseczno');
+  await fireEvent.press(screen.getByTestId(`quick-template-${T_HOUSE}`));
+};
+const openSurvey = async (rig: PortsRig) => {
+  await open(rig);
+  await fireEvent.press(screen.getByTestId('orders-add'));
+  await settle();
+  await fireEvent.press(screen.getByTestId('add-site-survey'));
+  await settle();
+  await typeIn('survey-city', 'Piaseczno');
+  await typeIn('survey-street', 'ul. Fikcyjna');
+  await typeIn('survey-building', '12');
+  await typeIn('survey-postal', '05-500');
+};
+const FORMS = [
+  ['the entry form', 'entry-form', 'entry-save', async (rig: PortsRig) => openEntryForm(rig)],
+  ['the quick order', 'quick-order', 'quick-order-save', openQuick],
+  ['the site survey', 'site-survey', 'survey-save', openSurvey],
+] as const;
+
+describe('saving after the lock (EVM-146 AC2, review B1)', () => {
+  it.each(FORMS)(
+    'EVM-146 AC2: %s - a save after the lock and the unlock ends (the form closes, no "saving" for good)',
+    async (_n, form, saveId, openForm) => {
+      const rig = rigWith();
+      await openForm(rig);
+      if (form === 'entry-form') await typeIn('entry-body', MARKER);
+      await lock(rig);
+      await unlock(rig);
+      await fireEvent.press(screen.getByTestId(saveId));
+      await settle();
+      expect(rig.sync.enqueued).toHaveLength(1);
+      expect(screen.queryByTestId(form)).toBeNull();
+    },
+  );
+
+  it.each(FORMS)(
+    'EVM-146 AC2: %s - the app locks DURING the save: after the unlock the form is not stuck and nothing is written twice',
+    async (_n, form, saveId, openForm) => {
+      const rig = rigWith();
+      let finish: (() => void) | undefined;
+      rig.sync.enqueueHook = () =>
+        new Promise((resolve) => {
+          finish = () => {
+            resolve({ ok: true });
+          };
+        });
+      await openForm(rig);
+      if (form === 'entry-form') await typeIn('entry-body', MARKER);
+      await fireEvent.press(screen.getByTestId(saveId));
+      await settle();
+      await lock(rig);
+      await act(() => {
+        finish?.(); // the answer of the queue comes back under the cover
+      });
+      await settle();
+      await unlock(rig);
+      expect(screen.queryByTestId(form)).toBeNull();
+      expect(rig.sync.enqueued).toHaveLength(1);
+    },
+  );
+});
+
+/** Like the system: the last registered handler is asked first, the first that answers true wins. */
+function backStack() {
+  const handlers: Parameters<typeof BackHandler.addEventListener>[1][] = [];
+  const spy = jest.spyOn(BackHandler, 'addEventListener').mockImplementation((_event, handler) => {
+    handlers.push(handler);
+    return {
+      remove: () => {
+        handlers.splice(handlers.indexOf(handler), 1);
+      },
+    };
+  });
+  const back = async (): Promise<boolean> => {
+    let handled = false;
+    await act(() => {
+      for (const handler of [...handlers].reverse()) {
+        if (handler(undefined as never)) {
+          handled = true;
+          break;
+        }
+      }
+    });
+    return handled;
+  };
+  return {
+    back,
+    restore: () => {
+      spy.mockRestore();
+    },
+  };
+}
+
+describe('the system "back" after the unlock does not depend on the order of the effects (EVM-146 AC2, review M2)', () => {
+  let stack: ReturnType<typeof backStack>;
+  beforeEach(() => {
+    cameraMock.reset();
+    stack = backStack();
+  });
+  afterEach(() => {
+    stack.restore();
+  });
+
+  it('EVM-146 AC2: the entry form with a typed text - "back" after the unlock asks before dropping it; the order below stays open', async () => {
+    const rig = rigWith();
+    await openEntryForm(rig);
+    await typeIn('entry-body', MARKER);
+    await lock(rig);
+    await unlock(rig);
+    expect(await stack.back()).toBe(true);
+    expect(screen.getByTestId('entry-discard-dialog')).toBeOnTheScreen();
+    expect(screen.getByTestId('entry-body').props.value).toBe(MARKER);
+    expect(screen.getByTestId('order-detail', { includeHiddenElements: true })).toBeOnTheScreen();
+  });
+
+  it('EVM-146 AC2: an open dialog - "back" after the unlock cancels the dialog, it does not stay open under the handler of the form', async () => {
+    const rig = rigWith();
+    await openEntryForm(rig);
+    await typeIn('entry-body', MARKER);
+    expect(await stack.back()).toBe(true);
+    expect(screen.getByTestId('entry-discard-dialog')).toBeOnTheScreen();
+    await lock(rig);
+    await unlock(rig);
+    expect(await stack.back()).toBe(true);
+    expect(screen.queryByTestId('entry-discard-dialog')).toBeNull();
+    expect(screen.getByTestId('entry-body').props.value).toBe(MARKER);
+  });
+
+  it('EVM-146 AC2: the camera - "back" after the unlock closes the camera, not the order under it', async () => {
+    const rig = rigWith();
+    // the camera is only opened and left here: the ports of a phone are never asked for a picture
+    rig.media.capturePorts = {
+      native: {
+        importOriginal: () => Promise.resolve('ok'),
+        digestOriginal: () => Promise.resolve(null),
+        cancelUpload: () => Promise.resolve(true),
+      },
+      disk: { freeBytes: () => 10_000_000_000 },
+      registerAndEnqueue: () => Promise.resolve({ ok: true }),
+      now: () => 1,
+      newId: () => '0194c2a0-0000-7000-8000-000000000001',
+    };
+    await open(rig);
+    await fireEvent.press(screen.getByTestId('order-row-o1'));
+    await settle();
+    await act(async () => {
+      await rig.ports.camera.open('o1');
+    });
+    await settle();
+    expect(screen.getByTestId('camera')).toBeOnTheScreen();
+    await lock(rig);
+    await unlock(rig);
+    expect(await stack.back()).toBe(true);
+    await settle();
+    expect(screen.queryByTestId('camera')).toBeNull();
+    expect(screen.getByTestId('order-detail', { includeHiddenElements: true })).toBeOnTheScreen();
+  });
+});
+
+describe('the announcements and the notices after the unlock (EVM-146 AC2, review m4)', () => {
+  it('EVM-146 AC2: "Połączono ponownie" for a connection that came back while the app was locked is not spoken after the unlock', async () => {
+    const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => undefined);
+    const rig = rigWith();
+    const listeners: ((state: string) => void)[] = [];
+    jest.spyOn(AppState, 'addEventListener').mockImplementation((_type, listener) => {
+      listeners.push(listener as (state: string) => void);
+      return { remove: () => undefined };
+    });
+    const checker = jest
+      .fn<ReturnType<StartupChecker>, []>()
+      .mockResolvedValueOnce({ kind: 'offline' })
+      .mockResolvedValue({ kind: 'online' });
+    await open(rig, checker);
+    expect(screen.getByTestId('sync-indicator')).toHaveTextContent(/Offline/);
+    const now = Date.now();
+    jest.spyOn(Date, 'now').mockReturnValue(now + 3_600_000); // the foreground check is not debounced
+    await lock(rig);
+    await act(() => {
+      for (const listener of listeners) listener('active'); // the check of the startup runs while the lock is shown: the server answers
+    });
+    await settle();
+    await unlock(rig);
+    expect(checker.mock.calls.length).toBeGreaterThan(1);
+    expect(announce).not.toHaveBeenCalledWith(pl.shell.reconnected);
+    announce.mockRestore();
+  });
+});
+
+describe('a notice with a timer under the lock (EVM-146 AC2, review m4)', () => {
+  function Notices() {
+    const { notice, say } = useNotice();
+    return (
+      <>
+        <Text
+          testID="say"
+          onPress={() => {
+            say('NOTICE');
+          }}
+        >
+          say
+        </Text>
+        {notice === null ? null : <Text testID="notice">{notice}</Text>}
+      </>
+    );
+  }
+  const tree = (locked: boolean) => (
+    <Activity mode={locked ? 'hidden' : 'visible'}>
+      <Notices />
+    </Activity>
+  );
+
+  it('EVM-146 AC2: a notice shown at the lock does not stay for good after the unlock (its timer was cancelled by the cleanup)', async () => {
+    jest.useFakeTimers();
+    try {
+      const view = await render(tree(false));
+      await fireEvent.press(screen.getByTestId('say'));
+      expect(screen.getByTestId('notice')).toBeOnTheScreen();
+      await view.rerender(tree(true));
+      await act(() => {
+        jest.advanceTimersByTime(10_000);
+      });
+      await view.rerender(tree(false));
+      expect(screen.queryByTestId('notice')).toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('EVM-146 AC2: a notice shown while the screen is in front goes away by itself', async () => {
+    jest.useFakeTimers();
+    try {
+      await render(tree(false));
+      await fireEvent.press(screen.getByTestId('say'));
+      expect(screen.getByTestId('notice')).toBeOnTheScreen();
+      await act(() => {
+        jest.advanceTimersByTime(NOTICE_MS + 1);
+      });
+      expect(screen.queryByTestId('notice')).toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

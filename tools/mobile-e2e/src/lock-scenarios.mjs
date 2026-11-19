@@ -1,10 +1,10 @@
 // @ts-check
 /**
- * Scenario of the lock of the app (EVM-146 AC1; flows 130-139 of apps/mobile/e2e). Like the camera and order-files scenarios it is outside the default run
+ * Scenario of the lock of the app (EVM-146 AC1; flows 130-135 of apps/mobile/e2e). Like the camera and order-files scenarios it is outside the default run
  * (`node tools/mobile-e2e/cli.mjs --only lock-`); the sign-in of the run is served by the upload part of the scenario server (`upload: true`).
  *
  * Scenarios: `lock-view-tree` (AC1, AC4: positive control, resume samples, cancelled unlock; src/device-lock.mjs), `lock-state-kept` and `lock-survey-kept` (AC2), `lock-camera-kept`
- * (AC3, AC5). The decision to lock before the first render of the content is read as several samples of the tree while the app returns.
+ * (AC3, AC5), `lock-camera-released` (AC3: the camera service has no client of the app under the cover). The decision to lock before the first render of the content is read as several samples of the tree while the app returns.
  */
 
 /** @type {import('./scenarios.mjs').Scenario[]} */
@@ -47,6 +47,23 @@ export const LOCK_SCENARIOS = [
     steps: [
       { flow: '80-camera-sign-in.yaml', server: 'ok', airplane: false, upload: true, before: ['upload-reset'] },
       { flow: '135-lock-camera-kept.yaml', server: 'ok', airplane: false, upload: true, before: ['camera-grant'] },
+    ],
+  },
+  // AC3 (S2): the camera is open and the app is a client of the camera service; after the lock (the unlock held) the camera is released - the service has no client of the app.
+  {
+    name: 'lock-camera-released',
+    ac: 'EVM-146 AC3',
+    steps: [
+      { flow: '80-camera-sign-in.yaml', server: 'ok', airplane: false, upload: true, before: ['upload-reset'] },
+      {
+        flow: '137-lock-camera-open.yaml',
+        server: 'ok',
+        airplane: false,
+        upload: true,
+        before: ['camera-grant'],
+        after: ['camera-client-present'],
+      },
+      { flow: '136-lock-camera-hold.yaml', server: 'ok', airplane: false, upload: true, after: ['camera-client-absent'] },
     ],
   },
 ];

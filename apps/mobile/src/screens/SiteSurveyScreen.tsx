@@ -14,6 +14,7 @@ import {
 import { AlertDialog, AppBar, BottomBar, Button, EmptyState, EyeOff, InlineAlert, TextField } from '../ui';
 import { color, space, text } from '../ui/theme';
 import { SyncCapsule } from './SyncCapsule';
+import { useSettled } from './use-settled';
 import { useGuard, useSession } from './session-context';
 import { SURVEY_SAVE_PROBLEM_KEYS, surveyErrorKey } from './site-survey-text';
 
@@ -49,16 +50,10 @@ export function SiteSurveyScreen({ onClose, onSaved }: { onClose: () => void; on
   const [discardAsk, setDiscardAsk] = useState(false);
   const [focusTick, setFocusTick] = useState(0);
   const busy = useRef(false);
-  const alive = useRef(true);
+  const settled = useSettled();
   const summary = useRef<ComponentRef<typeof View>>(null);
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
 
-  useEffect(
-    () => () => {
-      alive.current = false;
-    },
-    [],
-  );
   // the hidden-data mode drops what was typed (nothing is kept for later)
   useEffect(() => {
     if (hidden) {
@@ -73,7 +68,7 @@ export function SiteSurveyScreen({ onClose, onSaved }: { onClose: () => void; on
     if (hasSurveyInput(draft)) setDiscardAsk(true);
     else onClose();
   }, [draft, onClose]);
-  // registered after the shell's handler (which leaves the open form to us) and before the dialogs' own handlers, which win while open
+  // the shell's handler yields to the open form (it does not rely on the order of the registrations)
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       requestClose();
@@ -129,16 +124,18 @@ export function SiteSurveyScreen({ onClose, onSaved }: { onClose: () => void; on
     session.sync.enqueue(built.input).then(
       (result) => {
         busy.current = false;
-        if (!alive.current) return;
-        setSaving(false);
-        if (result.ok) onSaved(built.workOrderId);
-        else setProblem(problemOf(result.code));
+        settled(() => {
+          setSaving(false);
+          if (result.ok) onSaved(built.workOrderId);
+          else setProblem(problemOf(result.code));
+        });
       },
       () => {
         busy.current = false;
-        if (!alive.current) return;
-        setSaving(false);
-        setProblem('failed');
+        settled(() => {
+          setSaving(false);
+          setProblem('failed');
+        });
       },
     );
   };

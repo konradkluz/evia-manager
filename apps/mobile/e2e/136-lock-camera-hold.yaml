@@ -1,0 +1,35 @@
+# EVM-146 AC3 (S2, `lock-camera-released`): the camera is open (flow 137). The hook "unlock held" keeps the system unlock from opening the app again and "background 6 min"
+# moves the clock; after Home and the start of the app it is locked. tools/mobile-e2e reads the camera service afterwards (step `camera-client-absent`): the camera must
+# be released while the cover is on.
+appId: pl.eviacharge.manager
+---
+- tapOn:
+    id: 'evia-e2e-hooks-panel'
+- scrollUntilVisible:
+    element:
+      id: 'e2e-unlock-hold'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'e2e-unlock-hold'
+- scrollUntilVisible:
+    element:
+      id: 'e2e-background-6'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'e2e-background-6'
+- scrollUntilVisible:
+    element:
+      id: 'e2e-close'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'e2e-close'
+- pressKey: home
+- launchApp:
+    stopApp: false
+- extendedWaitUntil:
+    visible:
+      id: 'lock-overlay'
+    timeout: 20000

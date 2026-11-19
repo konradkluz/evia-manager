@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ScrollView, Text, View } from 'react-native';
 import { formatClock, formatDateTime } from '../i18n/format';
@@ -14,8 +14,7 @@ import { SyncNotices } from './SyncNotices';
 import { surveyDiscardBody } from './survey-discard-text';
 import { useMediaSnapshot, useQueueView, useSession } from './session-context';
 import { useAllSentAnnouncement } from './use-all-sent-announcement';
-
-const NOTICE_MS = 4_000;
+import { useNotice } from './use-notice';
 
 /**
  * "Kolejka" (EVM-009 AC1, EVM-101 AC8, EVM-107 AC3, AC4): the number and the state of every element (oczekuje, wysyła się, wysłano,
@@ -44,25 +43,11 @@ export function QueueScreen({
   // "Wszystko wysłane." once, when the server confirmed the last file (the list goes away, a screen reader does not see it); here, not in the list, because the
   // list is not drawn when it is empty
   useAllSentAnnouncement(files.length, mediaSnapshot.confirmed ?? 0, true, t('upload.allSent'));
-  const [notice, setNotice] = useState<string | null>(null);
+  const { notice, say } = useNotice();
   const [confirm, setConfirm] = useState<{ item: QueueItem; dependents: number; summary: GroupSummary | null } | null>(null);
   const [targets, setTargets] = useState<{ item: QueueItem; options: readonly TargetOption[] } | null>(null);
   // "Usuń z telefonu" of a file (EVM-108 AC6): the id of the file that waits for the confirmation (nothing else)
   const [fileToDiscard, setFileToDiscard] = useState<string | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  useEffect(
-    () => () => {
-      clearTimeout(timer.current);
-    },
-    [],
-  );
-  const say = useCallback((message: string) => {
-    setNotice(message);
-    clearTimeout(timer.current);
-    timer.current = setTimeout(() => {
-      setNotice(null);
-    }, NOTICE_MS);
-  }, []);
 
   const types: Readonly<Record<string, string>> = {
     CreateNote: t('queue.types.CreateNote'),

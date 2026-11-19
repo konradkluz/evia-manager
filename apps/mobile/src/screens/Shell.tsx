@@ -191,10 +191,13 @@ export function Shell() {
     };
   }, [adding, session.sync]);
 
+  const overShell = useRef(false);
   // The system "back" from the queue returns to the orders; from the orders it leaves the app (default behaviour).
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      // the open entry form handles "back" itself (it asks before dropping a typed text); its handler is registered later, so it is asked first
+      // what is drawn over the shell (the entry form, the camera, a dialog) handles "back" itself (the form asks before dropping a typed text).
+      // The order of the registrations is not relied on: after the unlock the effects run again, children first, so this handler may be the last one
+      if (overShell.current) return false;
       if (openOrderId !== null) {
         // "Pliki zlecenia" is closed first: it returns to the order, not to the list
         if (filesOpen) setFilesOpen(false);
@@ -213,8 +216,16 @@ export function Shell() {
   }, [tab, openOrderId, filesOpen]);
 
   // One polite announcement when the server is reachable again after a problem (styleguide § 5.4, no spam).
+  // EVM-146: under the lock the screen sits in a hidden `Activity`: its effects are cleaned and run again at the unlock. That first run only takes the
+  // state over - a connection that came back while the app was locked is not announced (the rule of `useAllSentAnnouncement`).
+  const remounted = useRef(true);
   useEffect(() => {
-    if (state.kind === 'online' && (previous.current === 'offline' || previous.current === 'serverUnavailable')) {
+    remounted.current = true;
+  }, []);
+  useEffect(() => {
+    if (remounted.current) {
+      remounted.current = false;
+    } else if (state.kind === 'online' && (previous.current === 'offline' || previous.current === 'serverUnavailable')) {
       AccessibilityInfo.announceForAccessibility(t('shell.reconnected'));
     }
     previous.current = state.kind;
@@ -228,6 +239,7 @@ export function Shell() {
   // no new photos while the data of the company are being wiped (the picker is not drawn; the native import refuses as well)
   const shownPicker = pickingMedia && guard.hidden !== 'wipe_in_progress';
   const covered = dialog !== null || adding || shownEntry !== null || cameraOrderId !== null || shownPicker;
+  overShell.current = covered;
   const detailOpen = openOrderId !== null;
   const filesShown = filesOpen && openOrderId !== null;
   return (

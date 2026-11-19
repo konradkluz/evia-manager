@@ -1,0 +1,12 @@
+# EVM-146 AC3 (S2, `lock-camera-released`): the camera of the order is open and in front (the permission is granted by tools/mobile-e2e). tools/mobile-e2e reads the camera
+# service afterwards (step `camera-client-present`): the positive control - the app IS a client of the camera while the camera is open.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- runFlow: common/camera-from-order.yaml
+- tapOn:
+    id: 'camera-category-site_survey'

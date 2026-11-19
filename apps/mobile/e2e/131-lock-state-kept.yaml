@@ -1,4 +1,4 @@
-# EVM-146 AC2 (spike): the same path as 130 but the automatic unlock of the e2e variant is NOT held - the app locks after 6 minutes in the background, unlocks
+# EVM-146 AC2: the same path as 130 but the automatic unlock of the e2e variant is NOT held - the app locks after 6 minutes in the background, unlocks
 # at once and must show the same form with the typed word ("Kontrolka146") still in the field.
 appId: pl.eviacharge.manager
 ---

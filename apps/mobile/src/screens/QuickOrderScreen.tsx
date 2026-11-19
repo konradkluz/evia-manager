@@ -25,6 +25,7 @@ import { color, space, text } from '../ui/theme';
 import { CustomerSection, SiteSection, SiteTypeDialog, TemplateSection, errorMessages, errorProp, type Patch } from './QuickOrderSections';
 import { RECREATE_PROBLEM_KEYS, RECREATE_REASON_KEYS, SAVE_PROBLEM_KEYS, errorKey } from './quick-order-text';
 import { SyncCapsule } from './SyncCapsule';
+import { useSettled } from './use-settled';
 import { useGuard, useSession, useSyncSnapshot } from './session-context';
 
 type SaveProblem = 'storage' | 'too_large' | 'failed';
@@ -87,17 +88,10 @@ export function QuickOrderScreen({
   const [discardAsk, setDiscardAsk] = useState(false);
   const [focusTick, setFocusTick] = useState(0);
   const busy = useRef(false);
-  const alive = useRef(true);
+  const settled = useSettled();
   const titleEdited = useRef(false);
   const summary = useRef<ComponentRef<typeof View>>(null);
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
-
-  useEffect(
-    () => () => {
-      alive.current = false;
-    },
-    [],
-  );
 
   // the sources are read once per opening; the hidden-data mode reads nothing and drops what is held
   useEffect(() => {
@@ -160,7 +154,7 @@ export function QuickOrderScreen({
     if (dirty) setDiscardAsk(true);
     else onClose();
   }, [draft, origin, onClose]);
-  // registered after the shell's handler (which leaves the open form to us) and before the dialogs' own handlers, which win while open
+  // the shell's handler yields to the open form (it does not rely on the order of the registrations)
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       requestClose();
@@ -247,16 +241,18 @@ export function QuickOrderScreen({
     write.then(
       (result) => {
         busy.current = false;
-        if (!alive.current) return;
-        setSaving(false);
-        if (result.ok) onSaved(built.workOrderId, recreateId === null ? 'new' : 'recreated');
-        else setProblem(problemOf(result.code));
+        settled(() => {
+          setSaving(false);
+          if (result.ok) onSaved(built.workOrderId, recreateId === null ? 'new' : 'recreated');
+          else setProblem(problemOf(result.code));
+        });
       },
       () => {
         busy.current = false;
-        if (!alive.current) return;
-        setSaving(false);
-        setProblem('failed');
+        settled(() => {
+          setSaving(false);
+          setProblem('failed');
+        });
       },
     );
   };
