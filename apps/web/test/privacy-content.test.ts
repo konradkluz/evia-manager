@@ -242,7 +242,7 @@ describe('content of W-19 (EVM-063)', () => {
     expect(text).toContain('zaszyfrowaną bazę z kopią zleceń');
     expect(text).toContain('kolejkę zmian czekających na wysłanie');
     // media: photos and films without sound, no microphone, the private memory of the application only
-    expect(text).toContain('zdjęcia i filmy z prac (filmy zawsze bez dźwięku)');
+    expect(text).toContain('zdjęcia i filmy z prac (filmy nagrane w aplikacji są zawsze bez dźwięku)');
     expect(text).toContain('nie używa mikrofonu, a filmy nagrywa bez dźwięku');
     expect(text).toContain('nie trafiają do galerii telefonu ani do chmury Google lub producenta');
     // the purposes, the basis, the periods, the loss of the phone and where to report it
@@ -257,6 +257,46 @@ describe('content of W-19 (EVM-063)', () => {
     expect(text).toContain('nigdy z linku');
     // what the application does not do: the claims the package is checked for (tools/mobile-apk verify)
     expect(text).toContain('nie zawiera narzędzi analitycznych ani reklamowych i nie wysyła raportów o błędach do zewnętrznych firm');
+  });
+
+  it('EVM-133 AC3 the files from the application are told apart from the files added in the panel (no promise of "no sound, no location" for all)', () => {
+    const clients = textOf('clients');
+    expect(clients).toContain('Filmy nagrane w aplikacji są zawsze bez dźwięku, a jej zdjęcia nie zawierają lokalizacji');
+    expect(clients).toContain(
+      'pliki dodane w panelu przechowujemy w postaci oryginalnej — mogą zawierać dźwięk i dane zapisane przez urządzenie, także miejsce wykonania',
+    );
+    expect(clients).toContain('filmy nagrane w aplikacji — bez dźwięku;');
+    expect(clients).toContain('po zgłoszeniu utraty telefonu zlecamy jej zdalne usunięcie');
+    expect(clients).not.toContain('filmy zawsze bez dźwięku');
+    expect(clients).not.toContain('filmy bez dźwięku;');
+    for (const clause of CLAUSES) expect(textOf(clause.id)).not.toMatch(/filmy zawsze bez dźwięku/);
+  });
+
+  it('EVM-133 AC3 the facts of the code: the session of the application (14 / 30 days), the copy of a closed order, the source of data of contact persons, the site visit basis, the IP address', () => {
+    const employees = textOf('employees');
+    expect(employees).toContain(
+      'sesja aplikacji kończy się po 14 dniach bez połączenia z serwerem, najpóźniej 30 dni po zalogowaniu; jej zapis usuwamy 30 dni po zakończeniu',
+    );
+    expect(employees).not.toContain('po 30 dniach bez połączenia');
+    expect(employees).toContain(
+      'usuwana przy pierwszej synchronizacji po upływie 30 dni od zamknięcia (wcześniej przy wylogowaniu albo wyczyszczeniu)',
+    );
+    expect(employees).toContain('bez dokumentów, płatności, adresów e-mail i NIP');
+    expect(employees).toContain('z systemowego okna odblokowania (odcisk palca lub PIN; aplikacja nie otrzymuje danych biometrycznych)');
+    expect(employees).toContain('pełny adres jest tylko w zapisie sesji');
+    expect(employees).toContain('w dzienniku audytu i w logach serwera adres IP jest skrócony');
+    expect(employees).not.toContain('alercie');
+    const clients = textOf('clients');
+    expect(clients).toContain('Dane osób kontaktowych klientów będących firmami otrzymujemy od tych firm.');
+    expect(clients).toContain(
+      'Jeżeli wizję zamawia ktoś inny niż właściciel lub mieszkaniec, ich dane przetwarzamy w naszym prawnie uzasadnionym interesie — przygotowania oferty (art. 6 ust. 1 lit. f RODO); przysługuje im sprzeciw.',
+    );
+    expect(clients).toContain('Poza samym plikiem dokumentu nie zapisujemy tych numerów w systemie');
+    for (const clause of CLAUSES) {
+      const text = textOf(clause.id);
+      expect(text).toContain('z siedzibą w Warszawie, pod adresem');
+      expect(text).toContain('albo adres miejsca wizji');
+    }
   });
 
   it('EVM-026 AC5 the clause for employees names the second cookie, __Host-evia_device: purpose, content, 30 days, no authentication, and the register and the counters with their retention', () => {

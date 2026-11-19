@@ -66,7 +66,7 @@ const paragraph = (text: string): ClauseBlock => ({ kind: 'paragraph', text });
 const list = (...items: string[]): ClauseBlock => ({ kind: 'list', items });
 
 /** A clause read outside the panel (an attachment, a footer) must stand on its own: the controller is named in full (art. 13 ust. 1 lit. a). */
-const CONTROLLER = `Administratorem Twoich danych osobowych jest ${ADMINISTRATOR.name} ${ADMINISTRATOR.legalForm} z siedzibą pod adresem ${ADMINISTRATOR.address}; ${ADMINISTRATOR.registry}. W sprawach danych osobowych napisz na ${ADMINISTRATOR.dataContact}`;
+const CONTROLLER = `Administratorem Twoich danych osobowych jest ${ADMINISTRATOR.name} ${ADMINISTRATOR.legalForm} z siedzibą w Warszawie, pod adresem ${ADMINISTRATOR.address}; ${ADMINISTRATOR.registry}. W sprawach danych osobowych napisz na ${ADMINISTRATOR.dataContact}`;
 
 const SUPERVISORY_AUTHORITY =
   'Masz prawo wnieść skargę do Prezesa Urzędu Ochrony Danych Osobowych (Urząd Ochrony Danych Osobowych, ul. Stawki 2, 00-193 Warszawa).';
@@ -76,7 +76,7 @@ const OBJECTION =
   'Prawo sprzeciwu: jeżeli przetwarzamy Twoje dane na podstawie prawnie uzasadnionego interesu, możesz w każdej chwili wnieść sprzeciw z przyczyn związanych z Twoją szczególną sytuacją. Przestaniemy wtedy przetwarzać te dane, chyba że wykażemy ważne, prawnie uzasadnione podstawy nadrzędne albo dane będą potrzebne do ustalenia, dochodzenia lub obrony roszczeń.';
 
 /** How a request of a data subject reaches the controller (rodo.md → "Realizacja praw osób"; RODO art. 12 ust. 3 i 6). */
-const REQUESTS = `Wniosek w sprawie swoich danych wyślij na ${DATA_MAILBOX} albo pisemnie na adres siedziby z dopiskiem „Dane osobowe”. Odpowiemy bez zbędnej zwłoki, najpóźniej w ciągu miesiąca; w skomplikowanych sprawach możemy przedłużyć ten termin o dwa miesiące — poinformujemy o tym w ciągu miesiąca. Żeby potwierdzić, że wniosek pochodzi od Ciebie, możemy poprosić o dodatkowe informacje, np. numer zlecenia; nie żądamy kopii dokumentu tożsamości.`;
+const REQUESTS = `Wniosek w sprawie swoich danych wyślij na ${DATA_MAILBOX} albo pisemnie na adres siedziby z dopiskiem „Dane osobowe”. Odpowiemy bez zbędnej zwłoki, najpóźniej w ciągu miesiąca; w skomplikowanych sprawach możemy przedłużyć ten termin o dwa miesiące — poinformujemy o tym w ciągu miesiąca. Żeby potwierdzić, że wniosek pochodzi od Ciebie, możemy poprosić o dodatkowe informacje, np. numer zlecenia albo adres miejsca wizji; nie żądamy kopii dokumentu tożsamości.`;
 
 /** Monitoring tools get technical identifiers only (rodo.md → "Dane poza bazą"; P9) — pseudonymous, not anonymous. */
 const MONITORING_TRANSFER =
@@ -97,13 +97,13 @@ const CLIENTS: Clause = {
     paragraph(CONTROLLER),
     heading('Jakie dane przetwarzamy'),
     paragraph(
-      'Imię i nazwisko albo nazwę firmy, NIP, osobę kontaktową, numer telefonu, adres e-mail, adres korespondencyjny, adres miejsca instalacji i dane o instalacji (np. numer punktu poboru energii, moc przyłączeniowa, numer seryjny ładowarki, parametry instalacji), treść korespondencji i notatek ze zlecenia, zdjęcia i filmy z wykonywanych prac (wraz z danymi zapisanymi w pliku, np. datą wykonania), dokumenty zlecenia, a przy rozliczeniach kwoty, numery faktur i terminy płatności.',
+      'Imię i nazwisko albo nazwę firmy, NIP, osobę kontaktową, numer telefonu, adres e-mail, adres korespondencyjny, adres miejsca instalacji i dane o instalacji (np. numer punktu poboru energii, moc przyłączeniowa, numer seryjny ładowarki, parametry instalacji), treść korespondencji i notatek ze zlecenia, zdjęcia i filmy z wykonywanych prac (wraz z danymi zapisanymi w pliku, np. datą wykonania, a w plikach dodanych w panelu także miejscem wykonania), dokumenty zlecenia, a przy rozliczeniach kwoty, numery faktur i terminy płatności.',
     ),
     paragraph(
-      'Dokumenty potrzebne w sprawie u operatora sieci lub w administracji budynku (np. pełnomocnictwo, wniosek o przyłączenie) mogą zawierać Twój numer PESEL albo numer dokumentu tożsamości — tylko wtedy, gdy wymaga tego formularz lub przepisy, i tylko po to, żeby załatwić tę sprawę w Twoim imieniu. Numerów tych nie zapisujemy w innych miejscach systemu, a plików tych dokumentów nie wysyłamy do aplikacji na telefonach techników. Nie robimy zdjęć ani kopii dokumentów tożsamości.',
+      'Dokumenty potrzebne w sprawie u operatora sieci lub w administracji budynku (np. pełnomocnictwo, wniosek o przyłączenie) mogą zawierać Twój numer PESEL albo numer dokumentu tożsamości — tylko wtedy, gdy wymaga tego formularz lub przepisy, i tylko po to, żeby załatwić tę sprawę w Twoim imieniu. Poza samym plikiem dokumentu nie zapisujemy tych numerów w systemie (w notatkach, tytułach, polach zlecenia), a plików tych dokumentów nie wysyłamy do aplikacji na telefonach techników. Nie robimy zdjęć ani kopii dokumentów tożsamości.',
     ),
     paragraph(
-      'Zdjęcia i filmy z prac (filmy zawsze bez dźwięku) wykonują nasi pracownicy w firmowej aplikacji na telefonie służbowym albo prywatnym. Pliki są zapisywane tylko w pamięci tej aplikacji, nie trafiają do galerii telefonu ani do prywatnej chmury, a po przesłaniu na nasz serwer są usuwane z telefonu. W aplikacji przechowywana jest też zaszyfrowana kopia danych potrzebnych do zlecenia (nazwa, numer telefonu, adres instalacji); po zgłoszeniu utraty telefonu usuwamy ją zdalnie.',
+      'Zdjęcia i filmy z prac wykonują nasi pracownicy w firmowej aplikacji na telefonie służbowym albo prywatnym albo dodają je w panelu (np. pliki otrzymane od Ciebie). Filmy nagrane w aplikacji są zawsze bez dźwięku, a jej zdjęcia nie zawierają lokalizacji; pliki dodane w panelu przechowujemy w postaci oryginalnej — mogą zawierać dźwięk i dane zapisane przez urządzenie, także miejsce wykonania. Pliki z aplikacji są zapisywane tylko w jej pamięci, nie trafiają do galerii telefonu ani do prywatnej chmury i są usuwane z telefonu po potwierdzeniu odbioru przez nasz serwer (gdy dane w aplikacji są ukryte, usunięcie czeka do ponownego wyświetlenia danych albo logowania; plik odrzucony przez serwer zostaje, dopóki pracownik go nie usunie). W aplikacji przechowywana jest też zaszyfrowana kopia danych potrzebnych do zlecenia (m.in. nazwa, numer telefonu, adres instalacji, notatki i wpisy ze zlecenia); po zgłoszeniu utraty telefonu zlecamy jej zdalne usunięcie — aplikacja usuwa ją przy najbliższym połączeniu z naszym serwerem.',
     ),
     heading('W jakim celu i na jakiej podstawie'),
     list(
@@ -116,15 +116,19 @@ const CLIENTS: Clause = {
       'odpowiedzi na wnioski w sprawie danych osobowych (art. 6 ust. 1 lit. c RODO),',
       'jeżeli klientem jest firma, a Ty jesteś jej osobą kontaktową — kontakt w sprawie zlecenia; to nasz prawnie uzasadniony interes (art. 6 ust. 1 lit. f RODO).',
     ),
+    paragraph('Dane osób kontaktowych klientów będących firmami otrzymujemy od tych firm.'),
     heading('Wizja lokalna (oględziny przed ofertą)'),
     paragraph(
       'Jeżeli prosisz nas o ofertę, nasz pracownik może najpierw obejrzeć miejsce instalacji (wizja lokalna). Robimy to wyłącznie na Twoje zgłoszenie — w celu przygotowania oferty, czyli działań podejmowanych na Twoje żądanie przed zawarciem umowy (art. 6 ust. 1 lit. b RODO).',
     ),
     paragraph(
-      'Na tym etapie zapisujemy w naszym systemie: adres miejsca instalacji, zdjęcia i filmy posesji, garażu i instalacji elektrycznej (filmy bez dźwięku; wraz z danymi zapisanymi w pliku, np. datą wykonania), notatki z oględzin oraz — jeśli go podasz — Twój numer telefonu do kontaktu w sprawie oferty. Twojego imienia i nazwiska na tym etapie nie zapisujemy. Dane pochodzą od Ciebie i z oględzin wykonanych przez naszego pracownika.',
+      'Na tym etapie zapisujemy w naszym systemie: adres miejsca instalacji, zdjęcia i filmy posesji, garażu i instalacji elektrycznej (filmy nagrane w aplikacji — bez dźwięku; wraz z danymi zapisanymi w pliku, np. datą, a w plikach dodanych w panelu także miejscem wykonania), notatki z oględzin oraz — jeśli go podasz — Twój numer telefonu do kontaktu w sprawie oferty. Twojego imienia i nazwiska na tym etapie nie zapisujemy. Dane pochodzą od Ciebie i z oględzin wykonanych przez naszego pracownika.',
     ),
     paragraph(
-      'Jeżeli na zdjęciach mimo naszej ostrożności znajdą się inne osoby, ich pojazdy albo tabliczki z nazwiskami, przetwarzamy je w naszym prawnie uzasadnionym interesie — przygotowania oferty i udokumentowania stanu miejsca przed pracami (art. 6 ust. 1 lit. f RODO); zasady opisuje sekcja „Osoby postronne na zdjęciach i filmach”.',
+      'Jeżeli na zdjęciach mimo naszej ostrożności znajdą się inne osoby, ich pojazdy albo tabliczki z nazwiskami, przetwarzamy je w naszym prawnie uzasadnionym interesie — udokumentowania stanu miejsca przed pracami (art. 6 ust. 1 lit. f RODO); zasady opisuje sekcja „Osoby postronne na zdjęciach i filmach”.',
+    ),
+    paragraph(
+      'Jeżeli wizję zamawia ktoś inny niż właściciel lub mieszkaniec, ich dane przetwarzamy w naszym prawnie uzasadnionym interesie — przygotowania oferty (art. 6 ust. 1 lit. f RODO); przysługuje im sprzeciw.',
     ),
     paragraph(
       'Podanie adresu i umożliwienie oględzin jest dobrowolne, ale bez nich nie przygotujemy oferty. Numer telefonu jest nieobowiązkowy.',
@@ -225,7 +229,7 @@ const EMPLOYEES: Clause = {
     list(
       'dane konta: adres e-mail, nazwa wyświetlana, rola, status konta i data ostatniego logowania,',
       'dane logowania: hasło i drugi składnik logowania — wyłącznie w postaci zabezpieczonej, której nikt w firmie nie odczytuje — oraz nazwy, które sam nadajesz swoim kluczom dostępu (np. „Telefon Jana”): widzisz je tylko Ty, a usuwamy je razem z kluczem,',
-      'dane o sesjach: adres IP (w skróconej postaci w narzędziach do monitorowania; pełny adres widzisz tylko Ty, w sekcji „Moje sesje” na stronie „Konto”), rodzaj przeglądarki, czasy aktywności,',
+      'dane o sesjach: adres IP — pełny adres jest tylko w zapisie sesji (widzisz go tylko Ty, w sekcji „Moje sesje” na stronie „Konto”) i usuwamy go 30 dni po zakończeniu sesji; w dzienniku audytu i w logach serwera adres IP jest skrócony — oraz rodzaj przeglądarki i czasy aktywności,',
       'rejestr przeglądarek konta: zabezpieczony losowy identyfikator przeglądarki, z której zalogowano się do konta, oraz data jego pierwszego i ostatniego użycia — bez adresu IP, lokalizacji i danych o urządzeniu,',
       'liczniki nieudanych prób logowania — w postaci pseudonimowej, bez adresu e-mail; służą wyłącznie ochronie przed zgadywaniem haseł i kodów,',
       'dziennik audytu: kto, co, kiedy, skąd (skrócony adres IP) i z jakim wynikiem — bez treści danych wprowadzanych do zleceń (wyjątek: kwoty płatności),',
@@ -235,7 +239,7 @@ const EMPLOYEES: Clause = {
     paragraph('Dane pochodzą od Ciebie i z Twojej aktywności w systemie; konto zakłada administrator systemu.'),
     heading('W jakim celu i na jakiej podstawie'),
     paragraph(
-      'Cele: dostęp do systemu, bezpieczeństwo danych klientów, rozliczalność (kto i kiedy wykonał operację) oraz ochrona przed nadużyciami. Podstawy: nasz prawnie uzasadniony interes — bezpieczna organizacja pracy na zleceniach i możliwość wyjaśnienia incydentu (art. 6 ust. 1 lit. f RODO) — oraz obowiązek zabezpieczenia danych osobowych (art. 6 ust. 1 lit. c w związku z art. 32 RODO). Dziennik audytu nie służy do oceny wydajności ani kontroli czasu pracy. Sięgamy do niego przy alercie bezpieczeństwa, wyjaśnianiu incydentu i okresowej kontroli bezpieczeństwa; jego zapisy mogą być dowodem, jeśli dojdzie do naruszenia zasad ochrony danych.',
+      'Cele: dostęp do systemu, bezpieczeństwo danych klientów, rozliczalność (kto i kiedy wykonał operację) oraz ochrona przed nadużyciami. Podstawy: nasz prawnie uzasadniony interes — bezpieczna organizacja pracy na zleceniach i możliwość wyjaśnienia incydentu (art. 6 ust. 1 lit. f RODO) — oraz obowiązek zabezpieczenia danych osobowych (art. 6 ust. 1 lit. c w związku z art. 32 RODO). Dziennik audytu nie służy do oceny wydajności ani kontroli czasu pracy. Sięgamy do niego przy ostrzeżeniu bezpieczeństwa, wyjaśnianiu incydentu i okresowej kontroli bezpieczeństwa; jego zapisy mogą być dowodem, jeśli dojdzie do naruszenia zasad ochrony danych.',
     ),
     paragraph('Podanie adresu e-mail i nazwy wyświetlanej jest niezbędne do założenia konta i pracy w systemie.'),
     heading('Jak długo przechowujemy dane'),
@@ -262,18 +266,18 @@ const EMPLOYEES: Clause = {
     ),
     heading('Aplikacja mobilna EVia Manager'),
     paragraph(
-      'Aplikacja służy do pracy w terenie, także bez zasięgu: pokazuje zlecenia i pozwala dodawać wpisy oraz zdjęcia i filmy z prac (filmy zawsze bez dźwięku). Instalujemy ją z pliku przekazanego przez administratora systemu, w jego obecności — nie ze sklepu z aplikacjami i nigdy z linku; na telefon trafia wyłącznie plik aplikacji.',
+      'Aplikacja służy do pracy w terenie, także bez zasięgu: pokazuje zlecenia i pozwala dodawać wpisy oraz zdjęcia i filmy z prac (filmy nagrane w aplikacji są zawsze bez dźwięku). Instalujemy ją z pliku przekazanego przez administratora systemu, w jego obecności — nie ze sklepu z aplikacjami i nigdy z linku; na telefon trafia wyłącznie plik aplikacji.',
     ),
     paragraph('Jakie dane o Tobie i telefonie przetwarzamy na serwerze w związku z aplikacją:'),
     list(
       'dane telefonu: model, system i jego wersja, poziom poprawek bezpieczeństwa, wersja aplikacji, losowy identyfikator tej instalacji aplikacji (nie jest to numer IMEI, numer telefonu ani identyfikator reklamowy), czas ostatniego połączenia z serwerem, liczba elementów czekających na wysłanie i stan urządzenia; widzisz je Ty i administrator systemu,',
-      'dane sesji aplikacji: adres IP przy połączeniach i czasy aktywności,',
+      'dane sesji aplikacji: adres IP przy połączeniach (pełny tylko w zapisie sesji, jak wyżej) i czasy aktywności,',
       'Twoja praca w aplikacji: wpisy, zdjęcia i filmy z Twoją nazwą wyświetlaną jako autora i czasem wykonania oraz informacja, że pochodzą z aplikacji i z której instalacji,',
       'dziennik audytu obejmuje działania z aplikacji tak samo jak działania w panelu.',
     ),
     paragraph('Co aplikacja przechowuje w telefonie:'),
     list(
-      'zaszyfrowaną bazę z kopią zleceń potrzebnych do pracy (m.in. nazwa i telefon klienta, adres instalacji, opisy dokumentów bez ich plików; bez płatności oraz adresów e-mail i numerów NIP klientów) — klucz szyfrujący jest w bezpiecznym magazynie systemu Android,',
+      'zaszyfrowaną bazę z kopią zleceń potrzebnych do pracy (m.in. nazwa i telefon klienta, adres instalacji, osoby kontaktowe, opisy, notatki i wpisy zleceń; bez dokumentów, płatności, adresów e-mail i NIP) — klucz szyfrujący jest w bezpiecznym magazynie systemu Android,',
       'kolejkę zmian czekających na wysłanie oraz zdjęcia i filmy do czasu, aż serwer potwierdzi ich odbiór — potem aplikacja usuwa je z telefonu,',
       'zdjęcia i filmy są zapisywane wyłącznie w prywatnej pamięci aplikacji: nie trafiają do galerii telefonu ani do chmury Google lub producenta i nie zawierają lokalizacji GPS,',
       'dane aplikacji są wyłączone z kopii zapasowej telefonu i z przenoszenia na nowy telefon,',
@@ -283,7 +287,7 @@ const EMPLOYEES: Clause = {
     list(
       'nie ma dostępu do Twoich prywatnych zdjęć i plików, kontaktów, SMS-ów, historii połączeń ani innych aplikacji,',
       'nie zbiera lokalizacji i nie śledzi, gdzie jesteś; nie używa mikrofonu, a filmy nagrywa bez dźwięku,',
-      'korzysta tylko z aparatu (gdy robisz zdjęcie lub film w aplikacji), z internetu i z powiadomień,',
+      'korzysta tylko z aparatu (gdy robisz zdjęcie lub film w aplikacji), z internetu, z powiadomień i z systemowego okna odblokowania (odcisk palca lub PIN; aplikacja nie otrzymuje danych biometrycznych),',
       'nie zawiera narzędzi analitycznych ani reklamowych i nie wysyła raportów o błędach do zewnętrznych firm — dane z aplikacji trafiają wyłącznie na serwery, z których korzysta firma,',
       'firma nie zarządza Twoim telefonem: nie może go zdalnie przeglądać, blokować ani wymazać w całości.',
     ),
@@ -291,10 +295,16 @@ const EMPLOYEES: Clause = {
       'Cel i podstawa: organizacja pracy w terenie oraz bezpieczeństwo danych klientów na telefonie — nasz prawnie uzasadniony interes (art. 6 ust. 1 lit. f RODO) i obowiązek zabezpieczenia danych (art. 6 ust. 1 lit. c w związku z art. 32 RODO). Danych o telefonie używamy tylko po to, żeby rozpoznać urządzenie, ostrzec o nieaktualnych zabezpieczeniach i móc je wylogować; nie służą do oceny Twojej pracy ani kontroli czasu pracy.',
     ),
     paragraph(
-      'Utrata telefonu i zakończenie współpracy: zgubienie lub kradzież telefonu zgłoś od razu (kontakt w sekcji „Pomoc”). Administrator wybiera wtedy „Zablokuj i wyczyść”: Twoje konto na tym telefonie zostaje wylogowane, a przy najbliższym połączeniu z serwerem aplikacja usuwa z telefonu wszystkie dane firmowe — bazę, kolejkę, zdjęcia, filmy i klucze. Tak samo dzieje się po dezaktywacji konta przy zakończeniu współpracy. Usuwane są wyłącznie dane tej aplikacji, nic poza nią. Dane możesz też usunąć samodzielnie („Wyczyść dane firmowe”) albo odinstalowując aplikację — niewysłane elementy wtedy przepadają. Po zwykłym wylogowaniu aplikacja usuwa kopię zleceń, a elementy niewysłane czekają na Twoje ponowne zalogowanie. Jeżeli aplikacja nie połączy się z serwerem przez 7 dni, ukrywa dane zleceń do ponownego zalogowania. Aplikacja wymaga włączonej blokady ekranu i sprawdza tylko, czy jest włączona.',
+      'Utrata telefonu i zakończenie współpracy: zgubienie lub kradzież telefonu zgłoś od razu (kontakt w sekcji „Pomoc”). Administrator wybiera wtedy „Zablokuj i wyczyść”: Twoje konto na tym telefonie zostaje wylogowane, a przy najbliższym połączeniu z serwerem aplikacja usuwa z telefonu wszystkie dane firmowe — bazę, kolejkę, zdjęcia, filmy i klucze. Tak samo dzieje się po dezaktywacji konta przy zakończeniu współpracy. Usuwane są wyłącznie dane tej aplikacji, nic poza nią.',
     ),
     paragraph(
-      'Jak długo: dane o telefonie na serwerze — 90 dni od ostatniego połączenia albo unieważnienia urządzenia; sesje aplikacji kończą się po 30 dniach bez połączenia i są usuwane po kolejnych 30 dniach; kopia zlecenia w telefonie — do 30 dni po zamknięciu zlecenia, do wylogowania albo wyczyszczenia; zdjęcia i filmy w telefonie — do potwierdzenia odbioru przez serwer.',
+      'Co możesz zrobić samodzielnie: dane możesz usunąć („Wyczyść dane firmowe”) albo odinstalować aplikację — niewysłane elementy wtedy przepadają. Po zwykłym wylogowaniu aplikacja usuwa kopię zleceń, a elementy niewysłane czekają na Twoje ponowne zalogowanie.',
+    ),
+    paragraph(
+      'Bez połączenia z serwerem: jeżeli aplikacja nie połączy się z serwerem przez 7 dni, ukrywa dane zleceń do ponownego zalogowania. Aplikacja wymaga włączonej blokady ekranu i sprawdza tylko, czy jest włączona.',
+    ),
+    paragraph(
+      'Jak długo: dane o telefonie na serwerze — 90 dni od ostatniego połączenia albo unieważnienia urządzenia; sesja aplikacji kończy się po 14 dniach bez połączenia z serwerem, najpóźniej 30 dni po zalogowaniu; jej zapis usuwamy 30 dni po zakończeniu; kopia zamkniętego zlecenia w telefonie — usuwana przy pierwszej synchronizacji po upływie 30 dni od zamknięcia (wcześniej przy wylogowaniu albo wyczyszczeniu); zdjęcia i filmy w telefonie — do potwierdzenia odbioru przez serwer.',
     ),
     paragraph(
       'Prywatny telefon: używasz go dobrowolnie, na zasadach z pisemnego oświadczenia (sekcja „Panel w przeglądarce prywatnego telefonu lub komputera”).',

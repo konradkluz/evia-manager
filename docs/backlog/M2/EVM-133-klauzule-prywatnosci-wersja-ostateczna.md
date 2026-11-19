@@ -83,8 +83,11 @@ Warunek `ready`; bez nich nie wpisujemy niczego do kodu.
 - Zgodność treści web ↔ mobile: sprawdzić, czy istniejący test (`apps/mobile/test/privacy-help.test.tsx`) porównuje treść, wersję i datę; jeśli nie — dopisać w AC1.
 - `apps/mobile/plugins/expo-config.ts` zawiera odwołanie do znaczników — sprawdzić przy realizacji, czy wymaga zmiany.
 
+- Odłożone po przeglądach (2026-11-19): L2 — adres pomocy w aplikacji ze zmiennej builda `EVIA_CONTACT_EMAIL` może się rozjechać ze stałą w klauzuli (kandydat: build odrzuca wartość różną od stałej); L6 — brak zadań retencji 12 mies. / 2 lata / 6 lat (historyjka przed 2027-11); podgląd filmu z panelu zachowuje dźwięk (kandydat do `/refine`: `-an`); C7 / C9 / C10 — warunki etapu E2.
+
 ## Dziennik
 - 2026-11-16 — utworzono jako draft (product-owner); wejście: `.scratch/EVM-133/legal-review.md` (agent prawny)
 - 2026-11-19 — wersja aplikacji podniesiona do 1.0.0 (decyzja Konrada 2026-11-19); status bez zmian — czeka na dane spółki (Tech Lead)
 - 2026-11-19 — Konrad podał dane spółki i adres kontaktowy, zgodził się na sprawdzenie sądu rejestrowego w publicznym KRS i na dopisanie marki; pozostałe punkty z delegacji (RR-95); status `ready` (Tech Lead)
 - 2026-11-19 — realizacja (web-developer): treść 1.0 w obu `content.ts` (A1–A8, B, C1–C6, C8, C11–C17; akapit o wizji lokalnej z `rodo.md`), testy `EVM-133 AC1–AC5`, `rodo.md` („Rozstrzygnięcia klauzul informacyjnych”, pkt 9 checklisty, punkty 3–5, 7, 9, 14), S8 w `checklista-wydania.md`; bez C7 (biuro rachunkowe — brak faktu), C9 i C10 (poza kodem); status `in-progress`
+- 2026-11-19 — runda poprawek treści po przeglądach (prawny: ZATWIERDZAM Z WARUNKAMI dla testu wewnętrznego; security: REQUEST CHANGES → poprawione): rozróżnienie plików z aplikacji i z panelu (dźwięk, lokalizacja), sesja aplikacji 14 / 30 dni, kopia zamkniętego zlecenia, zakres lokalnej bazy, IP, wizja lokalna zamówiona przez inną osobę, źródło danych osób kontaktowych, podział akapitu o utracie telefonu; `rodo.md` uzupełnione danymi spółki; status `in-progress` (tester)
