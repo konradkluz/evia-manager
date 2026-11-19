@@ -465,6 +465,35 @@ describe('the system "back" after the unlock does not depend on the order of the
     expect(screen.getByTestId('entry-body').props.value).toBe(MARKER);
   });
 
+  it('EVM-146 AC3: the camera of the phone is released while the app is locked (the prop `active` does nothing on Android) and taken again at the unlock', async () => {
+    const rig = rigWith();
+    rig.media.capturePorts = {
+      native: {
+        importOriginal: () => Promise.resolve('ok'),
+        digestOriginal: () => Promise.resolve(null),
+        cancelUpload: () => Promise.resolve(true),
+      },
+      disk: { freeBytes: () => 10_000_000_000 },
+      registerAndEnqueue: () => Promise.resolve({ ok: true }),
+      now: () => 1,
+      newId: () => '0194c2a0-0000-7000-8000-000000000001',
+    };
+    await open(rig);
+    await fireEvent.press(screen.getByTestId('order-row-o1'));
+    await settle();
+    await act(async () => {
+      await rig.ports.camera.open('o1');
+    });
+    await settle();
+    expect(cameraMock.pauses).toBe(0);
+    await lock(rig);
+    expect(cameraMock.pauses).toBe(1);
+    expect(cameraMock.resumes).toBe(0);
+    await unlock(rig);
+    expect(cameraMock.resumes).toBe(1);
+    expect(cameraMock.pauses).toBe(1);
+  });
+
   it('EVM-146 AC2: the camera - "back" after the unlock closes the camera, not the order under it', async () => {
     const rig = rigWith();
     // the camera is only opened and left here: the ports of a phone are never asked for a picture

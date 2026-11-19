@@ -1,5 +1,5 @@
 # EVM-146 AC2: the same path as 130 but the automatic unlock of the e2e variant is NOT held - the app locks after 6 minutes in the background, unlocks
-# at once and must show the same form with the typed word ("Kontrolka146") still in the field.
+# at once and must show the same form with the typed word ("Kontrolka146") still in the field; the save after the unlock must end (review B1).
 appId: pl.eviacharge.manager
 ---
 - launchApp:
@@ -48,3 +48,12 @@ appId: pl.eviacharge.manager
     visible: 'Nowy wpis'
     timeout: 10000
 - assertVisible: 'Kontrolka146'
+# B1 of the review: the save AFTER the unlock must end (the form closes, the toast says it is saved) - the effects of the screen were cleaned by the lock
+- tapOn:
+    id: 'entry-save'
+- extendedWaitUntil:
+    visible: 'Zapisano w telefonie'
+    timeout: 15000
+- extendedWaitUntil:
+    notVisible: 'Nowy wpis'
+    timeout: 10000

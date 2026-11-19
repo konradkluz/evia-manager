@@ -595,6 +595,74 @@ describe('the view, the lock and the layout during a recording (EVM-110 AC3, AC6
     expect(rig.media.keepAwake.at(-1)).toBe(false);
   });
 
+  it('EVM-146 AC3: under the cover the camera is released only AFTER the film is saved (the unbinding must not cut the file); an unlock before that keeps it', async () => {
+    const { rig, videos } = setup();
+    await act(async () => {
+      await rig.device.guard.refresh();
+      await rig.device.guard.unlock();
+    });
+    const tree = (locked: boolean) => (
+      <SafeAreaProvider>
+        <StartupProvider checker={online}>
+          <SessionContext.Provider value={actionsOf(rig)}>
+            <LockGate locked={locked} prompting={false} failed={false} appState={rig.device.guard.appState} onUnlock={() => undefined}>
+              <CameraScreen orderId={WO} onClose={jest.fn()} />
+            </LockGate>
+          </SessionContext.Provider>
+        </StartupProvider>
+      </SafeAreaProvider>
+    );
+    const view = await render(tree(false));
+    await settle();
+    await startRecording();
+    await progress(33, 9 * MB);
+    cameraMock.endsOnStop = false; // the library takes its time to finish the file
+    await view.rerender(tree(true));
+    await settle();
+    expect(cameraMock.stopCalls).toBeGreaterThanOrEqual(1);
+    expect(cameraMock.pauses).toBe(0); // the file is not finished yet
+    await act(() => {
+      cameraMock.finishRecording();
+    });
+    await settle();
+    expect(videos).toHaveLength(1);
+    expect(cameraMock.pauses).toBe(1); // only now the camera is unbound
+    await view.rerender(tree(false));
+    await settle();
+    expect(cameraMock.resumes).toBe(1);
+  });
+
+  it('EVM-146 AC3: an unlock before the film is finished leaves the camera bound (no pause after the resume)', async () => {
+    const { rig } = setup();
+    await act(async () => {
+      await rig.device.guard.refresh();
+      await rig.device.guard.unlock();
+    });
+    const tree = (locked: boolean) => (
+      <SafeAreaProvider>
+        <StartupProvider checker={online}>
+          <SessionContext.Provider value={actionsOf(rig)}>
+            <LockGate locked={locked} prompting={false} failed={false} appState={rig.device.guard.appState} onUnlock={() => undefined}>
+              <CameraScreen orderId={WO} onClose={jest.fn()} />
+            </LockGate>
+          </SessionContext.Provider>
+        </StartupProvider>
+      </SafeAreaProvider>
+    );
+    const view = await render(tree(false));
+    await settle();
+    await startRecording();
+    cameraMock.endsOnStop = false;
+    await view.rerender(tree(true));
+    await view.rerender(tree(false)); // unlocked at once, the film is still being finished
+    await settle();
+    await act(() => {
+      cameraMock.finishRecording();
+    });
+    await settle();
+    expect(cameraMock.pauses).toBe(0);
+  });
+
   it('EVM-110 AC2: a second press of the shutter while the stop is under way does nothing more - no second stop', async () => {
     const { rig } = setup();
     await mount(rig);

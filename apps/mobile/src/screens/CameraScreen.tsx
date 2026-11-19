@@ -319,6 +319,31 @@ function CameraCapture({ orderId, onClose, focused }: { orderId: string; onClose
     },
     [media],
   );
+  // EVM-146: the camera of the phone is released while the app is locked. On Android the prop `active` of the view does nothing (it is for iOS), and the screen
+  // under the cover sits in a hidden `Activity` that renders nothing again until the unlock - so a change of `locked` reaches no render. What does run at the
+  // hide is the CLEANUP of an effect, and at the unlock its setup: they pause and resume the preview (`pausePreview` unbinds the camera). A recording is
+  // finished and saved first (the stop above); on a screen that goes away for good the call reaches a view that is gone and is ignored.
+  const heldByLock = useRef(false);
+  useEffect(() => {
+    if (heldByLock.current) {
+      heldByLock.current = false;
+      (cameraRef.current ?? lastCameraRef.current)?.resumePreview().catch(() => undefined);
+    }
+    return () => {
+      // the hide detaches the ref like an unmount does: the last view that existed is the one to release
+      const view = cameraRef.current ?? lastCameraRef.current;
+      if (view === null) return;
+      heldByLock.current = true;
+      const ended = recordingRef.current?.done.catch(() => undefined) ?? Promise.resolve();
+      void ended
+        .then(() => pipeline.whenIdle())
+        .then(() => {
+          if (heldByLock.current) return view.pausePreview();
+          return undefined;
+        })
+        .catch(() => undefined);
+    };
+  }, [pipeline]);
 
   const finish = useCallback(() => {
     setFinishing(true);

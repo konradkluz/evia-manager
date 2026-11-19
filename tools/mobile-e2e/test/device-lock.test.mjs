@@ -13,7 +13,10 @@ import {
   judgeViewTreeUnlocked,
   LOCK_CONTROL_VALUES,
   lockCommands,
+  CAMERA_POLLS,
+  judgeCameraClients,
   judgeStructure,
+  parseCameraClients,
   LOCKED_MAX_VISIBLE_REACT_VIEWS,
   parseReactViews,
   parseViewTree,
@@ -348,5 +351,88 @@ describe('the tree of views of the locked app (EVM-146 AC1)', () => {
     assert.equal(check.ok, false);
     assert.match(check.detail, /structure locked/);
     assert.match(check.detail, /#1 ok/);
+  });
+});
+
+describe('the camera service under the cover (EVM-146 AC3, S2)', () => {
+  /** The head of `dumpsys media.camera` as the emulator prints it (the events log follows the list of the clients). */
+  const service = (/** @type {string[]} */ ...clients) =>
+    [
+      '== Service global info: ==',
+      '',
+      'Active Camera Clients:',
+      '[',
+      ...clients,
+      ']',
+      'Allowed user IDs: 0',
+      '',
+      '== Camera service events log (most recent at top): ==',
+      `  CONNECT device 10 client for package ${APPLICATION_ID}`,
+    ].join('\n');
+  const client = (/** @type {string} */ pkg) =>
+    `(Camera ID: 10, Cost: 100, PID: 7689, Score: 0, State: 2User Id: 0, Client Package Name: ${pkg}, Conflicting Client Devices: {})`;
+
+  it('EVM-146 AC3: the parser counts the active clients of the app only in the list of the active clients, not in the events log', () => {
+    assert.equal(parseCameraClients(service(client(APPLICATION_ID))), 1);
+    assert.equal(parseCameraClients(service(client('com.other.app'))), 0);
+    assert.equal(parseCameraClients(service()), 0); // the events log still names the app: it is no client
+    assert.equal(parseCameraClients(service(client('com.other.app'), client(APPLICATION_ID))), 1);
+    assert.equal(parseCameraClients('ERROR: no service'), null);
+    assert.equal(parseCameraClients(`Active Camera Clients:\n[\n${client(APPLICATION_ID)}\n]`), 1); // no later heading: up to the end
+  });
+
+  it('EVM-146 AC3: present - the app must be a client (else the control is blind); absent - it must not be; no list or a failed command is a FAILURE', () => {
+    assert.equal(judgeCameraClients(out(0, service(client(APPLICATION_ID))), true).ok, true);
+    assert.match(judgeCameraClients(out(0, service()), true).detail, /control is blind/);
+    assert.equal(judgeCameraClients(out(0, service()), false).ok, true);
+    const held = judgeCameraClients(out(0, service(client(APPLICATION_ID))), false);
+    assert.equal(held.ok, false);
+    assert.match(held.detail, /still an active client/);
+    assert.match(judgeCameraClients(out(0, 'garbage'), false).detail, /no list of active camera clients/);
+    assert.equal(judgeCameraClients(out(1), false).ok, false);
+  });
+
+  it('EVM-146 AC3: the step waits for the release (reads again) and passes at the first read without the app; a camera that stays bound fails after all the reads', async () => {
+    let reads = 0;
+    /** @type {number[]} */
+    const sleeps = [];
+    const context = {
+      adb: () => {
+        reads += 1;
+        return out(0, reads < 3 ? service(client(APPLICATION_ID)) : service());
+      },
+      sleep: (/** @type {number} */ ms) => {
+        sleeps.push(ms);
+        return Promise.resolve();
+      },
+    };
+    const released = await runLockAction('camera-client-absent', context);
+    assert.equal(released.ok, true);
+    assert.match(released.detail, /read 3/);
+    assert.equal(sleeps.length, 2);
+    const held = await runLockAction('camera-client-absent', {
+      adb: () => out(0, service(client(APPLICATION_ID))),
+      sleep: () => Promise.resolve(),
+    });
+    assert.equal(held.ok, false);
+    assert.match(held.detail, new RegExp(`after ${String(CAMERA_POLLS)} reads`));
+    const present = await runDeviceAction(
+      'camera-client-present',
+      /** @type {never} */ ({ adb: () => out(0, service(client(APPLICATION_ID))), sleep: () => Promise.resolve() }),
+    );
+    assert.equal(present.ok, true);
+    assert.equal(isLockAction('camera-client-absent'), true);
+  });
+
+  it('EVM-146 AC3: the scenario reads the camera service with the camera open and again under the cover', () => {
+    const scenario = LOCK_SCENARIOS.find((entry) => entry.name === 'lock-camera-released');
+    assert.deepEqual(
+      scenario?.steps.map((step) => [step.flow, step.after]),
+      [
+        ['80-camera-sign-in.yaml', undefined],
+        ['137-lock-camera-open.yaml', ['camera-client-present']],
+        ['136-lock-camera-hold.yaml', ['camera-client-absent']],
+      ],
+    );
   });
 });

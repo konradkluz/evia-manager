@@ -31,6 +31,9 @@ export const cameraMock = {
   readyOnRestart: true,
   mountError: false,
   mounts: 0,
+  /** EVM-146: the camera of the phone is released by `pausePreview` and taken again by `resumePreview` (the prop `active` does nothing on Android). */
+  pauses: 0,
+  resumes: 0,
   props: null as Record<string, unknown> | null,
   takePictureAsync: jest.fn<Promise<{ uri: string }>, [unknown?]>(() => Promise.resolve({ uri: 'file:///cache/Camera/synthetic.jpg' })),
   forbidden,
@@ -64,6 +67,8 @@ export const cameraMock = {
     cameraMock.readyOnRestart = true;
     cameraMock.mountError = false;
     cameraMock.mounts = 0;
+    cameraMock.pauses = 0;
+    cameraMock.resumes = 0;
     cameraMock.props = null;
     cameraMock.recordOptions = [];
     cameraMock.stopCalls = 0;
@@ -86,6 +91,8 @@ export const CameraView = forwardRef<
     takePictureAsync: (options?: unknown) => Promise<{ uri: string }>;
     recordAsync: (options?: unknown) => Promise<{ uri: string }>;
     stopRecording: () => void;
+    pausePreview: () => Promise<void>;
+    resumePreview: () => Promise<void>;
   },
   ViewProps
 >(function CameraView(props, ref) {
@@ -99,6 +106,14 @@ export const CameraView = forwardRef<
         return new Promise((resolve, reject) => {
           cameraMock.recordings.push({ resolve, reject });
         });
+      },
+      pausePreview: () => {
+        cameraMock.pauses += 1;
+        return Promise.resolve();
+      },
+      resumePreview: () => {
+        cameraMock.resumes += 1;
+        return Promise.resolve();
       },
       stopRecording: () => {
         cameraMock.stopCalls += 1;

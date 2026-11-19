@@ -365,9 +365,10 @@ export function judgeStructure(top, locked) {
  * @returns {Promise<{ action: LockAction, ok: boolean, detail: string }>}
  */
 export async function runLockAction(action, context) {
-  // TMPMEASURE
-  await tmpMeasure(action, context);
-  if (action.startsWith('camera-client')) return { action, ok: true, detail: 'measure only' };
+  if (action === 'camera-client-present' || action === 'camera-client-absent') {
+    const verdict = await pollCameraClients(action === 'camera-client-present', context);
+    return { action, ok: verdict.ok, detail: verdict.detail };
+  }
   if (action === 'view-tree-unlocked') {
     const verdict = judgeViewTreeUnlocked(context.adb(...lockCommands.dump()));
     const structure = judgeStructure(context.adb(...lockCommands.top()), false);
@@ -404,21 +405,62 @@ export async function runLockAction(action, context) {
   return { action, ok: ok && structure.ok, detail: details.join(' | ') };
 }
 
-// TMPMEASURE
-import { mkdirSync, writeFileSync } from 'node:fs';
-/** @param {string} action @param {LockContext} context */
-async function tmpMeasure(action, context) {
-  const dir = process.env['EVIA_LOCK_MEASURE_DIR'];
-  if (dir === undefined) return;
-  mkdirSync(dir, { recursive: true });
-  const stamp = String(Date.now());
-  if (action.startsWith('camera-client')) {
-    for (const wait of action === 'camera-client-absent' ? [0, 8000, 12000] : [0]) {
-      await context.sleep(wait);
-      writeFileSync(`${dir}/${action}-${stamp}-w${String(wait)}-camera.txt`, context.adb('shell', 'dumpsys', 'media.camera').stdout);
-    }
-  } else {
-    await context.sleep(1500);
-    writeFileSync(`${dir}/${action}-${stamp}-top.txt`, context.adb('shell', 'dumpsys', 'activity', 'top').stdout);
+/** How often the camera service is read while it is waited for (the release follows the hide of the screen by a moment), and the pause between the reads. */
+export const CAMERA_POLLS = 8;
+export const CAMERA_POLL_PAUSE_MS = 1000;
+
+/**
+ * The number of active clients of the camera service that belong to the app (`Active Camera Clients:` of `dumpsys media.camera`); `null` when the output has
+ * no such list at all (a failed or foreign output is not "no client").
+ * @param {string} output
+ * @param {string} [packageName]
+ * @returns {number | null}
+ */
+export function parseCameraClients(output, packageName = APPLICATION_ID) {
+  const start = output.indexOf('Active Camera Clients:');
+  if (start < 0) return null;
+  const rest = output.slice(start);
+  const end = rest.search(/Allowed user IDs|\n==/);
+  const section = end < 0 ? rest : rest.slice(0, end);
+  return section
+    .split('Client Package Name: ')
+    .slice(1)
+    .filter((part) => part.startsWith(`${packageName},`)).length;
+}
+
+/**
+ * The camera step (S2): while the camera of the app is open (`present`) the app IS an active client; under the cover (`!present`) it must NOT be.
+ * @param {Outcome} dump the output of `dumpsys media.camera`
+ * @param {boolean} present
+ * @returns {{ ok: boolean, detail: string }}
+ */
+export function judgeCameraClients(dump, present) {
+  if (dump.status !== 0) return { ok: false, detail: 'dumpsys media.camera failed (adb)' };
+  const clients = parseCameraClients(dump.stdout);
+  if (clients === null)
+    return { ok: false, detail: 'no list of active camera clients in dumpsys media.camera (an empty proof is not a pass)' };
+  if (present)
+    return clients > 0
+      ? { ok: true, detail: `the app is an active client of the camera service (${String(clients)}): the control sees what it should find` }
+      : { ok: false, detail: 'the camera is open but the app is not a client of the camera service - the control is blind' };
+  return clients === 0
+    ? { ok: true, detail: 'the camera service has no active client of the app under the cover (the camera is released)' }
+    : { ok: false, detail: `the app is still an active client of the camera service (${String(clients)}) under the cover` };
+}
+
+/**
+ * Reads the camera service until the verdict is the wanted one (the release follows the lock by a moment) or the reads are used up.
+ * @param {boolean} present
+ * @param {LockContext} context
+ * @returns {Promise<{ ok: boolean, detail: string }>}
+ */
+async function pollCameraClients(present, context) {
+  /** @type {{ ok: boolean, detail: string }} */
+  let verdict = { ok: false, detail: 'not read' };
+  for (let read = 1; read <= CAMERA_POLLS; read += 1) {
+    if (read > 1) await context.sleep(CAMERA_POLL_PAUSE_MS);
+    verdict = judgeCameraClients(context.adb(...lockCommands.cameraService()), present);
+    if (verdict.ok) return { ok: true, detail: `${verdict.detail} (read ${String(read)})` };
   }
+  return { ok: false, detail: `${verdict.detail} (after ${String(CAMERA_POLLS)} reads)` };
 }
