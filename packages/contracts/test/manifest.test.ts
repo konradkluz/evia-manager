@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { AUTHZ_MANIFEST, MFA_ENROLLMENT_OPERATIONS, MOBILE_OPERATIONS, operationChannels, PUBLIC_OPERATIONS } from '../src/authz.ts';
 import { buildAuthzManifest, renderAuthzModule } from '../src/manifest.ts';
 
-/** Open to both channels: the panel keeps its cookie (EVM-127: the templates; EVM-131: the five operations of the upload session). */
+/** Open to both channels: the panel keeps its cookie (EVM-127: the templates; EVM-131: the five operations of the upload session; EVM-142: the address of a thumbnail or a preview). */
 const DUAL_CHANNEL_OPERATIONS = [
   'listWorkOrderTemplates',
   'createUploadSession',
@@ -11,6 +11,7 @@ const DUAL_CHANNEL_OPERATIONS = [
   'getUploadPartUrl',
   'completeUploadSession',
   'abortUploadSession',
+  'createMediaAssetDownloadUrl',
 ];
 
 const bundled: unknown = JSON.parse(readFileSync('dist/openapi.json', 'utf8'));
@@ -243,6 +244,14 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
     }
   });
 
+  it('EVM-142 AC1 the address of a thumbnail or a preview is open to the phone and the panel for the three roles; the role Tylko odczyt is refused on the phone by the channel of the role', () => {
+    const entry = AUTHZ_MANIFEST['createMediaAssetDownloadUrl'];
+    expect(entry?.authz.roles).toEqual(['administrator', 'editor', 'read_only']);
+    expect(operationChannels(entry?.authz ?? {})).toEqual(['web', 'mobile']);
+    expect(entry?.authz.stepUp).toBeUndefined();
+    expect(MOBILE_OPERATIONS).toContain('createMediaAssetDownloadUrl');
+  });
+
   it('EVM-131 AC2 AC5 exactly the five upload-session operations of the media are open to the phone besides the panel; the rest of the media stays web only', () => {
     const media = ['createUploadSession', 'listUploadParts', 'getUploadPartUrl', 'completeUploadSession', 'abortUploadSession'];
     const dual = Object.entries(AUTHZ_MANIFEST)
@@ -260,7 +269,6 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'restoreMediaAsset',
       'rescanMediaAsset',
       'purgeMediaAssetFile',
-      'createMediaAssetDownloadUrl',
     ]) {
       expect(operationChannels(AUTHZ_MANIFEST[id]?.authz ?? {}), id).toEqual(['web']);
     }
