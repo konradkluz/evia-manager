@@ -44,11 +44,14 @@ export const LOCK_CONTROL_VALUES = Object.freeze({
 export const COVER_TITLE = 'Aplikacja zablokowana';
 export const COVER_ID = 'lock-overlay';
 
+/** The dump goes to a file that only the shell can read and is removed in the same command (the tree holds no real data on the e2e device anyway). */
+const DUMP_FILE = '/data/local/tmp/evia-view-tree.xml';
+
 /** Commands of the lock step: the dump goes to the standard output (no file on the device), with the views not important for accessibility (no `--compressed`). */
 export const lockCommands = {
-  dump: () => ['shell', 'uiautomator dump /dev/tty'],
+  dump: () => ['shell', `uiautomator dump ${DUMP_FILE} > /dev/null; cat ${DUMP_FILE}; rm -f ${DUMP_FILE}`],
   /** The compressed one - used only to show that the uncompressed dump holds MORE (the proof that the step looks at the right thing). */
-  dumpCompressed: () => ['shell', 'uiautomator dump --compressed /dev/tty'],
+  dumpCompressed: () => ['shell', `uiautomator dump --compressed ${DUMP_FILE} > /dev/null; cat ${DUMP_FILE}; rm -f ${DUMP_FILE}`],
 };
 
 /** @param {string} action @returns {boolean} */
@@ -128,7 +131,11 @@ export function judgeViewTree(dump) {
   if (dump.status !== 0) return { ok: false, detail: 'the dump of the view tree failed (uiautomator)', nodes: 0 };
   const nodes = parseViewTree(dump.stdout);
   if (nodes === null || nodes.length === 0)
-    return { ok: false, detail: 'the dump of the view tree is empty or has no hierarchy (an empty proof is not a pass)', nodes: 0 };
+    return {
+      ok: false,
+      detail: `the dump of the view tree is empty or has no hierarchy (an empty proof is not a pass; output: ${JSON.stringify(dump.stdout.trim().slice(0, 100))})`,
+      nodes: 0,
+    };
   const own = nodes.filter((node) => node.packageName === APPLICATION_ID);
   if (own.length === 0)
     return {
