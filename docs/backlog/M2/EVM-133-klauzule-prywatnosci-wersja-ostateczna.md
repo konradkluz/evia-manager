@@ -4,7 +4,7 @@ title: Klauzule prywatności w wersji ostatecznej (panel i aplikacja) — odblok
 type: story
 milestone: M2
 epic: E14 Dystrybucja i utrzymanie
-status: draft
+status: ready
 priority: P0
 path: lekka             # zmiana treści statycznej (bez nowych endpointów, danych i komponentów); ryzyko prawne ogranicza obowiązkowy przegląd agenta prawnego, nie liczba recenzentów kodu
 owner: web-developer    # jeden wykonawca dla obu plików `content.ts` (zwykła edycja stałych i testów; wspólna treść)
@@ -64,6 +64,14 @@ Pozostałe punkty `[PRAWNIK/IOD]` w `rodo.md` niedotyczące treści klauzul; wzo
 - Ścieżka `lekka`: brak nowych endpointów, danych i komponentów; jeden wykonawca zmienia oba pliki, `security-engineer` recenzuje zgodność z SR-PRIV-05 / SR-MOB-12; przegląd prawny w DoD (nie jako recenzent kodu).
 
 ## Pytania do Konrada
+**Odpowiedzi (Konrad, 2026-11-19; historyjka `ready`):**
+1. **Dane administratora** (podane przez Konrada, potwierdzone z odpisem pełnym KRS z 2026-11-19 — publiczne API Ministerstwa Sprawiedliwości, za zgodą Konrada): Electroplus Realty spółka z ograniczoną odpowiedzialnością, Aleja „Solidarności” 68 / 121, 00-240 Warszawa; KRS 0001109597, Sąd Rejonowy dla m.st. Warszawy w Warszawie, XII Wydział Gospodarczy Krajowego Rejestru Sądowego; NIP 5253005645; REGON 528831324; kapitał zakładowy 5 000 zł. **Marka:** w klauzuli dopisujemy, że spółka działa pod marką EVia Charge (decyzja Konrada).
+2. **Kontakt w sprawach danych osobowych:** `kontakt@electroplus.io` (skrzynka funkcyjna) albo listownie na adres siedziby z dopiskiem „Dane osobowe”; inspektor ochrony danych nie jest wyznaczony.
+3. **Adres pomocy (`CONTACT_EMAIL`):** ta sama skrzynka (z delegacji Konrada — wariant rekomendowany); numer telefonu biura niepodany → nie pokazujemy.
+4. **Data obowiązywania:** dzień scalenia PR (z delegacji — wariant rekomendowany).
+5. **Treść:** rozstrzygnięcia A1–A8, akapit B i ustalenia C z `legal-review.md` w wariancie bezpiecznym wybiera Tech Lead z delegacji Konrada (RR-95); punkt kontrolny Konrada = scalenie PR.
+
+Pytania pierwotne:
 Warunek `ready`; bez nich nie wpisujemy niczego do kodu.
 1. **Dane administratora:** pełna nazwa spółki, forma prawna, KRS, NIP, REGON, adres siedziby (jak w rejestrze).
 2. **Kontakt w sprawach danych osobowych:** adres e-mail **funkcyjny** (np. skrzynka „dane osobowe” w domenie firmy), nie imienny — rekomendacja: nie zależy od jednej osoby, przeżyje zmianę składu i nie ujawnia osoby w klauzuli publicznej.
@@ -78,3 +86,4 @@ Warunek `ready`; bez nich nie wpisujemy niczego do kodu.
 ## Dziennik
 - 2026-11-16 — utworzono jako draft (product-owner); wejście: `.scratch/EVM-133/legal-review.md` (agent prawny)
 - 2026-11-19 — wersja aplikacji podniesiona do 1.0.0 (decyzja Konrada 2026-11-19); status bez zmian — czeka na dane spółki (Tech Lead)
+- 2026-11-19 — Konrad podał dane spółki i adres kontaktowy, zgodził się na sprawdzenie sądu rejestrowego w publicznym KRS i na dopisanie marki; pozostałe punkty z delegacji (RR-95); status `ready` (Tech Lead)
