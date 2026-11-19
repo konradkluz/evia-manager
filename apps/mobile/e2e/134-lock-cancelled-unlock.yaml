@@ -1,0 +1,16 @@
+# EVM-146 AC4: the app is locked with the unlock held (flow 133 and the resume step). "Odblokuj" asks for the system unlock, which answers "cancelled" (the hook):
+# the cover stays and the content below it is still out of the tree. tools/mobile-e2e reads the tree again afterwards (step `view-tree-locked`).
+appId: pl.eviacharge.manager
+---
+- extendedWaitUntil:
+    visible:
+      id: 'lock-overlay'
+    timeout: 20000
+- tapOn:
+    id: 'lock-unlock'
+- extendedWaitUntil:
+    visible:
+      id: 'lock-unlock'
+    timeout: 10000
+- assertVisible: 'Aplikacja zablokowana'
+- assertNotVisible: 'Kontrolka146'

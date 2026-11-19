@@ -4,7 +4,7 @@ title: "Aplikacja: pod nakładką blokady nie ma danych zleceń w drzewie widok�
 type: story
 milestone: M2
 epic: E9 Dostęp mobilny
-status: ready
+status: in-progress
 priority: P2
 path: pelna             # dane na urządzeniu, bezpieczeństwo aplikacji mobilnej (SR-MOB-03/05/06/08); zmiana wspólnej powłoki ekranów, ryzyko utraty niezapisanych danych
 owner: mobile-developer
@@ -80,7 +80,12 @@ Jako **właściciel firmy** chcę, aby **zablokowana aplikacja nie zawierała da
 
 - Z konsultacji security (Low): test AC1 próbkować wielokrotnie podczas wznowienia z tła po > 5 min (decyzja o blokadzie przed pierwszym renderem treści); szkice formularzy w pamięci kasować przy każdym zakończeniu sesji (wylogowanie, `session_revoked`, „Wyczyść dane firmowe”, zmiana właściciela instalacji), zachować tylko przy zwykłej blokadzie; hipoteza do sprawdzenia testem AC1: `<Activity mode="hidden">` z React 19 zachowuje stan bez odmontowania; `testID` z identyfikatorami zleceń są widoczne jako `resource-id` — sprawdzić build release i to, że hooki e2e do niego nie trafiają; pasek aparatu pod nakładką bez numeru zlecenia. Recenzenta ux-designer można zastąpić jednym pytaniem na demo („czy przy zdejmowaniu nakładki nic nie miga”).
 
+- Wykonanie (etap 2, 2026-11-19): technika = `<Activity mode="hidden">` w `LockGate` (widoki wycofane z drzewa, stan w pamięci zachowany; efekty ekranów są sprzątane i uruchamiane od nowa po odblokowaniu). Hak e2e `unlockHeld` żyje wyłącznie w panelu haków (`e2e-hooks/panel.tsx`) i w `DeviceOverrides`, które resolver Metro (`plugins/e2e-hooks-resolver.ts`, testy EVM-093 AC1: wydanie i każdy inny wariant = pusty slot, fail closed) podmienia tylko w wariancie e2e — w wydaniu go nie ma. `testID` z identyfikatorami zleceń przy ODBLOKOWANEJ aplikacji (widoczne jako `resource-id`) są poza zakresem tej historyjki; przy zablokowanej aplikacji ich nie ma (drzewo bez widoków treści).
+- Dowód `hint`: PLACEHOLDER_NOTE
+- Skutki `Activity` poprawione w kodzie: `CameraScreen` (`useForeground` czyta stan aplikacji z `guard.appState` przy każdej subskrypcji — zdarzenie `active` zgubione pod nakładką nie zostawia ciemnego podglądu) i `useAllSentAnnouncement` (pierwsze uruchomienie efektu po odblokowaniu przejmuje stan, nie ogłasza „Wszystko wysłane” za pliki potwierdzone w trakcie blokady). Zostawione bez zmian: ogłoszenie liczby plików w `OrderFilesScreen` po odblokowaniu (sama liczba, bez danych zlecenia) i ponowne odczytanie listy / szczegółów zleceń przy odblokowaniu (świeży stan z bazy lokalnej). W `apps/mobile/src` nie ma `<Modal` ani innego natywnego okna poza drzewem.
+
 ## Dziennik
 - 2026-11-18 — utworzono jako szkic (product-owner) na podstawie ustalenia security z przeglądu poprawki blokady (EVM-101, PR #150)
 - 2026-11-18 — naniesiono konsultację security (Tech Lead): test AC1 zaostrzony (`uiautomator dump`, najpierw czerwony), zapis wymagań w AC6 wskazany, priorytet P1 → P2 z terminem „przed drugim technikiem”, pytanie 4 o ryzyko rezydualne; status `draft`
 - 2026-11-18 — Konrad: „Akceptuję rekomendacje” — wszystkie pytania rozstrzygnięte wg rekomendacji; status `ready` (Tech Lead)
+- 2026-11-19 — status `in-progress`; etap 2 (mobile-developer): `LockGate` na `Activity` (zamiast spike'u), testy Jest AC1–AC4 (`lock-view-tree.test.tsx`, aparat, „Wszystko wysłane”), kroki emulatora `view-tree-unlocked` / `view-tree-resume`, scenariusze `lock-*`

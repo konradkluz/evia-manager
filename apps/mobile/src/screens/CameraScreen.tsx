@@ -75,7 +75,11 @@ const CATEGORY_KEY: Readonly<Record<MediaCategory, string>> = {
 /** `true` while the app is in the foreground (the camera is released in the background and while the app is locked); the screen opens in the foreground. */
 function useForeground(onLoseForeground: () => void): boolean {
   const [active, setActive] = useState(true);
+  const { guard } = useSession();
   useEffect(() => {
+    // EVM-146: while the app is locked the screen sits in a hidden `Activity` with its effects cleaned, so a change that came meanwhile reached nobody:
+    // the state is read again at every subscription (the unlock), or the preview would stay dark after a return to the foreground under the cover
+    setActive(guard.appState.current() === 'active');
     const subscription = AppState.addEventListener('change', (next) => {
       // EVM-110 AC3: a recording is told to stop BEFORE the view is deactivated (the same turn), so the library ends the file instead of losing it
       if (next !== 'active') onLoseForeground();
@@ -84,7 +88,7 @@ function useForeground(onLoseForeground: () => void): boolean {
     return () => {
       subscription.remove();
     };
-  }, [onLoseForeground]);
+  }, [onLoseForeground, guard]);
   return active;
 }
 

@@ -8,12 +8,16 @@ import {
   COVER_TITLE,
   findLeaks,
   isLockAction,
+  judgeResumeSample,
   judgeViewTree,
+  judgeViewTreeUnlocked,
   LOCK_CONTROL_VALUES,
   lockCommands,
   parseViewTree,
+  RESUME_SAMPLES,
   runLockAction,
   SAMPLES,
+  UNLOCKED_MUST_SHOW,
   unescapeXml,
 } from '../src/device-lock.mjs';
 import { LOCK_SCENARIOS } from '../src/lock-scenarios.mjs';
@@ -163,12 +167,107 @@ describe('the tree of views of the locked app (EVM-146 AC1)', () => {
   it('EVM-146 AC1: the lock scenario is selectable by the prefix `lock-` and ends with the step after the flow of the lock', () => {
     assert.deepEqual(
       selectScenarios(['lock-']).map((scenario) => scenario.name),
-      ['lock-view-tree', 'lock-state-kept'],
+      ['lock-view-tree', 'lock-state-kept', 'lock-survey-kept', 'lock-camera-kept'],
     );
     const [scenario] = LOCK_SCENARIOS;
     assert.ok(scenario);
-    assert.equal(scenario.steps.at(-1)?.flow, '130-lock-view-tree.yaml');
-    assert.deepEqual(scenario.steps.at(-1)?.after, ['view-tree-locked']);
+    assert.deepEqual(
+      scenario.steps.map((step) => [step.flow, step.after]),
+      [
+        ['80-camera-sign-in.yaml', undefined],
+        ['130-lock-form-typed.yaml', ['view-tree-unlocked']],
+        ['133-lock-hold-and-leave.yaml', ['view-tree-resume']],
+        ['134-lock-cancelled-unlock.yaml', ['view-tree-locked']],
+      ],
+    );
     assert.match(scenario.ac, /EVM-146 AC1/);
+    assert.match(scenario.ac, /AC4/);
+  });
+
+  it('EVM-146 AC1: the positive control - the unlocked form must SHOW the number, the title and the typed word; a dump without them fails the scenario', () => {
+    const open = tree(node({ text: 'ZL-E2E-1 · Zlecenie testowe 1' }), node({ text: 'Kontrolka146' }), node({ text: 'Nowy wpis' }));
+    const good = judgeViewTreeUnlocked(out(0, open));
+    assert.equal(good.ok, true);
+    for (const name of UNLOCKED_MUST_SHOW) assert.match(good.detail, new RegExp(name));
+    assert.match(good.detail, /placeholder: not in the tree/);
+    const withHint = judgeViewTreeUnlocked(
+      out(
+        0,
+        tree(
+          node({ text: 'ZL-E2E-1 · Zlecenie testowe 1' }),
+          node({ text: 'Kontrolka146' }),
+          node({ hint: 'Nie wpisuj PESEL', text: 'Szukaj: adres, nazwisko, numer' }),
+        ),
+      ),
+    );
+    assert.match(withHint.detail, /"Nie wpisuj PESEL" in hint \(1\)/);
+    assert.match(withHint.detail, /"Szukaj: adres, nazwisko, numer" in text \(1\)/);
+    assert.equal(judgeViewTreeUnlocked(out(1)).ok, false);
+    assert.match(judgeViewTreeUnlocked(out(0, tree())).detail, /no node of the app/);
+    assert.equal(judgeViewTreeUnlocked(out(0, tree(node({ text: 'ZL-E2E-1 · Zlecenie testowe 1' }, 'com.other.app')))).ok, false);
+    const missing = judgeViewTreeUnlocked(out(0, tree(node({ text: 'ZL-E2E-1 · Zlecenie testowe 1' }), node({ text: 'Nowy wpis' }))));
+    assert.equal(missing.ok, false);
+    assert.match(missing.detail, /did NOT find: typed value/);
+    const covered = judgeViewTreeUnlocked(out(0, tree(...cover, node({ text: 'ZL-E2E-1 · Zlecenie testowe 1' }))));
+    assert.equal(covered.ok, false);
+    assert.match(covered.detail, /cover is in the tree/);
+  });
+
+  it('EVM-146 AC1: a read while the app returns fails on any value, needs the cover only in the last read and accepts "no window yet" before it', () => {
+    assert.equal(judgeResumeSample(out(0, tree(node({ text: 'Launcher' }, 'com.android.launcher'))), false).ok, true);
+    assert.equal(judgeResumeSample(out(1), false).ok, true);
+    assert.equal(judgeResumeSample(out(0, tree(node({ text: 'Moje zlecenia' }))), false).ok, true);
+    const leak = judgeResumeSample(out(0, tree(node({ text: 'Klient Testowy 1' }))), false);
+    assert.equal(leak.ok, false);
+    assert.match(leak.detail, /customer in text/);
+    assert.equal(judgeResumeSample(out(0, tree(node({ text: 'Moje zlecenia' }))), true).ok, false);
+    assert.equal(judgeResumeSample(out(0, tree(...cover)), true).ok, true);
+  });
+
+  it('EVM-146 AC1: the resume step presses Home, starts the app, reads the tree RESUME_SAMPLES times and fails when a read is dirty or Home/start fail', async () => {
+    /** @type {string[]} */
+    const calls = [];
+    let dumps = 0;
+    const adb = (/** @type {string[]} */ ...args) => {
+      const line = args.join(' ');
+      calls.push(line);
+      if (line.includes('uiautomator')) {
+        dumps += 1;
+        return out(0, dumps < RESUME_SAMPLES ? tree(node({ text: 'x' }, 'com.android.launcher')) : tree(...cover));
+      }
+      return out(0);
+    };
+    const good = await runLockAction('view-tree-resume', { adb, sleep: () => Promise.resolve() });
+    assert.equal(good.ok, true);
+    assert.match(calls[0] ?? '', /KEYCODE_HOME/);
+    assert.match(calls[1] ?? '', /monkey -p pl\.eviacharge\.manager/);
+    assert.equal(dumps, RESUME_SAMPLES);
+    const dirty = await runLockAction('view-tree-resume', {
+      adb: (/** @type {string[]} */ ...args) =>
+        args.join(' ').includes('uiautomator') ? out(0, tree(...cover, node({ text: 'Kontrolka146' }))) : out(0),
+      sleep: () => Promise.resolve(),
+    });
+    assert.equal(dirty.ok, false);
+    assert.match(dirty.detail, /#1 FAIL/);
+    const noHome = await runLockAction('view-tree-resume', { adb: () => out(1), sleep: () => Promise.resolve() });
+    assert.equal(noHome.ok, false);
+    assert.match(noHome.detail, /Home or the start/);
+    let n = 0;
+    const noStart = await runLockAction('view-tree-resume', {
+      adb: () => {
+        n += 1;
+        return out(n === 1 ? 0 : 1);
+      },
+      sleep: () => Promise.resolve(),
+    });
+    assert.equal(noStart.ok, false);
+  });
+
+  it('EVM-146 AC1: the positive control step goes through the runner and the device dispatcher', async () => {
+    const adb = () => out(0, tree(node({ text: 'ZL-E2E-1' }), node({ text: 'Zlecenie testowe 1' }), node({ text: 'Kontrolka146' })));
+    const check = await runDeviceAction('view-tree-unlocked', /** @type {never} */ ({ adb, sleep: () => Promise.resolve() }));
+    assert.equal(check.ok, true);
+    assert.equal(isLockAction('view-tree-resume'), true);
+    assert.equal(isLockAction('view-tree-unlocked'), true);
   });
 });

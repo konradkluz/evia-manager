@@ -8,17 +8,25 @@
  * An empty dump, a dump that is not the tree of the app, or a tree without the cover "Aplikacja zablokowana" is a FAILURE (an empty proof is not a pass; the same
  * rule as `device-video.mjs`): the check must see the cover, so that "no values" cannot come from a dump taken of the wrong screen.
  * The tree is sampled several times (SAMPLES, a second apart): the decision to lock comes before the first render of the content, so no sample may hold a value.
- * @typedef {'view-tree-locked'} LockAction
+ * The step `view-tree-unlocked` is the POSITIVE CONTROL: the same read of the same screen with the app unlocked must FIND the control values (a dump that is empty
+ * for another reason would pass every negative check). `view-tree-resume` presses Home, starts the app again and reads the tree several times at once, while the
+ * cover is being put on (the decision to lock comes before the first render of the content).
+ * @typedef {'view-tree-locked' | 'view-tree-unlocked' | 'view-tree-resume'} LockAction
  * @typedef {{ status: number | null, stdout: string, stderr: string }} Outcome
  * @typedef {{ adb: (...args: string[]) => Outcome, sleep: (ms: number) => Promise<void> }} LockContext
  * @typedef {{ text: string, contentDesc: string, hint: string, resourceId: string, packageName: string }} ViewNode
  */
 import { APPLICATION_ID } from './commands.mjs';
 
-export const LOCK_ACTION_NAMES = new Set(['view-tree-locked']);
+export const LOCK_ACTION_NAMES = new Set(['view-tree-locked', 'view-tree-unlocked', 'view-tree-resume']);
 /** How many times the tree is read, and the pause between the reads. */
 export const SAMPLES = 3;
 export const SAMPLE_PAUSE_MS = 1000;
+/** The reads while the app comes back from the background (the last one must show the cover) and the pause between them. */
+export const RESUME_SAMPLES = 5;
+export const RESUME_PAUSE_MS = 200;
+/** What the open form of the order shows: the positive control must find all of these in the unlocked app (names of `LOCK_CONTROL_VALUES`). */
+export const UNLOCKED_MUST_SHOW = Object.freeze(['order number', 'order title', 'typed value']);
 
 /**
  * The synthetic values the flows put on the screens below the cover (the order ZL-E2E-1 of the scenario server, src/sync-stub.mjs, and the word the flow types
@@ -51,6 +59,9 @@ const DUMP_FILE = '/data/local/tmp/evia-view-tree.xml';
 export const lockCommands = {
   dump: () => ['shell', `uiautomator dump ${DUMP_FILE} > /dev/null; cat ${DUMP_FILE}; rm -f ${DUMP_FILE}`],
   /** The compressed one - used only to show that the uncompressed dump holds MORE (the proof that the step looks at the right thing). */
+  home: () => ['shell', 'input', 'keyevent', 'KEYCODE_HOME'],
+  /** Starts the app from its launcher entry, like the icon does (the process is alive: a return from the background). */
+  launch: () => ['shell', 'monkey', '-p', APPLICATION_ID, '-c', 'android.intent.category.LAUNCHER', '1'],
   dumpCompressed: () => ['shell', `uiautomator dump --compressed ${DUMP_FILE} > /dev/null; cat ${DUMP_FILE}; rm -f ${DUMP_FILE}`],
 };
 
@@ -166,6 +177,72 @@ export function judgeViewTree(dump) {
   };
 }
 
+/** The placeholders of the screens (the search of the list, the field of the entry): the report says in which attribute the emulator gives them (AC1 names `hint`). */
+const PLACEHOLDERS = Object.freeze(['Szukaj: adres, nazwisko, numer', 'Nie wpisuj PESEL']);
+
+/** @param {ViewNode[]} nodes @returns {string} */
+function placeholderReport(nodes) {
+  const seen = PLACEHOLDERS.flatMap((phrase) =>
+    ATTRIBUTES.map(([field, label]) => ({ phrase, label, count: nodes.filter((node) => node[field].includes(phrase)).length })).filter(
+      (entry) => entry.count > 0,
+    ),
+  );
+  return seen.length === 0
+    ? 'placeholder: not in the tree'
+    : `placeholder: ${seen.map((entry) => `"${entry.phrase}" in ${entry.label} (${String(entry.count)})`).join(', ')}`;
+}
+
+/**
+ * The positive control: the app is unlocked and shows the form, so the dump must hold the control values of UNLOCKED_MUST_SHOW and no cover.
+ * @param {Outcome} dump
+ * @returns {{ ok: boolean, detail: string, nodes: number }}
+ */
+export function judgeViewTreeUnlocked(dump) {
+  if (dump.status !== 0) return { ok: false, detail: 'the dump of the view tree failed (uiautomator)', nodes: 0 };
+  const nodes = parseViewTree(dump.stdout);
+  const own = nodes === null ? [] : nodes.filter((node) => node.packageName === APPLICATION_ID);
+  if (own.length === 0) return { ok: false, detail: 'the dump holds no node of the app (an empty proof is not a pass)', nodes: 0 };
+  if (own.some((node) => node.resourceId.endsWith(COVER_ID) || node.text === COVER_TITLE))
+    return {
+      ok: false,
+      detail: `the cover is in the tree: the app is locked, so this is not the positive control (${String(own.length)} node(s))`,
+      nodes: own.length,
+    };
+  const found = new Set(findLeaks(own).map((leak) => leak.value));
+  const missing = UNLOCKED_MUST_SHOW.filter((name) => !found.has(name));
+  if (missing.length > 0)
+    return {
+      ok: false,
+      detail: `${String(own.length)} node(s) of the app, but the control did NOT find: ${missing.join(', ')} - the step cannot see what it should hide`,
+      nodes: own.length,
+    };
+  return {
+    ok: true,
+    detail: `${String(own.length)} node(s) of the app: the unlocked form shows ${[...found].join(', ')}; ${placeholderReport(own)}`,
+    nodes: own.length,
+  };
+}
+
+/**
+ * One read while the app returns: a value is a failure whenever it is there; the cover is required only of the last read (the window may not be there yet).
+ * @param {Outcome} dump @param {boolean} last
+ * @returns {{ ok: boolean, detail: string, nodes: number }}
+ */
+export function judgeResumeSample(dump, last) {
+  if (last) return judgeViewTree(dump);
+  const nodes = dump.status === 0 ? parseViewTree(dump.stdout) : null;
+  const own = nodes === null ? [] : nodes.filter((node) => node.packageName === APPLICATION_ID);
+  if (own.length === 0) return { ok: true, detail: 'no window of the app yet', nodes: 0 };
+  const leaks = findLeaks(own);
+  if (leaks.length > 0)
+    return {
+      ok: false,
+      detail: `${String(own.length)} node(s) of the app, LEAK: ${leaks.map((leak) => `${leak.value} in ${leak.attribute} (${String(leak.nodes)})`).join('; ')}`,
+      nodes: own.length,
+    };
+  return { ok: true, detail: `${String(own.length)} node(s) of the app, no control value`, nodes: own.length };
+}
+
 /**
  * The number of nodes of the app in the compressed and in the uncompressed dump - for the report (the uncompressed one has the views not important for accessibility).
  * @param {Outcome} full @param {Outcome} compressed
@@ -184,6 +261,25 @@ export function compareDumps(full, compressed) {
  * @returns {Promise<{ action: LockAction, ok: boolean, detail: string }>}
  */
 export async function runLockAction(action, context) {
+  if (action === 'view-tree-unlocked') {
+    const verdict = judgeViewTreeUnlocked(context.adb(...lockCommands.dump()));
+    return { action, ok: verdict.ok, detail: verdict.detail };
+  }
+  if (action === 'view-tree-resume') {
+    const home = context.adb(...lockCommands.home());
+    const launch = home.status === 0 ? context.adb(...lockCommands.launch()) : home;
+    if (launch.status !== 0) return { action, ok: false, detail: 'Home or the start of the app failed (adb)' };
+    /** @type {string[]} */
+    const reads = [];
+    let good = true;
+    for (let sample = 1; sample <= RESUME_SAMPLES; sample += 1) {
+      if (sample > 1) await context.sleep(RESUME_PAUSE_MS);
+      const verdict = judgeResumeSample(context.adb(...lockCommands.dump()), sample === RESUME_SAMPLES);
+      reads.push(`#${String(sample)} ${verdict.ok ? 'ok' : 'FAIL'}: ${verdict.detail}`);
+      if (!verdict.ok) good = false;
+    }
+    return { action, ok: good, detail: reads.join(' | ') };
+  }
   /** @type {string[]} */
   const details = [];
   let ok = true;

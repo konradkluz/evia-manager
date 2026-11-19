@@ -1,0 +1,29 @@
+# EVM-146 AC1 AC4 (second part of `lock-view-tree`): the form of the entry is open (flow 130). The hook "unlock held" keeps the system unlock from opening the
+# app again and "background 6 min" moves the clock, so the next return from the background locks the app. The flow ends with the app in the foreground;
+# tools/mobile-e2e then presses Home, starts the app again and reads the tree several times at once (step `view-tree-resume`), the last read must show the cover.
+appId: pl.eviacharge.manager
+---
+- tapOn:
+    id: 'evia-e2e-hooks-panel'
+- scrollUntilVisible:
+    element:
+      id: 'e2e-unlock-hold'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'e2e-unlock-hold'
+- scrollUntilVisible:
+    element:
+      id: 'e2e-background-6'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'e2e-background-6'
+- scrollUntilVisible:
+    element:
+      id: 'e2e-close'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'e2e-close'
+- assertVisible: 'Kontrolka146'

@@ -1,0 +1,61 @@
+# EVM-146 AC2: the site survey ("Wizja lokalna", the largest form) is open with two typed fields; the app lock closes after 6 minutes in the background and opens
+# at once (the automatic unlock of the e2e variant): the same form shows the same typed values, nothing is typed again.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- tapOn:
+    id: 'orders-add'
+- tapOn:
+    id: 'add-site-survey'
+- extendedWaitUntil:
+    visible: 'Numer nadamy po synchronizacji\.'
+    timeout: 10000
+- tapOn:
+    id: 'survey-city'
+- inputText: 'Piaseczno'
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: 'survey-street'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'survey-street'
+- inputText: 'Fikcyjna'
+- hideKeyboard
+- tapOn:
+    id: 'evia-e2e-hooks-panel'
+- scrollUntilVisible:
+    element:
+      id: 'e2e-background-6'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'e2e-background-6'
+- scrollUntilVisible:
+    element:
+      id: 'e2e-close'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'e2e-close'
+- pressKey: home
+- launchApp:
+    stopApp: false
+- extendedWaitUntil:
+    notVisible:
+      id: 'lock-overlay'
+    timeout: 20000
+- extendedWaitUntil:
+    visible: 'Numer nadamy po synchronizacji\.'
+    timeout: 10000
+- assertVisible: 'Fikcyjna'
+- scrollUntilVisible:
+    element: 'Piaseczno'
+    direction: UP
+    centerElement: true
+- assertVisible: 'Piaseczno'

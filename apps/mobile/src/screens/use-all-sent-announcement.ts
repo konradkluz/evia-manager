@@ -9,9 +9,19 @@ import { AccessibilityInfo } from 'react-native';
  */
 export function useAllSentAnnouncement(count: number, confirmed: number, enabled: boolean, message: string): void {
   const before = useRef({ count, confirmed });
+  // EVM-146: a screen under the cover of the lock sits in a hidden `Activity`: its effects are cleaned and run again at the unlock. That first run only
+  // takes the state over - what the server confirmed while the app was locked is not announced (the rule above).
+  const remounted = useRef(true);
+  useEffect(() => {
+    remounted.current = true;
+  }, []);
   useEffect(() => {
     const last = before.current;
     before.current = { count, confirmed };
+    if (remounted.current) {
+      remounted.current = false;
+      return;
+    }
     if (enabled && last.count > 0 && count === 0 && confirmed > last.confirmed) AccessibilityInfo.announceForAccessibility(message);
   }, [count, confirmed, enabled, message]);
 }
