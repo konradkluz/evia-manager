@@ -79,6 +79,10 @@ export const lockCommands = {
   /** Starts the app from its launcher entry, like the icon does (the process is alive: a return from the background). */
   launch: () => ['shell', 'monkey', '-p', APPLICATION_ID, '-c', 'android.intent.category.LAUNCHER', '1'],
   /** The compressed one - used only to show that the uncompressed dump holds MORE (the proof that the step looks at the right thing). */
+  /** The views of the window of the app as the framework holds them (no special permission): the structural check of S1. */
+  top: () => ['shell', 'dumpsys', 'activity', 'top'],
+  /** The clients of the camera service: the app must not be one under the cover (S2). */
+  cameraService: () => ['shell', 'dumpsys', 'media.camera'],
   dumpCompressed: () => ['shell', `uiautomator dump --compressed ${DUMP_FILE} > /dev/null; cat ${DUMP_FILE}; rm -f ${DUMP_FILE}`],
 };
 
@@ -189,7 +193,7 @@ export function judgeViewTree(dump) {
   }
   return {
     ok: true,
-    detail: `${String(own.length)} node(s) of the app with the cover: none of the ${String(Object.keys(LOCK_CONTROL_VALUES).length)} control values in text, content-desc, hint or resource-id`,
+    detail: `${String(own.length)} node(s) of the app with the cover: none of the ${String(Object.keys(LOCK_CONTROL_VALUES).length)} control values (${String(UNLOCKED_MUST_SHOW.length)} of them seen when unlocked) in text, content-desc, hint or resource-id`,
     nodes: own.length,
   };
 }
@@ -272,6 +276,89 @@ export function compareDumps(full, compressed) {
 }
 
 /**
+ * What `uiautomator dump` cannot tell: a view that was REMOVED from the hierarchy, and one that is only INVISIBLE or of size zero, look the same to it (it leaves
+ * out what the user cannot see). `dumpsys activity top` lists the views of the window with their visibility flag (`V`, `I`, `G`), so the step counts the React views
+ * that are visible together with all their ancestors and the `ReactEditText` among them.
+ * Measured on the emulator (2026-11-19, the entry form of ZL-E2E-1): unlocked - 160 React views, all visible, 2 `ReactEditText` (visible); locked - 162 React views of which
+ * 9 visible (the cover) and 0 `ReactEditText` visible: the hidden `Activity` keeps the native views of the content, under ONE invisible parent (flag `I`, size 0), so they are
+ * in the hierarchy but not visible - which is what the readers of the tree (uiautomator, TalkBack) honour. The limits below sit between those numbers.
+ */
+export const LOCKED_MAX_VISIBLE_REACT_VIEWS = 25;
+export const UNLOCKED_MIN_VISIBLE_REACT_VIEWS = 100;
+
+/**
+ * Counts the views of `dumpsys activity top`; `null` when the output has no view hierarchy with React views (no output is a FAILURE of the step, not a pass).
+ * @param {string} output
+ * @returns {{ react: number, reactVisible: number, editTexts: number, editTextsVisible: number } | null}
+ */
+export function parseReactViews(output) {
+  const lines = output.split(/\r?\n/);
+  let react = 0;
+  let reactVisible = 0;
+  let editTexts = 0;
+  let editTextsVisible = 0;
+  /** @type {{ depth: number, visible: boolean }[]} */
+  let stack = [];
+  let base = -1;
+  for (const line of lines) {
+    if (/^\s*View Hierarchy:\s*$/.test(line)) {
+      base = line.search(/\S/);
+      stack = [];
+      continue;
+    }
+    if (base < 0 || line.trim() === '') continue;
+    const depth = line.search(/\S/);
+    if (depth <= base) {
+      base = -1;
+      continue;
+    }
+    const found = /^\s*([\w.$]+)\{[0-9a-f]+ ([VIG])/.exec(line);
+    if (found === null) continue;
+    while (stack.length > 0 && (stack.at(-1)?.depth ?? 0) >= depth) stack.pop();
+    const ancestorsVisible = stack.every((entry) => entry.visible);
+    const visible = found[2] === 'V';
+    stack.push({ depth, visible });
+    const name = found[1] ?? '';
+    if (!name.startsWith('com.facebook.react.')) continue;
+    react += 1;
+    const shown = ancestorsVisible && visible;
+    if (shown) reactVisible += 1;
+    if (name.endsWith('.ReactEditText')) {
+      editTexts += 1;
+      if (shown) editTextsVisible += 1;
+    }
+  }
+  return react === 0 ? null : { react, reactVisible, editTexts, editTextsVisible };
+}
+
+/**
+ * The structural check (S1): locked - only the cover is visible (few React views, no text field); unlocked (the positive control) - the form is visible.
+ * @param {Outcome} top the output of `dumpsys activity top`
+ * @param {boolean} locked
+ * @returns {{ ok: boolean, detail: string }}
+ */
+export function judgeStructure(top, locked) {
+  if (top.status !== 0) return { ok: false, detail: 'structure: dumpsys activity top failed (adb)' };
+  const counts = parseReactViews(top.stdout);
+  if (counts === null) return { ok: false, detail: 'structure: no React views in dumpsys activity top (an empty proof is not a pass)' };
+  const numbers = `React views ${String(counts.react)} (visible ${String(counts.reactVisible)}), ReactEditText ${String(counts.editTexts)} (visible ${String(counts.editTextsVisible)})`;
+  if (locked) {
+    const bad = [];
+    if (counts.reactVisible > LOCKED_MAX_VISIBLE_REACT_VIEWS)
+      bad.push(`more than ${String(LOCKED_MAX_VISIBLE_REACT_VIEWS)} visible React views (only the cover may be visible)`);
+    if (counts.editTextsVisible > 0) bad.push('a ReactEditText is visible');
+    return { ok: bad.length === 0, detail: `structure locked: ${numbers}${bad.length === 0 ? '' : ` - FAIL: ${bad.join('; ')}`}` };
+  }
+  const bad = [];
+  if (counts.reactVisible < UNLOCKED_MIN_VISIBLE_REACT_VIEWS)
+    bad.push(
+      `fewer than ${String(UNLOCKED_MIN_VISIBLE_REACT_VIEWS)} visible React views (the control cannot see the content it should hide)`,
+    );
+  if (counts.editTextsVisible === 0) bad.push('no ReactEditText visible');
+  return { ok: bad.length === 0, detail: `structure unlocked: ${numbers}${bad.length === 0 ? '' : ` - FAIL: ${bad.join('; ')}`}` };
+}
+
+/**
  * Runs the step: SAMPLES reads of the tree, every one must pass.
  * @param {LockAction} action
  * @param {LockContext} context
@@ -283,7 +370,8 @@ export async function runLockAction(action, context) {
   if (action.startsWith('camera-client')) return { action, ok: true, detail: 'measure only' };
   if (action === 'view-tree-unlocked') {
     const verdict = judgeViewTreeUnlocked(context.adb(...lockCommands.dump()));
-    return { action, ok: verdict.ok, detail: verdict.detail };
+    const structure = judgeStructure(context.adb(...lockCommands.top()), false);
+    return { action, ok: verdict.ok && structure.ok, detail: `${verdict.detail} | ${structure.detail}` };
   }
   if (action === 'view-tree-resume') {
     const home = context.adb(...lockCommands.home());
@@ -311,7 +399,9 @@ export async function runLockAction(action, context) {
   }
   const sizes = compareDumps(context.adb(...lockCommands.dump()), context.adb(...lockCommands.dumpCompressed()));
   if (sizes !== null) details.push(`nodes of the app: uncompressed ${String(sizes.full)}, compressed ${String(sizes.compressed)}`);
-  return { action, ok, detail: details.join(' | ') };
+  const structure = judgeStructure(context.adb(...lockCommands.top()), true);
+  details.push(structure.detail);
+  return { action, ok: ok && structure.ok, detail: details.join(' | ') };
 }
 
 // TMPMEASURE
@@ -323,7 +413,10 @@ async function tmpMeasure(action, context) {
   mkdirSync(dir, { recursive: true });
   const stamp = String(Date.now());
   if (action.startsWith('camera-client')) {
-    writeFileSync(`${dir}/${action}-${stamp}-camera.txt`, context.adb('shell', 'dumpsys', 'media.camera').stdout);
+    for (const wait of action === 'camera-client-absent' ? [0, 8000, 12000] : [0]) {
+      await context.sleep(wait);
+      writeFileSync(`${dir}/${action}-${stamp}-w${String(wait)}-camera.txt`, context.adb('shell', 'dumpsys', 'media.camera').stdout);
+    }
   } else {
     await context.sleep(1500);
     writeFileSync(`${dir}/${action}-${stamp}-top.txt`, context.adb('shell', 'dumpsys', 'activity', 'top').stdout);

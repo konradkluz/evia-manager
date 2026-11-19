@@ -13,11 +13,16 @@ import {
   judgeViewTreeUnlocked,
   LOCK_CONTROL_VALUES,
   lockCommands,
+  judgeStructure,
+  LOCKED_MAX_VISIBLE_REACT_VIEWS,
+  parseReactViews,
   parseViewTree,
+  UNLOCKED_MIN_VISIBLE_REACT_VIEWS,
   RESUME_SAMPLES,
   runLockAction,
   SAMPLES,
   UNLOCKED_MUST_SHOW,
+  UNLOCKED_NOT_VISIBLE,
   unescapeXml,
 } from '../src/device-lock.mjs';
 import { LOCK_SCENARIOS } from '../src/lock-scenarios.mjs';
@@ -31,6 +36,34 @@ const node = (a, pkg = APPLICATION_ID) =>
   `<node index="0" text="${a['text'] ?? ''}" resource-id="${a['id'] ?? ''}" class="android.view.View" package="${pkg}" content-desc="${a['desc'] ?? ''}" hint="${a['hint'] ?? ''}" bounds="[0,0][1,1]" />`;
 const tree = (/** @type {string[]} */ ...nodes) =>
   `<?xml version='1.0' encoding='UTF-8' standalone='yes' ?><hierarchy rotation="0">${nodes.join('')}</hierarchy>\nUI hierchary dumped to: /dev/tty`;
+/**
+ * `dumpsys activity top` as the emulator prints it: the lines of the views, two spaces deeper for every level, the flag of visibility after the hash.
+ * @param {{ coverViews: number, hiddenViews: number, hiddenEdits: number, shownViews: number, shownEdits: number }} n
+ */
+const top = (n) => {
+  const view = (/** @type {number} */ depth, /** @type {string} */ cls, /** @type {string} */ flag) =>
+    `${' '.repeat(depth)}${cls}{1a2b3c4 ${flag}.E...... ........ 0,0-10,10 #1}`;
+  const group = 'com.facebook.react.views.view.ReactViewGroup';
+  const edit = 'com.facebook.react.views.textinput.ReactEditText';
+  const lines = [
+    'TASK 1:',
+    '    View Hierarchy:',
+    view(6, 'com.android.internal.policy.DecorView', 'V'),
+    view(8, 'com.facebook.react.runtime.ReactSurfaceView', 'V'),
+  ];
+  for (let i = 0; i < n.coverViews; i += 1) lines.push(view(10, group, 'V'));
+  if (n.hiddenViews > 0 || n.hiddenEdits > 0) lines.push(view(10, group, 'I'));
+  for (let i = 0; i < n.hiddenViews; i += 1) lines.push(view(12, group, 'V'));
+  for (let i = 0; i < n.hiddenEdits; i += 1) lines.push(view(12, edit, 'V'));
+  for (let i = 0; i < n.shownViews; i += 1) lines.push(view(10, group, 'V'));
+  for (let i = 0; i < n.shownEdits; i += 1) lines.push(view(10, edit, 'V'));
+  lines.push('    Other section:', 'text');
+  return lines.join('\n');
+};
+const NONE = { coverViews: 0, hiddenViews: 0, hiddenEdits: 0, shownViews: 0, shownEdits: 0 };
+const LOCKED_TOP = top({ ...NONE, coverViews: 9, hiddenViews: 150, hiddenEdits: 2 });
+const UNLOCKED_TOP = top({ ...NONE, shownViews: 158, shownEdits: 2 });
+const isTop = (/** @type {string[]} */ args) => args.join(' ').includes('dumpsys activity top');
 const cover = [node({ id: COVER_ID }), node({ text: COVER_TITLE }), node({ id: 'lock-unlock', text: 'Odblokuj' })];
 
 describe('the tree of views of the locked app (EVM-146 AC1)', () => {
@@ -139,6 +172,7 @@ describe('the tree of views of the locked app (EVM-146 AC1)', () => {
     const sleeps = [];
     let reads = 0;
     const adb = (/** @type {string[]} */ ...args) => {
+      if (isTop(args)) return out(0, LOCKED_TOP);
       if (args.join(' ').includes('--compressed')) return out(0, tree(...cover));
       reads += 1;
       return out(0, reads === 2 ? tree(...cover, node({ text: 'Klient Testowy 1' })) : tree(...cover));
@@ -158,7 +192,10 @@ describe('the tree of views of the locked app (EVM-146 AC1)', () => {
   });
 
   it('EVM-146 AC1: a clean tree in every sample passes; without a comparison of the dumps the step still judges', async () => {
-    const adb = (/** @type {string[]} */ ...args) => (args.join(' ').includes('--compressed') ? out(1) : out(0, tree(...cover)));
+    const adb = (/** @type {string[]} */ ...args) => {
+      if (isTop(args)) return out(0, LOCKED_TOP);
+      return args.join(' ').includes('--compressed') ? out(1) : out(0, tree(...cover));
+    };
     const check = await runDeviceAction('view-tree-locked', /** @type {never} */ ({ adb, sleep: () => Promise.resolve() }));
     assert.equal(check.ok, true);
     assert.doesNotMatch(check.detail, /compressed/);
@@ -167,7 +204,7 @@ describe('the tree of views of the locked app (EVM-146 AC1)', () => {
   it('EVM-146 AC1: the lock scenario is selectable by the prefix `lock-` and ends with the step after the flow of the lock', () => {
     assert.deepEqual(
       selectScenarios(['lock-']).map((scenario) => scenario.name),
-      ['lock-view-tree', 'lock-state-kept', 'lock-survey-kept', 'lock-camera-kept'],
+      ['lock-view-tree', 'lock-state-kept', 'lock-survey-kept', 'lock-camera-kept', 'lock-camera-released'],
     );
     const [scenario] = LOCK_SCENARIOS;
     assert.ok(scenario);
@@ -184,21 +221,19 @@ describe('the tree of views of the locked app (EVM-146 AC1)', () => {
     assert.match(scenario.ac, /AC4/);
   });
 
-  it('EVM-146 AC1: the positive control - the unlocked form must SHOW the number, the title and the typed word; a dump without them fails the scenario', () => {
-    const open = tree(node({ text: 'ZL-E2E-1 · Zlecenie testowe 1' }), node({ text: 'Kontrolka146' }), node({ text: 'Nowy wpis' }));
+  it('EVM-146 AC1: the positive control - the unlocked form must SHOW every control value but the two named exceptions; a dump without one of them fails the scenario', () => {
+    assert.deepEqual(Object.keys(UNLOCKED_NOT_VISIBLE).sort(), ['journal text', 'phone']);
+    assert.deepEqual([...UNLOCKED_MUST_SHOW, ...Object.keys(UNLOCKED_NOT_VISIBLE)].sort(), Object.keys(LOCK_CONTROL_VALUES).sort());
+    const everything = UNLOCKED_MUST_SHOW.map((name) =>
+      node({ text: LOCK_CONTROL_VALUES[/** @type {keyof typeof LOCK_CONTROL_VALUES} */ (name)] }),
+    );
+    const open = tree(...everything, node({ text: 'Nowy wpis' }));
     const good = judgeViewTreeUnlocked(out(0, open));
     assert.equal(good.ok, true);
     for (const name of UNLOCKED_MUST_SHOW) assert.match(good.detail, new RegExp(name));
     assert.match(good.detail, /placeholder: not in the tree/);
     const withHint = judgeViewTreeUnlocked(
-      out(
-        0,
-        tree(
-          node({ text: 'ZL-E2E-1 · Zlecenie testowe 1' }),
-          node({ text: 'Kontrolka146' }),
-          node({ hint: 'Nie wpisuj PESEL', text: 'Szukaj: adres, nazwisko, numer' }),
-        ),
-      ),
+      out(0, tree(...everything, node({ hint: 'Nie wpisuj PESEL', text: 'Szukaj: adres, nazwisko, numer' }))),
     );
     assert.match(withHint.detail, /"Nie wpisuj PESEL" in hint \(1\)/);
     assert.match(withHint.detail, /"Szukaj: adres, nazwisko, numer" in text \(1\)/);
@@ -207,7 +242,11 @@ describe('the tree of views of the locked app (EVM-146 AC1)', () => {
     assert.equal(judgeViewTreeUnlocked(out(0, tree(node({ text: 'ZL-E2E-1 · Zlecenie testowe 1' }, 'com.other.app')))).ok, false);
     const missing = judgeViewTreeUnlocked(out(0, tree(node({ text: 'ZL-E2E-1 · Zlecenie testowe 1' }), node({ text: 'Nowy wpis' }))));
     assert.equal(missing.ok, false);
-    assert.match(missing.detail, /did NOT find: typed value/);
+    assert.match(missing.detail, /did NOT find: customer, street, city, phone e164, scope item, stage, order id, typed value/);
+    // one value short is a failure too
+    const oneShort = judgeViewTreeUnlocked(out(0, tree(...everything.slice(0, -1))));
+    assert.equal(oneShort.ok, false);
+    assert.match(oneShort.detail, /did NOT find: typed value/);
     const covered = judgeViewTreeUnlocked(out(0, tree(...cover, node({ text: 'ZL-E2E-1 · Zlecenie testowe 1' }))));
     assert.equal(covered.ok, false);
     assert.match(covered.detail, /cover is in the tree/);
@@ -264,10 +303,50 @@ describe('the tree of views of the locked app (EVM-146 AC1)', () => {
   });
 
   it('EVM-146 AC1: the positive control step goes through the runner and the device dispatcher', async () => {
-    const adb = () => out(0, tree(node({ text: 'ZL-E2E-1' }), node({ text: 'Zlecenie testowe 1' }), node({ text: 'Kontrolka146' })));
+    const adb = (/** @type {string[]} */ ...args) =>
+      isTop(args) ? out(0, UNLOCKED_TOP) : out(0, tree(...Object.values(LOCK_CONTROL_VALUES).map((value) => node({ text: value }))));
     const check = await runDeviceAction('view-tree-unlocked', /** @type {never} */ ({ adb, sleep: () => Promise.resolve() }));
     assert.equal(check.ok, true);
     assert.equal(isLockAction('view-tree-resume'), true);
     assert.equal(isLockAction('view-tree-unlocked'), true);
+  });
+  it('EVM-146 S1: the parser counts the React views and those visible together with all their ancestors; an invisible parent hides its children', () => {
+    assert.deepEqual(parseReactViews(LOCKED_TOP), { react: 163, reactVisible: 10, editTexts: 2, editTextsVisible: 0 });
+    assert.deepEqual(parseReactViews(UNLOCKED_TOP), { react: 161, reactVisible: 161, editTexts: 2, editTextsVisible: 2 });
+    assert.equal(parseReactViews(''), null);
+    assert.equal(parseReactViews('    View Hierarchy:\n      android.view.View{1a2b3c4 V.E...... ........ 0,0-1,1}'), null);
+  });
+
+  it('EVM-146 S1: locked - the cover alone may be visible; a visible text field, too many visible React views, no output or a failed command is a FAILURE', () => {
+    assert.equal(judgeStructure(out(0, LOCKED_TOP), true).ok, true);
+    assert.match(judgeStructure(out(0, LOCKED_TOP), true).detail, /React views 163 \(visible 10\), ReactEditText 2 \(visible 0\)/);
+    const leaking = judgeStructure(out(0, top({ ...NONE, coverViews: 9, shownEdits: 1 })), true);
+    assert.equal(leaking.ok, false);
+    assert.match(leaking.detail, /a ReactEditText is visible/);
+    const many = judgeStructure(out(0, top({ ...NONE, shownViews: LOCKED_MAX_VISIBLE_REACT_VIEWS + 1 })), true);
+    assert.equal(many.ok, false);
+    assert.match(many.detail, /more than 25 visible React views/);
+    assert.match(judgeStructure(out(0, 'nothing'), true).detail, /no React views/);
+    assert.equal(judgeStructure(out(1), true).ok, false);
+  });
+
+  it('EVM-146 S1: unlocked (the positive control) - the form must be visible with its text fields, or the control is blind', () => {
+    assert.equal(judgeStructure(out(0, UNLOCKED_TOP), false).ok, true);
+    const blind = judgeStructure(out(0, top({ ...NONE, shownViews: UNLOCKED_MIN_VISIBLE_REACT_VIEWS - 2 })), false);
+    assert.equal(blind.ok, false);
+    assert.match(blind.detail, /fewer than 100/);
+    assert.match(blind.detail, /no ReactEditText visible/);
+    assert.equal(judgeStructure(out(0, 'nothing'), false).ok, false);
+  });
+
+  it('EVM-146 S1: the step view-tree-locked fails when the structure shows a visible text field although the tree of uiautomator is clean', async () => {
+    const adb = (/** @type {string[]} */ ...args) => {
+      if (isTop(args)) return out(0, top({ ...NONE, coverViews: 9, shownEdits: 1 }));
+      return args.join(' ').includes('--compressed') ? out(1) : out(0, tree(...cover));
+    };
+    const check = await runLockAction('view-tree-locked', { adb, sleep: () => Promise.resolve() });
+    assert.equal(check.ok, false);
+    assert.match(check.detail, /structure locked/);
+    assert.match(check.detail, /#1 ok/);
   });
 });
