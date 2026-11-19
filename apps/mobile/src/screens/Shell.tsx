@@ -123,7 +123,7 @@ export function Shell() {
   }, [session, openQueue]);
   // The camera (EVM-108): an overlay over the shell, opened by `session.openCamera(orderId)`; the id is the only datum and the state is dropped with the shell
   const cameraOrderId = useSyncExternalStore(session.camera.subscribe, session.camera.getSnapshot);
-  useEffect(() => session.camera.close, [session.camera]);
+  // EVM-146: the camera is closed with the session (`SessionRoot`), not by a cleanup here - the lock hides this shell in an `Activity` and cleans its effects
   const [adding, setAdding] = useState(false);
   // "Zdjęcie lub film" of the sheet "Dodaj": the choice of the order for the camera (EVM-108 AC5); a flag only, the id goes straight to `openCamera`
   const [pickingMedia, setPickingMedia] = useState(false);

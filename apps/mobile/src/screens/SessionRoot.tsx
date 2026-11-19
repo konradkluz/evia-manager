@@ -108,6 +108,10 @@ export function SessionRoot({ ports, children }: { ports: SessionPorts; children
   }, []);
 
   useEffect(() => guard.start(), [guard]);
+  // the camera request lives with the signed-in shell: it ends with it (sign-out, revoked session, wipe, owner mismatch), but NOT with the lock (EVM-146: the lock only hides the shell)
+  useEffect(() => {
+    if (view.kind !== 'signedIn') ports.camera.close();
+  }, [view.kind, ports.camera]);
   const { sync } = ports;
   const syncSnapshot = useSyncExternalStore(sync.subscribe, sync.getSnapshot);
 

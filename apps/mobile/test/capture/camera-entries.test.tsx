@@ -568,6 +568,29 @@ describe('roles, offline, the lock and the wipe (EVM-108 AC5)', () => {
     expect(rig.ports.camera.getSnapshot()).toBeNull();
   });
 
+  it('EVM-146 AC2: the lock does not close the camera - after the unlock the same camera of the same order is open (only the end of the session closes it)', async () => {
+    const rig = rigWith();
+    await open(rig);
+    await openDetails(A);
+    await fireEvent.press(screen.getByTestId('order-detail-take-photo'));
+    await settle();
+    expect(screen.getByTestId('camera')).toBeOnTheScreen();
+    rig.device.facts.auth = 'cancelled';
+    await act(() => {
+      rig.device.appState.emit('background');
+      rig.device.time.boot += 6 * 60_000;
+      rig.device.time.wall += 6 * 60_000;
+      rig.device.appState.emit('active');
+    });
+    await settle();
+    expect(screen.getByTestId('lock-overlay')).toBeOnTheScreen();
+    expect(rig.ports.camera.getSnapshot()).not.toBeNull();
+    rig.device.facts.auth = 'success';
+    await fireEvent.press(screen.getByTestId('lock-unlock'));
+    await settle();
+    expect(screen.getByTestId('camera')).toBeOnTheScreen();
+  });
+
   it('EVM-108 AC5: offline the camera works - the capsule says "Offline · n", there is no banner of the connection over the preview', async () => {
     const rig = rigWith();
     rig.sync.set({ online: false, counts: { ...EMPTY_COUNTS, pending: 2, unsent: 2 } });
