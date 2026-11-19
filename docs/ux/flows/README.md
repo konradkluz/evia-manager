@@ -204,6 +204,8 @@ flowchart LR
 | M-06 | Aparat (z arkuszem wyboru zlecenia) | mobile | 9 | [tak](09-mobile-zdjecia-filmy-offline.md#m-06-aparat) | E11 |
 | M-07 | Kolejka | mobile | 9 | [tak](09-mobile-zdjecia-filmy-offline.md#m-07-kolejka) | E11, E12 |
 | M-08 | Pliki zlecenia (od EVM-111; dawniej „Media zlecenia”) | mobile | 9 | [tak](09-mobile-zdjecia-filmy-offline.md#m-08-pliki-zlecenia) | E11 |
+| M-08a | Zdjęcia zlecenia — siatka online (od EVM-142) | mobile | 9 (także 3) | [tak](09-mobile-zdjecia-filmy-offline.md#m-08a-zdjęcia-zlecenia-siatka--od-evm-142) | E11 |
+| M-08b | Podgląd zdjęcia, pełny ekran (od EVM-142) | mobile | 9 | [tak](09-mobile-zdjecia-filmy-offline.md#m-08b-podgląd-zdjęcia-pełny-ekran--od-evm-142) | E11 |
 | M-09 | Więcej (ustawienia, wylogowanie, czyszczenie danych) | mobile | 9 | [tak](09-mobile-zdjecia-filmy-offline.md#m-09-więcej) | E9, E11 |
 | M-10 | Szybkie nowe zlecenie | mobile | 10 | [tak](10-mobile-szybkie-zlecenie.md#m-10-szybkie-zlecenie) | E13 |
 | M-11 | Prywatność i pomoc (klauzula informacyjna) | mobile | 16 | [tak](16-m2-uzupelnienia-teren-i-urzadzenia.md#m-11-prywatność-i-pomoc) | E14 |

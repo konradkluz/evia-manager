@@ -599,6 +599,10 @@ Wariant **„od EVM-042”** (P2). Przed EVM-042 sekcja „Procesy i etapy” je
 │ ▸ Instalacja zasilająca 0 z 3    │
 │                                  │
 │ ┌──────────────────────────────┐ │
+│ │ Zdjęcia zlecenia           › │ │ → M-08a Zdjęcia zlecenia (od EVM-142)
+│ │ 12 zdjęć                     │ │ albo: Brak zdjęć
+│ └──────────────────────────────┘ │
+│ ┌──────────────────────────────┐ │
 │ │ Pliki z tego telefonu      › │ │ → M-08 Pliki zlecenia
 │ │ 3 do wysłania                │ │ albo: ‹check› Wszystko wysłane
 │ └──────────────────────────────┘ │
@@ -621,6 +625,12 @@ Wariant **„od EVM-042”** (P2). Przed EVM-042 sekcja „Procesy i etapy” je
 ```
 Uwaga (EVM-108, 2026-11-15): w aplikacji pasek ma dwa przyciski jeden pod drugim (cel ≥ 48 dp w rękawicach, główna akcja na górze, w strefie kciuka), a BottomNav nie ma pozycji „Dodaj” (odstępstwo od § 3.18, [styleguide § 8](../styleguide.md#8-changelog)); arkusz „Dodaj” otwiera przycisk „Dodaj” na liście zleceń. Szczegóły i tryb ukrytych danych (aktywne „Zrób zdjęcie”, „Dodaj wpis” wyłączone z powodem) — [09, M-06](09-mobile-zdjecia-filmy-offline.md).
 
+**Wiersz „Zdjęcia zlecenia” (od EVM-142)** — wejście do [M-08a „Zdjęcia zlecenia”](09-mobile-zdjecia-filmy-offline.md#m-08a-zdjęcia-zlecenia-siatka--od-evm-142) (siatka zdjęć z serwera, online, bez zapisu na telefonie):
+- **Miejsce i kształt:** tuż **nad** wierszem „Pliki z tego telefonu” (oba stoją razem, nad dziennikiem), stały także przy 0 zdjęć; ten sam kształt karty i ten sam cel dotyku co wiersz „Pliki z tego telefonu” (jeden cel ≥ `size.touch-target.min`, zawijany przy 200% czcionki, chevron `chevron-right`, `radius.card`, `color.bg.surface`, `color.border.subtle`, `space.inset.md`); pierwsza linia `text.label-lg` „Zdjęcia zlecenia”, druga `text.body-sm` `color.text.secondary`.
+- **Druga linia:** liczba zdjęć z repliki zlecenia (wszystkie zdjęcia, także w stanie „Przygotowujemy podgląd” i zatrzymane; bez filmów do EVM-143; bez plików czekających w kolejce tego telefonu — te liczy wiersz niżej): „1 zdjęcie”, „3 zdjęcia”, „12 zdjęć” (odmiana wg § 6.3) albo „Brak zdjęć”. Liczba nie zależy od sieci (replika); wiersz jest dostępny także offline — ekran M-08a sam powie, że podgląd wymaga internetu. Podczas wczytywania repliki — bez drugiej linii.
+- **Dostępność:** jeden przycisk „Zdjęcia zlecenia, 12 zdjęć” / „Zdjęcia zlecenia, brak zdjęć” z podpowiedzią „Otwiera zdjęcia zlecenia”; zmiana liczby aktualizuje tylko nazwę dostępną, **bez ogłoszeń**.
+- **Dane ukryte, blokada aplikacji, `session_revoked`, wylogowanie:** wiersza **nie ma** wcale (§ 4.18). Rola Tylko odczyt nie loguje się do aplikacji (M-02). Wizja lokalna: ten sam wiersz, jeśli jej zdjęcia są mediami zlecenia ([17](17-wizja-lokalna.md)).
+
 **Wiersz „Pliki z tego telefonu” (od EVM-111)** — wejście do [M-08 „Pliki zlecenia”](09-mobile-zdjecia-filmy-offline.md#m-08-pliki-zlecenia); zastępuje dawny wiersz „Media” z licznikami zdjęć i miniaturami (galeria zlecenia jest tylko w panelu web, W-09):
 - **Miejsce i kształt:** stały (także przy 0 plikach), w przewijanej treści nad dziennikiem — nie w dolnym pasku (ten jest od akcji); **jeden cel dotyku** na całą szerokość, ≥ `size.touch-target.min` (48 dp), zawijany przy 200% czcionki, z chevronem `chevron-right` po prawej; karta jak inne bloki (`color.bg.surface`, `color.border.subtle`, `radius.card`, `space.inset.md`); pierwsza linia `text.label-lg` „Pliki z tego telefonu”, druga `text.body-sm` `color.text.secondary`.
 - **Druga linia:** „n do wysłania” (1 do wysłania, 3 do wysłania — bez odmiany liczebnika) albo „Wszystko wysłane” z ikoną `check` `color.feedback.success.icon`; ta sama liczba co nagłówek M-08 (każdy plik tego zlecenia z tego telefonu, także „Czeka na Wi-Fi” i „Wymaga uwagi”; źródło: lokalna kolejka); bez paska postępu. Podczas wczytywania lokalnej bazy i po błędzie odczytu — wiersz bez drugiej linii.
@@ -636,7 +646,7 @@ Uwaga (EVM-108, 2026-11-15): w aplikacji pasek ma dwa przyciski jeden pod drugim
 | lokalizacja: typ, adres, miejsce postojowe, poziom, moc przyłączeniowa, wskazówki (`Site.notes`), OSD i zarządca (nazwa, osoba kontaktowa, telefon) | e-mail i notatki stron |
 | procesy, etapy, „na kogo czekamy” — tylko podgląd | zmiany statusów (telefon tylko dodaje — D11) |
 | dokumenty — rodzaj, tytuł, numer wersji, data (bez „Otwórz” i bez pobierania) | pliki dokumentów, oryginały mediów, przyczyna kwarantanny |
-| pliki z tego telefonu, które jeszcze nie dotarły — liczba „n do wysłania” z lokalnej kolejki (M-08; od EVM-111, bez miniatur i bez mediów z innych urządzeń) | miniatury, liczniki zdjęć i filmów zlecenia, pliki z innych telefonów (tylko panel); „Inne zlecenia w tej lokalizacji” i historia lokalizacji (tylko panel) |
+| pliki z tego telefonu, które jeszcze nie dotarły — liczba „n do wysłania” z lokalnej kolejki (M-08; od EVM-111, bez miniatur i bez mediów z innych urządzeń) | liczniki filmów zlecenia (do EVM-143), pliki z innych telefonów w kolejce, oryginały i pobieranie (tylko panel); od EVM-142 licznik zdjęć w wierszu „Zdjęcia zlecenia” i miniatury w M-08a (online, bez zapisu); „Inne zlecenia w tej lokalizacji” i historia lokalizacji (tylko panel) |
 
 **Stany**
 | Stan | Zachowanie |

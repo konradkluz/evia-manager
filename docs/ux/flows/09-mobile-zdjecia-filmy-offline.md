@@ -1,6 +1,6 @@
 # 09 — Mobile: zdjęcie i film offline → kolejka → upload
 
-> Dokument żywy (EVM-004) · przepływ AC2 nr 9 · kanał: mobile · ekrany: M-06 (z arkuszem wyboru zlecenia), M-07, M-08, M-09 · indeks: [README.md](README.md)
+> Dokument żywy (EVM-004) · przepływ AC2 nr 9 · kanał: mobile · ekrany: M-06 (z arkuszem wyboru zlecenia), M-07, M-08, M-08a, M-08b (od EVM-142), M-09 · indeks: [README.md](README.md)
 > Źródła: styleguide § 3.12, § 4.7, § 5 (teren, SyncIndicator, stany pliku, „nic nie ginie”); `offline-sync.md` (komenda `CreateMediaAsset`, kolejka, obiekty lokalne oczekujące, „Wymaga uwagi”, punkt 7 — usuwanie lokalnego oryginału); ADR-0007 (w tym ryzyka 4 i 10 — zapis wideo, mało miejsca; komunikat „wysyłanie wstrzymane — otwórz aplikację”), ADR-0009; polityki P2, P3, P5 (bitrate filmu), P7; SR-MOB-02, -05, -06, -08, -12, -13, SR-FILE-08; szczegóły techniczne uploadu w tle — spike EVM-011.
 
 > **Zakres wersji 1 (EVM-108, poprawka 2026-11-15) — czytaj najpierw.** Makieta opisuje cały docelowy przepływ, ale aplikacja w EVM-108 dostarcza tylko **zdjęcia**. Znaczniki w tekście:
@@ -372,7 +372,7 @@ Zasady wiersza filmu i stanu „Czeka na Wi-Fi” [od EVM-110] (AC1, AC4, AC5; t
 - **Dostępność [docelowo]:** każdy element z nazwą dostępną (typ, zlecenie, stan); zmiany stanów ogłaszane zbiorczo co kilka sekund (§ 5.4); akcje jako widoczne przyciski, nie gesty (§ 3.12, § 5.1); akcje niszczące oddzielone od częstych.
 
 ## M-08 Pliki zlecenia
-> **Od EVM-111 (treść zaakceptowana przez Konrada 2026-11-18; zapis 2026-11-18, `ux-designer`):** ekran zastępuje dawne „Media zlecenia” (siatka miniatur, filtr „Niewysłane”, „Czeka na plik”, podgląd). **Nie ma miniatur, podglądu, plików z innych telefonów ani galerii mediów zlecenia** — przegląd zdjęć i filmów jest w panelu biura (W-09). Ekran pokazuje tylko to, co jeszcze **nie dotarło** do biura z tego telefonu; plik potwierdzony przez serwer znika. Dolny pasek „Zrób zdjęcie” jest w M-03 (na tym ekranie go nie ma).
+> **Od EVM-111 (treść zaakceptowana przez Konrada 2026-11-18; zapis 2026-11-18, `ux-designer`):** ekran zastępuje dawne „Media zlecenia” (siatka miniatur, filtr „Niewysłane”, „Czeka na plik”, podgląd). **Nie ma miniatur, podglądu, plików z innych telefonów ani galerii mediów zlecenia** — przegląd zdjęć i filmów jest w panelu biura (W-09). **Od EVM-142 zdjęcia zlecenia (także od kolegów i z biura) ogląda się online w osobnych ekranach [M-08a](#m-08a-zdjęcia-zlecenia-siatka--od-evm-142) i [M-08b](#m-08b-podgląd-zdjęcia-pełny-ekran--od-evm-142); M-08 nadal nie ma miniatur, a filmy zostają w panelu do EVM-143.** Ekran pokazuje tylko to, co jeszcze **nie dotarło** do biura z tego telefonu; plik potwierdzony przez serwer znika. Dolny pasek „Zrób zdjęcie” jest w M-03 (na tym ekranie go nie ma).
 
 - **Cel:** wiedzieć, czy z tego zlecenia coś jeszcze nie dotarło do biura („3 do wysłania” albo „Wszystko wysłane”), dlaczego, i móc ponowić lub usunąć z telefonu — zanim technik odjedzie sprzed domu klienta.
 - **Główna akcja:** brak jednej — ekran statusu; akcje („Ponów”, „Usuń z telefonu”) są na wierszach tam, gdzie mają sens. „Zrób zdjęcie” zostaje w M-03.
@@ -414,7 +414,7 @@ Zasady wiersza filmu i stanu „Czeka na Wi-Fi” [od EVM-110] (AC1, AC4, AC5; t
 **Stany**
 | Stan | Zachowanie |
 |---|---|
-| Pusty | Nagłówek „Wszystko wysłane” z ikoną `check` oraz EmptyState (§ 3.15) `circle-check`: „Wszystko wysłane. Zdjęcia i filmy zlecenia przegląda biuro w panelu.” — **bez przycisku** („Zrób zdjęcie” jest w dolnym pasku M-03). |
+| Pusty | Nagłówek „Wszystko wysłane” z ikoną `check` oraz EmptyState (§ 3.15) `circle-check`: „Wszystko wysłane. Zdjęcia zlecenia znajdziesz w wierszu „Zdjęcia zlecenia”. Filmy ogląda biuro w panelu.” (od EVM-142; wcześniej: „…Zdjęcia i filmy zlecenia przegląda biuro w panelu.”) — **bez przycisku** („Zrób zdjęcie” jest w dolnym pasku M-03; wiersz „Zdjęcia zlecenia” — w M-03 tuż nad wierszem „Pliki z tego telefonu”). Tekst nie zależy od sieci. |
 | Wczytywanie | Szkielet 3 wierszy (Skeleton § 3.16), dla czytnika „Wczytywanie plików…”; bez spinnera; wiersz M-03 bez drugiej linii. |
 | Błąd odczytu | EmptyState: „Nie udało się wczytać listy plików.” + [Spróbuj ponownie] (ponawia sam odczyt lokalnej bazy); żaden rekord ani plik nie jest zmieniany; wiersz M-03 bez drugiej linii, jeśli nie zna liczby. |
 | Offline | Wszystkie pliki i stany jak z siecią (dane są lokalne), **bez komunikatu o błędzie i bez banera**; jedyny sygnał to kapsuła „Offline · n”. Film bez sieci ma „Czeka na połączenie”. |
@@ -429,8 +429,137 @@ Zasady wiersza filmu i stanu „Czeka na Wi-Fi” [od EVM-110] (AC1, AC4, AC5; t
 
 - **Responsywność:** jedna kolumna; 200% czcionki — nic nie jest ucinane, przyciski akcji pod opisem na pełną szerokość; pozioma orientacja bez zmian układu.
 - **Komponenty i tokeny — tylko istniejące, bez nowych:** AppBar + SyncIndicator (§ 3.18, § 5.4); `FileRow` (§ 3.12 — StatusBadge, ProgressBar, Button „Ponów” i danger-tertiary „Usuń z telefonu”); EmptyState (§ 3.15); Skeleton (§ 3.16); InlineAlert (§ 3.19, `info`) — wynik nieudanego ponowienia; AlertDialog (§ 3.13) „Usuń z telefonu”; nagłówek `text.heading-4` `color.text.primary`, ikona `check` `color.feedback.success.icon`; tony `color.sync.*`; odstępy `space.inset.md`, `space.stack.md`, `space.stack.xs`; cele `size.touch-target.min`.
-- **Mikrocopy:** „Pliki zlecenia” (tytuł) · „n do wysłania” (1 do wysłania, 3 do wysłania, 12 do wysłania — bez odmiany liczebnika) · „Wszystko wysłane” · „Wszystko wysłane. Zdjęcia i filmy zlecenia przegląda biuro w panelu.” · „Wczytywanie plików…” · „Nie udało się wczytać listy plików.” · „Spróbuj ponownie” · „Dane zleceń są ukryte. Pliki wyślą się dalej — status zobaczysz w Kolejce.” · etykiety stanów: „Oczekuje”, „Wysyła się n%”, „Czeka na Wi-Fi” (od 1 doby z wiekiem), „Czeka na połączenie” (film bez sieci), „Nie wysłano — plik uszkodzony w transmisji”, „Wymaga uwagi” · powody i dialog „Usuń z telefonu” jak w M-07.
+- **Mikrocopy:** „Pliki zlecenia” (tytuł) · „n do wysłania” (1 do wysłania, 3 do wysłania, 12 do wysłania — bez odmiany liczebnika) · „Wszystko wysłane” · „Wszystko wysłane. Zdjęcia zlecenia znajdziesz w wierszu „Zdjęcia zlecenia”. Filmy ogląda biuro w panelu.” (od EVM-142) · „Wczytywanie plików…” · „Nie udało się wczytać listy plików.” · „Spróbuj ponownie” · „Dane zleceń są ukryte. Pliki wyślą się dalej — status zobaczysz w Kolejce.” · etykiety stanów: „Oczekuje”, „Wysyła się n%”, „Czeka na Wi-Fi” (od 1 doby z wiekiem), „Czeka na połączenie” (film bez sieci), „Nie wysłano — plik uszkodzony w transmisji”, „Wymaga uwagi” · powody i dialog „Usuń z telefonu” jak w M-07.
 - **Dostępność:** wiersz jest **jedną grupą** czytaną „[kategoria], [typ], [czas], [stan]”, a przyciski „Ponów” i „Usuń z telefonu” stoją poza grupą; stan niesie tekst etykiety, nie sam kolor ani ikona; postęp „Wysyłanie pliku, 45%” bez ogłaszania każdego procenta; zmiany liczby w nagłówku ogłaszane **zbiorczo** po chwili ciszy (nie przy każdym pliku i procencie); „Wszystko wysłane.” ogłoszone **raz**, gdy ostatni plik potwierdzi serwer (nie po „Usuń z telefonu”); nagłówek ma rolę nagłówka; cele ≥ 48 dp; 200% czcionki bez ucinania; w trybie ukrytych danych brak jakichkolwiek ogłoszeń (region na żywo też ujawniałby dane).
+
+## M-08a Zdjęcia zlecenia (siatka) — od EVM-142
+> **Od EVM-142 (propozycja `ux-designer` 2026-11-19; AC2, AC4, AC5, AC6 historyjki; zmiana decyzji z 2026-11-12 przyjęta przez Konrada 2026-11-18).** To **osobny ekran** od M-08 „Pliki zlecenia” (kolejka tego telefonu): M-08 mówi, co jeszcze **nie dotarło** do biura; M-08a pokazuje zdjęcia, które **już są** w zleceniu — także od kolegów i z panelu. Zdjęcia są pobierane z serwera **online, wyłącznie do pamięci** (nic na dysku telefonu, bez pobierania, udostępniania i oryginału). Filmy: EVM-143 (do tego czasu nie ma ich w siatce ani w liczniku; ogląda je biuro w panelu).
+
+- **Cel:** sprawdzić na miejscu, co już udokumentowano w tym zleceniu (czy zdjęcie tablicy, licznika, trasy kabla jest), bez dzwonienia do biura.
+- **Główna akcja:** dotknięcie zdjęcia → M-08b (podgląd). „Zrób zdjęcie” zostaje w dolnym pasku M-03 (na tym ekranie go nie ma).
+- **Wejście:** wiersz „Zdjęcia zlecenia” w M-03 (i w szczegółach wizji lokalnej, jeśli jej zdjęcia są mediami zlecenia); wyjście: „Wstecz” (nazwa dostępna „Wróć do zlecenia”). AppBar jak w M-08 (tytuł „Zdjęcia zlecenia”, SyncIndicator).
+- **Hierarchia treści:** 1) InlineAlert (tylko gdy trzeba: offline albo część zdjęć się nie wczytała); 2) siatka kafli od najnowszego **czasu wykonania** (przy równych czasach — kolejność stała, wg czasu utworzenia wpisu, bez skakania podczas doładowywania). Bez nagłówka z liczbą, filtrów, grupowania, wyboru wielu, przełącznika widoku i dolnego paska.
+
+**Makieta (compact, 360 dp, czcionka 100%) — 3 kolumny**
+```text
+┌──────────────────────────────────┐
+│ ← Zdjęcia zlecenia ⟨Zsynchr.14:05⟩│ nazwa dostępna wstecz: „Wróć do zlecenia”
+├──────────────────────────────────┤
+│ ┌────────┐ ┌────────┐ ┌────────┐ │ kafel = kwadrat (1:1), miniatura 320 px
+│ │ foto   │ │ foto   │ │ ‹scan- │ │ przycięta (cover); w kaflu bez gotowej
+│ │        │ │        │ │ search›│ │ miniatury ikona + tekst stanu
+│ └────────┘ └────────┘ └────────┘ │
+│ Po zakoń-  Oględziny  Po zakoń-  │ kategoria text.label color.text.primary,
+│ czeniu                czeniu     │ zawijana, bez ucinania
+│ 15.11.2026, 15.11.2026, 15.11.2026,│ czas text.body-sm color.text.secondary
+│ 14:05      13:50      13:41      │ (zawija się w wąskim kaflu)
+│                       Przygotowu-│ pod kaflem znacznik stanu (§ 4.14):
+│                       jemy podgląd│ ikona + pełna etykieta, zawijana
+│ ┌────────┐ ┌────────┐ ┌────────┐ │
+│ …                                │
+└──────────────────────────────────┘
+```
+Przy czcionce 200% lub wąskim ekranie — **2 kolumny** (poniżej). Pod siatką brak „Wczytaj więcej” — replika zlecenia jest zamknięta zbiorem; siatka jest wirtualizowana (lista przewijana), a **adresy miniatur są pobierane tylko dla kafli widocznych i jednego rzędu przed nimi / za nimi** (limit 1000 adresów / 10 min / użytkownik, AC1; miniatura, która wyjechała poza ekran, zwalnia obraz z pamięci).
+
+**Układ siatki (konkrety dla wykonawcy)**
+| Warunek | Kolumny | Uwagi |
+|---|---|---|
+| szerokość kafla przy 3 kolumnach ≥ `size.thumbnail.md` (96 dp) **i** skala czcionki ≤ 130% | 3 (`grid` compact wg § 3.11) | 360 dp: margines `grid.compact.margin` (16) po bokach, odstęp `space.inline.xs` w poziomie → kafel ok. 106 dp |
+| w przeciwnym razie (wąski telefon < ok. 330 dp, skala czcionki > 130%, powiększony rozmiar wyświetlania) | **2** | kafel ok. 156 dp; kategoria i czas mieszczą się w 1–2 liniach przy 200% |
+- **Kafel:** kwadrat 1:1 (miniatura 320 px, `resizeMode: cover`), `radius.thumbnail`, wypełnienie przed wczytaniem `color.bg.skeleton`; obrys `color.border.subtle`; pod kaflem odstęp `space.stack.xs`, potem **kategoria** (`text.label`, `color.text.primary`; „Bez kategorii” gdy brak), **czas wykonania** (`text.body-sm`, `color.text.secondary`, format `DD.MM.RRRR, GG:MM` wg § 6.3 — bez dat względnych: kafle nie mają miejsca na „dziś”, a pełna data wyklucza pomyłkę) i ewentualnie znacznik stanu. **Nic nie jest nałożone na samą miniaturę** (tekst na zdjęciu bywa nieczytelny w słońcu — jak znaczniki na podglądzie aparatu, § 3.24). Odstęp między rzędami `space.stack.sm`. Bez nazw plików, autora, opisu, nazwy klienta i adresu.
+- **Zmiana liczby kolumn** (obrót, zmiana skali czcionki w ustawieniach) nie wyrzuca użytkownika z ekranu i zachowuje pozycję przewijania w pobliżu tego samego zdjęcia; adresy miniatur, które już istnieją, nie są pobierane drugi raz.
+- **Cel dotyku:** cały kafel (miniatura + podpis) jest **jednym przyciskiem**; najmniejszy kafel ma ≥ 96 × 96 dp (> 48 × 48); odstęp między kaflami `space.inline.xs`; akcja wykonuje się dopiero po puszczeniu palca na tym samym kaflu (standard dotyku).
+
+**Stany kafla** (jeden stan na kafel; znacznik wg § 4.14: ikona `size.icon.sm` + pełna etykieta, nigdy sama ikona)
+| Stan pliku w replice | Miniatura | Tekst pod kaflem | Dotyk |
+|---|---|---|---|
+| `ready`, miniatura się wczytuje | szkielet `color.bg.skeleton` (kształt kafla, bez spinnera) | kategoria i czas od razu (z repliki) | podgląd otwiera się, gdy miniatura gotowa; wcześniej dotyk otwiera M-08b z szkieletem |
+| `ready`, wczytana | miniatura | kategoria, czas | otwiera M-08b |
+| `uploaded` / `scanning` / `clean` / `processing` | puste pole `color.bg.surface-subtle` z ikoną `scan-search` (`size.icon.xl`, `color.icon.secondary`) | znacznik `scan-search` **„Przygotowujemy podgląd”** (`color.sync.queued.*`) | brak akcji; **nie ma żądania adresu** |
+| kwarantanna (`quarantined`) | puste pole z ikoną `triangle-alert` | znacznik `triangle-alert` **„Plik zatrzymany do sprawdzenia”** (`color.sync.error.*`; bez przyczyny, kodu i szczegółów skanu) | brak akcji; **nie ma żądania adresu** |
+| `failed` (po `clean`) | puste pole z ikoną `image` | znacznik `image` **„Nie udało się przygotować podglądu”** (`color.icon.secondary`, tekst `color.text.secondary`) | brak akcji; **nie ma żądania adresu** |
+| `pending_upload` (zdjęcie od kolegi, plik jeszcze nie dotarł) | puste pole z ikoną `clock` | znacznik `clock` **„Czeka na plik”** (istniejąca etykieta § 4.14, `color.sync.queued.*`) | brak akcji; nie ma żądania adresu |
+| błąd wczytania miniatury (sieć, `5xx`, `429`) | puste pole z ikoną `image` | znacznik **„Nie udało się wczytać zdjęcia”** (ton jak `failed`) | dotyk ponawia wczytanie tej miniatury (nazwa dostępna z podpowiedzią „Ponawia wczytywanie”); bez automatycznej pętli ponowień |
+| `404` dla miniatury (zdjęcie zniknęło z serwera, pochodna niegotowa) | puste pole z ikoną `ban` | znacznik **„Zdjęcie niedostępne”** (`color.icon.secondary`) | brak akcji (ponowienie nie pomoże); wpis zniknie po następnej synchronizacji |
+- Kafle bez akcji (stany pliku, niedostępne) są **grupą tekstową**, nie przyciskiem — czytnik nie obiecuje akcji, której nie ma; ich wysokość jest równa kaflom z miniaturą (siatka się nie przesuwa po doładowaniu).
+- Zmiana stanu pliku (np. `processing` → `ready`) po kolejnej synchronizacji: kafel dostaje miniaturę bez ogłoszeń i bez przesunięcia układu; kolejność nie zmienia się (czas wykonania).
+
+**Stany ekranu**
+| Stan | Zachowanie |
+|---|---|
+| Wczytywanie (replika / pierwsze kafle) | Szkielet siatki: tyle kafli, ile mieści się na ekranie (kwadrat + dwie linie tekstu — Skeleton § 3.16 „miniatura”), `color.bg.skeleton`, bez spinnera; dla czytnika „Wczytywanie zdjęć…” (jednorazowo, `aria-busy` na kontenerze). Replika jest lokalna, więc stan trwa zwykle chwilę. |
+| Gotowe | Siatka jak wyżej; wiersz tekstu kafli z repliki jest od razu, miniatury dochodzą leniwie (bez ogłoszeń i bez skoku układu). |
+| Pusty | EmptyState (§ 3.15, ikona `image`, `size.icon.2xl`): **„Brak zdjęć w tym zleceniu”** — **bez przycisku** („Zrób zdjęcie” jest w dolnym pasku M-03); bez opisu zachęcającego do akcji i bez wzmianki o filmach (filmy: EVM-143). Pusty stan nie wymaga sieci (replika). |
+| Offline (brak sieci) | **Zamiast siatki — lista jednokolumnowa** wierszy z repliki: kategoria (`text.label`) + czas (`text.body-sm`) + ewentualnie znacznik stanu pliku (jak wyżej, te same teksty), **bez miniatur i bez pustych kwadratów**; wiersz ≥ `size.touch-target.min`, nie jest przyciskiem (nie ma dokąd). Nad listą InlineAlert tonu `info` z ikoną `wifi-off`: **„Podgląd zdjęć wymaga internetu”** — bez słowa „błąd”, bez kodów, bez przycisku (kapsuła SyncIndicator „Offline · n” już mówi o stanie). Nie ma żądań adresów. Po powrocie sieci lista **sama** zamienia się w siatkę (szkielety → miniatury), bez ogłoszeń (patrz Dostępność). Jeśli sieć „jest”, ale żądanie adresu zawiedzie (słaby zasięg w garażu) — to błąd wczytania pojedynczej miniatury, nie stan offline. |
+| Błąd wczytania części zdjęć | Kafle z błędem wg tabeli; **gdy ≥ 1 miniatura zawiodła z powodu sieci lub serwera** — nad siatką InlineAlert tonu `warning`: „Nie udało się wczytać części zdjęć.” + Button tertiary **„Spróbuj ponownie”** (ponawia wszystkie nieudane; ≥ 48 dp). Komunikat `role="alert"` ogłaszany raz, a kolejne zawiedzenia kafli go nie powtarzają. |
+| Brak uprawnień (`403`) | Pierwsze `403` na adresie miniatury = telefon nie ma dostępu do zdjęć (rola, kanał, token): EmptyState zamiast siatki (ikona `lock`, `size.icon.2xl`): **„Zdjęcia niedostępne. Mogły zostać usunięte albo nie masz do nich dostępu.”** — bez kodu, powodu i przycisku ponowienia; brzmienie jak istniejący komunikat „Zlecenie niedostępne. Mogło zostać usunięte albo nie masz do niego dostępu.” (aplikacja nie ujawnia, czy to rola, zlecenie czy plik). Tylko odczyt nie loguje się do aplikacji (M-02). Odrzucony token (`401`) obsługuje istniejący przepływ sesji (§ 4.18 / M-02), nie ten ekran. |
+| Dane ukryte / blokada / `session_revoked` / wylogowanie / „Wyczyść dane firmowe” (§ 4.18) | Siatka znika **od razu** z drzewa widoków (kafle, miniatury, komunikaty), żądania w toku są przerwane, spóźnione odpowiedzi odrzucane; ekran pokazuje wyłącznie EmptyState `eye-off`: „Dane zleceń są ukryte. Pliki wyślą się dalej — status zobaczysz w Kolejce.” z akcją wyjścia jak w całej aplikacji (to samo co w M-08). **Wiersza „Zdjęcia zlecenia” w M-03 nie ma.** Czytnik niczego nie ogłasza. Po odblokowaniu wraca siatka (stan przewijania zachowany wg EVM-146), z szkieletami — **miniatury pobierane od nowa**, adresy nie są zachowywane. |
+
+**Role**
+| Akcja | Operacja | A | E | R |
+|---|---|---|---|---|
+| Lista zdjęć zlecenia (kategoria, czas, stan) | replika `media_asset` (bez API) | tak | tak | brak dostępu (M-02) |
+| Miniatura i podgląd | `createMediaAssetDownloadUrl`, kanał `mobile`, wyłącznie `thumbnail` / `preview` | tak | tak | — |
+| Oryginał, pobranie, udostępnienie, zapis do galerii | — (tylko panel; oryginał może zawierać lokalizację) | nie | nie | — |
+
+- **Komponenty i tokeny:** AppBar + SyncIndicator (§ 3.18, § 5.4); **nowy wariant Thumbnail „kafel siatki w aplikacji” (§ 3.11, rozszerzenie wpisane w changelogu)**; Skeleton „miniatura” (§ 3.16); znacznik stanu pliku (§ 4.14); EmptyState (§ 3.15); InlineAlert (§ 3.19; `info`, `warning`); Button tertiary „Spróbuj ponownie”; tokeny: `size.thumbnail.md`, `radius.thumbnail`, `color.bg.skeleton`, `color.bg.surface-subtle`, `color.border.subtle`, `grid.compact.margin`, `space.inline.xs`, `space.stack.xs`, `space.stack.sm`, `text.label`, `text.body-sm`, `size.icon.xl`, `size.touch-target.min`, `color.sync.queued.*`, `color.sync.error.*`. Ikony (§ 2.10, wymagają dodania do `icons.ts` — głęboki import jak reszta): `image`, `scan-search`, `clock` (jest), `triangle-alert` (jest), `ban` (jest), `wifi-off` (jest), `lock` (jest). **Bez nowych tokenów.**
+- **Mikrocopy:** „Zdjęcia zlecenia” (tytuł) · „Brak zdjęć w tym zleceniu” · „Podgląd zdjęć wymaga internetu” · „Przygotowujemy podgląd” · „Plik zatrzymany do sprawdzenia” · „Nie udało się przygotować podglądu” · „Czeka na plik” · „Nie udało się wczytać zdjęcia” · „Zdjęcie niedostępne” · „Nie udało się wczytać części zdjęć.” · „Spróbuj ponownie” · „Wczytywanie zdjęć…” · „Zdjęcia niedostępne. Mogły zostać usunięte albo nie masz do nich dostępu.” · „Bez kategorii” · „Dane zleceń są ukryte. Pliki wyślą się dalej — status zobaczysz w Kolejce.”
+- **Dostępność:**
+  - **Nazwa dostępna kafla z miniaturą:** „[kategoria], [czas]” (np. „Po zakończeniu, 15.11.2026, 14:05”), rola przycisku, podpowiedź „Otwiera podgląd zdjęcia”; **nigdy** nazwa pliku, identyfikator medium lub zlecenia, adres ani nazwa klienta (także w `testID`). Kafel w stanie pliku / błędzie dopisuje stan na końcu: „Po zakończeniu, 15.11.2026, 14:05, Przygotowujemy podgląd”. Miniatura sama jest dekoracją (nie ma własnej etykiety — obraz nie ma opisu poza metadanymi).
+  - **Kolejność fokusu i czytania:** AppBar (Wstecz) → komunikat (offline / część zdjęć), jeśli jest → kafle w kolejności wizualnej (od lewej do prawej, rząd po rzędzie, od najnowszego). Czytnik **nie ogłasza** doładowywania miniatur, zmiany układu ani zmiany stanu pojedynczego kafla; wejście na ekran ogłasza tytuł (i „Wczytywanie zdjęć…” tylko podczas stanu ładowania). Komunikat offline i „Nie udało się wczytać części zdjęć.” — raz, po pojawieniu się; powrót sieci nie ogłasza niczego (wystarczy, że zniknął komunikat).
+  - Po zamknięciu podglądu fokus wraca na **ten sam kafel**.
+  - Znaczniki stanu niosą tekst + ikonę (nie sam kolor); kontrasty jak § 4.14; 200% czcionki — kategoria i czas zawijają się bez ucinania, siatka przechodzi na 2 kolumny, żaden tekst nie ma `numberOfLines`; cele ≥ 48 dp.
+  - Tryb ukrytych danych: brak jakichkolwiek ogłoszeń i nazw dostępnych (§ 4.18).
+
+## M-08b Podgląd zdjęcia (pełny ekran) — od EVM-142
+- **Cel:** obejrzeć zdjęcie z miniatury w rozmiarze użytecznym w terenie (wariant 1600 px) razem z kategorią, czasem i opisem.
+- **Główna akcja:** zamknięcie (powrót do siatki). Brak innych akcji: bez pobrania, udostępniania, przybliżania szczypaniem, przeciągania do następnego zdjęcia (poza zakresem — wracamy do siatki i wybieramy kolejne; przyciski „poprzednie / następne” z § 3.11 dotyczą lightboxa w panelu).
+- **Charakter:** widok w oknie głównym aplikacji (nie `Modal`, nie osobna aktywność), potomek korzenia `LockGate` — nakładka blokady go przykrywa, a w kompilacji produkcyjnej okno ma `FLAG_SECURE`.
+
+**Makieta (compact)**
+```text
+┌──────────────────────────────────┐
+│ [X]  Po zakończeniu              │ pasek (tło color.bg.inverse): Zamknij 48×48 dp
+│      15.11.2026, 14:05           │ po lewej, kategoria text.heading-4 + czas
+├──────────────────────────────────┤ text.body-sm w kolorze color.text.inverse
+│                                  │
+│          [ zdjęcie ]             │ dopasowane w całości (contain), wyśrodkowane,
+│                                  │ nigdy większe niż 1600 px; tło color.bg.inverse
+│                                  │
+├──────────────────────────────────┤
+│ Opis                             │ tylko gdy zdjęcie ma opis; text.label-lg
+│ Licznik po prawej stronie        │ text.body, color.text.inverse; przewijany
+│ szafki, numer plomby widoczny.   │ wewnątrz panelu
+└──────────────────────────────────┘
+```
+- **Układ i tokeny:** całe okno `color.bg.inverse`, tekst `color.text.inverse`, ikona zamknięcia `x` `size.icon.md` `color.icon.inverse` w celu 48 × 48 dp (`size.touch-target.min`), lewy górny róg — w tym samym miejscu co „Wstecz” w AppBar, poniżej paska stanu systemu (safe area); pasek **nie nakłada się** na zdjęcie (zdjęcie ma własny obszar między paskiem a panelem opisu, więc nic nie zasłania szczegółów). Kategoria: `text.heading-4`; czas: `text.body-sm`; „Bez kategorii” gdy brak. Panel opisu u dołu (strefa kciuka, w safe area dolnej krawędzi), `color.bg.inverse`, odstęp od zdjęcia `color.border.inverse` (`border-width.indicator`; token z ekranu aparatu § 3.24), padding `space.inset.md`; **wysokość panelu ≤ 40% wysokości okna**, treść przewijana w panelu z widocznym wskaźnikiem przewijania; dłuższy opis nigdy nie spycha zdjęcia poniżej ok. 40% wysokości ekranu. Bez opisu — panel nie istnieje (zdjęcie dostaje całą wysokość), nie ma napisu „Brak opisu”.
+- **Czcionka 200%:** pasek zawija kategorię i czas (zamknięcie zostaje 48 × 48 dp i nie przesuwa się); pasek do 25% wysokości okna, potem przewijanie wewnątrz paska nie jest potrzebne (tekst kategorii i daty jest krótki); panel opisu nadal ≤ 40% z przewijaniem; obszar zdjęcia ma minimum 35% wysokości (przy skrajnej kombinacji panel opisu zmniejsza się, nie zdjęcie). Nic nie jest ucinane (`numberOfLines` niedozwolone).
+- **Orientacja pozioma:** zdjęcie po lewej, kolumna z paskiem i opisem po prawej (≈ 40% szerokości); jeśli aplikacja ma zablokowaną orientację pionową — bez zmian.
+- **Przejście i ruch:** otwarcie bez animacji powiększania z kafla (bez „shared element”); krótkie pojawienie się `motion.transition.enter`, przy „ograniczone animacje” — natychmiast. Zdjęcie 1600 px pojawia się bez migania: do czasu wczytania obszar pokazuje **miniaturę z siatki** (już w pamięci, skalowaną, bez rozmycia animowanego), a jeśli jej nie ma — szkielet.
+
+**Zachowanie Wstecz i zamykanie**
+- Przycisk systemowy Wstecz (i gest Wstecz) **zamyka podgląd i wraca do siatki** (nie do M-03); działa też podczas wczytywania (przerywa żądanie). Przycisk „Zamknij” robi to samo. Brak innego sposobu zamknięcia (bez przeciągania w dół, bez dotknięcia tła — żeby nie zamknąć przypadkiem w rękawicach).
+- Po zamknięciu: siatka z tą samą pozycją przewijania, fokus na kaflu, z którego podgląd otwarto; obraz 1600 px jest zwalniany z pamięci od razu (także przy przejściu aplikacji w tło — SR-MOB-05, EVM-142 Notatki).
+
+**Stany**
+| Stan | Zachowanie |
+|---|---|
+| Ładowanie | Pasek z kategorią i czasem od razu (z repliki); obszar zdjęcia: miniatura z siatki albo szkielet (`color.bg.skeleton` na ciemnym tle — kształt kwadratu do szerokości okna), **bez spinnera**; dla czytnika „Wczytywanie zdjęcia…” raz (`aria-busy`). |
+| Gotowe | Zdjęcie dopasowane (contain), kategoria, czas, opis (jeśli jest). |
+| Wygasły adres (po 5 min) | Odświeżany **jednorazowo i bezgłośnie**: bez migania, bez komunikatu, bez ogłoszenia; widoczne zostaje to, co już jest na ekranie (zdjęcie albo miniatura). Odświeżenie następuje tylko wtedy, gdy wczytanie się nie udało z powodu wygaśnięcia — nie zegarem. |
+| Błąd wczytania (drugi błąd po odświeżeniu, błąd sieci, `5xx`, `429`) | W obszarze zdjęcia: ikona `cloud-alert` (`size.icon.2xl`, `color.icon.inverse`) + **„Nie udało się wczytać zdjęcia”** (`text.body`, `color.text.inverse`) + Button secondary na ciemnym tle **„Spróbuj ponownie”** (≥ 48 dp, pełna szerokość w compact) — ponowienie prosi o **nowy adres**; w trakcie przycisk w stanie ładowania (spinner w przycisku, § 3.1), wyłączony, nie da się go spamować. `role="alert"` raz. Pasek i opis zostają. |
+| Offline | Jeśli zdjęcie jest już wyświetlone — zostaje (obraz jest w pamięci). Jeśli nie zdążyło się wczytać: w obszarze zdjęcia `wifi-off` + **„Podgląd zdjęć wymaga internetu”** + „Spróbuj ponownie”; po powrocie sieci jedno automatyczne ponowienie bez ogłoszeń. |
+| Brak uprawnień / zdjęcie niedostępne (`403`, `404` na adresie podglądu) | W obszarze zdjęcia: ikona `ban` + **„Zdjęcie niedostępne. Mogło zostać usunięte albo nie masz do niego dostępu.”** — bez przycisku ponowienia (nie pomoże), bez kodu i powodu; zostaje „Zamknij”. |
+| Dane ukryte / blokada / `session_revoked` / wylogowanie / „Wyczyść dane firmowe” | Podgląd **znika z drzewa widoków od razu**, żądanie adresu i pobieranie są przerwane, spóźniona odpowiedź (adres lub obraz) jest odrzucana i niczego nie wyświetla, odświeżanie wygasłych adresów wstrzymane; czytnik niczego nie ogłasza; po odblokowaniu użytkownik wraca do **siatki**, nie do podglądu (świadomie: zdjęcie nie pojawia się samo po odblokowaniu). |
+
+- **Dostępność:**
+  - Kolejność fokusu: „Zamknij” → grupa „[kategoria], [czas]” (nagłówek) → opis (jeśli jest). Po otwarciu fokus czytnika ustawiany jest na **grupie nagłówka**, która ogłasza „Podgląd zdjęcia, [kategoria], [czas]” (jednorazowo; bez nazwy pliku i identyfikatora). Zdjęcie samo nie jest elementem czytnika (nie ma opisu poza metadanymi — dublowałoby nagłówek); opis czytany jako zwykły tekst.
+  - Przycisk „Zamknij” ma nazwę „Zamknij podgląd”; „Spróbuj ponownie” i stany błędu mają nazwę równą widocznemu tekstowi.
+  - Nie ogłaszamy ładowania w tle ani odświeżenia adresu; błąd — raz (`role="alert"`).
+  - Kontrast: tekst `color.text.inverse` na `color.bg.inverse` (para istniejąca w Toast i znacznikach aparatu, § 3.24) — kontrast wg § 2.1.4; ikona zamknięcia `color.icon.inverse` ≥ 3:1.
+  - Opis nie jest zaznaczalny ani kopiowalny (`selectable` wyłączone); brak długiego dotknięcia, menu, udostępniania i przeciągania obrazu.
+- **Komponenty i tokeny:** nowy **wariant „podgląd zdjęcia w aplikacji” komponentu Lightbox (§ 3.11)** — widok własny, bez `Modal`; IconButton `x` (§ 3.1), Button secondary / tertiary (ciemny wariant z § 3.24), EmptyState-w-miniaturze (ikona + tekst, bez `size.icon.2xl` > 1/4 wysokości), Skeleton; tokeny: `color.bg.inverse`, `color.text.inverse`, `color.icon.inverse`, `text.heading-4`, `text.body`, `text.body-sm`, `text.label-lg`, `size.icon.md`, `size.icon.2xl`, `size.touch-target.min`, `space.inset.md`, `motion.transition.enter`. Ikony: `cloud-alert`, `x`, `ban`, `wifi-off` już są w `icons.ts`. **Bez nowych tokenów.**
+- **Mikrocopy:** „Zamknij podgląd” · „Podgląd zdjęcia” (ogłoszenie) · „Opis” · „Wczytywanie zdjęcia…” · „Nie udało się wczytać zdjęcia” · „Spróbuj ponownie” · „Podgląd zdjęć wymaga internetu” · „Zdjęcie niedostępne. Mogło zostać usunięte albo nie masz do niego dostępu.” · „Bez kategorii”.
 
 ## M-09 Więcej
 - **Cel:** ustawienia wysyłania, pomoc i prywatność oraz bezpieczne wylogowanie lub wyczyszczenie danych firmowych.
