@@ -4,7 +4,7 @@ title: "Aplikacja: pod nakładką blokady nie ma danych zleceń w drzewie widok�
 type: story
 milestone: M2
 epic: E9 Dostęp mobilny
-status: in-review
+status: done
 priority: P2
 path: pelna             # dane na urządzeniu, bezpieczeństwo aplikacji mobilnej (SR-MOB-03/05/06/08); zmiana wspólnej powłoki ekranów, ryzyko utraty niezapisanych danych
 owner: mobile-developer
@@ -104,3 +104,4 @@ Jako **właściciel firmy** chcę, aby **zablokowana aplikacja nie zawierała da
 - 2026-11-19 — status `in-progress`; etap 2 (mobile-developer): `LockGate` na `Activity` (zamiast spike'u), testy Jest AC1–AC4 (`lock-view-tree.test.tsx`, aparat, „Wszystko wysłane”), kroki emulatora `view-tree-unlocked` / `view-tree-resume`, scenariusze `lock-*`
 - 2026-11-19 — runda poprawek po przeglądach (mobile-developer): B1 (`useSettled` — wynik zapisu pod nakładką czeka na ponowne uruchomienie efektów, formularze nie wiszą w „zapisywanie”), M2 (`Shell` ustępuje przyciskowi Wstecz, gdy nad nim jest formularz / aparat / dialog), m3 (kontrola dodatnia wymaga 10 z 12 wartości, wyjątki nazwane), m4 (`useNotice`, brak ogłoszenia „połączono ponownie” po ponownym uruchomieniu efektu), m5–m7, S1 (strukturalna kontrola `dumpsys activity top`), S2 (kontrola usługi kamery; wykryła, że aparat zostaje zajęty pod nakładką — poprawione `pausePreview` / `resumePreview`); szczegóły pomiarów w Notatkach
 - 2026-11-19 — ponowne przeglądy rundy poprawek: kod APPROVE, security sign-off z warunkami; opisy mechanizmu w `docs/security/*` i adnotacji ADR-0007 zgodne z pomiarem; ryzyko okna po powrocie z tła (RR-103) zaakceptowane przez Konrada 2026-11-19; R-146-2 (Low) do potwierdzenia przy akceptacji; status `in-review` (Tech Lead)
+- 2026-11-19 — PR #157 scalony przez Konrada: zaakceptowane adnotacja ADR-0007, brzmienie AC1 (widoki pod niewidocznym rodzicem + `FLAG_SECURE`) i R-146-2; emulator na kodzie połączonym z `main`: zestaw bazowy 71/71; status `done`
