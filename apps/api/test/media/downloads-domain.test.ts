@@ -21,6 +21,15 @@ describe('EVM-045 AC4 AC6 who may request which variant and which files are down
     }
   });
 
+  it('EVM-142 AC1 the phone gets the derivatives only: no role gets the original on the mobile channel', () => {
+    for (const role of ['administrator', 'editor', 'read_only'] as const) {
+      expect(mayRequest(role, 'original', 'mobile')).toBe(false);
+      expect(mayRequest(role, 'thumbnail', 'mobile')).toBe(true);
+      expect(mayRequest(role, 'preview', 'mobile')).toBe(true);
+    }
+    expect(mayRequest('administrator', 'original', 'web')).toBe(true);
+  });
+
   it('EVM-045 AC5 the thumbnail and the preview are one class, the original another', () => {
     expect(variantClass('thumbnail')).toBe('derivative');
     expect(variantClass('preview')).toBe('derivative');
