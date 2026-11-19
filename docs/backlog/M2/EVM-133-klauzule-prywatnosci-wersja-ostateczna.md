@@ -59,6 +59,7 @@ Pozostałe punkty `[PRAWNIK/IOD]` w `rodo.md` niedotyczące treści klauzul; wzo
 ## Decyzje i ograniczenia
 - RR-95: bez prawnika i IOD — przegląd agenta prawnego (rola radcy od RODO) jest obowiązkowy przed akceptacją treści i wchodzi do DoD; wariant bezpieczny wybiera Tech Lead „z delegacji”; **treść zatwierdza Konrad**.
 - Scalenie = wdrożenie panelu z ostatecznymi klauzulami na jedynym środowisku (produkcja); nie wpisujemy danych, których Konrad nie podał — brak danych = historyjka `blocked`.
+- **Wersja aplikacji 1.0.0 (decyzja Konrada 2026-11-19, „zgoda na wersje 1.0.0”):** `APP_VERSION` w `apps/mobile/plugins/expo-config.ts` podniesiona z 0.1.0 do 1.0.0 w gałęzi tej historyjki — produkcja wymaga wersji co najmniej 1.0.0 (`MIN_SUPPORTED_APP_VERSION_ANDROID`), więc paczka 0.1.0 pokazywała „Aktualizacja wymagana”; bez zmiany konfiguracji serwera.
 - Blokuje EVM-112 (AC2: podpisany APK do testu terenowego). Wersja ostateczna to 1.0; późniejsze zmiany treści = nowa wersja i data.
 - Ścieżka `lekka`: brak nowych endpointów, danych i komponentów; jeden wykonawca zmienia oba pliki, `security-engineer` recenzuje zgodność z SR-PRIV-05 / SR-MOB-12; przegląd prawny w DoD (nie jako recenzent kodu).
 
@@ -76,3 +77,4 @@ Warunek `ready`; bez nich nie wpisujemy niczego do kodu.
 
 ## Dziennik
 - 2026-11-16 — utworzono jako draft (product-owner); wejście: `.scratch/EVM-133/legal-review.md` (agent prawny)
+- 2026-11-19 — wersja aplikacji podniesiona do 1.0.0 (decyzja Konrada 2026-11-19); status bez zmian — czeka na dane spółki (Tech Lead)

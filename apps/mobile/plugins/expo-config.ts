@@ -17,7 +17,7 @@ import { parseStorageHosts } from './with-upload.ts';
 import { parseContactEmail, parseContactPhone } from '../src/config/contact-values.ts';
 import { ADMINISTRATOR, CLAUSES, DRAFT } from '../src/privacy/content.ts';
 
-export const APP_VERSION = '0.1.0';
+export const APP_VERSION = '1.0.0';
 /** Permanent application id: changing it creates a different app on the phones (confirmed by Konrad before the first sideload). */
 export const ANDROID_APPLICATION_ID = 'pl.eviacharge.manager';
 export const IOS_BUNDLE_IDENTIFIER = 'pl.eviacharge.manager';

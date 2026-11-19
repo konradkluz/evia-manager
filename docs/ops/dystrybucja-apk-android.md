@@ -63,7 +63,7 @@ Opcje programisty i debugowanie USB są potrzebne **tylko** do `adb install`. Po
 
 ## Aktualizacje
 - Telefon przyjmie aktualizację tylko podpisaną **tym samym kluczem** (albo następcą z linii rotacji v3) i z wyższym `versionCode`. Kolejne wydanie = kolejny przebieg CI na `main` + podpis lokalny. Nie ma automatycznych aktualizacji: administrator instaluje je ręcznie.
-- Minimalna wersja: `MIN_SUPPORTED_APP_VERSION_ANDROID` w konfiguracji serwera (bez wdrożenia kodu). Lokalne API (`compose.dev.yaml`) ma minimum `0.1.0` = wersja aplikacji, więc `pnpm run dev` jej nie blokuje (granica równości); wartość produkcyjna przychodzi z konfiguracji VM (EVM-007).
+- Minimalna wersja: `MIN_SUPPORTED_APP_VERSION_ANDROID` w konfiguracji serwera (bez wdrożenia kodu). Lokalne API (`compose.dev.yaml`) ma minimum `0.1.0`, niższe niż wersja aplikacji (`1.0.0` od 2026-11-19, decyzja Konrada), więc `pnpm run dev` jej nie blokuje; wartość produkcyjna (`1.0.0`) przychodzi z konfiguracji VM (EVM-007).
 
 ## Lokalny build i test na Windows
 - Aplikacja i jej testy jednostkowe działają natywnie: `pnpm --filter @evia/mobile run test:coverage`.
