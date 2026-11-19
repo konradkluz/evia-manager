@@ -113,7 +113,31 @@ describe('the sources, the sinks and the pipeline (EVM-085 AC1, AC5; architect 4
     expect(pipeline).toMatch(/label_keep\s*\{\s*values\s*=\s*\["service", "level", "alertCode"\]/);
     expect(pipeline).toMatch(/stage\.limit\s*\{[\s\S]*drop\s*=\s*true/);
     expect(pipeline.match(/stage\.replace/g)?.length).toBeGreaterThanOrEqual(10);
-    expect(pipeline.match(/stage\.labels/g)).toHaveLength(2);
+    // every label a stage sets comes from a closed list; `stall_kind` (EVM-144) only feeds a counter and is not kept for Loki
+    const set = [...pipeline.matchAll(/stage\.labels\s*\{\s*values\s*=\s*\{([^}]*)\}/g)].flatMap((block) =>
+      [...(block[1] ?? '').matchAll(/(\w+)\s*=/g)].map((label) => label[1]),
+    );
+    expect(set.sort()).toEqual(['alertCode', 'level', 'stall_kind']);
+    expect(pipeline.match(/stage\.labels/g)).toHaveLength(3);
+  });
+
+  it('EVM-144 AC1: the stall counter matches the exact warnings the worker logs (a changed text would silence the alert)', () => {
+    const warnings: Array<[file: string, message: string]> = [
+      [
+        'apps/api/src/modules/media/application/media-processing.service.ts',
+        'media: photos wait for their derivatives for over 30 minutes',
+      ],
+      ['apps/api/src/modules/media/application/media-processing.service.ts', 'media: the processor is unreachable; the photo waits'],
+      ['apps/api/src/modules/media/application/video-processing.service.ts', 'media: films wait for their previews for over 2 hours'],
+      ['apps/api/src/modules/media/application/video-processing.service.ts', 'media: the processor is unreachable; the film waits'],
+      ['apps/api/src/modules/media/application/media-scan.service.ts', 'media: files wait for a scan for over 30 minutes'],
+    ];
+    for (const [file, message] of warnings) {
+      expect(read(file), `${file} no longer logs "${message}"`).toContain(`'${message}'`);
+      expect(pipeline, `pipeline.alloy does not match "${message}"`).toContain(`eq .msg \\"${message}\\"`);
+    }
+    // and the pipeline knows no other message: a new stall warning has to be added here and there together
+    expect(pipeline.match(/eq \.msg \\"media: /g)).toHaveLength(warnings.length);
   });
 });
 

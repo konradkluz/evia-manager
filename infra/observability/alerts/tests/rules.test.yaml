@@ -509,3 +509,142 @@ tests:
       - eval_time: 30m
         alertname: EviaApiUnhandledError
         exp_alerts: []
+
+  # EVM-144: media processing is stalled (counter of Alloy from the existing warnings of the worker; the worker warns on every pass,
+  # every 5-10 s, while files wait; the series are born at 1 and grow with the passes).
+  - name: EVM-144 AC2 no warnings of the worker, no alert
+    interval: 1m
+    input_series:
+      - series: 'node_textfile_scrape_error{env="staging"}'
+        values: '0x60'
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: EviaMediaProcessingStalled
+        exp_alerts: []
+  - name: EVM-144 AC2 a persistent stall of photo derivatives alerts with its kind, only after the persistence time
+    interval: 1m
+    input_series:
+      - series: 'loki_process_custom_media_stalled_total{env="staging", service="worker", level="warn", stall_kind="photo_derivatives"}'
+        values: '1+12x40'
+      - series: 'loki_process_custom_media_stalled_total{env="staging", service="worker", level="warn", stall_kind="scan"}'
+        values: '7x40'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: EviaMediaProcessingStalled
+        exp_alerts: []
+      - eval_time: 12m
+        alertname: EviaMediaProcessingStalled
+        exp_alerts:
+          - exp_labels: { severity: warning, ac2: media-stalled, env: staging, stall_kind: photo_derivatives }
+            exp_annotations:
+              summary: 'Media processing is stalled: kind photo_derivatives, warnings of the worker persist for 5m (processor_unreachable: 15m) (env staging)'
+              runbook: docs/ops/runbooks/alerty.md#eviamediaprocessingstalled
+  - name: EVM-144 AC2 each kind of a stall alerts on its own
+    interval: 1m
+    input_series:
+      - series: 'loki_process_custom_media_stalled_total{env="staging", service="worker", level="warn", stall_kind="video_preview"}'
+        values: '1+6x40'
+      - series: 'loki_process_custom_media_stalled_total{env="staging", service="worker", level="warn", stall_kind="scan"}'
+        values: '1+6x40'
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: EviaMediaProcessingStalled
+        exp_alerts:
+          - exp_labels: { severity: warning, ac2: media-stalled, env: staging, stall_kind: scan }
+            exp_annotations:
+              summary: 'Media processing is stalled: kind scan, warnings of the worker persist for 5m (processor_unreachable: 15m) (env staging)'
+              runbook: docs/ops/runbooks/alerty.md#eviamediaprocessingstalled
+          - exp_labels: { severity: warning, ac2: media-stalled, env: staging, stall_kind: video_preview }
+            exp_annotations:
+              summary: 'Media processing is stalled: kind video_preview, warnings of the worker persist for 5m (processor_unreachable: 15m) (env staging)'
+              runbook: docs/ops/runbooks/alerty.md#eviamediaprocessingstalled
+  - name: EVM-144 AC2 the alert resolves after the warnings stop
+    interval: 1m
+    input_series:
+      - series: 'loki_process_custom_media_stalled_total{env="staging", service="worker", level="warn", stall_kind="photo_derivatives"}'
+        values: '1+12x15 181x40'
+    alert_rule_test:
+      - eval_time: 14m
+        alertname: EviaMediaProcessingStalled
+        exp_alerts:
+          - exp_labels: { severity: warning, ac2: media-stalled, env: staging, stall_kind: photo_derivatives }
+            exp_annotations:
+              summary: 'Media processing is stalled: kind photo_derivatives, warnings of the worker persist for 5m (processor_unreachable: 15m) (env staging)'
+              runbook: docs/ops/runbooks/alerty.md#eviamediaprocessingstalled
+      - eval_time: 30m
+        alertname: EviaMediaProcessingStalled
+        exp_alerts: []
+  - name: EVM-144 AC2 a single pass (one warning, or a short stall that ends) does not alert
+    interval: 1m
+    input_series:
+      - series: 'loki_process_custom_media_stalled_total{env="staging", service="worker", level="warn", stall_kind="scan"}'
+        values: '_x3 1 1x40'
+      - series: 'loki_process_custom_media_stalled_total{env="staging", service="worker", level="warn", stall_kind="photo_derivatives"}'
+        values: '1+12x3 37x40'
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: EviaMediaProcessingStalled
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: EviaMediaProcessingStalled
+        exp_alerts: []
+  - name: EVM-144 AC2 an unreachable processor alerts only after it keeps growing for the longer time
+    interval: 1m
+    input_series:
+      - series: 'loki_process_custom_media_stalled_total{env="staging", service="worker", level="warn", stall_kind="processor_unreachable"}'
+        values: '1+12x40'
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: EviaMediaProcessingStalled
+        exp_alerts: []
+      - eval_time: 25m
+        alertname: EviaMediaProcessingStalled
+        exp_alerts:
+          - exp_labels: { severity: warning, ac2: media-stalled, env: staging, stall_kind: processor_unreachable }
+            exp_annotations:
+              summary: 'Media processing is stalled: kind processor_unreachable, warnings of the worker persist for 5m (processor_unreachable: 15m) (env staging)'
+              runbook: docs/ops/runbooks/alerty.md#eviamediaprocessingstalled
+  - name: EVM-144 AC2 a short outage of the processor (a restart, a deployment) does not alert
+    interval: 1m
+    input_series:
+      - series: 'loki_process_custom_media_stalled_total{env="staging", service="worker", level="warn", stall_kind="processor_unreachable"}'
+        values: '1+12x8 97x40'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: EviaMediaProcessingStalled
+        exp_alerts: []
+      - eval_time: 25m
+        alertname: EviaMediaProcessingStalled
+        exp_alerts: []
+
+  # EVM-144 AC3: when the worker does not log at all, nobody writes the warning. What covers it is the alert of missing data, and ONLY
+  # when the whole telemetry stops (Alloy, the VM, the channel). A worker that is down while Alloy and the host metrics live is NOT seen
+  # by the alert of missing data: the two cases below pin down exactly that (limit described in the runbook).
+  - name: EVM-144 AC3 when all telemetry stops (the worker is silent too), the alert of missing data fires and the stall alert does not
+    interval: 1m
+    input_series:
+      - series: 'loki_process_custom_media_stalled_total{env="staging", service="worker", level="warn", stall_kind="photo_derivatives"}'
+        values: '1+12x10'
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: EviaStagingNoData
+        exp_alerts:
+          - exp_labels: { severity: critical, ac2: no-data, env: staging }
+            exp_annotations:
+              summary: 'No metrics from staging for 15m: Alloy, the VM or the telemetry channel is down (env staging)'
+              runbook: docs/ops/runbooks/alerty.md#eviastagingnodata
+      - eval_time: 45m
+        alertname: EviaMediaProcessingStalled
+        exp_alerts: []
+  - name: EVM-144 AC3 a silent worker alone (host metrics alive) is not seen by the alert of missing data
+    interval: 1m
+    input_series:
+      - series: 'node_textfile_scrape_error{env="staging"}'
+        values: '0x60'
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: EviaStagingNoData
+        exp_alerts: []
+      - eval_time: 45m
+        alertname: EviaMediaProcessingStalled
+        exp_alerts: []

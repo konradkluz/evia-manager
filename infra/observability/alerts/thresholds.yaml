@@ -45,3 +45,10 @@ account_locked_burst_min: 5
 # Unhandled errors of the API (decision 2026-11-12, instead of Sentry; the counter of Alloy from the message "unhandled error")
 unhandled_errors_window: 5m
 unhandled_errors_min: 1
+
+# Media processing stalled (EVM-144; the counter of Alloy from the existing warnings of the worker, whose own limits are 30 min for photos
+# and scan and 2 h for films, in the application). Persistence: the growth of the counter in each window for this long.
+media_stalled_window: 5m
+media_stalled_for: 5m
+media_unreachable_for: 15m
+media_stalled_min_passes: 2
