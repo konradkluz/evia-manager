@@ -100,6 +100,12 @@ Hipotezy weryfikowalne osobno na iOS i Android (scenariusze AC2 spike'u):
   - *Limity systemowe (iOS force-quit, Android 15+)* → trwała kolejka i wznawianie, komunikat w UI „wysyłanie wstrzymane — otwórz aplikację”, test terenowy przed wydaniem.
   - *Darmowy plan EAS (kolejka niskiego priorytetu, 15 buildów iOS/mies.)* → wystarczy dla M0–M2; Starter 19 USD/mies. jako opcja w rezerwie budżetu; wyjście: `eas build --local` na runnerze macOS w CI.
 
+## Aktualizacja 2026-11-19 — treść pod blokadą aplikacji (EVM-146)
+Adnotacja do akceptacji Konrada razem z PR EVM-146 (wąska konsultacja `solution-architect`: TAK z warunkami; nie zmienia decyzji ADR).
+- **Mechanizm:** treść zablokowanej aplikacji pozostaje zamontowana w `<Activity mode="hidden">` (React 19) w `LockGate` — stan ekranów i nawigacji zostaje w pamięci, a widoki nie trafiają do drzewa dostępności ani do zrzutu `uiautomator`. Ochrona opiera się na zachowaniu platformy (ukryty widok natywny nie jest węzłem dostępności), nie na gwarancji Reacta ani React Native.
+- **Bezpiecznik regresji:** scenariusz emulatora `lock-view-tree` (`tools/mobile-e2e`, krok `view-tree-locked`: zrzut bez kompresji, kontrola dodatnia przy odblokowanej aplikacji, próbki w trakcie wznowienia). Emulator nie działa w CI, więc **każda aktualizacja `react`, `react-native` albo `expo` (także PR Renovate) wymaga zielonego przebiegu tego scenariusza przed scaleniem**. Drugi bezpiecznik: `pointerEvents`, `accessibilityElementsHidden` i `importantForAccessibility="no-hide-descendants"` w `LockGate` zostają.
+- **Reguły dla kodu aplikacji:** żadnych natywnych okien (`Modal`) z danymi poza `LockGate`; zadania trwałe (kolejka, wysyłanie plików, potwierdzenia, synchronizacja) działają poza drzewem widoków; efekty ekranów muszą znosić sprzątanie i ponowne uruchomienie przy blokadzie bez powtarzania akcji z efektami ubocznymi (stan aplikacji czytać przy subskrypcji, nie tylko ze zdarzeń).
+
 ## Plan wyjścia
 Jeśli spike EVM-011 wykaże, że upload w tle w React Native jest niewykonalny lub zbyt kruchy: (1) własny moduł Expo w Swift/Kotlin (dni–tygodnie), (2) w ostateczności **Flutter** z `background_downloader` — nowy ADR, przepisanie aplikacji mobilnej (kontrakt OpenAPI i backend bez zmian; generowanie klienta Dart). Decyzja przed rozpoczęciem M2, więc koszt odwrócenia jest ograniczony do szkieletu z EVM-009.
 
