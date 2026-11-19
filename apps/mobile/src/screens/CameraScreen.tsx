@@ -1,5 +1,5 @@
 import { CameraView } from 'expo-camera';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AccessibilityInfo, AppState, BackHandler, Text, View } from 'react-native';
 import { PICTURE_OPTIONS, VIDEO_MAX_SECONDS, VIDEO_VIEW_PROPS, VIDEO_WARN_AT_SECONDS, consentMemory } from '../capture/camera-options';
@@ -320,30 +320,23 @@ function CameraCapture({ orderId, onClose, focused }: { orderId: string; onClose
     [media],
   );
   // EVM-146: the camera of the phone is released while the app is locked. On Android the prop `active` of the view does nothing (it is for iOS), and the screen
-  // under the cover sits in a hidden `Activity` that renders nothing again until the unlock - so a change of `locked` reaches no render. What does run at the
-  // hide is the CLEANUP of an effect, and at the unlock its setup: they pause and resume the preview (`pausePreview` unbinds the camera). A recording is
-  // finished and saved first (the stop above); on a screen that goes away for good the call reaches a view that is gone and is ignored.
+  // under the cover sits in a hidden `Activity` that renders nothing again until the unlock - so a change of `locked` reaches no render. What runs at the hide
+  // is the cleanup of an effect, and at the unlock its setup: they pause and resume the preview (`pausePreview` unbinds the camera). It must be a LAYOUT effect: the
+  // hide detaches the refs of the children right after the layout cleanup of their parent, and a library view whose inner ref is gone ignores `pausePreview`.
+  // A recording in progress is not cut by unbinding the camera: it is stopped and saved (the effect above) and the camera stays bound until the unlock.
   const heldByLock = useRef(false);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (heldByLock.current) {
       heldByLock.current = false;
-      (cameraRef.current ?? lastCameraRef.current)?.resumePreview().catch(() => undefined);
+      cameraRef.current?.resumePreview().catch(() => undefined);
     }
     return () => {
-      // the hide detaches the ref like an unmount does: the last view that existed is the one to release
-      const view = cameraRef.current ?? lastCameraRef.current;
-      if (view === null) return;
+      const view = cameraRef.current;
+      if (view === null || recordingRef.current !== null) return;
       heldByLock.current = true;
-      const ended = recordingRef.current?.done.catch(() => undefined) ?? Promise.resolve();
-      void ended
-        .then(() => pipeline.whenIdle())
-        .then(() => {
-          if (heldByLock.current) return view.pausePreview();
-          return undefined;
-        })
-        .catch(() => undefined);
+      view.pausePreview().catch(() => undefined);
     };
-  }, [pipeline]);
+  }, []);
 
   const finish = useCallback(() => {
     setFinishing(true);
