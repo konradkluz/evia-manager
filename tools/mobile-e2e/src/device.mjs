@@ -13,7 +13,7 @@
  * this module; the steps that read the device and the scenario server of the upload part are in device-upload.mjs (`UploadAction`).
  * @typedef {'force-stop' | 'kill-9' | 'reboot' | 'copy-db' | 'corrupt-db' | 'check-encrypted' | 'check-backup-transport'
  *   | 'adb-backup-start' | 'adb-backup-check' | 'adb-backup-control-check' | 'install-release-debugkey' | 'reinstall-e2e'} LocalAction
- * @typedef {LocalAction | import('./device-upload.mjs').UploadAction | import('./device-camera.mjs').CameraAction | import('./device-video.mjs').VideoAction | import('./device-survey.mjs').SurveyAction} DeviceAction
+ * @typedef {LocalAction | import('./device-upload.mjs').UploadAction | import('./device-camera.mjs').CameraAction | import('./device-video.mjs').VideoAction | import('./device-survey.mjs').SurveyAction | import('./device-lock.mjs').LockAction} DeviceAction
  * @typedef {{ status: number | null, stdout: string, stderr: string }} Outcome
  * @typedef {{ action: DeviceAction | 'check-sync-report', ok: boolean, detail: string, skipped?: boolean }} Check
  * `skipped` (EVM-108): the step could not be performed here (no camera) and is reported as such, never as a pass
@@ -22,6 +22,7 @@ import { createHash } from 'node:crypto';
 import { inflateSync } from 'node:zlib';
 import { APPLICATION_ID } from './commands.mjs';
 import { isCameraAction, runCameraAction } from './device-camera.mjs';
+import { isLockAction, runLockAction } from './device-lock.mjs';
 import { isSurveyAction, runSurveyAction } from './device-survey.mjs';
 import { isVideoAction, runVideoAction } from './device-video.mjs';
 import { isUploadAction, MAESTRO_LINE, runUploadAction } from './device-upload.mjs';
@@ -344,6 +345,8 @@ export async function runDeviceAction(action, context) {
   if (isUploadAction(action)) return /** @type {Promise<Check>} */ (runUploadAction(action, context));
   if (isCameraAction(action)) return /** @type {Promise<Check>} */ (runCameraAction(action, context));
   if (isVideoAction(action)) return /** @type {Promise<Check>} */ (runVideoAction(action, context));
+  if (isLockAction(action))
+    return /** @type {Promise<Check>} */ (runLockAction(/** @type {import('./device-lock.mjs').LockAction} */ (action), context));
   if (isSurveyAction(action))
     return /** @type {Promise<Check>} */ (runSurveyAction(/** @type {import('./device-survey.mjs').SurveyAction} */ (action), context));
   const { adb } = context;

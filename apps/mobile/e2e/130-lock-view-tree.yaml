@@ -1,0 +1,58 @@
+# EVM-146 AC1: the form of a new entry of the order ZL-E2E-1 is open with a typed word; the hook "unlock held" keeps the system unlock from opening the app
+# again and "background 6 min" moves the clock, so the return from the background locks the app. The flow ends on the cover "Aplikacja zablokowana";
+# tools/mobile-e2e then reads the tree of views with `uiautomator dump` (step `view-tree-locked`) and looks for the synthetic values of the screens below.
+# The typed word is invented ("Kontrolka146"; tools/mobile-e2e/src/device-lock.mjs LOCK_CONTROL_VALUES).
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- tapOn:
+    id: 'order-row-30000000-0000-4000-8000-000000000001'
+- extendedWaitUntil:
+    visible: 'Zlecenie testowe 1'
+    timeout: 20000
+- tapOn:
+    id: 'order-detail-add-entry'
+- extendedWaitUntil:
+    visible: 'Nowy wpis'
+    timeout: 10000
+- tapOn:
+    id: 'entry-body'
+- inputText: 'Kontrolka146'
+- hideKeyboard
+- tapOn:
+    id: 'evia-e2e-hooks-panel'
+- scrollUntilVisible:
+    element:
+      id: 'e2e-unlock-hold'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'e2e-unlock-hold'
+- scrollUntilVisible:
+    element:
+      id: 'e2e-background-6'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'e2e-background-6'
+- scrollUntilVisible:
+    element:
+      id: 'e2e-close'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'e2e-close'
+- pressKey: home
+- launchApp:
+    stopApp: false
+- extendedWaitUntil:
+    visible:
+      id: 'lock-overlay'
+    timeout: 20000
+- assertVisible: 'Aplikacja zablokowana'
+- assertVisible:
+    id: 'lock-unlock'

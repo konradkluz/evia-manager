@@ -19,6 +19,7 @@ import { CAMERA_SCENARIOS } from './camera-scenarios.mjs';
 import { VIDEO_SCENARIOS } from './video-scenarios.mjs';
 import { SURVEY_SCENARIOS } from './survey-scenarios.mjs';
 import { ORDER_FILES_SCENARIOS } from './order-files-scenarios.mjs';
+import { LOCK_SCENARIOS } from './lock-scenarios.mjs';
 import { SCENARIOS } from './scenarios.mjs';
 
 /** The answer to every part is held this long (ms): ten parts of the big file take about a minute. */
@@ -252,7 +253,13 @@ export const UPLOAD_SCENARIOS = [
  */
 export function selectScenarios(only) {
   if (only === null) return SCENARIOS;
-  return [...SCENARIOS, ...UPLOAD_SCENARIOS, ...CAMERA_SCENARIOS, ...VIDEO_SCENARIOS, ...SURVEY_SCENARIOS, ...ORDER_FILES_SCENARIOS].filter(
-    (scenario) => only.some((word) => scenario.name.startsWith(word)),
-  );
+  return [
+    ...SCENARIOS,
+    ...UPLOAD_SCENARIOS,
+    ...CAMERA_SCENARIOS,
+    ...VIDEO_SCENARIOS,
+    ...SURVEY_SCENARIOS,
+    ...ORDER_FILES_SCENARIOS,
+    ...LOCK_SCENARIOS,
+  ].filter((scenario) => only.some((word) => scenario.name.startsWith(word)));
 }

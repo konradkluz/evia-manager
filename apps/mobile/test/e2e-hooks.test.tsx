@@ -323,6 +323,10 @@ describe('e2e hooks of the local store (EVM-093 AC1, AC3, AC5–AC7)', () => {
     await tap('e2e-background-6');
     expect(deviceOverrides.backgroundShiftMs).toBe(360_000);
     await expectStatus('device=background_6m');
+    // EVM-146 AC1: the hold keeps the app locked so that the tree of views under the cover can be read
+    await tap('e2e-unlock-hold');
+    expect(deviceOverrides.unlockHeld).toBe(true);
+    await expectStatus('device=unlock_held');
     Object.assign(deviceOverrides, NO_OVERRIDES);
   });
 });

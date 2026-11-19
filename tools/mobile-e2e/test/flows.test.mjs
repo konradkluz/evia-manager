@@ -8,6 +8,7 @@ import { VIDEO_SCENARIOS } from '../src/video-scenarios.mjs';
 import { SCENARIOS } from '../src/scenarios.mjs';
 import { SURVEY_SCENARIOS } from '../src/survey-scenarios.mjs';
 import { ORDER_FILES_SCENARIOS } from '../src/order-files-scenarios.mjs';
+import { LOCK_SCENARIOS } from '../src/lock-scenarios.mjs';
 import { UPLOAD_SCENARIOS } from '../src/upload-scenarios.mjs';
 
 const APP = join(import.meta.dirname, '..', '..', '..', 'apps', 'mobile');
@@ -39,8 +40,10 @@ describe('Maestro flows and scenarios agree (EVM-009 AC4)', () => {
     const surveyFlows = [...new Set(SURVEY_SCENARIOS.flatMap((scenario) => scenario.steps.map((step) => step.flow)))];
     // EVM-111: the flows 120-129 belong to the scenario of "Pliki zlecenia" (src/order-files-scenarios.mjs; test/order-files-flows.test.mjs judges them)
     const orderFilesFlows = [...new Set(ORDER_FILES_SCENARIOS.flatMap((scenario) => scenario.steps.map((step) => step.flow)))];
+    // EVM-146: the flow 130 belongs to the lock scenario (src/lock-scenarios.mjs; test/device-lock.test.mjs judges the step)
+    const lockFlows = [...new Set(LOCK_SCENARIOS.flatMap((scenario) => scenario.steps.map((step) => step.flow)))];
     assert.deepEqual(
-      [...new Set([...referenced, ...uploadFlows, ...cameraFlows, ...videoFlows, ...surveyFlows, ...orderFilesFlows])].sort(),
+      [...new Set([...referenced, ...uploadFlows, ...cameraFlows, ...videoFlows, ...surveyFlows, ...orderFilesFlows, ...lockFlows])].sort(),
       files,
     );
     assert.equal(new Set(referenced).size, referenced.length);
