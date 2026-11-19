@@ -28,6 +28,7 @@ const settle = () =>
 
 const video = (patch: Partial<MediaFileView> = {}): MediaFileView => ({
   assetId: '0194c2a0-0000-7000-8000-000000000001',
+  workOrderId: '10000000-0000-4000-8000-000000000001',
   status: 'waiting',
   percent: null,
   sizeBytes: 78 * MB,

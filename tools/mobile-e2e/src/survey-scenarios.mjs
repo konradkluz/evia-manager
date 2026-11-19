@@ -53,7 +53,8 @@ export const SURVEY_SCENARIOS = [
         background: true,
         upload: true,
         expectSync: { unique: 2, duplicates: 0, rejected: 0 },
-        after: CLEAN_LOG,
+        // EVM-111 AC5: the flow no longer waits for a "Wysłano" row (there is none), so the tool waits for the object of the file itself
+        after: ['upload-checkpoint:0', ...CLEAN_LOG],
       },
     ],
   },

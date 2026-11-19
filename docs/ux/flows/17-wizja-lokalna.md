@@ -187,7 +187,7 @@ Dopisek do [M-03](03-szczegoly-zlecenia.md#m-03-szczegóły-zlecenia). **Jedyne 
 
 - **Cel:** zobaczyć adres i od razu dokumentować oględziny zdjęciami i filmami.
 - **Główna akcja:** „Zrób zdjęcie” (dolny pasek jak w M-03).
-- **Hierarchia treści:** 1) numer (albo „Oczekuje na numer”) + status; 2) oznaczenie „Wizja lokalna” i termin; 3) adres (`text.body-lg`); 4) telefon zamawiającego (jeśli jest) jako akcja „Zadzwoń”; 5) „Brak klienta — uzupełni biuro.”; 6) media (liczniki) → M-08; 7) dziennik (wpisy i elementy kolejki) + „Dodaj wpis”.
+- **Hierarchia treści:** 1) numer (albo „Oczekuje na numer”) + status; 2) oznaczenie „Wizja lokalna” i termin; 3) adres (`text.body-lg`); 4) telefon zamawiającego (jeśli jest) jako akcja „Zadzwoń”; 5) „Brak klienta — uzupełni biuro.”; 6) wiersz „Pliki z tego telefonu” (od EVM-111; jak w M-03) → M-08 „Pliki zlecenia”; 7) dziennik (wpisy i elementy kolejki) + „Dodaj wpis”.
 
 **Makieta (compact)**
 ```text
@@ -209,8 +209,10 @@ Dopisek do [M-03](03-szczegoly-zlecenia.md#m-03-szczegóły-zlecenia). **Jedyne 
 │ ┃ biuro. Biuro przypisze klienta │
 │ ┃ po akceptacji oferty.          │
 │                                  │
-│ Media                            │
-│ 12 zdjęć · 2 filmy · 3 niewysłane│ → M-08
+│ ┌──────────────────────────────┐ │
+│ │ Pliki z tego telefonu      › │ │ → M-08 Pliki zlecenia (od EVM-111)
+│ │ 3 do wysłania                │ │
+│ └──────────────────────────────┘ │
 │                                  │
 │ Dziennik                         │
 │ dziś, 9:30 · Piotr Testowy       │

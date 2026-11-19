@@ -407,6 +407,46 @@ describe('one listener, foreground callbacks, wipe flag, patch banner (EVM-101 A
     expect(calls).toBe(1);
   });
 
+  it('EVM-111 AC2: onAppStateChange callbacks run on every change of the state (also while the unlock window is on screen), without a second AppState listener, and can be removed', async () => {
+    const r = await started();
+    let calls = 0;
+    const off = r.guard.onAppStateChange(() => {
+      calls += 1;
+    });
+    r.appState.emit('background');
+    r.appState.emit('active');
+    expect(calls).toBe(2);
+    off();
+    r.appState.emit('background');
+    expect(calls).toBe(2);
+  });
+
+  it('EVM-111 AC2 (fail-closed): a throwing onAppStateChange listener never skips the lock on the way back, nor the next listener', async () => {
+    const r = await started();
+    let later = 0;
+    r.guard.onAppStateChange(() => {
+      throw new Error('synthetic');
+    });
+    r.guard.onAppStateChange(() => {
+      later += 1;
+    });
+    r.appState.emit('background');
+    r.time.boot = r.time.boot + 6 * MIN;
+    r.time.wall += 6 * MIN;
+    r.appState.emit('active');
+    expect(r.guard.getSnapshot().locked).toBe(true);
+    expect(later).toBe(2);
+    // the transition to the background was remembered too (a second round locks again after unlocking)
+    r.facts.auth = 'success';
+    expect(await r.guard.unlock()).toBe(true);
+    r.appState.emit('background');
+    r.time.boot = r.time.boot + 6 * MIN;
+    r.time.wall += 6 * MIN;
+    r.appState.emit('active');
+    expect(r.guard.getSnapshot().locked).toBe(true);
+    expect(later).toBe(4);
+  });
+
   it('EVM-101 AC4: a running wipe hides the data until it ends', async () => {
     const r = await started();
     r.guard.setWiping(true);

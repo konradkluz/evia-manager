@@ -6,6 +6,7 @@ import { AppBar, BottomBar, Button, Clock, EmptyState, Inbox, InlineAlert, Skele
 import { color, space, text } from '../ui/theme';
 import { ConnectionNotices } from './ConnectionNotices';
 import { HiddenDataNotice } from './DeviceNotices';
+import { OrderFilesRow } from './OrderFilesRow';
 import { OrderStatusBadge } from './OrderCard';
 import {
   CustomerCard,
@@ -169,6 +170,8 @@ function useNumberAnnouncement(detail: OrderDetail | null): void {
  *   phone) and "Dodaj wpis" (EVM-105; opens the entry form of this order, the shell holds the id only). The bar is shown while the details are
  *   ready and in the hidden-data mode too (the order is known from the navigation): there the camera works, "Dodaj wpis" is disabled with its reason
  *   and NO number is drawn. Not shown while loading, on an error, when the order is unavailable and while the data are being wiped.
+ * - The row "Pliki z tego telefonu" (EVM-111) sits in the content above the journal and opens "Pliki zlecenia"; it is part of the details, so the hidden-data
+ *   mode, the lock of the app and a lost order take it away with the rest.
  * - Unavailable (outside the scope, deleted; also while the screen is open): the fixed message and "Wróć do listy"; the queue items
  *   of the order stay where they are (AC5).
  */
@@ -177,11 +180,14 @@ export function OrderDetailScreen({
   onBack,
   onOpenQueue,
   onAddEntry,
+  onOpenFiles,
 }: {
   orderId: string;
   onBack: () => void;
   onOpenQueue: () => void;
   onAddEntry: () => void;
+  /** EVM-111: opens "Pliki zlecenia" of this order (the shell hosts the screen; the id is the only datum). */
+  onOpenFiles: () => void;
 }) {
   const { t } = useTranslation();
   const session = useSession();
@@ -238,6 +244,8 @@ export function OrderDetailScreen({
             ListHeaderComponent={
               <View style={{ rowGap: space.stack.sm, paddingBottom: space.stack.sm }}>
                 <DetailHeader detail={state.detail} />
+                {/* EVM-111 AC1: a fixed row above the journal - the files of THIS phone that have not reached the office (not drawn while the data are hidden) */}
+                <OrderFilesRow orderId={orderId} onOpen={onOpenFiles} />
                 <SectionHeading title={t('orderDetail.journal')} testID="order-detail-journal-heading" />
               </View>
             }

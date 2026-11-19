@@ -49,6 +49,18 @@ Zasady (security-engineer; phishing — fałszywa „nowa wersja”, bo bez Goog
 4. Aplikacja nie otwiera żadnych adresów pobrania: ekran „Aktualizacja wymagana” mówi tylko „Poproś administratora o nową wersję aplikacji.” (S-02, SR-MOB-07).
 5. **APK debug i e2e nigdy nie trafiają do techników** (klucz debug jest publiczny, wariant e2e ma HTTP do hosta emulatora).
 
+### Instalacja z pliku krok po kroku (bez opcji programisty)
+Opcje programisty i debugowanie USB są potrzebne **tylko** do `adb install`. Podpisaną paczkę instaluje się z pliku na każdym telefonie; wykonuje to administrator albo użytkownik telefonu w jego obecności. Nazwy pozycji pochodzą z telefonów Samsung (One UI) i mogą się nieznacznie różnić.
+1. **Na komputerze administratora:** porównaj SHA-256 pliku z wartością z podpisu (`certutil -hashfile evia-manager-<wersja>.apk SHA256`).
+2. **Przenieś plik kablem USB:** podłącz telefon, odblokuj go, w powiadomieniu o połączeniu USB wybierz „Przesyłanie plików” i skopiuj plik do folderu `Download` telefonu. Bez linków, komunikatorów i e-maila (zasada 1).
+3. **Na telefonie:** „Moje pliki” → „Pobrane” → dotknij pliku `evia-manager-<wersja>.apk`.
+4. **Pierwsza instalacja z pliku:** telefon zgłosi, że nie może instalować nieznanych aplikacji z tego źródła → „Ustawienia” → włącz „Zezwalaj z tego źródła” (dotyczy tylko aplikacji „Moje pliki”) → wróć → „Zainstaluj”.
+5. **Samsung — „Automatyczna blokada”:** jeżeli telefon odmówi instalacji z komunikatem o automatycznej blokadzie, wyłącz ją na czas instalacji: Ustawienia → Bezpieczeństwo i prywatność → Automatyczna blokada.
+6. **Play Protect** może zaproponować przeskanowanie nieznanej aplikacji — wybierz skanowanie, potem instalację. Play Protect zostaje włączony; gdy **zablokuje** instalację, przerwij i zgłoś to administratorowi.
+7. **Po instalacji:** cofnij zgodę z kroku 4 (Ustawienia → Aplikacje → Moje pliki → „Instalowanie nieznanych aplikacji”), włącz z powrotem automatyczną blokadę, usuń plik z „Pobrane”. Jeżeli opcje programisty były włączone do testów — wyłącz je.
+8. **Aktualizacja:** te same kroki; nowa wersja instaluje się na starą, dane i kolejka zostają. Komunikat „Aplikacja nie została zainstalowana” (konflikt z istniejącym pakietem) oznacza paczkę podpisaną innym kluczem albo niższy `versionCode` — nie odinstalowuj aplikacji na własną rękę, zgłoś to administratorowi.
+9. **Przejście z paczki testowej (klucz testowy) na paczkę podpisaną kluczem wydania** wymaga jednorazowego odinstalowania starej aplikacji, co **kasuje lokalną bazę i kolejkę**: najpierw doprowadź do stanu „wszystko wysłane”, dopiero potem odinstaluj i zainstaluj nową.
+
 ## Aktualizacje
 - Telefon przyjmie aktualizację tylko podpisaną **tym samym kluczem** (albo następcą z linii rotacji v3) i z wyższym `versionCode`. Kolejne wydanie = kolejny przebieg CI na `main` + podpis lokalny. Nie ma automatycznych aktualizacji: administrator instaluje je ręcznie.
 - Minimalna wersja: `MIN_SUPPORTED_APP_VERSION_ANDROID` w konfiguracji serwera (bez wdrożenia kodu). Lokalne API (`compose.dev.yaml`) ma minimum `0.1.0` = wersja aplikacji, więc `pnpm run dev` jej nie blokuje (granica równości); wartość produkcyjna przychodzi z konfiguracji VM (EVM-007).

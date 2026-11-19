@@ -18,6 +18,7 @@
 import { CAMERA_SCENARIOS } from './camera-scenarios.mjs';
 import { VIDEO_SCENARIOS } from './video-scenarios.mjs';
 import { SURVEY_SCENARIOS } from './survey-scenarios.mjs';
+import { ORDER_FILES_SCENARIOS } from './order-files-scenarios.mjs';
 import { SCENARIOS } from './scenarios.mjs';
 
 /** The answer to every part is held this long (ms): ten parts of the big file take about a minute. */
@@ -79,7 +80,8 @@ export const UPLOAD_SCENARIOS = [
     ],
   },
   // AC4: the original stays after the upload while the server has not confirmed `clean` (the replica says "uploading"); after `clean` the
-  // original is deleted, and the record of the file stays ("Wysłano").
+  // original is deleted and - EVM-111 AC5 - the entry of the file leaves the phone with it (no "Wysłano" row stays); the app stays in the foreground (no
+  // step `background`): it asks for the confirmation itself (EVM-111 AC2).
   {
     name: 'upload-original-until-clean',
     ac: 'EVM-130 AC4',
@@ -88,10 +90,9 @@ export const UPLOAD_SCENARIOS = [
       { flow: '55-upload-inject-small.yaml', server: 'ok', airplane: false, upload: true },
       { flow: '54-upload-sent.yaml', server: 'ok', airplane: false, upload: true, after: ['upload-checkpoint:0', 'original-present'] },
       {
-        flow: '54-upload-sent.yaml',
+        flow: '54-upload-confirmed.yaml',
         server: 'ok',
         airplane: false,
-        background: true,
         upload: true,
         before: ['upload-file-state:clean'],
         after: ['original-absent'],
@@ -245,13 +246,13 @@ export const UPLOAD_SCENARIOS = [
 /**
  * The scenarios a run takes: without `only` the scenarios of scenarios.mjs; with it the scenarios (those and the upload ones) whose name
  * is, or starts with, one of the given words (the upload scenarios and, from EVM-108, the camera ones `camera-`, from EVM-110 the film ones
- * `video-`, from EVM-137 the site survey ones `survey-`).
+ * `video-`, from EVM-137 the site survey ones `survey-`, from EVM-111 `order-files`).
  * @param {string[] | null} only
  * @returns {import('./scenarios.mjs').Scenario[]}
  */
 export function selectScenarios(only) {
   if (only === null) return SCENARIOS;
-  return [...SCENARIOS, ...UPLOAD_SCENARIOS, ...CAMERA_SCENARIOS, ...VIDEO_SCENARIOS, ...SURVEY_SCENARIOS].filter((scenario) =>
-    only.some((word) => scenario.name.startsWith(word)),
+  return [...SCENARIOS, ...UPLOAD_SCENARIOS, ...CAMERA_SCENARIOS, ...VIDEO_SCENARIOS, ...SURVEY_SCENARIOS, ...ORDER_FILES_SCENARIOS].filter(
+    (scenario) => only.some((word) => scenario.name.startsWith(word)),
   );
 }

@@ -281,7 +281,8 @@ describe('composition of the native owner and the upload (EVM-130)', () => {
     expect(reconcile).toHaveBeenCalledTimes(1);
     expect(merge).toHaveBeenCalledTimes(1);
     expect(refresh).toHaveBeenCalledTimes(1);
-    expect(ports.media.getSnapshot()).toEqual({ files: [], notifications: 'granted' });
+    // EVM-111: the snapshot also says that the table was not read yet (`loading`) and how many confirmed entries were removed - still no file
+    expect(ports.media.getSnapshot()).toEqual({ files: [], notifications: 'granted', confirmed: 0, read: 'loading' });
     expect(fake.sessionState).not.toHaveBeenCalled();
     spy.mockRestore();
   });

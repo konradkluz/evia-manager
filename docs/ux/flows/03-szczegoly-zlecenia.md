@@ -27,7 +27,7 @@ flowchart TD
     M5["M-05 Lista"] --> M3["M-03 Szczegóły z lokalnej bazy, tylko odczyt"]
     M3 --> M6["M-06 Aparat"]
     M3 --> M4["M-04 Nowy wpis"]
-    M3 --> M8["M-08 Media zlecenia"]
+    M3 --> M8["M-08 Pliki zlecenia"]
   end
 ```
 
@@ -571,7 +571,7 @@ Wariant **„od EVM-042”** (P2). Przed EVM-042 sekcja „Procesy i etapy” je
 > **Wizja lokalna (E15, EVM-137):** wariant szczegółów wizji (adres i telefon zamawiającego tylko tu, bez sekcji klienta, procesów i zakresu) — [17 — wizja lokalna](17-wizja-lokalna.md#m-03-szczegóły-wizji-ac2-ac4-ac7).
 - **Cel:** w terenie, także bez zasięgu, zobaczyć, co robimy w tym zleceniu, gdzie i z kim — i od razu dodać zdjęcie albo wpis.
 - **Główna akcja:** „Zrób zdjęcie” (dolny pasek, `size.touch-target.field`).
-- **Hierarchia treści:** 1) numer (albo „Oczekuje na numer” — § 4.15), tytuł, odznaka zlecenia; 2) klient (nazwa, telefon) i adres (`text.body-lg`) z miejscem postojowym i wskazówkami dojazdu (`Site.notes`); 3) na kogo czekamy i bieżące etapy (tylko podgląd) + „Status etapu zmienisz w panelu.”; 4) procesy (rozwijane, tylko podgląd); 5) media (liczniki) → M-08; 6) dziennik (ostatnie wpisy) + „Dodaj wpis”; 7) dokumenty — tylko metadane.
+- **Hierarchia treści:** 1) numer (albo „Oczekuje na numer” — § 4.15), tytuł, odznaka zlecenia; 2) klient (nazwa, telefon) i adres (`text.body-lg`) z miejscem postojowym i wskazówkami dojazdu (`Site.notes`); 3) na kogo czekamy i bieżące etapy (tylko podgląd) + „Status etapu zmienisz w panelu.”; 4) procesy (rozwijane, tylko podgląd); 5) **od EVM-111** stały wiersz „Pliki z tego telefonu” → M-08 „Pliki zlecenia” (opis niżej), w przewijanej treści, pierwszy nad dziennikiem; 6) dziennik (ostatnie wpisy) + „Dodaj wpis”; 7) dokumenty — tylko metadane.
 
 **Makieta (compact)**
 ```text
@@ -598,8 +598,10 @@ Wariant **„od EVM-042”** (P2). Przed EVM-042 sekcja „Procesy i etapy” je
 │ ▸ Zgody administracji 2 z 4      │
 │ ▸ Instalacja zasilająca 0 z 3    │
 │                                  │
-│ Media                            │
-│ 48 zdjęć · 3 niewysłane    [›]   │ → M-08
+│ ┌──────────────────────────────┐ │
+│ │ Pliki z tego telefonu      › │ │ → M-08 Pliki zlecenia
+│ │ 3 do wysłania                │ │ albo: ‹check› Wszystko wysłane
+│ └──────────────────────────────┘ │
 │                                  │
 │ Dziennik                         │
 │ dziś, 9:30 · Anna Testowa        │
@@ -619,6 +621,13 @@ Wariant **„od EVM-042”** (P2). Przed EVM-042 sekcja „Procesy i etapy” je
 ```
 Uwaga (EVM-108, 2026-11-15): w aplikacji pasek ma dwa przyciski jeden pod drugim (cel ≥ 48 dp w rękawicach, główna akcja na górze, w strefie kciuka), a BottomNav nie ma pozycji „Dodaj” (odstępstwo od § 3.18, [styleguide § 8](../styleguide.md#8-changelog)); arkusz „Dodaj” otwiera przycisk „Dodaj” na liście zleceń. Szczegóły i tryb ukrytych danych (aktywne „Zrób zdjęcie”, „Dodaj wpis” wyłączone z powodem) — [09, M-06](09-mobile-zdjecia-filmy-offline.md).
 
+**Wiersz „Pliki z tego telefonu” (od EVM-111)** — wejście do [M-08 „Pliki zlecenia”](09-mobile-zdjecia-filmy-offline.md#m-08-pliki-zlecenia); zastępuje dawny wiersz „Media” z licznikami zdjęć i miniaturami (galeria zlecenia jest tylko w panelu web, W-09):
+- **Miejsce i kształt:** stały (także przy 0 plikach), w przewijanej treści nad dziennikiem — nie w dolnym pasku (ten jest od akcji); **jeden cel dotyku** na całą szerokość, ≥ `size.touch-target.min` (48 dp), zawijany przy 200% czcionki, z chevronem `chevron-right` po prawej; karta jak inne bloki (`color.bg.surface`, `color.border.subtle`, `radius.card`, `space.inset.md`); pierwsza linia `text.label-lg` „Pliki z tego telefonu”, druga `text.body-sm` `color.text.secondary`.
+- **Druga linia:** „n do wysłania” (1 do wysłania, 3 do wysłania — bez odmiany liczebnika) albo „Wszystko wysłane” z ikoną `check` `color.feedback.success.icon`; ta sama liczba co nagłówek M-08 (każdy plik tego zlecenia z tego telefonu, także „Czeka na Wi-Fi” i „Wymaga uwagi”; źródło: lokalna kolejka); bez paska postępu. Podczas wczytywania lokalnej bazy i po błędzie odczytu — wiersz bez drugiej linii.
+- **Dostępność:** jeden przycisk z nazwą „Pliki z tego telefonu, 3 do wysłania” / „Pliki z tego telefonu, wszystko wysłane” i podpowiedzią „Otwiera listę plików zlecenia”; zmiana liczby aktualizuje tylko nazwę dostępną — **bez ogłoszeń** (ogłasza ekran M-08).
+- **Dane ukryte, blokada aplikacji, `session_revoked`:** wiersza **nie ma** wcale (§ 4.18; nic ze zlecenia nie jest sugerowane).
+- **Wizja lokalna:** ten sam wiersz w szczegółach wizji ([17](17-wizja-lokalna.md#m-03-szczegóły-wizji-ac2-ac4-ac7)).
+
 **Co M-03 pokazuje, a czego nie** (projekcja `offline-sync.md`, SR-SYNC-04, SR-AUTHZ-12 — w razie rozbieżności SR-AUTHZ-12 ma pierwszeństwo)
 | Pokazuje | Nie pokazuje |
 |---|---|
@@ -627,16 +636,16 @@ Uwaga (EVM-108, 2026-11-15): w aplikacji pasek ma dwa przyciski jeden pod drugim
 | lokalizacja: typ, adres, miejsce postojowe, poziom, moc przyłączeniowa, wskazówki (`Site.notes`), OSD i zarządca (nazwa, osoba kontaktowa, telefon) | e-mail i notatki stron |
 | procesy, etapy, „na kogo czekamy” — tylko podgląd | zmiany statusów (telefon tylko dodaje — D11) |
 | dokumenty — rodzaj, tytuł, numer wersji, data (bez „Otwórz” i bez pobierania) | pliki dokumentów, oryginały mediów, przyczyna kwarantanny |
-| media — liczniki i miniatury na żądanie (M-08) | „Inne zlecenia w tej lokalizacji” i historia lokalizacji (tylko panel) |
+| pliki z tego telefonu, które jeszcze nie dotarły — liczba „n do wysłania” z lokalnej kolejki (M-08; od EVM-111, bez miniatur i bez mediów z innych urządzeń) | miniatury, liczniki zdjęć i filmów zlecenia, pliki z innych telefonów (tylko panel); „Inne zlecenia w tej lokalizacji” i historia lokalizacji (tylko panel) |
 
 **Stany**
 | Stan | Zachowanie |
 |---|---|
-| Pusty | Brak procesów (szybkie zlecenie przed uzupełnieniem w biurze): „Biuro uzupełni procesy po synchronizacji. Możesz już dodawać zdjęcia i wpisy.” Brak mediów: „To zlecenie nie ma jeszcze zdjęć. [Zrób zdjęcie]”. |
-| Ładowanie | Dane z lokalnej bazy od razu; miniatury — Skeleton kafli do czasu pobrania (tylko online). |
+| Pusty | Brak procesów (szybkie zlecenie przed uzupełnieniem w biurze): „Biuro uzupełni procesy po synchronizacji. Możesz już dodawać zdjęcia i wpisy.” Brak plików z tego telefonu: wiersz „Pliki z tego telefonu” z drugą linią „Wszystko wysłane” (zawsze widoczny). |
+| Ładowanie | Dane z lokalnej bazy od razu; wiersz „Pliki z tego telefonu” bez drugiej linii do czasu odczytu kolejki. |
 | Błąd | Lokalny odczyt nieudany: „Nie udało się otworzyć zlecenia. [Spróbuj ponownie]”; zlecenie usunięte w biurze albo poza zakresem — „Nie znaleziono zlecenia. Twoje niewysłane zdjęcia i wpisy z tego zlecenia są w Kolejce. [Przejdź do kolejki]” (elementy oczekujące → „Wymaga uwagi”, § 4.16). |
-| Offline | SyncIndicator „Offline · 5” + baner § 5.4; wszystko z lokalnej bazy; miniatury niepobrane — kafel z ikoną typu i „Podgląd po połączeniu”; zapisy idą do kolejki („Zapisano w telefonie”). |
-| Brak uprawnień | Tylko odczyt nie ma dostępu do aplikacji (M-02). Utrata dostępu po synchronizacji (`rejected: forbidden`, `resync_required`) — zlecenie znika z listy, elementy oczekujące zostają w Kolejce („Wymaga uwagi”). Tryb ukrytych danych (§ 4.18) — ekran niedostępny (EmptyState, dane nie są renderowane): „Dane zleceń są ukryte… Aparat i kolejka działają.” |
+| Offline | SyncIndicator „Offline · 5” + baner § 5.4; wszystko z lokalnej bazy (w tym liczba w wierszu „Pliki z tego telefonu”); zapisy idą do kolejki („Zapisano w telefonie”). |
+| Brak uprawnień | Tylko odczyt nie ma dostępu do aplikacji (M-02). Utrata dostępu po synchronizacji (`rejected: forbidden`, `resync_required`) — zlecenie znika z listy, elementy oczekujące zostają w Kolejce („Wymaga uwagi”). Tryb ukrytych danych (§ 4.18) — ekran niedostępny (EmptyState, dane nie są renderowane): „Dane zleceń są ukryte… Aparat i kolejka działają.”; wiersza „Pliki z tego telefonu” nie ma. |
 
 **Role**
 | Akcja | Komenda (`offline-sync.md`) | A | E | R |
@@ -647,8 +656,8 @@ Uwaga (EVM-108, 2026-11-15): w aplikacji pasek ma dwa przyciski jeden pod drugim
 | Zmiana statusu etapu, płatności, edycja danych | — (tylko panel; telefon tylko dodaje) | nie | nie | — |
 
 - **Responsywność:** jedna kolumna; obsługa powiększenia czcionki do 200 % (adres i telefon zawijane, nie skracane); pozioma orientacja — ten sam porządek, dolny pasek akcji zostaje.
-- **Komponenty i tokeny:** AppBar z SyncIndicator (§ 3.18, § 5.4; stan „Wymaga uwagi” — § 4.16); StatusBadge (§ 3.9; wartość nieznana — § 3.9.1, podpowiedź „Zaktualizuj aplikację, aby zobaczyć szczegóły.”); odznaka „Oczekuje na numer” (§ 4.15); Card (§ 3.8) `space.inset.md`, odstęp `space.stack.sm`; adres `text.body-lg`, treść `text.body` (minimum mobile); link `tel:` jako Button tertiary z ikoną `phone` (`size.touch-target.min`); InlineAlert (§ 3.19) `color.feedback.info.*`; Disclosure (§ 3.21); ProcedureProgress (§ 3.23); tryb ukrytych danych (§ 4.18); Timeline (§ 3.10) — skrót dziennika; Button primary `size.touch-target.field` + secondary w dolnym pasku `elevation.bottom-bar`; BottomNav (§ 3.18).
-- **Mikrocopy:** „Status etapu zmienisz w panelu.” · „Na kogo czekamy” · „Wskazówki:” · „48 zdjęć · 3 niewysłane” · „Pokaż cały dziennik” · „Dokumenty (tylko informacja)” · „Zrób zdjęcie” · „Dodaj wpis” · „Biuro uzupełni procesy po synchronizacji. Możesz już dodawać zdjęcia i wpisy.”
+- **Komponenty i tokeny:** AppBar z SyncIndicator (§ 3.18, § 5.4; stan „Wymaga uwagi” — § 4.16); StatusBadge (§ 3.9; wartość nieznana — § 3.9.1, podpowiedź „Zaktualizuj aplikację, aby zobaczyć szczegóły.”); odznaka „Oczekuje na numer” (§ 4.15); Card (§ 3.8) `space.inset.md`, odstęp `space.stack.sm`; wiersz „Pliki z tego telefonu” (od EVM-111) — cały obszar to Card jako jeden cel dotyku ≥ `size.touch-target.min`, ikony `chevron-right` i `check`, `text.label-lg` / `text.body-sm`; adres `text.body-lg`, treść `text.body` (minimum mobile); link `tel:` jako Button tertiary z ikoną `phone` (`size.touch-target.min`); InlineAlert (§ 3.19) `color.feedback.info.*`; Disclosure (§ 3.21); ProcedureProgress (§ 3.23); tryb ukrytych danych (§ 4.18); Timeline (§ 3.10) — skrót dziennika; Button primary `size.touch-target.field` + secondary w dolnym pasku `elevation.bottom-bar`; BottomNav (§ 3.18).
+- **Mikrocopy:** „Status etapu zmienisz w panelu.” · „Na kogo czekamy” · „Wskazówki:” · „Pliki z tego telefonu” · „3 do wysłania” / „Wszystko wysłane” · „Otwiera listę plików zlecenia” · „Pokaż cały dziennik” · „Dokumenty (tylko informacja)” · „Zrób zdjęcie” · „Dodaj wpis” · „Biuro uzupełni procesy po synchronizacji. Możesz już dodawać zdjęcia i wpisy.”
 - **Dostępność:** cele dotyku ≥ `size.touch-target.min`; telefon klienta jako przycisk z nazwą „Zadzwoń: Jan Przykładowy”; odznaki ze statusem w nazwie dostępnej; brak gestów jako jedynej drogi (rozwinięcie procesu przyciskiem); kontrast tekstu ≥ 7:1 (§ 5.3).
 
 **M-03 w wersji 1 na telefonie (EVM-104, 2026-11-14; „Dodaj wpis” — EVM-105)** — wdrożony zakres, tylko odczyt z lokalnej bazy: sekcje jedna pod drugą (nagłówek z numerem, tytułem i statusem; Klient z akcją „Zadzwoń” — `ACTION_DIAL`, numer tylko cyfry i opcjonalny „+”; Lokalizacja; Zakres; Procesy i etapy bez rozwijania; Dziennik z elementami kolejki na górze). Poza wersją 1 (świadomie): media i dokumenty, akcje zdjęć, wskazówki dojazdu (`Site.notes`) i opis zlecenia (dane wrażliwe bez zapisu w AC — kandydat do backlogu), opiekun i technicy, osoba kontaktowa i telefon stron, „otwórz w mapach”. Stan „Zlecenie niedostępne” zastępuje komunikat „Nie znaleziono zlecenia” z tabeli stanów powyżej (treść z AC5, akcja „Wróć do listy”; elementy oczekujące zostają w Kolejce i „Wymaga uwagi”).

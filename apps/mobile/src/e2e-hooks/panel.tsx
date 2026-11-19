@@ -380,7 +380,6 @@ export function E2eHooks({ deps: injected }: { deps?: E2eHooksDeps } = {}) {
       files: snapshot.files.length,
       waiting: count('waiting'),
       uploading: count('uploading'),
-      sent: count('sent'),
       failed: count('error'),
       attention: count('attention'),
       notifications: snapshot.notifications,

@@ -1,7 +1,8 @@
-# EVM-108 AC7: the thirty files end as "Wysłano" ("0 do wysłania"), none waiting, none in an error, none needing attention, and the app is still
-# signed in. The count comes from the snapshot the rows of the Queue are drawn from (the hook `media: status`). tools/mobile-e2e asserts
-# afterwards, with the scenario server and adb: thirty objects in the right work order, one per asset, the SHA-256 of the original, 0 duplicates,
-# no orphaned multipart, and no token or signed address in the log or the files of the app.
+# EVM-108 AC7: the thirty files are on their way or on the server: still thirty entries ("Oczekuje" / "Wysyła się n%" - EVM-111 AC5: the entry leaves the phone
+# only with the confirmation of the server, which this scenario does not send), none in an error, none needing attention, and the app is still signed in.
+# The count comes from the snapshot the rows of the Queue are drawn from (the hook `media: status`). tools/mobile-e2e asserts afterwards, with the scenario
+# server and adb - it WAITS for the objects: thirty objects in the right work order, one per asset, the SHA-256 of the original, 0 duplicates, no orphaned
+# multipart, and no token or signed address in the log or the files of the app.
 appId: pl.eviacharge.manager
 ---
 - launchApp:
@@ -11,18 +12,15 @@ appId: pl.eviacharge.manager
     optional: true
 - tapOn:
     id: 'nav-queue'
-# the Queue may be drawn before its files are loaded ("0 do wysłania" of an empty list): a file that is sent comes first
-- extendedWaitUntil:
-    visible: '.*Wysłano'
-    timeout: 240000
+# the Queue may be drawn before its files are loaded: the counter of thirty comes first
 - extendedWaitUntil:
     visible:
       id: 'files-summary'
-      text: '0 do wysłania'
-    timeout: 420000
+      text: '30 do wysłania'
+    timeout: 120000
 - assertNotVisible: 'Wylogowano ten telefon'
 - takeScreenshot: m07-batch-sent
 - runFlow:
     file: common/media-status.yaml
     env:
-      STATUS: 'files=30;waiting=0;uploading=0;sent=30;failed=0;attention=0;notifications=[a-z_]+'
+      STATUS: 'files=30;waiting=[0-9]+;uploading=[0-9]+;failed=0;attention=0;notifications=[a-z_]+'

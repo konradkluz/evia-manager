@@ -1,5 +1,5 @@
-# EVM-130 AC4: "Ponów" hands the same file to the system again (the scenario server no longer forces the checksum error): the file goes
-# through and the row ends as "Wysłano".
+# EVM-130 AC4: "Ponów" hands the same file to the system again (the scenario server no longer forces the checksum error): the error is gone and the
+# file goes on its way - "Oczekuje" or "Wysyła się n%", never "Nie wysłano" (EVM-111 AC5: and never "Wysłano": the entry stays until the server confirms).
 appId: pl.eviacharge.manager
 ---
 - launchApp:
@@ -12,7 +12,7 @@ appId: pl.eviacharge.manager
 - tapOn:
     id: 'file-retry-.*'
 - extendedWaitUntil:
-    visible: 'Bez kategorii, Zdjęcie, .*, Wysłano'
+    visible: 'Bez kategorii, Zdjęcie, .*, (Oczekuje|Wysyła się [0-9]+%)'
     timeout: 120000
 - assertNotVisible: 'Bez kategorii, Zdjęcie, .*, Nie wysłano — plik uszkodzony w transmisji'
 - takeScreenshot: u130-retried

@@ -3,7 +3,7 @@ import { Text, View } from 'react-native';
 import { formatDateTime, formatDuration, formatFileSize } from '../i18n/format';
 import { pluralKey } from '../i18n/plural';
 import type { MediaFileView } from '../upload/types';
-import { Button, Clock, CloudAlert, CloudCheck, CloudUpload, Icon, ProgressBar, StatusBadge, TriangleAlert, Video, Wifi } from '../ui';
+import { Button, Clock, CloudAlert, CloudUpload, Icon, ProgressBar, StatusBadge, TriangleAlert, Video, Wifi } from '../ui';
 import { borderWidth, color, size, space, text } from '../ui/theme';
 
 export interface FileRowProps {
@@ -26,8 +26,9 @@ export interface FileRowProps {
 }
 
 /**
- * One file in a list of files (EVM-108 AC6; the same row will serve "Pliki zlecenia" of EVM-111): the category, the time of the capture and the type, and
- * ONE of the states "Oczekuje" / "Wysyła się 45%" / "Wysłano" / "Wymaga uwagi" (the file that came back damaged keeps its own words of EVM-130). Nothing
+ * One file in a list of files (EVM-108 AC6; the same row serves "Pliki zlecenia" of EVM-111): the category, the time of the capture and the type, and
+ * ONE of the states "Oczekuje" / "Wysyła się 45%" / "Czeka na Wi-Fi" / "Nie wysłano" / "Wymaga uwagi" (the file that came back damaged keeps its own words
+ * of EVM-130). There is no "Wysłano": the entry of a confirmed file is removed from the phone (EVM-111 AC5). Nothing
  * about the order, the customer, the address or the path - the row cannot show them, so the list is the same in the hidden-data mode. The information
  * (state, percentage) stands in words; the icon and the `color.sync.*` tone only support it. The buttons sit outside the spoken group, so a screen
  * reader reaches each of them. No component of its own: the badge, the progress bar and the buttons of the library.
@@ -123,8 +124,6 @@ function stateOf(file: MediaFileView, t: Translate, online: boolean, now: number
   switch (file.status) {
     case 'uploading':
       return { label: t('upload.states.uploading', { percent: file.percent ?? 0 }), icon: CloudUpload, tone: color.sync.inProgress };
-    case 'sent':
-      return { label: t('upload.states.sent'), icon: CloudCheck, tone: color.sync.done };
     case 'error':
       return { label: t('upload.states.error'), icon: CloudAlert, tone: color.sync.error };
     case 'attention':

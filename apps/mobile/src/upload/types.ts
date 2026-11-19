@@ -5,12 +5,17 @@
 import type { CapturePipeline, CapturePorts, VideoSource } from '../capture/capture-pipeline';
 import type { MediaCategory } from './create-media-asset';
 
-/** `waiting_wifi` (EVM-110 AC4): a film that waits for a network without charges - not an error, not "Wymaga uwagi". */
-export type MediaFileStatus = 'waiting' | 'waiting_wifi' | 'uploading' | 'sent' | 'error' | 'attention';
+/**
+ * `waiting_wifi` (EVM-110 AC4): a film that waits for a network without charges - not an error, not "Wymaga uwagi". There is no "sent" (EVM-111 AC5): the
+ * entry of a file leaves the phone when the server confirms it, so every entry is a file that is still to be sent or confirmed.
+ */
+export type MediaFileStatus = 'waiting' | 'waiting_wifi' | 'uploading' | 'error' | 'attention';
 export type MediaFileAction = 'retry' | 'discard';
 
 export interface MediaFileView {
   readonly assetId: string;
+  /** The order of the file - only for the filter of "Pliki zlecenia" (EVM-111); never rendered, never in an accessible name or a log. */
+  readonly workOrderId: string;
   readonly status: MediaFileStatus;
   /** 0..100 while uploading, else `null`. */
   readonly percent: number | null;
@@ -28,12 +33,21 @@ export interface MediaFileView {
   readonly capturedAt: number;
   /** The file waits for a site survey that is still only in the queue ("Wyślemy po utworzeniu wizji"; EVM-137). */
   readonly awaitsSurvey?: boolean;
+  /** The transfer is done (the module reported it) and the server has not confirmed the file yet; the view says "Wysyła się 100%" (EVM-111 AC2, AC5). */
+  readonly awaitsConfirmation?: boolean;
 }
 
 export interface MediaUploadsSnapshot {
   readonly files: readonly MediaFileView[];
   /** Whether the system lets the app show notifications (Android 13+ consent and the switch in the settings). */
   readonly notifications: 'granted' | 'denied';
+  /** How many entries of confirmed files were removed since the start (EVM-111): a rise tells the screens that a file was SENT (not discarded). Absent = 0. */
+  readonly confirmed?: number;
+  /**
+   * EVM-111 AC3: `loading` until the first read of the local table ends, `failed` when the last read failed (the rows are then unknown, nothing was changed),
+   * `ready` otherwise. Absent = `ready`.
+   */
+  readonly read?: 'loading' | 'ready' | 'failed';
 }
 
 /** What the Queue needs of the queue of files. */
@@ -77,6 +91,8 @@ export interface MediaControl {
   freeDiskBytes(): number | null;
   /** Return to the foreground: the permission and the view are read again, the files are reconciled. */
   refresh(): Promise<void>;
+  /** EVM-111 AC3: reads the table of files again - ONLY a read: no file, row or job is touched ("Spróbuj ponownie" of a failed read). */
+  reload(): Promise<void>;
 }
 
 export const NO_MEDIA_FILES: MediaUploadsSnapshot = { files: [], notifications: 'granted' };

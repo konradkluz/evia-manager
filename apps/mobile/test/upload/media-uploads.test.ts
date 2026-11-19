@@ -5,12 +5,13 @@ import type { EnqueueInput, QueueRecord } from '@evia/sync-core';
 import type { ArmResultName, FileStateEvent, UploadProgressEvent, UploadStatus } from '../../modules/evia-upload/src';
 import type { UnlockedStore } from '../../src/storage';
 import type { Database } from '../../src/storage/database';
-import { SqlMediaFileStore } from '../../src/storage/media-file-store';
+import { SqlMediaFileStore, type MediaFileStore } from '../../src/storage/media-file-store';
 import { SqlQueueStore } from '../../src/storage/queue-store';
 import { SqlReplicaStore } from '../../src/storage/replica-store';
 import { SqlSurveyMarks } from '../../src/storage/survey-marks';
 import type { NativeUpload } from '../../src/upload/native-upload';
-import { CLEAN_KEPT, MediaUploads, type MediaUploadsDeps } from '../../src/upload/media-uploads';
+import { pollConfirmation } from '../../src/upload/confirmation-poll';
+import { MediaUploads, type MediaUploadsDeps } from '../../src/upload/media-uploads';
 import { migratedDatabase } from '../storage/harness';
 import { newDisk, removeDisk, type TestDisk } from '../storage/node-sqlite-engine';
 
@@ -426,7 +427,8 @@ describe('adding a file and arming it after applied (EVM-130 AC1; architect 7)',
     expect(r.native.armed).toEqual([]);
     r.state.signedIn = false;
     await r.uploads.reconcile();
-    expect(r.uploads.getSnapshot()).toEqual({ files: [], notifications: 'granted' });
+    // EVM-111: the snapshot also says the read is not done (`loading`) and how many confirmed entries were removed - still no file
+    expect(r.uploads.getSnapshot()).toEqual({ files: [], notifications: 'granted', confirmed: 0, read: 'loading' });
   });
 
   it('EVM-130 AC1: a store or a module that throws leaves the rows as they are (the next run starts again)', async () => {
@@ -486,7 +488,7 @@ describe('the state of a file in the view (EVM-130 AC4)', () => {
     expect(r.uploads.getSnapshot().files[0]?.percent).toBe(100);
   });
 
-  it('EVM-130 AC4: events of a file — uploaded is "Wysłano", needs_attention keeps its reason, checksum_mismatch is "Ponów"; each one tells the contact to merge', async () => {
+  it('EVM-130 AC4: events of a file — uploaded is "Wysyła się 100%" (EVM-111 AC5: no "Wysłano" before the server confirms), needs_attention keeps its reason, checksum_mismatch is "Ponów"; each one tells the contact to merge', async () => {
     const r = await armed();
     r.uploads.start();
     const fire = async (event: FileStateEvent): Promise<void> => {
@@ -511,7 +513,7 @@ describe('the state of a file in the view (EVM-130 AC4)', () => {
     expect(await states(r)).toEqual(['01:applied']);
     await fire({ assetId: asset(1), state: 'uploaded', reason: null });
     expect(await states(r)).toEqual(['01:uploaded']);
-    await view([{ status: 'sent', actions: [] }]);
+    await view([{ status: 'uploading', percent: 100, actions: [] }]);
     await fire({ assetId: asset(1), state: 'queued', reason: 'checksum_mismatch' });
     expect(await states(r)).toEqual(['01:failed']);
     await view([{ status: 'error', code: 'checksum_mismatch', actions: ['retry'] }]);
@@ -548,19 +550,22 @@ describe('the state of a file in the view (EVM-130 AC4)', () => {
     expect(await states(r)).toEqual(['01:uploaded']);
   });
 
-  it('EVM-130 AC4: processing or ready in the replica without a clean ever seen removes the original exactly once (the row stays clean)', async () => {
-    for (const fileState of ['processing', 'ready']) {
-      const r = await armed();
-      await r.store.media.setState(asset(1), 'uploaded', null, 5);
-      await serverState(r, 1, fileState);
-      await r.uploads.reconcile();
-      await r.uploads.reconcile();
-      await r.setup().reconcile();
-      expect(r.native.completed).toEqual([{ assetId: asset(1), state: fileState, reason: null }]);
-      expect(r.native.deleted).toEqual([asset(1)]);
-      expect(await states(r)).toEqual(['01:clean']);
-    }
-  });
+  it.each(['processing', 'ready'])(
+    'EVM-130 AC4: %s in the replica without a clean ever seen removes the original exactly once and then the entry (EVM-111 AC5)',
+    async (fileState) => {
+      {
+        const r = await armed();
+        await r.store.media.setState(asset(1), 'uploaded', null, 5);
+        await serverState(r, 1, fileState);
+        await r.uploads.reconcile();
+        await r.uploads.reconcile();
+        await r.setup().reconcile();
+        expect(r.native.completed).toEqual([{ assetId: asset(1), state: fileState, reason: null }]);
+        expect(r.native.deleted).toEqual([asset(1)]);
+        expect(await states(r)).toEqual([]);
+      }
+    },
+  );
 
   it('EVM-130 AC4: sent and not confirmed in the replica — the original is untouched: nothing is asked of the module while the replica does not know the file, or says pending / uploading, also after a restart and after reconcile', async () => {
     const r = await armed();
@@ -575,11 +580,12 @@ describe('the state of a file in the view (EVM-130 AC4)', () => {
       expect(r.native.completed).toEqual([]);
       expect(r.native.deleted).toEqual([]);
       expect(await states(r)).toEqual(['01:uploaded']);
-      expect(r.uploads.getSnapshot().files).toMatchObject([{ status: 'sent' }]);
+      // EVM-111 AC5: sent but not confirmed - the entry stays as "Wysyła się 100%" (never "Wysłano", never "Oczekuje")
+      expect(r.uploads.getSnapshot().files).toMatchObject([{ status: 'uploading', percent: 100, awaitsConfirmation: true }]);
     }
   });
 
-  it('EVM-130 AC4: the module reporting uploaded does not delete the original either — it is "sent, waiting for the confirmation" (the view says "Wysłano")', async () => {
+  it('EVM-130 AC4: the module reporting uploaded does not delete the original either — it is "sent, waiting for the confirmation" (the view says "Wysyła się 100%": EVM-111 AC5)', async () => {
     const r = await armed();
     r.uploads.start();
     r.native.emit('onFileState', { assetId: asset(1), state: 'uploaded', reason: null });
@@ -587,9 +593,10 @@ describe('the state of a file in the view (EVM-130 AC4)', () => {
     expect(await states(r)).toEqual(['01:uploaded']);
     expect(r.native.completed).toEqual([]);
     expect(r.native.deleted).toEqual([]);
+    expect(r.uploads.getSnapshot().files).toMatchObject([{ status: 'uploading', percent: 100, awaitsConfirmation: true }]);
   });
 
-  it('EVM-130 AC4: clean in the replica removes the original exactly once and the row stays as "Wysłano"', async () => {
+  it('EVM-130 AC4, EVM-111 AC5: clean in the replica removes the original exactly once and the entry goes with it (no "Wysłano" row stays)', async () => {
     const r = await armed();
     await r.store.media.setState(asset(1), 'uploaded', null, 5);
     await serverState(r, 1, 'clean');
@@ -598,22 +605,63 @@ describe('the state of a file in the view (EVM-130 AC4)', () => {
     await r.setup().reconcile();
     expect(r.native.completed).toEqual([{ assetId: asset(1), state: 'clean', reason: null }]);
     expect(r.native.deleted).toEqual([asset(1)]);
-    expect(await states(r)).toEqual(['01:clean']);
-    expect(r.uploads.getSnapshot().files).toMatchObject([{ status: 'sent' }]);
+    expect(await states(r)).toEqual([]);
+    expect(r.uploads.getSnapshot().files).toEqual([]);
   });
 
-  it('EVM-130 AC4: the replica says clean BEFORE the event of the module (the row is still applied) — the original is removed, the late event changes nothing', async () => {
+  it('EVM-130 AC4: the replica says clean BEFORE the event of the module (the row is still applied) — the original is removed and the entry with it, the late event changes nothing (EVM-111 AC5)', async () => {
     const r = await armed();
     r.uploads.start();
     expect(await states(r)).toEqual(['01:applied']);
     await serverState(r, 1, 'clean');
     await r.uploads.reconcile();
     expect(r.native.deleted).toEqual([asset(1)]);
-    expect(await states(r)).toEqual(['01:clean']);
+    expect(await states(r)).toEqual([]);
     r.native.emit('onFileState', { assetId: asset(1), state: 'uploaded', reason: null });
     await new Promise((resolve) => setTimeout(resolve, 30));
-    expect(await states(r)).toEqual(['01:clean']);
+    expect(await states(r)).toEqual([]);
     expect(r.native.deleted).toEqual([asset(1)]);
+  });
+
+  it('EVM-111 AC2: the module says uploaded and the app stays in the foreground - the poll asks for the confirmation, the replica says clean and the entry goes without a pass through the background', async () => {
+    jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick', 'queueMicrotask'] });
+    try {
+      const r = await armed();
+      r.uploads.start();
+      await r.store.media.setState(asset(1), 'uploaded', null, 5);
+      await r.uploads.reload();
+      expect(r.uploads.getSnapshot().files).toMatchObject([{ status: 'uploading', percent: 100, awaitsConfirmation: true }]);
+      let confirmation = 0;
+      const stop = pollConfirmation({
+        files: r.uploads,
+        guard: { subscribe: () => () => undefined, getSnapshot: () => ({ locked: false, hidden: null, wiping: false }) },
+        appState: { current: () => 'active', subscribe: () => () => undefined },
+        sync: {
+          subscribe: () => () => undefined,
+          getSnapshot: () => ({ active: true, online: true, paused: null, syncing: false }),
+          // the download of the replica: from the third asking on the server's answer is in the replica and the reconciliation (as in session.ts) reads it
+          foreground: () => {
+            confirmation += 1;
+            void (async () => {
+              if (confirmation >= 3) await serverState(r, 1, 'clean');
+              await r.uploads.reconcile();
+            })();
+          },
+        },
+      });
+      for (const ms of [0, 5000, 10000]) {
+        await jest.advanceTimersByTimeAsync(ms);
+        for (let n = 0; n < 50; n += 1) await new Promise((resolve) => setImmediate(resolve));
+      }
+      stop();
+      expect(confirmation).toBe(3);
+      expect(await states(r)).toEqual([]);
+      expect(r.uploads.getSnapshot().files).toEqual([]);
+      expect(r.uploads.getSnapshot().confirmed).toBe(1);
+      expect(r.native.deleted).toEqual([asset(1)]);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('EVM-130 AC4: a module that does not delete (unavailable, invalid) leaves the row uploaded — the next run asks again', async () => {
@@ -627,7 +675,7 @@ describe('the state of a file in the view (EVM-130 AC4)', () => {
     }
     r.native.verdict = 'delete';
     await r.uploads.reconcile();
-    expect(await states(r)).toEqual(['01:clean']);
+    expect(await states(r)).toEqual([]);
   });
 
   it('EVM-130 AC4: failed + checksum_mismatch in the replica is "Ponów" (the original stays); a quarantine is "Wymaga uwagi" without a retry; neither calls the module', async () => {
@@ -669,7 +717,7 @@ describe('the state of a file in the view (EVM-130 AC4)', () => {
     expect(r.native.deleted).toEqual([]);
     await serverState(r, 1, 'clean');
     await r.uploads.reconcile();
-    expect(await states(r)).toEqual(['01:clean']);
+    expect(await states(r)).toEqual([]);
   });
 
   it('EVM-130 AC4: a failure other than checksum_mismatch (processing_error, abandoned) changes nothing — the file stays sent', async () => {
@@ -692,7 +740,7 @@ describe('the state of a file in the view (EVM-130 AC4)', () => {
     expect(await states(r)).toEqual(['01:uploaded']);
     r.state.visible = true;
     await r.uploads.reconcile();
-    expect(await states(r)).toEqual(['01:clean']);
+    expect(await states(r)).toEqual([]);
   });
 
   it('EVM-130 AC5: in the hidden-data mode the upload goes on — an applied file is armed and its progress is followed, only the replica is not read', async () => {
@@ -709,47 +757,15 @@ describe('the state of a file in the view (EVM-130 AC4)', () => {
     expect(r.uploads.getSnapshot().files).toMatchObject([{ status: 'uploading', percent: 25 }]);
   });
 
-  it('EVM-130 AC4, AC5: the view carries no order, path, digest or description — the same in the hidden-data mode', async () => {
+  it('EVM-130 AC4, AC5: the view carries no path, digest or description — the same in the hidden-data mode; EVM-111: the id of the order is there for the filter only', async () => {
     const r = await armed();
     r.native.statuses = [{ assetId: asset(1), state: 'uploading', partsDone: 1, partCount: 2, percent: 50, sizeBytes: 1001 }];
     r.state.visible = false;
     await r.uploads.reconcile();
     const text = JSON.stringify(r.uploads.getSnapshot());
-    for (const secret of [WO, SHA, 'image/jpeg', USER, DEVICE, 'originals']) expect(text).not.toContain(secret);
-  });
-
-  it('EVM-130 AC4: the files confirmed by the server stay as "Wysłano", the newest first and no more than the limit; the open ones come first', async () => {
-    const r = await rig();
-    for (let n = 1; n <= CLEAN_KEPT + 3; n += 1) {
-      await r.store.media.register({
-        assetId: asset(n),
-        mutationId: asset(n + 1000),
-        workOrderId: WO,
-        ownerUserId: USER,
-        fileName: asset(n),
-        sizeBytes: 5,
-        sha256: SHA,
-        mime: 'image/jpeg',
-        createdAt: n,
-      });
-      await r.store.media.setState(asset(n), 'clean', null, n);
-    }
-    await r.store.media.register({
-      assetId: asset(99),
-      mutationId: asset(1099),
-      workOrderId: WO,
-      ownerUserId: USER,
-      fileName: asset(99),
-      sizeBytes: 5,
-      sha256: SHA,
-      mime: 'image/jpeg',
-      createdAt: 99,
-    });
-    await r.uploads.reconcile();
-    const files = r.uploads.getSnapshot().files;
-    expect(files).toHaveLength(CLEAN_KEPT + 1);
-    expect(files[0]).toMatchObject({ assetId: asset(99), status: 'waiting' });
-    expect(files[1]).toMatchObject({ assetId: asset(CLEAN_KEPT + 3), status: 'sent' });
+    // EVM-130 had the order in this list too; EVM-111 adds it (`workOrderId`) as the filter of "Pliki zlecenia" - the screens never render it
+    for (const secret of [SHA, 'image/jpeg', USER, DEVICE, 'originals']) expect(text).not.toContain(secret);
+    expect(r.uploads.getSnapshot().files[0]?.workOrderId).toBe(WO);
   });
 });
 
@@ -1308,5 +1324,310 @@ describe('the discard of a file tells the queue it changed (EVM-137 AC6, W10)', 
     await uploads.refresh();
     expect(await uploads.discard(asset(1))).toBe(true);
     expect(told).toBe(0);
+  });
+});
+
+describe('the entry of a file the server confirmed leaves the phone (EVM-111 AC5)', () => {
+  const armedRig = async (n = 1): Promise<Rig> => {
+    const r = await rig();
+    for (let k = 1; k <= n; k += 1) {
+      hold(r, k);
+      await r.uploads.add(photo(k));
+    }
+    await idle(r);
+    for (let k = 1; k <= n; k += 1) await apply(r, k);
+    await r.uploads.reconcile();
+    return r;
+  };
+  /** A store whose `media` can be told to fail; the rest is the real one. */
+  const withMedia = (r: Rig, patch: Partial<MediaFileStore>): Partial<MediaUploadsDeps> => {
+    const real = r.store.media;
+    const media: MediaFileStore = {
+      register: (file) => real.register(file),
+      list: () => real.list(),
+      setState: (...args) => real.setState(...args),
+      remove: (id) => real.remove(id),
+      discard: (id) => real.discard(id),
+      discardConfirmed: (id, only) => real.discardConfirmed(id, only),
+      ...patch,
+    };
+    return { store: () => ({ ...r.store, media }) };
+  };
+
+  it.each(['clean', 'processing', 'ready'])(
+    'EVM-111 AC5: the replica says %s - the original goes FIRST, the entry right after it, and the file is in no list and no count any more',
+    async (fileState) => {
+      {
+        const r = await armedRig();
+        await r.store.media.setState(asset(1), 'uploaded', null, 5);
+        await serverState(r, 1, fileState);
+        const order: string[] = [];
+        const uploads = r.setup(
+          withMedia(r, {
+            discardConfirmed: async (id) => {
+              order.push(r.native.deleted.includes(id) ? 'entry-after-original' : 'entry-BEFORE-original');
+              return r.store.media.discardConfirmed(id);
+            },
+          }),
+        );
+        await uploads.reconcile();
+        expect(order).toEqual(['entry-after-original']);
+        expect(await states(r)).toEqual([]);
+        expect(uploads.getSnapshot().files).toEqual([]);
+        expect(uploads.getSnapshot().confirmed).toBe(1);
+      }
+    },
+  );
+
+  it('EVM-111 AC5 (negative a): a file in any state other than confirmed - waiting, sending, waiting for Wi-Fi, failed, needing attention (every code, one that looks like a path too) - keeps its entry, its original and its job, even after 30 days', async () => {
+    const r = await armedRig(8);
+    const setState = (
+      n: number,
+      state: 'pending' | 'applied' | 'uploaded' | 'failed' | 'needs_attention',
+      code: string | null,
+    ): Promise<void> => r.store.media.setState(asset(n), state, code, 1);
+    await setState(1, 'pending', null);
+    await setState(2, 'applied', null);
+    await setState(3, 'uploaded', null);
+    await setState(4, 'failed', 'checksum_mismatch');
+    await setState(5, 'needs_attention', 'quarantined');
+    await setState(6, 'needs_attention', 'id_conflict');
+    await setState(7, 'needs_attention', 'missing_original');
+    await setState(8, 'needs_attention', '/data/user/0/app/files/secret-key.jpg');
+    // the server has said nothing final: the replica knows 2 and 3 as "uploading" (a state that is not a confirmation); 5 and 8 even as clean - a row of
+    // "Wymaga uwagi" is never removed by itself
+    await serverState(r, 2, 'uploading');
+    await serverState(r, 3, 'uploading');
+    await serverState(r, 5, 'clean');
+    await serverState(r, 8, 'clean');
+    const kept: string[][] = [];
+    r.native.sweepOriginals = (keep) => {
+      kept.push([...keep]);
+      return Promise.resolve(0);
+    };
+    r.native.calls.length = 0;
+    const later = r.setup({ now: () => Date.now() + 30 * 24 * 60 * 60 * 1000 });
+    await later.reconcile();
+    await later.reconcile();
+    expect((await r.store.media.list()).map((row) => row.assetId)).toEqual([1, 2, 3, 4, 5, 6, 7, 8].map(asset));
+    expect(r.native.deleted).toEqual([]);
+    expect(r.native.completed).toEqual([]);
+    expect(r.native.calls.filter((call) => call.startsWith('cancel'))).toEqual([]);
+    // the sweep keeps the original of every row that exists
+    expect(kept.at(-1)).toEqual([1, 2, 3, 4, 5, 6, 7, 8].map(asset));
+    expect(later.getSnapshot().files).toHaveLength(8);
+    expect(later.getSnapshot().confirmed).toBe(0);
+  });
+
+  it('EVM-111 AC5 (negative b): the end of the transfer and the local mark "uploaded" are no confirmation - the entry stays while the replica says pending, uploading or nothing, also after a restart', async () => {
+    const r = await armedRig();
+    r.uploads.start();
+    r.native.statuses = [{ assetId: asset(1), state: 'uploaded', partsDone: 4, partCount: 4, percent: 100, sizeBytes: 1001 }];
+    r.native.emit('onFileState', { assetId: asset(1), state: 'uploaded', reason: null });
+    for (let waited = 0; waited < 3000 && (await states(r))[0] !== '01:uploaded'; waited += 20)
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    for (const fileState of [null, 'pending', 'uploading']) {
+      if (fileState !== null) await serverState(r, 1, fileState);
+      await r.uploads.reconcile();
+      await r.setup().reconcile();
+      expect(await states(r)).toEqual(['01:uploaded']);
+      expect(r.uploads.getSnapshot().files).toMatchObject([
+        { assetId: asset(1), status: 'uploading', percent: 100, awaitsConfirmation: true },
+      ]);
+      expect(r.native.deleted).toEqual([]);
+    }
+  });
+
+  it('EVM-111 AC5 (negative c): the removal adds no mutation and removes none of the queue of the synchronization; the sweep never takes the original of an entry that exists', async () => {
+    const r = await armedRig();
+    await r.store.media.setState(asset(1), 'uploaded', null, 5);
+    const before = JSON.stringify(await r.queue.readAll());
+    const enqueued = r.enqueued.length;
+    await serverState(r, 1, 'clean');
+    const sweeps: string[][] = [];
+    r.native.sweepOriginals = (keep) => {
+      sweeps.push([...keep]);
+      return Promise.resolve(0);
+    };
+    await r.uploads.reconcile();
+    expect(await states(r)).toEqual([]);
+    expect(JSON.stringify(await r.queue.readAll())).toBe(before);
+    expect(r.enqueued).toHaveLength(enqueued);
+    // an entry that is gone no longer asks the sweep to keep its (removed) original; before the removal the original was in the list
+    expect(sweeps[0]).toEqual([asset(1)]);
+    await r.uploads.reconcile();
+    expect(sweeps.at(-1)).toEqual([]);
+  });
+
+  it('EVM-111 AC5: when the removal of the entry fails the file stays on the list as not sent, nothing is counted as sent, and the next run repeats it - no entry without an original and no original without an entry at the end', async () => {
+    const r = await armedRig();
+    await r.store.media.setState(asset(1), 'uploaded', null, 5);
+    await serverState(r, 1, 'clean');
+    let failures = 1;
+    const uploads = r.setup(
+      withMedia(r, {
+        discardConfirmed: async (id) => {
+          if (failures > 0) {
+            failures -= 1;
+            throw new Error('synthetic');
+          }
+          return r.store.media.discardConfirmed(id);
+        },
+      }),
+    );
+    await uploads.reconcile();
+    // the original is gone (the module did it), the entry is marked and still shown - as waiting, never as "sent"
+    expect(r.native.deleted).toEqual([asset(1)]);
+    expect(await states(r)).toEqual(['01:clean']);
+    expect(uploads.getSnapshot().files).toMatchObject([{ assetId: asset(1), status: 'waiting', actions: [] }]);
+    expect(uploads.getSnapshot().confirmed).toBe(0);
+    await uploads.reconcile();
+    expect(await states(r)).toEqual([]);
+    expect(uploads.getSnapshot().files).toEqual([]);
+    expect(uploads.getSnapshot().confirmed).toBe(1);
+    // the module was asked once: the second run needed no replica and no module
+    expect(r.native.completed).toHaveLength(1);
+  });
+
+  it('EVM-111 AC5: the count of confirmed files grows only when a row was really removed (a removal of 0 rows counts nothing)', async () => {
+    const r = await armedRig();
+    await r.store.media.setState(asset(1), 'uploaded', null, 5);
+    await serverState(r, 1, 'clean');
+    const asked: unknown[] = [];
+    const uploads = r.setup(
+      withMedia(r, {
+        discardConfirmed: (_id, only) => {
+          asked.push(only);
+          return Promise.resolve(0);
+        },
+      }),
+    );
+    await uploads.reconcile();
+    expect(uploads.getSnapshot().confirmed).toBe(0);
+    expect(asked.length).toBeGreaterThan(0);
+  });
+
+  it("EVM-111 AC5: the sweep of leftovers asks for the narrow predicate ('clean') and counts only what it removed", async () => {
+    const r = await rig();
+    for (const [n, state] of [
+      [1, 'clean'],
+      [2, 'clean'],
+    ] as const) {
+      await r.store.media.register({
+        assetId: asset(n),
+        mutationId: asset(n + 1000),
+        workOrderId: WO,
+        ownerUserId: USER,
+        fileName: asset(n),
+        sizeBytes: 5,
+        sha256: SHA,
+        mime: 'image/jpeg',
+        createdAt: n,
+      });
+      await r.store.media.setState(asset(n), state, null, n);
+    }
+    const asked: unknown[] = [];
+    const uploads = r.setup(
+      withMedia(r, {
+        discardConfirmed: (id, only) => {
+          asked.push(only);
+          return id === asset(1) ? Promise.resolve(0) : r.store.media.discardConfirmed(id, only);
+        },
+      }),
+    );
+    await uploads.reconcile();
+    expect(asked.length).toBeGreaterThan(0);
+    expect(asked.every((only) => only === 'clean')).toBe(true);
+    expect(uploads.getSnapshot().confirmed).toBe(1);
+  });
+
+  it('EVM-111 AC5: when even the mark fails, the row stays as it was and the next run asks the module and removes the entry', async () => {
+    const r = await armedRig();
+    await r.store.media.setState(asset(1), 'uploaded', null, 5);
+    await serverState(r, 1, 'clean');
+    let broken = true;
+    const uploads = r.setup(
+      withMedia(r, {
+        discardConfirmed: (id) => (broken ? Promise.reject(new Error('synthetic')) : r.store.media.discardConfirmed(id)),
+        setState: (...args) => (broken ? Promise.reject(new Error('synthetic')) : r.store.media.setState(...args)),
+      }),
+    );
+    await uploads.reconcile();
+    expect(await states(r)).toEqual(['01:uploaded']);
+    expect(uploads.getSnapshot().files).toMatchObject([{ status: 'uploading', percent: 100, awaitsConfirmation: true }]);
+    broken = false;
+    await uploads.reconcile();
+    expect(await states(r)).toEqual([]);
+  });
+
+  it('EVM-111 AC5: a leftover of the old versions (rows in "clean") is removed at the next run - all of them, no limit of twenty; a row in any other state next to them stays', async () => {
+    const r = await rig();
+    for (let n = 1; n <= 23; n += 1) {
+      await r.store.media.register({
+        assetId: asset(n),
+        mutationId: asset(n + 1000),
+        workOrderId: WO,
+        ownerUserId: USER,
+        fileName: asset(n),
+        sizeBytes: 5,
+        sha256: SHA,
+        mime: 'image/jpeg',
+        createdAt: n,
+      });
+      await r.store.media.setState(asset(n), n === 23 ? 'uploaded' : 'clean', null, n);
+    }
+    await r.uploads.reconcile();
+    expect(await states(r)).toEqual(['23:uploaded']);
+    expect(r.uploads.getSnapshot().files).toMatchObject([
+      { assetId: asset(23), status: 'uploading', percent: 100, awaitsConfirmation: true },
+    ]);
+    expect(r.uploads.getSnapshot().confirmed).toBe(22);
+  });
+
+  it('EVM-111 AC5: in the hidden-data mode the leftover is removed too (no replica is read, nothing is shown); a file that still waits for the confirmation stays until the data are visible again', async () => {
+    const r = await armedRig(2);
+    await r.store.media.setState(asset(1), 'clean', null, 5);
+    await r.store.media.setState(asset(2), 'uploaded', null, 5);
+    await serverState(r, 2, 'clean');
+    r.state.visible = false;
+    await r.uploads.reconcile();
+    expect(await states(r)).toEqual(['02:uploaded']);
+    expect(r.native.completed).toEqual([]);
+    r.state.visible = true;
+    await r.uploads.reconcile();
+    expect(await states(r)).toEqual([]);
+  });
+
+  it('EVM-111 AC5: after the session ended (session_revoked, sign-out) the queue shows and touches nothing - the entries wait for the next sign-in', async () => {
+    const r = await armedRig();
+    await r.store.media.setState(asset(1), 'uploaded', null, 5);
+    await serverState(r, 1, 'clean');
+    r.state.signedIn = false;
+    r.native.calls.length = 0;
+    await r.uploads.reconcile();
+    expect(r.uploads.getSnapshot().files).toEqual([]);
+    expect(r.native.calls).not.toContain('completeUpload');
+    expect(await states(r)).toEqual(['01:uploaded']);
+    r.state.signedIn = true;
+    await r.uploads.reconcile();
+    expect(await states(r)).toEqual([]);
+  });
+
+  it('EVM-111 AC3: the view is "loading" until the table is read, "failed" when the read fails (nothing is changed), "ready" after "Spróbuj ponownie" - a read only', async () => {
+    const r = await armedRig();
+    expect(r.setup().getSnapshot().read).toBe('loading');
+    let broken = true;
+    const uploads = r.setup(withMedia(r, { list: () => (broken ? Promise.reject(new Error('synthetic')) : r.store.media.list()) }));
+    await uploads.reload();
+    expect(uploads.getSnapshot()).toMatchObject({ read: 'failed', files: [] });
+    const before = JSON.stringify(await r.db.read((tx) => tx.all('SELECT * FROM media_files')));
+    r.native.calls.length = 0;
+    broken = false;
+    await uploads.reload();
+    expect(uploads.getSnapshot().read).toBe('ready');
+    expect(uploads.getSnapshot().files).toMatchObject([{ assetId: asset(1), workOrderId: WO }]);
+    expect(JSON.stringify(await r.db.read((tx) => tx.all('SELECT * FROM media_files')))).toBe(before);
+    // a read of the table asks the module for nothing but the progress it shows
+    expect(r.native.calls.filter((call) => call !== 'uploadStatuses')).toEqual([]);
   });
 });

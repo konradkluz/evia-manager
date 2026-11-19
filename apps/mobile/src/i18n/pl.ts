@@ -777,9 +777,9 @@ export const pl = {
     types: { photo: 'Zdjęcie', video: 'Film' },
     noCategory: 'Bez kategorii',
     fileA11y: '{{category}}, {{type}}, {{time}}, {{state}}',
-    discardBody: 'Usuniemy to zdjęcie z telefonu — nie trafi do biura. Tego nie da się cofnąć.',
+    discardBody: 'Usuniemy ten plik z telefonu. Tego nie da się cofnąć.',
     discardA11y: 'Usuń plik z telefonu',
-    sections: { files: 'Pliki', attention: 'Plik wymaga uwagi', sent: 'Wysłane pliki', waitingWifi: 'Czeka na Wi-Fi ({{count}})' },
+    sections: { files: 'Pliki', attention: 'Plik wymaga uwagi', waitingWifi: 'Czeka na Wi-Fi ({{count}})' },
     states: {
       waiting: 'Oczekuje',
       awaitsSurvey: 'Wyślemy po utworzeniu wizji',
@@ -791,7 +791,6 @@ export const pl = {
       waitingConnection: 'Czeka na połączenie',
       uploading: 'Wysyła się {{percent}}%',
       attention: 'Wymaga uwagi',
-      sent: 'Wysłano',
       error: 'Nie wysłano — plik uszkodzony w transmisji',
     },
     // EVM-110 AC4: the banner of the Queue for the films that wait for Wi-Fi
@@ -824,6 +823,22 @@ export const pl = {
         'Pokażemy postęp wysyłania i damy znać, gdy wysyłanie się zatrzyma i trzeba otworzyć aplikację. Bez nazwisk, adresów i numerów zleceń.',
       consentLater: 'Nie teraz',
     },
+  },
+  // EVM-111: "Pliki zlecenia" (M-08) and the row "Pliki z tego telefonu" of M-03 - the files of THIS phone that are not at the office yet
+  orderFiles: {
+    row: 'Pliki z tego telefonu',
+    rowHint: 'Otwiera listę plików zlecenia',
+    rowA11yToSend: 'Pliki z tego telefonu, {{count}} do wysłania',
+    rowA11yAllSent: 'Pliki z tego telefonu, wszystko wysłane',
+    allSent: 'Wszystko wysłane',
+    title: 'Pliki zlecenia',
+    back: 'Wstecz',
+    backA11y: 'Wróć do zlecenia',
+    loading: 'Wczytywanie plików…',
+    loadFailed: 'Nie udało się wczytać listy plików.',
+    retry: 'Spróbuj ponownie',
+    empty: 'Wszystko wysłane. Zdjęcia i filmy zlecenia przegląda biuro w panelu.',
+    hidden: 'Dane zleceń są ukryte. Pliki wyślą się dalej — status zobaczysz w Kolejce.',
   },
   // EVM-102: M-11 "Prywatność i pomoc" (the clauses themselves come from src/privacy/content.ts, the one source shared with the panel W-19)
   privacy: {

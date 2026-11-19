@@ -30,6 +30,7 @@ const ID = (n: number): string => `0194c2a0-0000-7000-8000-${String(n).padStart(
 
 const film = (n: number, patch: Partial<MediaFileView> = {}): MediaFileView => ({
   assetId: ID(n),
+  workOrderId: '10000000-0000-4000-8000-000000000001',
   status: 'waiting_wifi',
   percent: null,
   sizeBytes: 78 * 1024 * 1024,
@@ -118,14 +119,10 @@ describe('a film that waits for Wi-Fi in the Queue (EVM-110 AC4)', () => {
     expect(screen.getByRole('button', { name: 'Zmień ustawienie' })).toBeOnTheScreen();
   });
 
-  it('EVM-110 AC4: there is no banner without a film that waits (pictures only, a film that sends, a film that was sent)', async () => {
+  it('EVM-110 AC4: there is no banner without a film that waits (pictures only, a film that sends)', async () => {
     const rig = stubPorts();
     rig.media.set(
-      snap([
-        film(1, { status: 'waiting', mediaType: 'photo', durationMs: null }),
-        film(2, { status: 'uploading', percent: 30 }),
-        film(3, { status: 'sent' }),
-      ]),
+      snap([film(1, { status: 'waiting', mediaType: 'photo', durationMs: null }), film(2, { status: 'uploading', percent: 30 })]),
     );
     await open(rig);
     expect(screen.queryByTestId('waiting-wifi-banner')).toBeNull();

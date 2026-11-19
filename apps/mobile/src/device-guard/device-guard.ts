@@ -50,6 +50,7 @@ export class DeviceGuard {
   readonly #lock: AppLock;
   readonly #listeners = new Set<() => void>();
   readonly #foreground = new Set<() => void>();
+  readonly #appStateChange = new Set<() => void>();
   #unsubscribe: (() => void) | undefined;
   #screenSecure: boolean | null = null;
   #contact: ContactView = UNKNOWN_CONTACT;
@@ -109,15 +110,40 @@ export class DeviceGuard {
     };
   }
 
+  /**
+   * Callbacks for EVERY change of `AppState` (also while the unlock window is on screen), after the source says the new state: for what only needs to know
+   * that the app went to the background or came back (EVM-111 AC2: the asking for the confirmation of the files); no second `AppState` listener.
+   */
+  onAppStateChange(listener: () => void): () => void {
+    this.#appStateChange.add(listener);
+    return () => {
+      this.#appStateChange.delete(listener);
+    };
+  }
+
   #onAppState(next: AppStateName): void {
-    if (this.#prompting) return; // the unlock window itself must not lock the app again (loop)
-    if (next === 'active') {
-      this.#lock.returned();
-      this.#publish();
-      void this.refresh();
-      for (const listener of this.#foreground) listener();
-    } else {
-      this.#lock.enteredBackground();
+    // fail-closed: the lock is handled FIRST; a listener that throws must never skip it (nor stop the other listeners)
+    try {
+      if (this.#prompting) return; // the unlock window itself must not lock the app again (loop)
+      if (next === 'active') {
+        this.#lock.returned();
+        this.#publish();
+        void this.refresh();
+        for (const listener of [...this.#foreground]) this.#safely(listener);
+      } else {
+        this.#lock.enteredBackground();
+      }
+    } finally {
+      for (const listener of [...this.#appStateChange]) this.#safely(listener);
+    }
+  }
+
+  /** A listener is not trusted: its exception ends only that call, and nothing about it is logged (it could carry data). */
+  #safely(listener: () => void): void {
+    try {
+      listener();
+    } catch {
+      // intentionally empty
     }
   }
 

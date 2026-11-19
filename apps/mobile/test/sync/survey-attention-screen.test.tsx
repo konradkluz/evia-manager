@@ -42,6 +42,7 @@ const item = (patch: Partial<QueueItem> = {}): QueueItem => ({
 });
 const file = (patch: Partial<MediaFileView> = {}): MediaFileView => ({
   assetId: '0194c2a0-0000-7000-8000-000000000f01',
+  workOrderId: '10000000-0000-4000-8000-000000000001',
   sizeBytes: 1000,
   updatedAt: AT,
   code: 'survey_gone',

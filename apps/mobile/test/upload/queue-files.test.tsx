@@ -31,6 +31,7 @@ const ID = (n: number): string => `0194c2a0-0000-7000-8000-${String(n).padStart(
 
 const file = (n: number, patch: Partial<MediaFileView> = {}): MediaFileView => ({
   assetId: ID(n),
+  workOrderId: '10000000-0000-4000-8000-000000000001',
   status: 'waiting',
   percent: null,
   sizeBytes: 1000,
@@ -42,7 +43,11 @@ const file = (n: number, patch: Partial<MediaFileView> = {}): MediaFileView => (
   capturedAt: AT,
   ...patch,
 });
-const snap = (files: MediaFileView[], notifications: 'granted' | 'denied' = 'granted'): MediaUploadsSnapshot => ({ files, notifications });
+const snap = (files: MediaFileView[], notifications: 'granted' | 'denied' = 'granted', confirmed = 0): MediaUploadsSnapshot => ({
+  files,
+  notifications,
+  confirmed,
+});
 
 async function openQueue(rig: PortsRig): Promise<void> {
   await render(<App session={rig.session} checker={online} storage={() => ({ prepare: () => Promise.resolve('ready' as const) })} />);
@@ -52,7 +57,7 @@ async function openQueue(rig: PortsRig): Promise<void> {
 }
 
 describe('states of the files (EVM-130 AC4)', () => {
-  it('EVM-130 AC4: oczekuje, wysyłanie z procentem, wysłano, błąd z „Ponów” and „Wymaga uwagi” — each with its text, section and accessible name', async () => {
+  it('EVM-130 AC4: oczekuje, wysyłanie z procentem, błąd z „Ponów” and „Wymaga uwagi” — each with its text, section and accessible name; EVM-111 AC5: no "Wysłano", no section of sent files', async () => {
     const rig = stubPorts();
     rig.media.set(
       snap([
@@ -61,7 +66,6 @@ describe('states of the files (EVM-130 AC4)', () => {
         file(3, { status: 'error', code: 'checksum_mismatch', actions: ['retry'] }),
         file(4, { status: 'attention', code: 'id_conflict', actions: ['retry'] }),
         file(5, { status: 'attention', code: 'quarantined', actions: [] }),
-        file(6, { status: 'sent' }),
       ]),
     );
     await openQueue(rig);
@@ -72,7 +76,10 @@ describe('states of the files (EVM-130 AC4)', () => {
     expect(screen.getByTestId(`file-row-${ID(2)}`)).toHaveAccessibilityValue({});
     expect(screen.getByTestId(`file-progress-${ID(2)}`)).toBeOnTheScreen();
     expect(screen.getByTestId(`file-row-${ID(3)}`)).toHaveTextContent('Nie wysłano — plik uszkodzony w transmisji', { exact: false });
-    expect(screen.getByTestId(`file-row-${ID(6)}`)).toHaveTextContent('Wysłano', { exact: false });
+    // EVM-111 AC5: the entry of a confirmed file is removed from the phone, so there is no "Wysłano" and no section of sent files
+    expect(screen.queryByText('Wysłano')).toBeNull();
+    expect(screen.queryByText('Wysłane pliki')).toBeNull();
+    expect(screen.queryByTestId('files-sent')).toBeNull();
     // the spoken name of a row: the category, the type, the time of the capture and the state
     expect(screen.getByLabelText(`Bez kategorii, Zdjęcie, ${formatDateTime(AT)}, Oczekuje`)).toBeOnTheScreen();
     expect(screen.getByLabelText(`Bez kategorii, Zdjęcie, ${formatDateTime(AT)}, Wysyła się 40%`)).toBeOnTheScreen();
@@ -127,17 +134,27 @@ describe('states of the files (EVM-130 AC4)', () => {
     expect(screen.getByTestId('queue-files')).toBeOnTheScreen();
   });
 
-  it('EVM-130 AC4: the last unsent file going away is announced once ("Wszystko wysłane.")', async () => {
+  it('EVM-130 AC4, EVM-111 AC2: the last file leaving because the server CONFIRMED it is announced once ("Wszystko wysłane."); the same list emptying after "Usuń z telefonu" is not', async () => {
     const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => undefined);
     const rig = stubPorts();
     rig.media.set(snap([file(1, { status: 'uploading', percent: 90 })]));
     await openQueue(rig);
     announce.mockClear();
     await act(() => {
-      rig.media.set(snap([file(1, { status: 'sent' })]));
+      rig.media.set(snap([], 'granted', 1));
     });
     await settle();
+    expect(announce).toHaveBeenCalledTimes(1);
     expect(announce).toHaveBeenCalledWith('Wszystko wysłane.');
+    announce.mockClear();
+    await act(() => {
+      rig.media.set(snap([file(2, { status: 'attention', code: 'quarantined', actions: ['discard'] })], 'granted', 1));
+    });
+    await act(() => {
+      rig.media.set(snap([], 'granted', 1));
+    });
+    await settle();
+    expect(announce).not.toHaveBeenCalled();
     announce.mockRestore();
   });
 
@@ -177,7 +194,7 @@ describe('the Banner of the notifications (EVM-130 AC6)', () => {
 
   it('EVM-130 AC6: with consent, with nothing unsent, or without files there is no Banner (it goes away after everything was sent or the notifications were turned on)', async () => {
     const rig = stubPorts();
-    rig.media.set(snap([file(1, { status: 'sent' })], 'denied'));
+    rig.media.set(snap([], 'denied'));
     await openQueue(rig);
     expect(screen.queryByTestId('notifications-banner')).toBeNull();
     await act(() => {
@@ -249,13 +266,13 @@ describe('the target of a notification passes through the lock of the app (EVM-1
 describe('the rows of the files and "Usuń z telefonu" (EVM-108 AC6)', () => {
   const DEFECT = { category: 'defect' as const, capturedAt: AT };
 
-  it('EVM-108 AC6: every file is a row of the shared component - the category, the time of the capture and the type - with exactly one of the four labels', async () => {
+  it('EVM-108 AC6: every file is a row of the shared component - the category, the time of the capture and the type - with exactly one of the four labels (EVM-111 AC5: "Wysłano" is not one of them any more)', async () => {
     const rig = stubPorts();
     rig.media.set(
       snap([
         file(1, { status: 'waiting', ...DEFECT }),
         file(2, { status: 'uploading', percent: 45, category: 'measurement', capturedAt: AT + 60_000 }),
-        file(3, { status: 'sent', category: 'other' }),
+        file(3, { status: 'error', code: 'checksum_mismatch', actions: ['retry'], category: 'other' }),
         file(4, { status: 'attention', code: 'quarantined', actions: ['discard'], category: 'site_survey' }),
       ]),
     );
@@ -263,7 +280,7 @@ describe('the rows of the files and "Usuń z telefonu" (EVM-108 AC6)', () => {
     const labels = [
       [1, 'Usterka / problem', 'Oczekuje'],
       [2, 'Pomiary', 'Wysyła się 45%'],
-      [3, 'Inne', 'Wysłano'],
+      [3, 'Inne', 'Nie wysłano — plik uszkodzony w transmisji'],
       [4, 'Oględziny', 'Wymaga uwagi'],
     ] as const;
     for (const [n, category, label] of labels) {
@@ -279,7 +296,8 @@ describe('the rows of the files and "Usuń z telefonu" (EVM-108 AC6)', () => {
     expect(screen.getByTestId(`file-row-${ID(2)}`)).toHaveTextContent(formatDateTime(AT + 60_000), { exact: false });
     expect(screen.getByLabelText(`Usterka / problem, Zdjęcie, ${formatDateTime(AT)}, Oczekuje`)).toBeOnTheScreen();
     expect(screen.getByLabelText(`Pomiary, Zdjęcie, ${formatDateTime(AT + 60_000)}, Wysyła się 45%`)).toBeOnTheScreen();
-    expect(screen.getByLabelText(`Inne, Zdjęcie, ${formatDateTime(AT)}, Wysłano`)).toBeOnTheScreen();
+    expect(screen.getByLabelText(`Inne, Zdjęcie, ${formatDateTime(AT)}, Nie wysłano — plik uszkodzony w transmisji`)).toBeOnTheScreen();
+    expect(screen.queryByText('Wysłano')).toBeNull();
     expect(screen.getByLabelText(`Oględziny, Zdjęcie, ${formatDateTime(AT)}, Wymaga uwagi`)).toBeOnTheScreen();
   });
 
@@ -292,24 +310,25 @@ describe('the rows of the files and "Usuń z telefonu" (EVM-108 AC6)', () => {
     expect(screen.getByTestId(`file-row-${ID(2)}`)).toHaveTextContent('Bez kategorii', { exact: false });
   });
 
-  it('EVM-108 AC6: the header counts the files that are still to be sent (waiting, sending and the ones that need attention), not the sent ones', async () => {
+  it('EVM-108 AC6: the header counts every file of the queue - waiting, sending and the ones that need attention (EVM-111 AC5: a confirmed file has no entry, so none is "sent")', async () => {
     const rig = stubPorts();
     rig.media.set(
-      snap([
-        file(1),
-        file(2, { status: 'uploading', percent: 3 }),
-        file(3, { status: 'attention', code: 'unknown', actions: ['retry'] }),
-        file(4, { status: 'sent' }),
-      ]),
+      snap([file(1), file(2, { status: 'uploading', percent: 3 }), file(3, { status: 'attention', code: 'unknown', actions: ['retry'] })]),
     );
     await openQueue(rig);
     expect(screen.getByTestId('files-summary')).toHaveTextContent('3 do wysłania', { exact: true });
     expect(screen.getByRole('header', { name: '3 do wysłania' })).toBeOnTheScreen();
     await act(() => {
-      rig.media.set(snap([file(4, { status: 'sent' })]));
+      rig.media.set(snap([file(2, { status: 'uploading', percent: 3 })], 'granted', 2));
     });
     await settle();
-    expect(screen.getByTestId('files-summary')).toHaveTextContent('0 do wysłania', { exact: true });
+    expect(screen.getByTestId('files-summary')).toHaveTextContent('1 do wysłania', { exact: true });
+    await act(() => {
+      rig.media.set(snap([], 'granted', 3));
+    });
+    await settle();
+    expect(screen.queryByTestId('files-summary')).toBeNull();
+    expect(screen.getByTestId('queue-empty')).toBeOnTheScreen();
   });
 
   it('EVM-108 AC6: no files = the existing empty message of the Queue (no counter, no list of files)', async () => {
@@ -349,7 +368,7 @@ describe('the rows of the files and "Usuń z telefonu" (EVM-108 AC6)', () => {
     await fireEvent.press(screen.getByTestId(`file-attention-${ID(1)}-discard`));
     expect(screen.getByTestId('file-discard-dialog')).toBeOnTheScreen();
     expect(screen.getByText(pl.upload.discardBody)).toBeOnTheScreen();
-    expect(pl.upload.discardBody).toBe('Usuniemy to zdjęcie z telefonu — nie trafi do biura. Tego nie da się cofnąć.');
+    expect(pl.upload.discardBody).toBe('Usuniemy ten plik z telefonu. Tego nie da się cofnąć.');
     expect(rig.media.calls).not.toContain(`discard:${ID(1)}`);
     await fireEvent.press(screen.getByTestId('file-discard-cancel'));
     expect(screen.queryByTestId('file-discard-dialog')).toBeNull();

@@ -6,7 +6,7 @@
 > **Zakres wersji 1 (EVM-108, poprawka 2026-11-15) — czytaj najpierw.** Makieta opisuje cały docelowy przepływ, ale aplikacja w EVM-108 dostarcza tylko **zdjęcia**. Znaczniki w tekście:
 > - **[v1]** — wchodzi do EVM-108 (zrealizowane: AC1–AC6);
 > - **[od EVM-110]** — film (bez dźwięku i bez mikrofonu, limit 5 min), przełącznik „Zdjęcie / Film”, ustawienie „Filmy tylko przez Wi-Fi”, stan „Czeka na Wi-Fi” (treść zaakceptowana przez Konrada 2026-11-15; zapis w tym dokumencie: 2026-11-15, `ux-designer`). Etap, latarka, podgląd, pauza i usuwanie niewysłanego filmu **nie wchodzą** do EVM-110 (historyjka, „Poza zakresem”);
-> - **[od EVM-111]** — ekran „Pliki zlecenia” (M-08), miniatury, przyczyny błędów, „Ponów” w nowym układzie, „Wysłano n z m”, retencja rekordów wysłanych plików;
+> - **[od EVM-111]** — ekran „Pliki zlecenia” (M-08, treść zaakceptowana przez Konrada 2026-11-18; zapis w tym dokumencie: 2026-11-18, `ux-designer`): **lista płaska** plików tego zlecenia z tego telefonu, które jeszcze nie dotarły („n do wysłania” / „Wszystko wysłane”), wiersz „Pliki z tego telefonu” w M-03, przyczyny błędów zwykłymi słowami i „Ponów” / „Usuń z telefonu”; **wpis o pliku znika z telefonu po potwierdzeniu serwera** — nie ma „Wysłano”, sekcji „Wysłane pliki”, „Wysłano n z m”, retencji ani miniatur (decyzje Konrada 2026-11-15). Galeria zdjęć i filmów zlecenia (miniatury z serwera, przegląd) jest **tylko w panelu web** (W-09);
 > - **[propozycja]** — poza wersją 1 i bez AC (latarka); do backlogu, nie element v1.
 >
 > Decyzje wersji 1 (Konrad, 2026-11-15): **bez opisu zdjęcia** (RR-96 — medium z telefonu nie ma jak być poprawione z panelu, a opis mógłby zawierać dane osobowe), **bez etapu** (`procedureStageId` poza zakresem), **bez podglądu i odrzucania ujęcia**, **bez usuwania niewysłanego zdjęcia** (jedyna akcja usuwania: „Usuń z telefonu” dla „Wymaga uwagi”), wybór zlecenia w trybie ukrytych danych po numerach. Wejścia do aparatu: stały dolny pasek szczegółów zlecenia i arkusz „Dodaj” → „Zdjęcie lub film” → wybór zlecenia → aparat; **BottomNav nie ma pozycji „Dodaj”** (odstępstwo od § 3.18, kontynuacja EVM-009 — [styleguide § 8](../styleguide.md#8-changelog)); arkusz „Dodaj” otwiera przycisk „Dodaj” na liście zleceń. Etykiety stanu pliku w aplikacji: „Oczekuje” i „Wysyła się 45%” zamiast „W kolejce” i „Wysyłanie 45%” z § 5.4 (spójność z Kolejką EVM-009; to samo odstępstwo). Makiety poniżej, które pokazują BottomNav z „Dodaj” albo etykiety „W kolejce” / „Wysyłanie”, czytaj z tym zastrzeżeniem.
@@ -27,8 +27,8 @@ flowchart TD
   F -->|"od EVM-110: koniec nagrania: limit 5 min, limit rozmiaru, brak miejsca, tło, wstecz, zamknij, wylogowanie"| S
   S -->|"zapisano"| G["Zapisano w telefonie: CreateMediaAsset w kolejce"]
   S -->|"zapis nieudany"| SX["Nie udało się zapisać: jawny komunikat, nigdy ciche niepowodzenie"]
-  G -.->|"metadane dotarły do biura przed plikiem"| W9["W-09 i M-08 innych osób: Czeka na plik z telefonu, bez procentów"]
-  G -->|"Gotowe"| H["M-03 zlecenie, plik w Kolejce jako Oczekuje; od EVM-111 także M-08"]
+  G -.->|"metadane dotarły do biura przed plikiem"| W9["W-09 innych osób (panel): Czeka na plik z telefonu, bez procentów"]
+  G -->|"Gotowe"| H["M-03 zlecenie, plik w Kolejce jako Oczekuje; od EVM-111 także w M-08 Pliki zlecenia (n do wysłania)"]
   H -->|"pierwszy element w kolejce, brak zgody na powiadomienia"| NT["Prośba o powiadomienia; bez zgody Banner w Kolejce"]
   NT --> I
   H --> I{"Sieć"}
@@ -37,8 +37,8 @@ flowchart TD
   I -->|"jest"| L["Wysyła się n procent, upload w tle, powiadomienie bez danych osobowych"]
   J --> I
   K -->|"sieć bez opłat albo wyłączone ustawienie; także po zamknięciu aplikacji i po ponad 7 dniach"| L
-  L -->|"wysłano"| M["Wysłano; serwer: Sprawdzanie pliku"]
-  M -->|"clean, processing, ready"| N["Stan po synchronizacji: miniatura z serwera, lokalny oryginał usunięty"]
+  L -->|"transfer zakończony"| M["Wysyła się 100% (od EVM-111: do potwierdzenia serwera); serwer: Sprawdzanie pliku"]
+  M -->|"clean, processing, ready"| N["Potwierdzenie serwera: lokalny oryginał i wpis usunięte z telefonu, plik znika z Kolejki i z M-08, licznik maleje; podgląd w panelu web"]
   M -->|"failed checksum_mismatch"| O["Ponów: nowa sesja uploadu z lokalnego pliku"]
   M -->|"quarantined"| P["Kolejka: Wymaga uwagi, plik zostaje w telefonie; v1: akcja Usuń z telefonu z potwierdzeniem"]
   L -->|"błąd sieci"| Q["Nie wysłano, ponowimy automatycznie, Ponów"]
@@ -207,7 +207,7 @@ Wartości dla filmu (EVM-110, decyzje Konrada 2026-11-15): 720p, 5 Mb/s, ok. 37,
 - **Cel:** w każdej chwili wiedzieć, co jest niewysłane, dlaczego, i móc to wysłać — „nic nie ginie”.
 - **Zakres [v1]:** pliki (zdjęcia) jako wiersze z licznikiem „n do wysłania”, „Usuń z telefonu” dla „Wymaga uwagi” (nowe w EVM-108) oraz to, co już działa z EVM-009 i EVM-130 (wpisy, „Wymaga uwagi” dla wpisów, Banner powiadomień, „Ponów” plików). Całość poniżej poza „Plik w Kolejce — minimum” to układ docelowy [od EVM-111 / EVM-110].
 - **Główna akcja:** zależna od sekcji — „Ponów wszystkie” (Błąd), „Dodaj do innego zlecenia” (Wymaga uwagi); **[od EVM-110] „Czeka na Wi-Fi” nie ma akcji** — „Wyślij teraz przez sieć komórkową” nie wchodzi do zakresu (wystarczy wyłączyć ustawienie „Filmy tylko przez Wi-Fi”; link „Zmień ustawienie” w banerze zbiorczym prowadzi do M-09).
-- **Hierarchia treści:** 1) podsumowanie „Wysłano 9 z 12 · 3 w kolejce” + pasek i stan przesyłania (§ 4.7 — widoczny także wtedy, gdy kapsuła pokazuje „Wymaga uwagi”); 2) Banner „Powiadomienia wyłączone” (tylko bez zgody na powiadomienia i przy niewysłanych elementach); 3) **[od EVM-110] Banner zbiorczy „n filmów czeka na Wi-Fi…”** (tylko gdy są takie filmy); 4) **Wymaga uwagi** (§ 4.16); 5) Błąd; 6) Czeka na Wi-Fi; 7) Wysyłanie; 8) W kolejce; 9) Wysłane dziś (zwinięte).
+- **Hierarchia treści:** 1) podsumowanie „3 do wysłania” (**od EVM-111** bez paska postępu i bez „Wysłano n z m” — wpisy o wysłanych plikach znikają z telefonu po potwierdzeniu serwera; stan przesyłania w kapsule § 4.7, widoczny także wtedy, gdy kapsuła pokazuje „Wymaga uwagi”); 2) Banner „Powiadomienia wyłączone” (tylko bez zgody na powiadomienia i przy niewysłanych elementach); 3) **[od EVM-110] Banner zbiorczy „n filmów czeka na Wi-Fi…”** (tylko gdy są takie filmy); 4) **Wymaga uwagi** (§ 4.16); 5) Błąd; 6) Czeka na Wi-Fi; 7) Wysyłanie; 8) W kolejce. **Od EVM-111 nie ma sekcji „Wysłane pliki” ani „Wysłane dziś”** — plik potwierdzony przez serwer znika z Kolejki; historię wysłanych zdjęć i filmów zobaczy technik w panelu biura.
 
 **Plik w Kolejce — minimum [v1]** (EVM-108 AC6; wiersz wspólnego komponentu listy plików, który EVM-111 użyje ponownie w „Pliki zlecenia”)
 ```text
@@ -233,8 +233,7 @@ Wartości dla filmu (EVM-110, decyzje Konrada 2026-11-15): 720p, 5 Mb/s, ok. 37,
  15.11.2026, 13:50 · Zdjęcie
  ‹clock› Oczekuje
 
- Wysłane pliki
- Inne · 15.11.2026, 13:40 · Zdjęcie  ‹cloud-check› Wysłano
+ (od EVM-111 nie ma sekcji „Wysłane pliki” — wpis znika po potwierdzeniu serwera)
 
  [od EVM-110] Film i baner zbiorczy (wspólny wiersz pliku EVM-108; ikona typu `video`, czas trwania i rozmiar):
  ┌──────────────────────────────────────────────┐
@@ -256,7 +255,7 @@ Wartości dla filmu (EVM-110, decyzje Konrada 2026-11-15): 720p, 5 Mb/s, ok. 37,
  Stan pusty: istniejący komunikat Kolejki „Nic nie czeka na wysłanie.”.
 ```
 Zasady wiersza pliku [v1]:
-- Wiersz pokazuje **kategorię, czas wykonania i typ** oraz **jedną z czterech etykiet**: „Oczekuje”, „Wysyła się 45%” (z paskiem), „Wysłano”, „Wymaga uwagi”. Informacja stoi w tekście; ikona i ton `color.sync.*` ją tylko wspierają (§ 5.4). Nazwa dostępna wiersza: „[kategoria], [typ], [czas], [stan]”.
+- Wiersz pokazuje **kategorię, czas wykonania i typ** oraz **jedną z etykiet**: „Oczekuje”, „Wysyła się 45%” (z paskiem), „Czeka na Wi-Fi” (film, EVM-110), „Nie wysłano — plik uszkodzony w transmisji” (EVM-130), „Wymaga uwagi”. **Nie ma etykiety „Wysłano”** (od EVM-111): wpis potwierdzonego pliku jest usuwany z telefonu. **Od zakończenia transferu do potwierdzenia serwera plik ma etykietę „Wysyła się 100%”** (z pełnym paskiem) — nie „Oczekuje” i nie „Wysłano”: plik jest już w drodze do biura, ale biuro jeszcze go nie potwierdziło; aplikacja sama dopytuje serwer (od razu po transferze, potem co kilkanaście sekund, tylko na pierwszym planie), więc wpis znika bez wychodzenia z aplikacji. Informacja stoi w tekście; ikona i ton `color.sync.*` ją tylko wspierają (§ 5.4). Nazwa dostępna wiersza: „[kategoria], [typ], [czas], [stan]”.
 - **Nigdy** nazwa klienta, adres, ścieżka ani nazwa pliku; w trybie ukrytych danych także numer zlecenia (wiersz go nie ma, więc lista wygląda tak samo w obu trybach). Miniatur nie ma [od EVM-111].
 - **Akcje „Wymaga uwagi” (decyzja Konrada 2026-11-15):** „Ponów” (EVM-130) zostaje przy plikach, które da się ponowić (np. plik uszkodzony w transmisji — komunikat EVM-130 „Nie wysłano — plik uszkodzony w transmisji”); „Usuń z telefonu” (z potwierdzeniem) mają tylko pliki, których nie da się ponowić: kwarantanna, konflikt identyfikatora, brak oryginału na telefonie. Usuwanie pliku niewysłanego i niewymagającego uwagi — brak (decyzja Konrada).
 - Powód „Wymaga uwagi” w v1 to zwykłe słowa (kwarantanna: „Plik został zatrzymany po sprawdzeniu. Skontaktuj się z biurem.”; konflikt: „Plik o tym identyfikatorze jest już w biurze.”; brak oryginału: „Pliku nie ma już na telefonie.”; inny: „Nie udało się wysłać pliku. Spróbuj ponownie.”). Rozwijane „Szczegóły techniczne” z kodem i wiekiem pliku z EVM-130 — [od EVM-111] (przyczyny błędów).
@@ -273,8 +272,7 @@ Zasady wiersza filmu i stanu „Czeka na Wi-Fi” [od EVM-110] (AC1, AC4, AC5; t
 ┌──────────────────────────────────┐
 │ Kolejka      ⟨Wymaga uwagi · 1⟩  │ § 4.16
 ├──────────────────────────────────┤
-│ Wysłano 9 z 12 · 3 w kolejce     │
-│ ████████████████░░░░             │
+│ 5 do wysłania                    │ ← od EVM-111: bez paska, bez „Wysłano n z m”
 │                                  │
 │ Wymaga uwagi (1)          § 4.16 │
 │ ┃▣ Zdjęcie · ZL-2026-0017        │
@@ -299,8 +297,6 @@ Zasady wiersza filmu i stanu „Czeka na Wi-Fi” [od EVM-110] (AC1, AC4, AC5; t
 │ ▣ Zdjęcie · ZL-2026-0042         │
 │   W kolejce      [Usuń z kolejki]│
 │ ✎ Wpis · ZL-2026-0042 · W kolejce│
-│                                  │
-│ ▸ Wysłane dziś (9)               │
 ├──────────────────────────────────┤
 │ Zlecenia  Dodaj  Kolejka  Więcej │
 └──────────────────────────────────┘
@@ -331,7 +327,7 @@ Zasady wiersza filmu i stanu „Czeka na Wi-Fi” [od EVM-110] (AC1, AC4, AC5; t
  │ że wysyłanie się zatrzymało.  [Włącz powiadomienia]   │
 ```
 
-**Elementy kolejki i akcje** — tabela docelowa. **W v1 (EVM-108) z niej działają wyłącznie:** „Oczekuje” (`clock`, bez akcji), „Wysyła się 45%” (bez „Wstrzymaj”), „Wysłano”, „Wymaga uwagi” z „Usuń z telefonu” (plik nie do ponowienia) albo „Ponów” (EVM-130), „Offline” jako kapsuła. Wiersze „Usuń z kolejki” (zwykły plik niewysłany) — **poza v1: decyzja Konrada 2026-11-15** (usuwanie wymaga przerwania sesji wysyłania i dwóch dialogów; niepotrzebne zdjęcie usuwa biuro w panelu); „Czeka na Wi-Fi” i „Wysłano · sprawdzanie” — od EVM-110 / EVM-111.
+**Elementy kolejki i akcje** — tabela docelowa. **W v1 (EVM-108) z niej działają wyłącznie:** „Oczekuje” (`clock`, bez akcji), „Wysyła się 45%” (bez „Wstrzymaj”; od EVM-111 także „Wysyła się 100%” do potwierdzenia serwera), „Wymaga uwagi” z „Usuń z telefonu” (plik nie do ponowienia) albo „Ponów” (EVM-130), „Offline” jako kapsuła. Wiersze „Usuń z kolejki” (zwykły plik niewysłany) — **poza v1: decyzja Konrada 2026-11-15** (usuwanie wymaga przerwania sesji wysyłania i dwóch dialogów; niepotrzebne zdjęcie usuwa biuro w panelu); „Czeka na Wi-Fi” — od EVM-110; „Wysłano · sprawdzanie” zastąpione od EVM-111 stanem „Wysyła się 100%” (wiersz tabeli niżej).
 | Element / stan | Znacznik (§ 5.4) | Akcja |
 |---|---|---|
 | W kolejce — metadane jeszcze nie w biurze (`CreateMediaAsset` bez wyniku `applied`) | `clock` „W kolejce” | „Usuń z kolejki” (dialog „Usunąć 1 niewysłane zdjęcie?”) — usuwa plik i komendę z kolejki; biuro nic nie zobaczy |
@@ -340,7 +336,7 @@ Zasady wiersza filmu i stanu „Czeka na Wi-Fi” [od EVM-110] (AC1, AC4, AC5; t
 | Czeka na Wi-Fi (film, „Filmy tylko przez Wi-Fi” włączone, sieć z opłatami: komórkowa, z pomiarem albo hotspot z telefonu) [od EVM-110] | `wifi` „Czeka na Wi-Fi” (od 1 doby „Czeka na Wi-Fi od 2 dni”), `color.sync.waiting-wifi.*` | brak akcji na wierszu; baner zbiorczy „n filmów czeka na Wi-Fi…” z linkiem „Zmień ustawienie” (M-09); film rusza sam po połączeniu z siecią bez opłat (także przy zamkniętej aplikacji i po ponad 7 dniach — ten sam `assetId`, bez „Ponów” i „Wymaga uwagi”); wyłączenie ustawienia — rusza przez dowolną sieć |
 | Wysyłanie | `cloud-upload` „Wysyłanie 45%” + pasek | „Wstrzymaj” |
 | Błąd (sieć, serwer, `checksum_mismatch`) | `cloud-alert` „Nie wysłano — [powód]” | „Ponów” (nowa sesja z lokalnego pliku) |
-| Wysłano, serwer sprawdza plik | `cloud-check` „Wysłano · sprawdzanie” | — (lokalny oryginał zostaje do `clean`) |
+| Transfer zakończony, serwer jeszcze nie potwierdził (`uploaded`, `scanning`) — **od EVM-111** | `cloud-upload` „Wysyła się 100%” + pełny pasek | — (lokalny oryginał i wpis zostają do `clean`; wtedy oba znikają z telefonu, a plik z Kolejki i z „Pliki zlecenia”) |
 | Wymaga uwagi — odrzucona mutacja (`target_unavailable`, `forbidden`, `validation_failed`) | `triangle-alert` „Wymaga uwagi” (§ 4.16, `color.sync.error.*`) + powód | „Dodaj do innego zlecenia” (nowe `CreateMediaAsset` / `CreateNote` z nowym identyfikatorem — bez edycji) · „Usuń z telefonu” (dialog) |
 | Wymaga uwagi — plik w kwarantannie | `triangle-alert` „Plik zatrzymany przez skan bezpieczeństwa. Biuro sprawdzi plik.” (bez przyczyny — P5) | „Usuń z telefonu” (dialog) |
 | Szybkie zlecenie oczekujące | `clock` „Oczekuje na numer” (§ 4.15) | — (elementy tego zlecenia czekają na jego wynik) |
@@ -348,7 +344,7 @@ Zasady wiersza filmu i stanu „Czeka na Wi-Fi” [od EVM-110] (AC1, AC4, AC5; t
 **Stany**
 | Stan | Zachowanie |
 |---|---|
-| Pusty | [v1] Istniejący komunikat Kolejki „Nic nie czeka na wysłanie.” (bez zmian względem EVM-009/130). Docelowo [od EVM-111]: „Wszystko wysłane. Zdjęcia i wpisy zrobione bez zasięgu pojawią się tutaj.” + „Zsynchronizowano 14:05”. |
+| Pusty | [v1] Istniejący komunikat Kolejki „Nic nie czeka na wysłanie.” (bez zmian względem EVM-009/130). Docelowo: „Wszystko wysłane. Zdjęcia i wpisy zrobione bez zasięgu pojawią się tutaj.” + „Zsynchronizowano 14:05” (EVM-111 nie zmienia pustego stanu Kolejki; pusty stan jednego zlecenia — M-08). |
 | Ładowanie | nd. — kolejka jest lokalna i dostępna od razu; postęp wysyłania aktualizowany na bieżąco. |
 | Błąd | Sekcje „Błąd” i „Wymaga uwagi”; automatyczne ponawianie z rosnącą przerwą, „Ponów” wymusza od razu; brak miejsca na urządzeniu przy pobieraniu miniatur nie dotyczy kolejki. |
 | Offline | SyncIndicator „Offline · 5” (albo „Wymaga uwagi · n”, gdy jest taki element — wtedy stan offline jest w nazwie dostępnej kapsuły) + baner § 5.4 „Brak zasięgu. Pracuj dalej — wyślemy wszystko, gdy wróci połączenie.” — widoczny zawsze bez połączenia; elementy w stanie „Czeka na połączenie”. [od EVM-110] Film offline ma „Czeka na połączenie” (nie „Czeka na Wi-Fi”); „Czeka na Wi-Fi” dotyczy tylko telefonu z siecią z opłatami. |
@@ -366,74 +362,75 @@ Zasady wiersza filmu i stanu „Czeka na Wi-Fi” [od EVM-110] (AC1, AC4, AC5; t
 
 - **Responsywność:** jedna kolumna; sekcje zwijane (stan zwinięcia lokalnie); powiększenie czcionki do 200 % — przyciski akcji pod opisem, na pełną szerokość.
 - **Komponenty i tokeny [v1]:** wiersz pliku (`FileRow` — wspólny komponent listy plików: StatusBadge z ikoną i etykietą stanu, ProgressBar, Button danger-tertiary „Usuń z telefonu”, Button „Ponów”; kategoria `text.label-lg`, czas i typ `text.body-sm`, separator `color.border.subtle`, obrys lewy `border-width.indicator` `color.feedback.error.border` dla „Wymaga uwagi”), tony `color.sync.queued.*` / `in-progress.*` / `done.*` / `error.*`, AlertDialog (§ 3.13) z potwierdzeniem; nagłówek „n do wysłania” `text.heading-4`.
-- **Komponenty i tokeny [docelowo]:** UploadQueueItem (§ 3.12) — miniatura `size.thumbnail.sm`, stany `color.sync.queued.*`, `color.sync.offline.*`, `color.sync.waiting-wifi.*`, `color.sync.in-progress.*`, `color.sync.error.*`, `color.sync.done.*`, pasek `size.progress-bar.height` z `color.sync.progress.*`; sekcja „Wymaga uwagi” i stan SyncIndicator (§ 4.16 — `triangle-alert`, `color.sync.error.*`, obrys lewy `color.feedback.error.border`); ProgressBar (§ 3.19); Button secondary / tertiary `size.touch-target.min`; AlertDialog (§ 3.13) z Button danger; BottomSheet (§ 3.13) — prośba o powiadomienia; Banner (§ 3.19) `color.feedback.warning.*`, ikona `bell-off` — powiadomienia wyłączone; Disclosure (§ 3.21) dla „Wysłane dziś”; odznaka „Oczekuje na numer” (§ 4.15); tryb ukrytych danych (§ 4.18).
-- **Mikrocopy [v1]:** „Kolejka” · „n do wysłania” · „Plik wymaga uwagi” · „Pliki” · „Wysłane pliki” · „Oczekuje” · „Wysyła się 45%” · „Wysłano” · „Wymaga uwagi” · „Zdjęcie” · „Film” (typ; od EVM-110) · „Bez kategorii” · „Ponów” · „Usuń z telefonu” · „Usunąć z telefonu?” · „Usuniemy ten plik z telefonu. Tego nie da się cofnąć.” · „Usuń” · „Anuluj” · powody „Wymaga uwagi” (wyżej) · „Powiadomienia o wysyłaniu” · „Włącz powiadomienia” · „Nic nie czeka na wysłanie.” · „Wszystko wysłane.” (ogłoszenie po wysłaniu ostatniego pliku).
-- **Mikrocopy [docelowo, od EVM-111 / EVM-110]:** „Kolejka” · „Wysłano 9 z 12 · 3 w kolejce” · „Wymaga uwagi” · „Zlecenie zostało usunięte albo nie masz do niego dostępu.” · „Dodaj do innego zlecenia” · „Usuń z telefonu” · „Ponów wszystkie” · „Usunąć 1 niewysłane zdjęcie?” · „Zdjęcie nie zostało wysłane i zniknie z telefonu.” · „Usunąć niewysłany plik?” · „Plik zniknie z telefonu. W biurze zostanie wpis bez pliku („Czeka na plik z telefonu”) — usunąć go może administrator w panelu.” (dialogi usuwania niewysłanego pliku — EVM-111, nie EVM-110) · „Powiadomienia o wysyłaniu” · „Włącz powiadomienia” · „Powiadomienia wyłączone — nie zobaczysz, że wysyłanie się zatrzymało.” · „Wszystko wysłane.” · liczby wg § 6.3.
+- **Komponenty i tokeny [docelowo]:** UploadQueueItem (§ 3.12) — miniatura `size.thumbnail.sm`, stany `color.sync.queued.*`, `color.sync.offline.*`, `color.sync.waiting-wifi.*`, `color.sync.in-progress.*`, `color.sync.error.*`, `color.sync.done.*`, pasek `size.progress-bar.height` z `color.sync.progress.*`; sekcja „Wymaga uwagi” i stan SyncIndicator (§ 4.16 — `triangle-alert`, `color.sync.error.*`, obrys lewy `color.feedback.error.border`); ProgressBar (§ 3.19); Button secondary / tertiary `size.touch-target.min`; AlertDialog (§ 3.13) z Button danger; BottomSheet (§ 3.13) — prośba o powiadomienia; Banner (§ 3.19) `color.feedback.warning.*`, ikona `bell-off` — powiadomienia wyłączone; odznaka „Oczekuje na numer” (§ 4.15); tryb ukrytych danych (§ 4.18).
+- **Mikrocopy [v1]:** „Kolejka” · „n do wysłania” · „Plik wymaga uwagi” · „Pliki” · „Wysłane pliki” · „Oczekuje” · „Wysyła się 45%” · „Wysłano” · „Wymaga uwagi” · „Zdjęcie” · „Film” (typ; od EVM-110) · „Bez kategorii” · „Ponów” · „Usuń z telefonu” · „Usunąć z telefonu?” · „Usuniemy ten plik z telefonu. Tego nie da się cofnąć.” · „Usuń” · „Anuluj” · powody „Wymaga uwagi” (wyżej) · „Powiadomienia o wysyłaniu” · „Włącz powiadomienia” · „Nic nie czeka na wysłanie.” · „Wszystko wysłane.” (ogłoszenie po potwierdzeniu przez serwer ostatniego pliku). Od EVM-111 usunięte: „Wysłane pliki”, „Wysłano” (etykieta pliku).
+- **Mikrocopy [docelowo, od EVM-111 / EVM-110]:** „Kolejka” · „5 do wysłania” (zamiast „Wysłano 9 z 12 · 3 w kolejce” — EVM-111) · „Wymaga uwagi” · „Zlecenie zostało usunięte albo nie masz do niego dostępu.” · „Dodaj do innego zlecenia” · „Usuń z telefonu” · „Ponów wszystkie” · „Usunąć 1 niewysłane zdjęcie?” · „Zdjęcie nie zostało wysłane i zniknie z telefonu.” · „Usunąć niewysłany plik?” · „Plik zniknie z telefonu. W biurze zostanie wpis bez pliku („Czeka na plik z telefonu”) — usunąć go może administrator w panelu.” (dialogi usuwania niewysłanego pliku — EVM-111, nie EVM-110) · „Powiadomienia o wysyłaniu” · „Włącz powiadomienia” · „Powiadomienia wyłączone — nie zobaczysz, że wysyłanie się zatrzymało.” · „Wszystko wysłane.” · liczby wg § 6.3.
 - **Mikrocopy [dodatkowo od EVM-110 — film]:** „Film” (typ) · „Czeka na Wi-Fi” · „Czeka na Wi-Fi od 2 dni” (od 1 doby; „od 1 dnia”, „od 5 dni”) · baner zbiorczy „1 film czeka na Wi-Fi. Zdjęcia i wpisy wysyłamy normalnie.” / „2 filmy czekają na Wi-Fi. …” / „5 filmów czeka na Wi-Fi. …” · „Zmień ustawienie” · „Czeka na połączenie” (film offline). Usunięte: „Wyślij teraz przez sieć komórkową”, dialog „Usunąć niewysłany film?”.
 - **Komponenty i tokeny [dodatkowo od EVM-110]:** ten sam `FileRow` (ikona typu `video`, czas trwania i rozmiar `text.body-sm`); StatusBadge „Czeka na Wi-Fi” — ikona `wifi`, `color.sync.waiting-wifi.*` (istnieje: `design/tokens/semantic/color.light.tokens.json`); Banner (§ 3.19) zbiorczy — ikona `wifi`, tło/tekst/ikona `color.sync.waiting-wifi.*`, link „Zmień ustawienie” (Button tertiary `size.touch-target.min`); bez nowych komponentów i tokenów.
 - **Dostępność [dodatkowo od EVM-110]:** baner ogłaszany raz (`aria-live="polite"`); link „Zmień ustawienie” z nazwą „Zmień ustawienie: Filmy tylko przez Wi-Fi”; stan „Czeka na Wi-Fi” w nazwie dostępnej wiersza (nie tylko ikona i amber: `waiting-wifi.text` 8,15:1, ikona 4,51:1 — § 2.1.4); 200% czcionki — link pod tekstem, na pełną szerokość.
 - **Dostępność [v1]:** wiersz pliku jest jedną grupą czytaną jako „[kategoria], [typ], [czas], [stan]”, a przyciski „Ponów” i „Usuń z telefonu” poza grupą — czytnik dociera do każdego z nich; postęp „Wysyłanie pliku, 45%”; „Wszystko wysłane.” ogłaszane raz po wysłaniu ostatniego pliku; stan niesie tekst etykiety, nie sam kolor ani ikona.
 - **Dostępność [docelowo]:** każdy element z nazwą dostępną (typ, zlecenie, stan); zmiany stanów ogłaszane zbiorczo co kilka sekund (§ 5.4); akcje jako widoczne przyciski, nie gesty (§ 3.12, § 5.1); akcje niszczące oddzielone od częstych.
 
-## M-08 Media zlecenia
-> **[od EVM-111]** — cały ekran (siatka miniatur, filtr „Niewysłane”, „Czeka na plik”, podgląd) nie wchodzi do EVM-108. W v1 technik widzi swoje niewysłane pliki wyłącznie w Kolejce (M-07); stały dolny pasek „Zrób zdjęcie” w M-03 jest już w v1 (opis wejścia w M-06), a BottomNav w makiecie poniżej czytaj bez „Dodaj”.
+## M-08 Pliki zlecenia
+> **Od EVM-111 (treść zaakceptowana przez Konrada 2026-11-18; zapis 2026-11-18, `ux-designer`):** ekran zastępuje dawne „Media zlecenia” (siatka miniatur, filtr „Niewysłane”, „Czeka na plik”, podgląd). **Nie ma miniatur, podglądu, plików z innych telefonów ani galerii mediów zlecenia** — przegląd zdjęć i filmów jest w panelu biura (W-09). Ekran pokazuje tylko to, co jeszcze **nie dotarło** do biura z tego telefonu; plik potwierdzony przez serwer znika. Dolny pasek „Zrób zdjęcie” jest w M-03 (na tym ekranie go nie ma).
 
-- **Cel:** zobaczyć zdjęcia i filmy zlecenia z jednoznacznym stanem każdego pliku.
-- **Główna akcja:** „Zrób zdjęcie” (dolny pasek).
-- **Hierarchia treści:** 1) licznik „48 zdjęć · 2 filmy · 3 niewysłane”; 2) filtr „Wszystkie / Niewysłane”; 3) siatka miniatur grupowana po kategorii, ze znacznikiem stanu w rogu.
-- **Liczniki:** „48 zdjęć · 2 filmy” obejmują wszystkie media zlecenia — także pliki z innych urządzeń, które jeszcze nie dotarły („Czeka na plik z telefonu”); „niewysłane” i filtr „Niewysłane” — **tylko** elementy z Kolejki tego telefonu (technik nie wyśle cudzego pliku).
+- **Cel:** wiedzieć, czy z tego zlecenia coś jeszcze nie dotarło do biura („3 do wysłania” albo „Wszystko wysłane”), dlaczego, i móc ponowić lub usunąć z telefonu — zanim technik odjedzie sprzed domu klienta.
+- **Główna akcja:** brak jednej — ekran statusu; akcje („Ponów”, „Usuń z telefonu”) są na wierszach tam, gdzie mają sens. „Zrób zdjęcie” zostaje w M-03.
+- **Wejście:** wiersz „Pliki z tego telefonu” w M-03 (także w szczegółach wizji lokalnej); wyjście: „Wstecz” (nazwa dostępna „Wróć do zlecenia”); kapsuła SyncIndicator w AppBar prowadzi do Kolejki.
+- **Hierarchia treści:** 1) nagłówek `text.heading-4`: „n do wysłania” albo „Wszystko wysłane” z ikoną `check` (bez paska postępu); 2) lista płaska wierszy `FileRow` — kategoria, czas wykonania i typ (film: czas trwania i rozmiar), jedna etykieta stanu, pod nią przyczyna zwykłymi słowami (tylko „Wymaga uwagi” i „Nie wysłano”), akcje. Kolejność: Wymaga uwagi, Nie wysłano, w toku („Wysyła się n%”), oczekujące i „Czeka na Wi-Fi”; w grupach od najnowszego. Bez sekcji, filtrów, siatki i przełączników widoku.
+- **Liczba „n”:** liczba plików tego zlecenia na liście — **każdy** stan (także „Czeka na Wi-Fi” i „Wymaga uwagi”), liczona jak nagłówek Kolejki, tylko zawężona do tego zlecenia; ta sama liczba w drugiej linii wiersza M-03. Źródłem jest wyłącznie lokalna kolejka tego telefonu (nie replika mediów zlecenia z serwera, która obejmuje też pliki z innych urządzeń i z panelu).
 
 **Makieta (compact)**
 ```text
 ┌──────────────────────────────────┐
-│ ← Media · ZL-2026-0042 ⟨Zsynchr.⟩│
+│ ← Pliki zlecenia   ⟨Offline · 5⟩ │ nazwa dostępna wstecz: „Wróć do zlecenia”
 ├──────────────────────────────────┤
-│ 48 zdjęć · 2 filmy · 3 niewysłane│
-│ {✓ Wszystkie} {Niewysłane (3)}   │
-│ W trakcie prac (24)              │
-│ ┌────┐┌────┐┌────┐               │
-│ │img ││img ││img │               │
-│ │ ‹clock›│ ‹wifi›│ ‹scan-search›│ ← W kolejce · Czeka na Wi-Fi · Sprawdzanie (§ 5.4, § 4.14)
-│ └────┘└────┘└────┘               │
-│ ┌────┐┌────┐┌────┐               │
-│ │img ││ ▶  ││ ⚠  │ ← Wymaga uwagi (§ 4.14 — z etykietą w kaflu)
-│ └────┘└────┘└────┘               │
-│ ┌──────────┐                     │
-│ │‹image›   │ ← plik z innego telefonu, który jeszcze nie dotarł (§ 4.14)
-│ │‹clock›   │                     │
-│ │Czeka na  │                     │
-│ │plik      │                     │
-│ └──────────┘                     │
-│ Stan przed pracami (12) …        │
-├──────────────────────────────────┤
-│ [[‹camera›   Zrób zdjęcie      ]]│
-├──────────────────────────────────┤
-│ Zlecenia  Dodaj  Kolejka  Więcej │
+│ 3 do wysłania                    │ text.heading-4; po wysłaniu wszystkiego:
+│                                  │ ‹check› Wszystko wysłane
+│ ┃ Po zakończeniu                 │ ← Wymaga uwagi: obrys lewy + ikona + tekst
+│ ┃ 15.11.2026, 14:05 · Zdjęcie    │
+│ ┃ ‹triangle-alert› Wymaga uwagi  │
+│ ┃ Plik został zatrzymany po      │ ← przyczyna zwykłymi słowami
+│ ┃ sprawdzeniu. Skontaktuj się    │
+│ ┃ z biurem.                      │
+│ ┃ [Usuń z telefonu]              │ ← danger-tertiary, dialog potwierdzenia
+│                                  │
+│ W trakcie prac                   │
+│ 15.11.2026, 14:03 · Zdjęcie      │
+│ ‹cloud-upload› Wysyła się 45%    │
+│ ████░░░░                         │
+│                                  │
+│ Oględziny                        │
+│ 15.11.2026, 13:50 · ‹video› Film │
+│ · 4:58 · 187 MB                  │
+│ ‹wifi› Czeka na Wi-Fi            │ ← bez banera i objaśnienia (baner jest w Kolejce)
 └──────────────────────────────────┘
+ Bez dolnego paska „Zrób zdjęcie” (jest w M-03).
 ```
-- **Źródło miniatur:** własne niewysłane zdjęcia — z pliku lokalnego; pliki z serwera — miniatury **na żądanie, tylko gdy `fileState = ready`** i jest połączenie (sandbox aplikacji, wykluczone z kopii, kasowane przy unieważnieniu); offline — ikona typu i „Podgląd po połączeniu”. Podgląd pełnoekranowy: własny plik lokalny albo podgląd z serwera — **bez pobierania oryginałów** i bez panelu EXIF / GPS.
-- **Plik z innego urządzenia, który jeszcze nie dotarł** (medium z serwera bez pliku albo `fileState = pending_upload`, spoza Kolejki tego telefonu — np. film kolegi czeka na Wi-Fi): kafel bez miniatury — ikona typu (`image` / `video`) i znacznik (§ 4.14) `clock` „Czeka na plik” jako tekst w kaflu (`color.sync.queued.*`); szczegóły w podglądzie i nazwie dostępnej: „Czeka na plik z telefonu · Marek Testowy · od 14:05”. Bez procentów, paska i akcji — wysyłką steruje telefon autora. Własne elementy zawsze pokazują stan z lokalnej Kolejki (§ 5.4), nie z serwera.
+- **Wiersz pliku:** wspólny `FileRow` z M-07 (zasady wiersza i etykiet — wyżej); nigdy nazwa klienta, adres, nazwa pliku, ścieżka ani numer zlecenia. Plik po zakończonym transferze, a przed potwierdzeniem serwera: „Wysyła się 100%” z pełnym paskiem (wpis zniknie sam, gdy biuro potwierdzi plik).
+- **Przyczyny i akcje:** te same co w Kolejce (słownik z M-07): „Ponów” tam, gdzie ponowienie ma sens, „Usuń z telefonu” (z potwierdzeniem, ten sam dialog) tam, gdzie go nie ma; kod nieznany tej wersji — wyłącznie „Nie udało się wysłać pliku. Spróbuj ponownie.” i tylko „Ponów”; „Oczekuje”, „Wysyła się” i „Czeka na Wi-Fi” bez akcji. Przyczyna techniczna, kod i nazwa pliku nie pojawiają się nigdzie. „Ponów” bez sieci nie daje błędu (plik czeka na sieć). Niepowodzenie ponowienia — InlineAlert „Nie udało się ponowić wysyłania. Spróbuj za chwilę.”.
+- **Wpis znika po potwierdzeniu serwera:** gdy telefon dostaje potwierdzenie pliku (`clean` albo późniejszy `processing` / `ready`), wiersz znika z listy, a liczba w nagłówku i w M-03 maleje. Aplikacja sama dopytuje serwer na pierwszym planie (nie trzeba wychodzić z ekranu). Pliki oczekujące, wysyłane, „Czeka na Wi-Fi”, „Nie wysłano” i „Wymaga uwagi” nie znikają same bez względu na wiek.
 
 **Stany**
 | Stan | Zachowanie |
 |---|---|
-| Pusty | „To zlecenie nie ma jeszcze zdjęć. [Zrób zdjęcie]” (§ 4.8). |
-| Ładowanie | Skeleton kafli `size.thumbnail.md` dla miniatur z serwera; lokalne — od razu. |
-| Błąd | Miniatura się nie wczytała — `image` + „Nie można wyświetlić” (§ 3.11); plik „Wymaga uwagi” — opis jak w Kolejce. |
-| Offline | Znaczniki stanu z § 5.4; miniatury z serwera niepobrane — „Podgląd po połączeniu”; pliki z innych urządzeń — „Czeka na plik” wg ostatniej synchronizacji. |
-| Brak uprawnień | Tylko odczyt — M-02; tryb ukrytych danych (§ 4.18) — ekran niedostępny (EmptyState, dane zleceń nie są renderowane); pliki oczekujące widać w Kolejce bez miniatur. |
+| Pusty | Nagłówek „Wszystko wysłane” z ikoną `check` oraz EmptyState (§ 3.15) `circle-check`: „Wszystko wysłane. Zdjęcia i filmy zlecenia przegląda biuro w panelu.” — **bez przycisku** („Zrób zdjęcie” jest w dolnym pasku M-03). |
+| Wczytywanie | Szkielet 3 wierszy (Skeleton § 3.16), dla czytnika „Wczytywanie plików…”; bez spinnera; wiersz M-03 bez drugiej linii. |
+| Błąd odczytu | EmptyState: „Nie udało się wczytać listy plików.” + [Spróbuj ponownie] (ponawia sam odczyt lokalnej bazy); żaden rekord ani plik nie jest zmieniany; wiersz M-03 bez drugiej linii, jeśli nie zna liczby. |
+| Offline | Wszystkie pliki i stany jak z siecią (dane są lokalne), **bez komunikatu o błędzie i bez banera**; jedyny sygnał to kapsuła „Offline · n”. Film bez sieci ma „Czeka na połączenie”. |
+| Brak uprawnień / dane ukryte | Tylko odczyt nie loguje się do aplikacji (M-02). Tryb ukrytych danych, blokada aplikacji i `session_revoked` (§ 4.18): wiersza w M-03 nie ma, a ekran pokazuje wyłącznie EmptyState `eye-off`: „Dane zleceń są ukryte. Pliki wyślą się dalej — status zobaczysz w Kolejce.” z akcją wyjścia jak w całej aplikacji — **bez wierszy, liczby, numeru zlecenia i nazw dostępnych**; przejście w ten stan przy otwartym ekranie usuwa wiersze i liczbę od razu, czytnik niczego nie ogłasza (także „Wszystko wysłane”); po odblokowaniu lista wraca. |
 
 **Role**
 | Akcja | Operacja | A | E | R |
 |---|---|---|---|---|
-| Podgląd mediów i stanów | projekcja `MediaAsset` z podsumowaniem pliku | tak | tak | brak dostępu (M-02) |
-| Zrób zdjęcie | `CreateMediaAsset` | tak | tak | — |
-| Edycja, usuwanie, pobranie oryginału | — (tylko panel; telefon tylko dodaje) | nie | nie | — |
+| Podgląd listy plików z tego telefonu | lokalna kolejka (bez API) | tak | tak | brak dostępu (M-02) |
+| Ponów, Usuń z telefonu | jak w Kolejce (lokalnie) | tak | tak | — |
+| Edycja, pobranie oryginału | — (tylko panel; telefon tylko dodaje) | nie | nie | — |
 
-- **Responsywność:** siatka 3 kolumny (§ 3.11); pozioma orientacja — więcej kolumn przy zachowaniu `size.thumbnail.md`.
-- **Komponenty i tokeny:** Gallery, Thumbnail (§ 3.11) — `size.thumbnail.md`, `radius.thumbnail`, `space.inline.xs`; znaczniki stanu § 5.4 (`color.sync.*`) i § 4.14 (w tym „Czeka na plik” — `clock`, `color.sync.queued.*`, tekst `text.body-sm`; plik w kwarantannie — `triangle-alert`, `color.sync.error.*`, bez przyczyny); FilterChip (§ 3.7); Button primary `size.touch-target.field`; Skeleton (§ 3.16).
-- **Mikrocopy:** „48 zdjęć · 2 filmy · 3 niewysłane” · „Niewysłane (3)” · „Podgląd po połączeniu” · „Czeka na plik” · „Czeka na plik z telefonu · Marek Testowy · od 14:05” · „Zrób zdjęcie”.
-- **Dostępność:** miniatura z nazwą „Zdjęcie, W trakcie prac, 02.10.2026, 9:12, w kolejce”; plik z innego telefonu — „Film, W trakcie prac, czeka na plik z telefonu, Marek Testowy, od 14:05”; znacznik stanu jako tekst w nazwie dostępnej, nie tylko ikona; przyciski „Poprzednie / Następne” w podglądzie.
+- **Responsywność:** jedna kolumna; 200% czcionki — nic nie jest ucinane, przyciski akcji pod opisem na pełną szerokość; pozioma orientacja bez zmian układu.
+- **Komponenty i tokeny — tylko istniejące, bez nowych:** AppBar + SyncIndicator (§ 3.18, § 5.4); `FileRow` (§ 3.12 — StatusBadge, ProgressBar, Button „Ponów” i danger-tertiary „Usuń z telefonu”); EmptyState (§ 3.15); Skeleton (§ 3.16); InlineAlert (§ 3.19, `info`) — wynik nieudanego ponowienia; AlertDialog (§ 3.13) „Usuń z telefonu”; nagłówek `text.heading-4` `color.text.primary`, ikona `check` `color.feedback.success.icon`; tony `color.sync.*`; odstępy `space.inset.md`, `space.stack.md`, `space.stack.xs`; cele `size.touch-target.min`.
+- **Mikrocopy:** „Pliki zlecenia” (tytuł) · „n do wysłania” (1 do wysłania, 3 do wysłania, 12 do wysłania — bez odmiany liczebnika) · „Wszystko wysłane” · „Wszystko wysłane. Zdjęcia i filmy zlecenia przegląda biuro w panelu.” · „Wczytywanie plików…” · „Nie udało się wczytać listy plików.” · „Spróbuj ponownie” · „Dane zleceń są ukryte. Pliki wyślą się dalej — status zobaczysz w Kolejce.” · etykiety stanów: „Oczekuje”, „Wysyła się n%”, „Czeka na Wi-Fi” (od 1 doby z wiekiem), „Czeka na połączenie” (film bez sieci), „Nie wysłano — plik uszkodzony w transmisji”, „Wymaga uwagi” · powody i dialog „Usuń z telefonu” jak w M-07.
+- **Dostępność:** wiersz jest **jedną grupą** czytaną „[kategoria], [typ], [czas], [stan]”, a przyciski „Ponów” i „Usuń z telefonu” stoją poza grupą; stan niesie tekst etykiety, nie sam kolor ani ikona; postęp „Wysyłanie pliku, 45%” bez ogłaszania każdego procenta; zmiany liczby w nagłówku ogłaszane **zbiorczo** po chwili ciszy (nie przy każdym pliku i procencie); „Wszystko wysłane.” ogłoszone **raz**, gdy ostatni plik potwierdzi serwer (nie po „Usuń z telefonu”); nagłówek ma rolę nagłówka; cele ≥ 48 dp; 200% czcionki bez ucinania; w trybie ukrytych danych brak jakichkolwiek ogłoszeń (region na żywo też ujawniałby dane).
 
 ## M-09 Więcej
 - **Cel:** ustawienia wysyłania, pomoc i prywatność oraz bezpieczne wylogowanie lub wyczyszczenie danych firmowych.

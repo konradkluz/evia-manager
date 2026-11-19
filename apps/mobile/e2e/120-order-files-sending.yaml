@@ -1,0 +1,29 @@
+# EVM-111 AC2 AC5: the network is back and the two files go on their way (the scenario server does not confirm them). The server has the objects, yet the phone does
+# NOT say "Wysłano" and does not remove the entries: the row of the order and the header still say "2 do wysłania" (the entry leaves the phone only when the
+# server confirms the file - the end of the transfer is no confirmation; after it the file says "Wysyła się 100%", never "Oczekuje"). tools/mobile-e2e then waits for the two objects (one per asset, the SHA-256 of the
+# original) and checks that the originals are still on the phone.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- runFlow: common/order-files-open.yaml
+- extendedWaitUntil:
+    visible:
+      id: 'order-files-row-second'
+      text: '2 do wysłania'
+    timeout: 60000
+- tapOn:
+    id: 'order-files-row'
+- extendedWaitUntil:
+    visible:
+      id: 'order-files-count'
+      text: '2 do wysłania'
+    timeout: 20000
+- assertVisible: '.*, Zdjęcie, .*, (Oczekuje|Wysyła się [0-9]+%)'
+- assertNotVisible: '.*, Zdjęcie, .*, Wysłano'
+- takeScreenshot: m08-order-files-sending
+- tapOn:
+    id: 'order-files-back'

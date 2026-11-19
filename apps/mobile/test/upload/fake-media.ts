@@ -135,4 +135,9 @@ export class FakeMedia implements MediaControl {
     this.calls.push('refresh');
     return Promise.resolve();
   }
+
+  reload(): Promise<void> {
+    this.calls.push('reload');
+    return Promise.resolve();
+  }
 }

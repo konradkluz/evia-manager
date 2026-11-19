@@ -386,6 +386,7 @@ describe('e2e hooks of the files (EVM-130 AC1, AC8; media block)', () => {
           files: [
             {
               assetId: asset,
+              workOrderId: '10000000-0000-4000-8000-000000000001',
               status: 'waiting' as const,
               percent: null,
               sizeBytes: 1,
@@ -398,6 +399,7 @@ describe('e2e hooks of the files (EVM-130 AC1, AC8; media block)', () => {
             },
             {
               assetId: asset,
+              workOrderId: '10000000-0000-4000-8000-000000000001',
               status: 'uploading' as const,
               percent: 3,
               sizeBytes: 1,
@@ -410,7 +412,8 @@ describe('e2e hooks of the files (EVM-130 AC1, AC8; media block)', () => {
             },
             {
               assetId: asset,
-              status: 'sent' as const,
+              workOrderId: '10000000-0000-4000-8000-000000000001',
+              status: 'error' as const,
               percent: null,
               sizeBytes: 1,
               actions: [],
@@ -449,7 +452,7 @@ describe('e2e hooks of the files (EVM-130 AC1, AC8; media block)', () => {
     const { deps } = mediaDeps();
     await opened(deps);
     await tap('e2e-media-status');
-    await expectStatus('files=3;waiting=1;uploading=1;sent=1;failed=0;attention=0;notifications=denied');
+    await expectStatus('files=3;waiting=1;uploading=1;failed=1;attention=0;notifications=denied');
 
     const nohook = mediaDeps({ inject: () => Promise.resolve(null) });
     await opened(nohook.deps);
@@ -573,7 +576,7 @@ describe('the real wiring of the media hook (EVM-130 AC8)', () => {
     await render(inProvider(<E2eHooks />));
     await tap(E2E_HOOKS_MARKER);
     await tap('e2e-media-status');
-    await expectStatus('files=0;waiting=0;uploading=0;sent=0;failed=0;attention=0;notifications=granted');
+    await expectStatus('files=0;waiting=0;uploading=0;failed=0;attention=0;notifications=granted');
     await tap('e2e-media-inject');
     await expectStatus('error=no_media_hook');
   });
