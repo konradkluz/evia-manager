@@ -141,33 +141,37 @@ describe('W-19 before logging in (EVM-063 AC1, AC5; SR-AUTHZ-05, TM-10)', () => 
 });
 
 describe('content of W-19 (EVM-063 AC2, AC3, AC6)', () => {
-  it('EVM-063 AC3 "Pomoc" comes first, shows no address while none is configured and the link to the instruction (EVM-066)', async () => {
+  it('EVM-133 AC1 "Pomoc" comes first and shows the functional mailbox of the company (the same as in data matters) and the link to the instruction (EVM-066)', async () => {
     await renderPage();
     const headings = screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent);
     expect(headings).toEqual(['Pomoc', 'Prywatność']);
-    expect(screen.getByText('Kontakt z administratorem: zapytaj przełożonego.')).toBeTruthy();
-    expect(screen.getByRole('region', { name: 'Zgłaszanie utraty sprzętu' }).textContent).toContain('zgłoś to od razu przełożonemu');
-    expect(screen.queryByRole('link', { name: /mailto|@/ })).toBeNull();
+    const links = screen.getAllByRole('link', { name: /^kontakt@electroplus\.io — napisz do administratora$/ });
+    expect(links).toHaveLength(2);
+    for (const link of links) expect(link.getAttribute('href')).toBe('mailto:kontakt%40electroplus.io');
+    expect(screen.queryByText(/zapytaj przełożonego/)).toBeNull();
+    expect(screen.getByRole('region', { name: 'Zgłaszanie utraty sprzętu' }).textContent).toContain('zgłoś to od razu administratorowi:');
     expect(screen.getByRole('link', { name: 'Instrukcja dla biura' }).getAttribute('href')).toBe('/guide');
     expect(screen.queryByText(/Problem z logowaniem/)).toBeNull();
     // a notice about lost equipment is content, not an error: nothing is announced
     expect(screen.queryByRole('alert')).toBeNull();
   });
 
-  it('EVM-063 AC2 three clauses with a version and a date, collapsed; the controller is a visible marker for the owner to fill in', async () => {
+  it('EVM-133 AC1 AC2 three clauses with version 1.0 and the date of validity, collapsed; the controller is shown, there is no note about a draft', async () => {
     const user = setupUser();
     await renderPage();
     expect(screen.getByRole('heading', { level: 3, name: 'Administrator danych' })).toBeTruthy();
-    expect(screen.getByText('Nazwa:').nextElementSibling?.textContent).toBe('[DO UZUPEŁNIENIA]');
-    expect(screen.getByText(/Projekt treści/)).toBeTruthy();
+    expect(screen.getByText('Nazwa:').nextElementSibling?.textContent).toBe('Electroplus Realty');
+    expect(screen.getByText('Adres siedziby:').nextElementSibling?.textContent).toBe('Aleja „Solidarności” 68 / 121, 00-240 Warszawa');
+    expect(screen.queryByText(/Projekt treści/)).toBeNull();
+    expect(document.body.textContent).not.toMatch(/\[(DO UZUPEŁNIENIA|PRAWNIK\/IOD)\]/);
     const titles = [
       'Klauzula dla klientów (do przekazania klientom)',
       'Klauzula dla osób kontaktowych stron',
-      'Klauzula dla pracowników i pracy na prywatnym telefonie (BYOD)',
+      'Klauzula dla pracowników i współpracowników (panel, aplikacja mobilna, prywatny telefon)',
     ];
     for (const title of titles) {
       const toggle = screen.getByRole('button', {
-        name: new RegExp(`^${title.replaceAll(/[()]/g, '\\$&')}\\s*Wersja 0\\.1 \\(projekt\\) · obowiązuje od \\[DO UZUPEŁNIENIA\\]$`),
+        name: new RegExp(`^${title.replaceAll(/[()]/g, '\\$&')}\\s*Wersja 1\\.0 · obowiązuje od 19\\.11\\.2026$`),
       });
       expect(toggle.getAttribute('aria-expanded')).toBe('false');
       expect(toggle.closest('h3')).toBeTruthy();
@@ -175,8 +179,9 @@ describe('content of W-19 (EVM-063 AC2, AC3, AC6)', () => {
     const employees = screen.getByRole('button', { name: /^Klauzula dla pracowników/ });
     await user.click(employees);
     expect(employees.getAttribute('aria-expanded')).toBe('true');
-    expect(screen.getByRole('heading', { level: 4, name: 'Praca na prywatnym telefonie lub komputerze' })).toBeTruthy();
-    expect(screen.getByText(/Aplikacja mobilna dla techników jest planowana na późniejszy etap/)).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 4, name: 'Panel w przeglądarce prywatnego telefonu lub komputera' })).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 4, name: 'Aplikacja mobilna EVia Manager' })).toBeTruthy();
+    expect(screen.queryByText(/planowana na późniejszy etap/)).toBeNull();
     // expanding is a state of the tab only: nothing is stored (SR-WEB-05)
     expect(localStorage.length).toBe(0);
     expect(sessionStorage.length).toBe(0);

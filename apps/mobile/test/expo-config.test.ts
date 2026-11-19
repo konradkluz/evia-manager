@@ -134,6 +134,12 @@ describe('contact and the state of the clauses in the build (EVM-102 AC3, AC6)',
     expect(() => buildExpoConfig({ ...releaseEnv, EVIA_CONTACT_EMAIL: 'not an address' })).not.toThrow(/not an address/);
   });
 
+  it('EVM-133 AC5: the build declares the clauses as final (no draft, no marker, version 1.0), so tools/mobile-apk sign has no reason to refuse the package', () => {
+    const state = privacyClausesState();
+    expect(state).toEqual({ draft: false, markers: false, versions: '1.0' });
+    expect(buildExpoConfig(releaseEnv).extra).toMatchObject({ privacyClauses: { draft: false, markers: false } });
+  });
+
   it('EVM-102 AC6: the build declares the state of the clauses for tools/mobile-apk sign (a draft and markers are visible while they are there)', () => {
     const state = privacyClausesState();
     expect(typeof state.draft).toBe('boolean');

@@ -4,7 +4,7 @@ title: Klauzule prywatności w wersji ostatecznej (panel i aplikacja) — odblok
 type: story
 milestone: M2
 epic: E14 Dystrybucja i utrzymanie
-status: draft
+status: done
 priority: P0
 path: lekka             # zmiana treści statycznej (bez nowych endpointów, danych i komponentów); ryzyko prawne ogranicza obowiązkowy przegląd agenta prawnego, nie liczba recenzentów kodu
 owner: web-developer    # jeden wykonawca dla obu plików `content.ts` (zwykła edycja stałych i testów; wspólna treść)
@@ -59,10 +59,19 @@ Pozostałe punkty `[PRAWNIK/IOD]` w `rodo.md` niedotyczące treści klauzul; wzo
 ## Decyzje i ograniczenia
 - RR-95: bez prawnika i IOD — przegląd agenta prawnego (rola radcy od RODO) jest obowiązkowy przed akceptacją treści i wchodzi do DoD; wariant bezpieczny wybiera Tech Lead „z delegacji”; **treść zatwierdza Konrad**.
 - Scalenie = wdrożenie panelu z ostatecznymi klauzulami na jedynym środowisku (produkcja); nie wpisujemy danych, których Konrad nie podał — brak danych = historyjka `blocked`.
+- **Wersja aplikacji 1.0.0 (decyzja Konrada 2026-11-19, „zgoda na wersje 1.0.0”):** `APP_VERSION` w `apps/mobile/plugins/expo-config.ts` podniesiona z 0.1.0 do 1.0.0 w gałęzi tej historyjki — produkcja wymaga wersji co najmniej 1.0.0 (`MIN_SUPPORTED_APP_VERSION_ANDROID`), więc paczka 0.1.0 pokazywała „Aktualizacja wymagana”; bez zmiany konfiguracji serwera.
 - Blokuje EVM-112 (AC2: podpisany APK do testu terenowego). Wersja ostateczna to 1.0; późniejsze zmiany treści = nowa wersja i data.
 - Ścieżka `lekka`: brak nowych endpointów, danych i komponentów; jeden wykonawca zmienia oba pliki, `security-engineer` recenzuje zgodność z SR-PRIV-05 / SR-MOB-12; przegląd prawny w DoD (nie jako recenzent kodu).
 
 ## Pytania do Konrada
+**Odpowiedzi (Konrad, 2026-11-19; historyjka `ready`):**
+1. **Dane administratora** (podane przez Konrada, potwierdzone z odpisem pełnym KRS z 2026-11-19 — publiczne API Ministerstwa Sprawiedliwości, za zgodą Konrada): Electroplus Realty spółka z ograniczoną odpowiedzialnością, Aleja „Solidarności” 68 / 121, 00-240 Warszawa; KRS 0001109597, Sąd Rejonowy dla m.st. Warszawy w Warszawie, XII Wydział Gospodarczy Krajowego Rejestru Sądowego; NIP 5253005645; REGON 528831324; kapitał zakładowy 5 000 zł. **Marka:** w klauzuli dopisujemy, że spółka działa pod marką EVia Charge (decyzja Konrada).
+2. **Kontakt w sprawach danych osobowych:** `kontakt@electroplus.io` (skrzynka funkcyjna) albo listownie na adres siedziby z dopiskiem „Dane osobowe”; inspektor ochrony danych nie jest wyznaczony.
+3. **Adres pomocy (`CONTACT_EMAIL`):** ta sama skrzynka (z delegacji Konrada — wariant rekomendowany); numer telefonu biura niepodany → nie pokazujemy.
+4. **Data obowiązywania:** dzień scalenia PR (z delegacji — wariant rekomendowany).
+5. **Treść:** rozstrzygnięcia A1–A8, akapit B i ustalenia C z `legal-review.md` w wariancie bezpiecznym wybiera Tech Lead z delegacji Konrada (RR-95); punkt kontrolny Konrada = scalenie PR.
+
+Pytania pierwotne:
 Warunek `ready`; bez nich nie wpisujemy niczego do kodu.
 1. **Dane administratora:** pełna nazwa spółki, forma prawna, KRS, NIP, REGON, adres siedziby (jak w rejestrze).
 2. **Kontakt w sprawach danych osobowych:** adres e-mail **funkcyjny** (np. skrzynka „dane osobowe” w domenie firmy), nie imienny — rekomendacja: nie zależy od jednej osoby, przeżyje zmianę składu i nie ujawnia osoby w klauzuli publicznej.
@@ -74,5 +83,13 @@ Warunek `ready`; bez nich nie wpisujemy niczego do kodu.
 - Zgodność treści web ↔ mobile: sprawdzić, czy istniejący test (`apps/mobile/test/privacy-help.test.tsx`) porównuje treść, wersję i datę; jeśli nie — dopisać w AC1.
 - `apps/mobile/plugins/expo-config.ts` zawiera odwołanie do znaczników — sprawdzić przy realizacji, czy wymaga zmiany.
 
+- Odłożone po przeglądach (2026-11-19): L2 — adres pomocy w aplikacji ze zmiennej builda `EVIA_CONTACT_EMAIL` może się rozjechać ze stałą w klauzuli (kandydat: build odrzuca wartość różną od stałej); L6 — brak zadań retencji 12 mies. / 2 lata / 6 lat (historyjka przed 2027-11); podgląd filmu z panelu zachowuje dźwięk (kandydat do `/refine`: `-an`); C7 / C9 / C10 — warunki etapu E2.
+
 ## Dziennik
 - 2026-11-16 — utworzono jako draft (product-owner); wejście: `.scratch/EVM-133/legal-review.md` (agent prawny)
+- 2026-11-19 — wersja aplikacji podniesiona do 1.0.0 (decyzja Konrada 2026-11-19); status bez zmian — czeka na dane spółki (Tech Lead)
+- 2026-11-19 — Konrad podał dane spółki i adres kontaktowy, zgodził się na sprawdzenie sądu rejestrowego w publicznym KRS i na dopisanie marki; pozostałe punkty z delegacji (RR-95); status `ready` (Tech Lead)
+- 2026-11-19 — realizacja (web-developer): treść 1.0 w obu `content.ts` (A1–A8, B, C1–C6, C8, C11–C17; akapit o wizji lokalnej z `rodo.md`), testy `EVM-133 AC1–AC5`, `rodo.md` („Rozstrzygnięcia klauzul informacyjnych”, pkt 9 checklisty, punkty 3–5, 7, 9, 14), S8 w `checklista-wydania.md`; bez C7 (biuro rachunkowe — brak faktu), C9 i C10 (poza kodem); status `in-progress`
+- 2026-11-19 — runda poprawek treści po przeglądach (prawny: ZATWIERDZAM Z WARUNKAMI dla testu wewnętrznego; security: REQUEST CHANGES → poprawione): rozróżnienie plików z aplikacji i z panelu (dźwięk, lokalizacja), sesja aplikacji 14 / 30 dni, kopia zamkniętego zlecenia, zakres lokalnej bazy, IP, wizja lokalna zamówiona przez inną osobę, źródło danych osób kontaktowych, podział akapitu o utracie telefonu; `rodo.md` uzupełnione danymi spółki; status `in-progress` (tester)
+- 2026-11-19 — bramka lokalna zielona (68/68) przed rundą poprawek treści; po poprawkach testy klauzul, typy, lint i walidator dokumentacji zielone; pełne testy w CI; status `in-review` (Tech Lead)
+- 2026-11-19 — PR #155 scalony przez Konrada (akceptacja klauzul 1.0 i wersji 1.0.0); status `done`. Panel z klauzulami 1.0 wdroży pierwszy przebieg `publish` po scaleniu zmiany w `apps/` (przebieg po #155 zatrzymał skaner, RR-104)
