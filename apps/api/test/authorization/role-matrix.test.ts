@@ -476,7 +476,7 @@ describe('the operation of the signed address of a file has variants (EVM-045 AC
     const table = Object.fromEntries(
       (['administrator', 'editor', 'read_only'] as const).map((role) => [
         role,
-        Object.fromEntries(DOWNLOAD_VARIANTS.map((variant) => [variant, mayRequest(role, variant)])),
+        Object.fromEntries(DOWNLOAD_VARIANTS.map((variant) => [variant, mayRequest(role, variant, 'web')])),
       ]),
     );
     expect(table).toEqual({

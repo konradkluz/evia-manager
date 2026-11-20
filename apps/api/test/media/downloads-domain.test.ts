@@ -15,9 +15,9 @@ const ID = '0198a7a0-1234-7000-8000-000000000001';
 describe('EVM-045 AC4 AC6 who may request which variant and which files are downloadable', () => {
   it('EVM-045 AC4 Read-only never gets the original; Administrator and Editor get every variant; Read-only gets both derivatives', () => {
     for (const variant of DOWNLOAD_VARIANTS) {
-      expect(mayRequest('administrator', variant)).toBe(true);
-      expect(mayRequest('editor', variant)).toBe(true);
-      expect(mayRequest('read_only', variant)).toBe(variant !== 'original');
+      expect(mayRequest('administrator', variant, 'web')).toBe(true);
+      expect(mayRequest('editor', variant, 'web')).toBe(true);
+      expect(mayRequest('read_only', variant, 'web')).toBe(variant !== 'original');
     }
   });
 

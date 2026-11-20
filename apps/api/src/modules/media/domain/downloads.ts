@@ -21,7 +21,7 @@ export type DownloadVariant = (typeof DOWNLOAD_VARIANTS)[number];
 export const variantClass = (variant: DownloadVariant): VariantClass => (variant === 'original' ? 'original' : 'derivative');
 
 /** P6: Read-only gets the derivatives, never the original; EVM-142: nor does any caller on the mobile channel. */
-export const mayRequest = (role: UserRole, variant: DownloadVariant, channel: Channel = 'web'): boolean =>
+export const mayRequest = (role: UserRole, variant: DownloadVariant, channel: Channel): boolean =>
   variant !== 'original' || (role !== 'read_only' && channel === 'web');
 
 export interface OriginalFacts extends VideoFileFacts {

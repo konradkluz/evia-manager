@@ -486,7 +486,7 @@ describe('EVM-068 AC6 AC7 the signed address of a thumbnail and a preview (the o
     ]);
   });
 
-  it('EVM-068 AC7 Administrator, Editor and Read-only get the address; anonymous is 401; a mobile token is 403', async () => {
+  it('EVM-068 AC7 Administrator, Editor and Read-only get the address; anonymous is 401; the cookie of a session of the phone is 401 (EVM-142: the phone has its own credential, see media-download-mobile.test.ts)', async () => {
     const orderId = await order();
     const owner = await signIn('editor');
     const photo = await readyPhoto(orderId, owner.userId);
@@ -495,7 +495,7 @@ describe('EVM-068 AC6 AC7 the signed address of a thumbnail and a preview (the o
     }
     const anonymous = new PanelClient(current.app.getHttpServer(), PANEL_ORIGIN);
     expect((await downloadUrl({ userId: '', panel: anonymous }, orderId, photo.mediaAssetId)).status).toBe(401);
-    expect((await downloadUrl(await signIn('editor', 'mobile'), orderId, photo.mediaAssetId)).status).toBe(403);
+    expect((await downloadUrl(await signIn('editor', 'mobile'), orderId, photo.mediaAssetId)).status).toBe(401);
   });
 
   it('EVM-068 AC7 the medium of order B asked through order A, a missing medium, a deleted order and every state but ready are ONE 404', async () => {

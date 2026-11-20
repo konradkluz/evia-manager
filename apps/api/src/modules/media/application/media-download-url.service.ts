@@ -36,7 +36,7 @@ import {
 import type { SignedUrlMeters } from '../../../platform/signed-url-limits/signed-url-meters.ts';
 import { DATABASE, EVENT_BUS, LOGGER, METRICS, SIGNED_URL_METERS } from '../../../platform/tokens.ts';
 import { WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders/index.ts';
-import { DERIVATIVE_CACHE_CONTROL } from '../domain/derivatives.ts';
+import { derivativeCacheControl } from '../domain/derivatives.ts';
 import { downloadFileName, isOriginalDownloadable, mayRequest, variantClass, type DownloadVariant } from '../domain/downloads.ts';
 import { normalizeContentType } from '../domain/file-rules.ts';
 import type { MediaAuditEvent } from '../events.ts';
@@ -149,7 +149,7 @@ export class MediaDownloadUrlService {
       key: source.objectKey,
       expiresInSeconds: DERIVATIVE_URL_SECONDS,
       contentType: source.contentType,
-      cacheControl: DERIVATIVE_CACHE_CONTROL,
+      cacheControl: derivativeCacheControl(channel),
       disposition: { kind: 'inline' },
     };
   }

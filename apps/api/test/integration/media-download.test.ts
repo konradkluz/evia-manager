@@ -350,6 +350,8 @@ describe('EVM-046 AC4 AC6 the addresses of a video', () => {
     expect(preview.pathname).toBe(`/${clip.objectKey.replace(/original$/, 'preview.mp4')}`);
     expect(preview.searchParams.get('response-content-type')).toBe('video/mp4');
     expect(preview.searchParams.get('response-content-disposition')).toBe('inline');
+    // EVM-142 AC5: the panel keeps the short private cache (only the address for the phone forbids caching)
+    expect(current.storage.signedGets.at(-1)).toMatchObject({ cacheControl: 'private, max-age=300' });
     const frame = new URL(((await downloadUrl(editor, orderId, clip.mediaAssetId, { variant: 'thumbnail' })).body as { url: string }).url);
     expect(frame.searchParams.get('response-content-type')).toBe('image/webp');
     const original = new URL(

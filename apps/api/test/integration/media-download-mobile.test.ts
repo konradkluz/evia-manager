@@ -160,7 +160,7 @@ describe('EVM-142 AC1 the phone gets the address of a thumbnail or a preview', (
       }
     }
     const signed = current.storage.signedGets.at(-1);
-    expect(signed).toMatchObject({ contentType: 'image/webp', disposition: { kind: 'inline' } });
+    expect(signed).toMatchObject({ contentType: 'image/webp', disposition: { kind: 'inline' }, cacheControl: 'no-store' });
   });
 
   it('EVM-142 AC1 the address is not written to the log and nothing is audited for it (SR-LOG-02)', async () => {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   DERIVATIVE_CACHE_CONTROL,
+  derivativeCacheControl,
   DERIVATIVE_CONTENT_TYPE,
   DERIVATIVE_VARIANTS,
   MAX_PROCESSING_ATTEMPTS,
@@ -59,5 +60,10 @@ describe('EVM-068 AC6 the derivatives of a photo: keys, availability and the mea
     expect(DERIVATIVE_URL_SECONDS).toBe(300);
     expect(DERIVATIVE_CACHE_CONTROL).toBe('private, max-age=300');
     expect(VARIANT_EDGES).toEqual({ thumbnail: 320, preview: 1600 });
+  });
+
+  it('EVM-142 AC5 the address for the phone forbids any HTTP cache (no copy of a photo on the phone), the one for the panel keeps the short private cache', () => {
+    expect(derivativeCacheControl('mobile')).toBe('no-store');
+    expect(derivativeCacheControl('web')).toBe('private, max-age=300');
   });
 });
