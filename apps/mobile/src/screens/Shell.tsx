@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AccessibilityInfo, BackHandler, View } from 'react-native';
 import { useStartup } from '../startup';
@@ -12,6 +12,7 @@ import { MediaTargetPicker } from './MediaTargetPicker';
 import { MoreScreen, useSignOutFlow } from './MoreScreen';
 import { OrderDetailScreen } from './OrderDetailScreen';
 import { OrderFilesScreen } from './OrderFilesScreen';
+import { OrderPhotosScreen } from './OrderPhotosScreen';
 import { OrdersScreen } from './OrdersScreen';
 import { QuickOrderScreen, type QuickSavedKind } from './QuickOrderScreen';
 import { SiteSurveyScreen } from './SiteSurveyScreen';
@@ -92,6 +93,17 @@ export function Shell() {
   const [openOrderId, setOpenOrderId] = useState<string | null>(null);
   // "Pliki zlecenia" (EVM-111): a flag over the open order - the id of the order is the only datum and it is the one above; closing the order closes it too
   const [filesOpen, setFilesOpen] = useState(false);
+  // "Zdjęcia zlecenia" (EVM-142): the same - a flag over the open order, and the id of the photo that is open in the preview (ids are the only data; never stored; the preview is not restored after a lock)
+  const [photosOpen, setPhotosOpen] = useState(false);
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const closePreview = useCallback(() => {
+    setPreviewId(null);
+  }, []);
+  const closeLayers = useCallback(() => {
+    setFilesOpen(false);
+    setPhotosOpen(false);
+    setPreviewId(null);
+  }, []);
   // The orders opened in THIS process, newest first, for "Ostatnio otwierane" of the camera picker (EVM-108 AC5; security 17): ids only, in this state
   // only - never stored; they go with the shell when the session ends (sign-out, wipe of the phone, another user: the shell is not drawn without a session)
   const [recentOrders, setRecentOrders] = useState<readonly string[]>([]);
@@ -101,13 +113,13 @@ export function Shell() {
   }, []);
   const closeOrder = useCallback(() => {
     setOpenOrderId(null);
-    setFilesOpen(false);
-  }, []);
+    closeLayers();
+  }, [closeLayers]);
   const openQueue = useCallback(() => {
     setOpenOrderId(null);
-    setFilesOpen(false);
+    closeLayers();
     setTab('queue');
-  }, []);
+  }, [closeLayers]);
   const wipe = useWipeFlow();
   const signOut = useSignOutFlow(openQueue, wipe.ask);
   const session = useSession();
@@ -199,8 +211,11 @@ export function Shell() {
       // The order of the registrations is not relied on: after the unlock the effects run again, children first, so this handler may be the last one
       if (overShell.current) return false;
       if (openOrderId !== null) {
-        // "Pliki zlecenia" is closed first: it returns to the order, not to the list
-        if (filesOpen) setFilesOpen(false);
+        // the preview of a photo is closed first (back to the grid), then "Zdjęcia zlecenia" and "Pliki zlecenia": they return to the order, not to the list. This handler decides it all
+        // itself (the grid registers none): after the unlock the effects run again, children first, so a handler of a child could be asked after this one
+        if (previewId !== null) setPreviewId(null);
+        else if (photosOpen) setPhotosOpen(false);
+        else if (filesOpen) setFilesOpen(false);
         else setOpenOrderId(null);
         return true;
       }
@@ -213,7 +228,15 @@ export function Shell() {
     return () => {
       subscription.remove();
     };
-  }, [tab, openOrderId, filesOpen]);
+  }, [tab, openOrderId, filesOpen, photosOpen, previewId]);
+  // EVM-142: the preview of a photo never survives the lock or the hidden-data mode: after the unlock the effects of this hidden `Activity` run again and the layout effect drops it
+  // before the first frame (no preview with a released image); the hidden-data mode drops it the same way
+  useLayoutEffect(() => {
+    setPreviewId(null);
+  }, []);
+  useEffect(() => {
+    if (guard.hidden !== null) setPreviewId(null);
+  }, [guard.hidden]);
 
   // One polite announcement when the server is reachable again after a problem (styleguide § 5.4, no spam).
   // EVM-146: under the lock the screen sits in a hidden `Activity`: its effects are cleaned and run again at the unlock. That first run only takes the
@@ -242,6 +265,8 @@ export function Shell() {
   overShell.current = covered;
   const detailOpen = openOrderId !== null;
   const filesShown = filesOpen && openOrderId !== null;
+  const photosShown = photosOpen && openOrderId !== null;
+  const layerShown = filesShown || photosShown;
   return (
     <View style={{ flex: 1, backgroundColor: color.bg.canvas }}>
       {/* while the dialog is open the content behind it is hidden from the screen reader and cannot be touched */}
@@ -275,9 +300,9 @@ export function Shell() {
               {openOrderId !== null ? (
                 <View
                   style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}
-                  accessibilityElementsHidden={filesShown}
-                  importantForAccessibility={filesShown ? 'no-hide-descendants' : 'auto'}
-                  pointerEvents={filesShown ? 'none' : 'auto'}
+                  accessibilityElementsHidden={layerShown}
+                  importantForAccessibility={layerShown ? 'no-hide-descendants' : 'auto'}
+                  pointerEvents={layerShown ? 'none' : 'auto'}
                 >
                   <OrderDetailScreen
                     orderId={openOrderId}
@@ -289,6 +314,24 @@ export function Shell() {
                     onOpenFiles={() => {
                       setFilesOpen(true);
                     }}
+                    onOpenPhotos={() => {
+                      setPhotosOpen(true);
+                    }}
+                  />
+                </View>
+              ) : null}
+              {photosShown ? (
+                <View style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}>
+                  <OrderPhotosScreen
+                    orderId={openOrderId}
+                    previewId={previewId}
+                    onOpenPreview={setPreviewId}
+                    onClosePreview={closePreview}
+                    onBack={() => {
+                      setPhotosOpen(false);
+                      setPreviewId(null);
+                    }}
+                    onOpenQueue={openQueue}
                   />
                 </View>
               ) : null}
@@ -309,7 +352,7 @@ export function Shell() {
               onOpenQueue={openQueue}
               onOpenUploadSettings={() => {
                 setOpenOrderId(null);
-                setFilesOpen(false);
+                closeLayers();
                 setTab('more');
               }}
               onRecreate={(item) => {
@@ -341,7 +384,7 @@ export function Shell() {
               selected: tab === 'orders',
               onPress: () => {
                 setOpenOrderId(null);
-                setFilesOpen(false);
+                closeLayers();
                 setTab('orders');
               },
               testID: 'nav-orders',
@@ -361,7 +404,7 @@ export function Shell() {
               selected: tab === 'more',
               onPress: () => {
                 setOpenOrderId(null);
-                setFilesOpen(false);
+                closeLayers();
                 setTab('more');
               },
               testID: 'nav-more',

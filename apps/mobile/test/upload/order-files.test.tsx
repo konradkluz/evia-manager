@@ -322,11 +322,13 @@ describe('"Pliki zlecenia" - the header and the announcements (EVM-111 AC2)', ()
 });
 
 describe('"Pliki zlecenia" - empty, loading, failed read, offline (EVM-111 AC3)', () => {
-  it('EVM-111 AC3: nothing to send - the sentence of the office and no button; the header says "Wszystko wysłane"; "Zrób zdjęcie" is only in the bar of the order', async () => {
+  it('EVM-111 AC3, EVM-142 AC6: nothing to send - the sentence leads to the row "Zdjęcia zlecenia" (no longer to the panel) and no button; the header says "Wszystko wysłane"; "Zrób zdjęcie" is only in the bar of the order', async () => {
     await openFiles(rigWith([file(1, { workOrderId: 'other-order' })]));
     expect(screen.getByTestId('order-files-count')).toHaveTextContent('Wszystko wysłane', { exact: true });
     const empty = screen.getByTestId('order-files-empty');
-    expect(within(empty).getByText('Wszystko wysłane. Zdjęcia i filmy zlecenia przegląda biuro w panelu.')).toBeOnTheScreen();
+    expect(
+      within(empty).getByText('Wszystko wysłane. Zdjęcia zlecenia znajdziesz w wierszu „Zdjęcia zlecenia”. Filmy ogląda biuro w panelu.'),
+    ).toBeOnTheScreen();
     expect(within(empty).queryByRole('button')).toBeNull();
     expect(within(screen.getByTestId('order-files')).queryByText(pl.orderDetail.takePhoto)).toBeNull();
   });

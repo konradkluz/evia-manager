@@ -9,6 +9,7 @@ import type { SessionControl, SessionStep } from '../src/auth/session-owner';
 import type { SessionPorts } from '../src/screens/SessionRoot';
 import { rig as guardRig, type Rig } from './device-guard/fakes';
 import { FakeSync } from './sync/fake-sync';
+import { FakeMediaView } from './media-view/fake-media-view';
 import { FakeMedia } from './upload/fake-media';
 
 export interface StubOwner extends SessionControl {
@@ -137,6 +138,7 @@ export interface PortsRig {
   readonly ports: SessionPorts;
   readonly sync: FakeSync;
   readonly media: FakeMedia;
+  readonly mediaView: FakeMediaView;
   readonly copied: string[];
   readonly owner: StubOwner;
   readonly opened: string[];
@@ -155,6 +157,7 @@ export function stubPorts(owner: StubOwner = stubOwner(), unsentBeforeSignIn: nu
   const device = guardRig();
   const sync = new FakeSync();
   const media = new FakeMedia();
+  const mediaView = new FakeMediaView();
   // the rows of the owner's stub, as the facade of the synchronization would return them (the label only on request)
   sync.source = (withLabels) => {
     owner.labelRequests.push(withLabels);
@@ -176,6 +179,7 @@ export function stubPorts(owner: StubOwner = stubOwner(), unsentBeforeSignIn: nu
   const ports: SessionPorts = {
     sync,
     media,
+    mediaView,
     copyToClipboard: (text) => {
       copied.push(text);
       return true;
@@ -201,7 +205,7 @@ export function stubPorts(owner: StubOwner = stubOwner(), unsentBeforeSignIn: nu
     newId: createUuidV7({ now: Date.now }, { getRandomValues: (bytes) => (randomFillSync(bytes), bytes) }),
     appVersion: '0.4.0',
   };
-  return { ports, sync, media, copied, owner, opened, wipes, device, manualWipes, session: () => ports };
+  return { ports, sync, media, mediaView, copied, owner, opened, wipes, device, manualWipes, session: () => ports };
 }
 
 /** A signed-in phone for the tests of the shell (EVM-009). */
