@@ -108,6 +108,13 @@ describe('bytes of the image (EVM-142 AC5)', () => {
     expect(s.calls).toHaveLength(0);
   });
 
+  it('EVM-142 AC5: the request forbids the HTTP cache (the network stack of React Native keeps a 10 MB cache on the disk), so no image bytes stay in the app directories', async () => {
+    const s = source();
+    await s.instance.fetchImage(SIGNED, signal);
+    expect(s.bucket[0]?.init.headers).toMatchObject({ 'Cache-Control': 'no-store' });
+    expect(s.bucket[0]?.init.cache).toBe('no-store');
+  });
+
   it('EVM-142 AC5: an address that fails the policy never leaves the phone (no request)', async () => {
     const s = source({ allowedHost: 'media.example.eu' });
     for (const url of ['http://media.example.eu/x', 'https://other.example.eu/x', 'https://u:p@media.example.eu/x', 'file:///x']) {

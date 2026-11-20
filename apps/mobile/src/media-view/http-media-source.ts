@@ -2,7 +2,9 @@
  * The two network steps of an image (EVM-142 AC1, AC5): the signed address from the API (`createMediaAssetDownloadUrl`, with the token of the session) and the bytes
  * from the address of the bucket (plain `fetch`, NO token, no cookies). Nothing of an answer other than the status, `Retry-After` and the validated address and
  * bytes leaves this module; it never logs, and the error of a `fetch` (which may carry the address) is dropped (SR-LOG-02, SR-LOG-08).
- * The default network stack of React Native keeps no HTTP cache on the disk; the images are not written anywhere (AC5) - the viewer keeps them in memory.
+ * The network stack of React Native (OkHttp) keeps an HTTP cache on the disk (10 MB in `cacheDir/http-cache`) and the signed addresses allow caching
+ * (`private, max-age=300`), so every request of an image sends `Cache-Control: no-store`: OkHttp then neither reads nor writes that cache. The images are
+ * not written anywhere (AC5) - the viewer keeps them in memory.
  */
 import { readDerivativeUrl } from '../api/media-derivative-url';
 import { isAllowedMediaUrl, type MediaUrlPolicy } from './media-url-policy';
@@ -78,7 +80,13 @@ export function createHttpMediaSource(options: HttpMediaSourceOptions): MediaSou
     async fetchImage(url, signal) {
       if (!isAllowedMediaUrl(url, policy)) return { kind: 'error' };
       try {
-        const response = await plainFetch(url, { method: 'GET', headers: { Accept: 'image/webp' }, credentials: 'omit', signal });
+        const response = await plainFetch(url, {
+          method: 'GET',
+          headers: { Accept: 'image/webp', 'Cache-Control': 'no-store' },
+          cache: 'no-store',
+          credentials: 'omit',
+          signal,
+        });
         if (!response.ok) return { kind: 'status', status: response.status };
         if (!(response.headers.get('Content-Type') ?? '').toLowerCase().startsWith('image/webp')) return { kind: 'error' };
         const declared = Number(response.headers.get('Content-Length'));
