@@ -112,7 +112,18 @@ describe('bytes of the image (EVM-142 AC5)', () => {
     const s = source();
     await s.instance.fetchImage(SIGNED, signal);
     expect(s.bucket[0]?.init.headers).toMatchObject({ 'Cache-Control': 'no-store' });
-    expect(s.bucket[0]?.init.cache).toBe('no-store');
+    // `cache` is not an option of the fetch of expo (and the polyfill would append `_=` to the signed address, breaking the signature): the header is the only means
+    expect(s.bucket[0]?.init).not.toHaveProperty('cache');
+  });
+
+  it('EVM-142 AC5 (S6): a redirect is never followed (the signed address is answered by the bucket itself) - the option is set and a 3xx is "error"', async () => {
+    const s = source();
+    await s.instance.fetchImage(SIGNED, signal);
+    expect(s.bucket[0]?.init.redirect).toBe('error');
+    s.image(() => Promise.resolve(new Response(null, { status: 302, headers: { Location: 'https://obcy.example/x' } })));
+    expect(await s.instance.fetchImage(SIGNED, signal)).toEqual({ kind: 'error' });
+    s.image(() => Promise.reject(new TypeError('redirect mode is set to error')));
+    expect(await s.instance.fetchImage(SIGNED, signal)).toEqual({ kind: 'error' });
   });
 
   it('EVM-142 AC5: an address that fails the policy never leaves the phone (no request)', async () => {

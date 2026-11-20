@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { FlatList, Text, View, useWindowDimensions } from 'react-native';
 import type { OrderPhoto } from '../orders/order-photos-model';
 import { useStartup } from '../startup';
-import { AppBar, Button, EmptyState, EyeOff, Image as ImageIcon, Inbox, InlineAlert, Lock, Skeleton, WifiOff } from '../ui';
+import { AppBar, Button, EmptyState, EyeOff, ImageIcon, Inbox, InlineAlert, Lock, Skeleton, WifiOff } from '../ui';
 import { color, size, space, text } from '../ui/theme';
 import { PhotoPreview } from './PhotoPreview';
 import { PhotoTile, photoCaption } from './PhotoTile';
@@ -22,6 +22,8 @@ const HIDDEN_ACTION = {
 const MAX_FONT_SCALE_FOR_THREE = 1.3;
 /** The tiles that load are the visible ones plus one row before and after; before the first report of the list the first three rows. */
 const INITIAL_ROWS = 3;
+/** A module constant: a new object at every render would make the list reset its viewability tracking. */
+const VIEWABILITY_CONFIG = { itemVisiblePercentThreshold: 1 } as const;
 
 export function columnsFor(windowWidth: number, fontScale: number): 2 | 3 {
   const three = (windowWidth - 2 * space.inset.md - 2 * space.inline.xs) / 3;
@@ -90,9 +92,9 @@ export function OrderPhotosScreen({
     setRange({ first: Math.min(...at), last: Math.max(...at) });
   });
   const open = photos !== null && previewId !== null ? photos.find((photo) => photo.id === previewId) : undefined;
-  // the photo of an open preview left the replica: the preview is closed, not left as an empty layer
+  // the photo of an open preview left the replica or is no longer `ready` (e.g. quarantined by a later scan): the preview is closed, not left as an empty layer
   useEffect(() => {
-    if (previewId !== null && photos !== null && open === undefined) onClosePreview();
+    if (previewId !== null && photos !== null && (open === undefined || open.state !== 'ready')) onClosePreview();
   }, [previewId, photos, open, onClosePreview]);
 
   const hiddenAction =
@@ -146,7 +148,7 @@ export function OrderPhotosScreen({
         columnWrapperStyle={{ columnGap: space.inline.xs }}
         contentContainerStyle={{ padding: space.inset.md, rowGap: space.stack.sm }}
         onViewableItemsChanged={viewable.current}
-        viewabilityConfig={{ itemVisiblePercentThreshold: 1 }}
+        viewabilityConfig={VIEWABILITY_CONFIG}
         ListHeaderComponent={
           failedTiles.size === 0 ? undefined : (
             <View style={{ paddingBottom: space.stack.sm }}>
@@ -211,7 +213,9 @@ export function OrderPhotosScreen({
         />
         <View style={{ flex: 1 }}>{content()}</View>
       </View>
-      {open === undefined || concealed ? null : <PhotoPreview photo={open} orderId={orderId} online={online} onClose={onClosePreview} />}
+      {open === undefined || open.state !== 'ready' || concealed ? null : (
+        <PhotoPreview photo={open} orderId={orderId} online={online} onClose={onClosePreview} />
+      )}
     </View>
   );
 }

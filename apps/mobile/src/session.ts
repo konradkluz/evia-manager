@@ -74,7 +74,7 @@ const NO_SYNC_TRANSPORT = {
 };
 
 /** Without a valid API address no image is requested (every request is a failure). */
-const NO_MEDIA_SOURCE: MediaSource = {
+export const NO_MEDIA_SOURCE: MediaSource = {
   requestUrl: () => Promise.resolve({ kind: 'error' }),
   fetchImage: () => Promise.resolve({ kind: 'error' }),
 };

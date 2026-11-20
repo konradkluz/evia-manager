@@ -1,17 +1,23 @@
 /**
  * Which address the phone may fetch an image from (SR-MOB-10, MASVS-NETWORK-1): the signed address of the server must be `https:` (plain `http:` only for the
- * emulator host of the e2e variant, like the API address), without credentials in it, a named host (no IP literal, no single-label name) and - when the build
- * knows the domain of the bucket - that domain or its subdomain. Checked BEFORE the request, so a wrong address never leaves the phone.
+ * emulator host of the e2e variant, like the API address), made of printable ASCII only and without a backslash, without credentials in it, a named host
+ * (`[a-z0-9.-]`, no IP literal, no single-label name, no trailing dot) and - when the build knows the host of the bucket - EXACTLY that host (no subdomains)
+ * on the default port. The same rules as `PartUrlPolicy.kt` of the background upload. Checked BEFORE the request, so a wrong address never leaves the phone.
  * The hosts of the bucket are public build configuration (`EVIA_STORAGE_HOSTS`, the same list the background upload trusts); only the e2e variant skips them.
  */
+const MAX_URL_LENGTH = 4096;
+const PRINTABLE_ASCII_ONLY = /^[!-~]+$/;
+const HOST = /^[a-z0-9.-]+$/;
+const DEFAULT_HTTPS_PORT = 443;
 const URL_PATTERN = /^([a-z][a-z0-9+.-]*):\/\/([^\s/?#@]+)([/?#]\S*)?$/i;
 const IPV4 = /^\d{1,3}(?:\.\d{1,3}){3}$/;
+const PORT_SUFFIX = /:(\d{1,5})$/;
 const LOCAL_HTTP_HOSTS: readonly string[] = ['10.0.2.2', 'localhost', '127.0.0.1'];
 
 export interface MediaUrlPolicy {
   readonly allowLocalHttp?: boolean;
   /**
-   * The hosts of the bucket from the build (`media.example.eu`); the address must be on one of them or under it. Set but empty = nothing passes
+   * The hosts of the bucket from the build (`media.example.eu`); the address must be on one of them exactly (default port). Set but empty = nothing passes
    * (fail closed: a build that does not know its bucket shows no image); unset = no host check (the e2e variant only).
    */
   readonly allowedHosts?: readonly string[];
@@ -25,18 +31,18 @@ export function bucketHostsOf(build: { readonly buildVariant: string; readonly s
 }
 
 export function isAllowedMediaUrl(url: string, policy: MediaUrlPolicy = {}): boolean {
+  if (url.length > MAX_URL_LENGTH || !PRINTABLE_ASCII_ONLY.test(url) || url.includes('\\')) return false;
   const match = URL_PATTERN.exec(url);
   const scheme = match?.[1]?.toLowerCase();
-  const authority = match?.[2];
+  const authority = match?.[2]?.toLowerCase();
   if (scheme === undefined || authority === undefined) return false;
-  const host = authority.replace(/:\d{1,5}$/, '').toLowerCase();
-  if (host === '' || host.includes(':')) return false;
+  const port = PORT_SUFFIX.exec(authority)?.[1];
+  const host = port === undefined ? authority : authority.slice(0, -(port.length + 1));
+  if (!HOST.test(host) || host.endsWith('.')) return false;
   if (scheme === 'http') return policy.allowLocalHttp === true && LOCAL_HTTP_HOSTS.includes(host);
   if (scheme !== 'https') return false;
   if (IPV4.test(host) || !host.includes('.')) return false;
   if (policy.allowedHosts === undefined) return true;
-  return policy.allowedHosts.some((entry) => {
-    const allowed = entry.toLowerCase();
-    return host === allowed || host.endsWith(`.${allowed}`);
-  });
+  if (port !== undefined && Number(port) !== DEFAULT_HTTPS_PORT) return false;
+  return policy.allowedHosts.some((entry) => entry.toLowerCase() === host);
 }

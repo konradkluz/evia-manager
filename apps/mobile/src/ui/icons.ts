@@ -34,7 +34,7 @@ export { default as CircleCheck } from 'lucide-react-native/icons/circle-check';
 export { default as CirclePause } from 'lucide-react-native/icons/circle-pause';
 export { default as CircleQuestionMark } from 'lucide-react-native/icons/circle-question-mark';
 export { default as Clock } from 'lucide-react-native/icons/clock';
-export { default as Image } from 'lucide-react-native/icons/image';
+export { default as ImageIcon } from 'lucide-react-native/icons/image';
 export { default as ScanSearch } from 'lucide-react-native/icons/scan-search';
 export { default as Info } from 'lucide-react-native/icons/info';
 export { default as Inbox } from 'lucide-react-native/icons/inbox';

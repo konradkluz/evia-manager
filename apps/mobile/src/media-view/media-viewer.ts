@@ -5,8 +5,8 @@
  *
  * - Nothing is requested unless `setAllowed(true)`: the lock, the hidden-data mode, the background and the end of the session turn it off (see `wire-media-view.ts`);
  *   turning it off (and `releaseAll`) aborts every request in flight, forgets every image and makes a late answer harmless: it stores nothing.
- * - An address is used at once and kept in a local variable only. An address that expired meanwhile (or a refusal of the bucket that looks like it) is asked for ONCE more;
- *   a second failure is `failed`. A `429` stops every new request until the end of `Retry-After` (capped).
+ * - An address is used at once and kept in a local variable only. A refusal of the bucket that looks like an expired address (403, 400) gets ONE more address;
+ *   a second failure is `failed` (never two address requests for a photo that works). A `429` stops every new request until the end of `Retry-After` (capped).
  * - At most `MAX_PARALLEL` thumbnails are fetched at a time (the battery and the limit of 1000 addresses / 10 min of the server); a preview goes at once.
  * - It never logs and never throws: a screen gets an `ImageResult`, which holds no address, status or message.
  */
@@ -94,13 +94,18 @@ export class MediaViewer implements MediaViewControl {
     else this.releaseAll();
   }
 
-  /** Aborts every request, forgets every image and the wait of a `429`; the screens that are drawn load again if they may. */
+  /** Aborts every request and forgets every image; the wait of a `429` stays (the lock and the background must not bypass `Retry-After`). The screens that are drawn load again if they may. */
   releaseAll(): void {
     for (const controller of [...this.#inflight]) controller.abort();
     this.#inflight.clear();
     this.#images.clear();
-    this.#blockedUntil = 0;
     this.#bump();
+  }
+
+  /** The end of the session (sign-out, revoked session, wipe): everything is freed and the wait of a `429` is forgotten - the next sign-in starts clean. The lock does NOT do this. */
+  endSession(): void {
+    this.setAllowed(false);
+    this.#blockedUntil = 0;
   }
 
   async load(request: ImageRequest): Promise<ImageResult> {
@@ -120,6 +125,8 @@ export class MediaViewer implements MediaViewControl {
       if (variant === 'thumbnail') {
         slot = await this.#acquire(control.signal);
         if (!slot) return ABORTED;
+        // a `429` may have arrived while this tile waited for its slot: the request does not go out
+        if (this.#now() < this.#blockedUntil) return { kind: 'rate_limited' };
       }
       const result = await this.#fetchImage(request, control.signal);
       // a late answer: the request was cancelled, or the images were released / the permission changed meanwhile - nothing is stored, nothing is shown
@@ -148,8 +155,7 @@ export class MediaViewer implements MediaViewControl {
       if (answer.kind === 'none') return ABORTED;
       if (answer.kind === 'error') return { kind: 'failed' };
       if (answer.kind === 'status') return this.#refusal(answer.status, answer.retryAfter);
-      // an address that is already out of date (a slow queue, a clock that runs fast): one more address, not a failed picture
-      if (answer.expiresAt <= this.#now()) continue;
+      // the address is used at once whatever the clock of the phone says of its expiry (a clock that runs ahead must not refuse a fresh address); the bucket is the judge
       const bytes: BytesAnswer | typeof NOTHING = await untilAborted(this.#source.fetchImage(answer.url, signal), signal);
       if (bytes === NOTHING || isAborted(signal)) return ABORTED;
       if (bytes.kind === 'ok') return { kind: 'stored', uri: `data:image/webp;base64,${toBase64(bytes.bytes)}` };

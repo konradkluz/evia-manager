@@ -65,7 +65,7 @@ export {
   Ellipsis,
   EyeOff,
   HardDrive,
-  Image,
+  ImageIcon,
   Inbox,
   Info,
   KeyRound,

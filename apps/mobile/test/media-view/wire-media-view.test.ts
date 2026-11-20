@@ -95,8 +95,10 @@ describe('wiring of the viewer (EVM-142 AC5; SR-MOB-05)', () => {
 
   it('EVM-142 AC5: the end of the session (sign-out, session_revoked, wipe) frees the images BEFORE the replica goes; the stop removes every listener', () => {
     const w = setup();
+    const ended = jest.spyOn(w.viewer, 'endSession');
     w.viewer.setAllowed(true);
     w.end();
+    expect(ended).toHaveBeenCalledTimes(1);
     expect(w.viewer.allowed).toBe(false);
     w.stop();
     expect(w.guardListeners.size + w.appListeners.size + w.syncListeners.size + w.endListeners.size).toBe(0);

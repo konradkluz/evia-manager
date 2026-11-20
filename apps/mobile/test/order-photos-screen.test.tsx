@@ -2,6 +2,8 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react-n
 import { AppState, BackHandler } from 'react-native';
 import { App } from '../src/App';
 import { columnsFor } from '../src/screens/OrderPhotosScreen';
+import type { MediaSource, UrlAnswer } from '../src/media-view/http-media-source';
+import { MediaViewer } from '../src/media-view/media-viewer';
 import { formatDateTime } from '../src/i18n/format';
 import { pl } from '../src/i18n/pl';
 import type { OrderDetail } from '../src/orders/order-detail-model';
@@ -10,6 +12,8 @@ import { buildOrderPhotos, type OrderPhoto } from '../src/orders/order-photos-mo
 import type { StartupChecker } from '../src/startup';
 import { MIN } from './device-guard/fakes';
 import { stubPorts, type PortsRig } from './session-helpers';
+
+const SIGNED = 'https://media.example.eu/derived/thumb.webp?X-Amz-Signature=SYNTHETIC';
 
 jest.mock('react-native-safe-area-context', () => {
   const actual = jest.requireActual<typeof import('react-native-safe-area-context')>('react-native-safe-area-context');
@@ -75,6 +79,18 @@ async function open(rig: PortsRig, checker: StartupChecker = online) {
 }
 async function openGrid(rig: PortsRig, checker: StartupChecker = online) {
   await open(rig, checker);
+  await fireEvent.press(screen.getByTestId('order-row-o1'));
+  await settle();
+  await fireEvent.press(screen.getByTestId('order-photos-row'));
+  await settle();
+}
+/** The grid over the REAL viewer (with the given source of the network steps) instead of the fake one: what the screen shows of the real answers. */
+async function openGridWithViewer(rig: PortsRig, source: MediaSource) {
+  const viewer = new MediaViewer({ source, now: Date.now });
+  viewer.setAllowed(true);
+  const ports = { ...rig.ports, mediaView: viewer };
+  await render(<App session={() => ports} checker={online} storage={() => ({ prepare: () => Promise.resolve('ready' as const) })} />);
+  await settle();
   await fireEvent.press(screen.getByTestId('order-row-o1'));
   await settle();
   await fireEvent.press(screen.getByTestId('order-photos-row'));
@@ -463,6 +479,67 @@ describe('the grid (EVM-142 AC2, AC6)', () => {
   });
 });
 
+describe('the real viewer on the screen (EVM-142 AC3, AC4)', () => {
+  it('EVM-142 AC3: an address that expired meanwhile is asked for exactly ONCE more and the tile does not flicker - no failed mark, no empty box, then the thumbnail', async () => {
+    const rig = rigWith([photo(1)]);
+    const urls: string[] = [];
+    const bytes: string[] = [];
+    let release: () => void = () => undefined;
+    const source: MediaSource = {
+      requestUrl: (request) => {
+        urls.push(request.mediaAssetId);
+        return Promise.resolve<UrlAnswer>({ kind: 'ok', url: SIGNED, expiresAt: Date.now() - 1000 });
+      },
+      fetchImage: (url) => {
+        bytes.push(url);
+        if (bytes.length === 1) return Promise.resolve({ kind: 'status' as const, status: 403 });
+        return new Promise((resolve) => {
+          release = () => {
+            resolve({ kind: 'ok', bytes: new Uint8Array([1, 2, 3]) });
+          };
+        });
+      },
+    };
+    await openGridWithViewer(rig, source);
+    // the bucket refused the first address (expired): the second one is in flight, the tile still loads
+    expect(urls).toHaveLength(2);
+    expect(bytes).toHaveLength(2);
+    expect(screen.queryByTestId('photo-tile-0-image')).toBeNull();
+    expect(screen.queryByText(pl.orderPhotos.states.loadFailed)).toBeNull();
+    expect(screen.queryByTestId('order-photos-part-failed')).toBeNull();
+    expect(screen.getByTestId('photo-tile-0')).toHaveProp('accessibilityLabel', `${CATEGORY.defect}, ${when(1)}`);
+    await act(async () => {
+      release();
+      await Promise.resolve();
+    });
+    await settle();
+    expect(screen.getByTestId('photo-tile-0-image')).toBeOnTheScreen();
+    expect(screen.queryByText(pl.orderPhotos.states.loadFailed)).toBeNull();
+    expect(urls).toHaveLength(2);
+    expect(bytes).toHaveLength(2);
+  });
+
+  it('EVM-142 AC4: a token that the server rejected (401, the session owner answers "no session") leaves the grid without a message of the server, a code or an alert', async () => {
+    const rig = rigWith([photo(1), photo(2)]);
+    const sent: string[] = [];
+    // the session owner answers "no session" (null) when the server rejects the token: the source turns it into `none`, the viewer into `aborted`
+    const source: MediaSource = {
+      requestUrl: (request) => {
+        sent.push(request.mediaAssetId);
+        return Promise.resolve<UrlAnswer>({ kind: 'none' });
+      },
+      fetchImage: () => Promise.reject(new Error('no request to the bucket expected')),
+    };
+    await openGridWithViewer(rig, source);
+    expect(sent.length).toBeGreaterThan(0);
+    expect(screen.getByTestId('order-photos-grid')).toBeOnTheScreen();
+    expect(screen.queryByTestId('order-photos-part-failed')).toBeNull();
+    expect(screen.queryByTestId('order-photos-forbidden')).toBeNull();
+    expect(screen.queryByTestId('photo-tile-0-image')).toBeNull();
+    expect(whole('order-photos')).not.toMatch(/401|403|500|serwera|server|unauthori[sz]ed|token|api\.example|X-Amz/i);
+  });
+});
+
 describe('offline (EVM-142 AC4)', () => {
   it('EVM-142 AC4: offline the rows of the replica are a list with "Podgląd zdjęć wymaga internetu" - no thumbnail, no request, no server error', async () => {
     const rig = rigWith([photo(2, { state: 'quarantined' }), photo(1)]);
@@ -666,6 +743,28 @@ describe('the preview (EVM-142 AC3, AC4, AC6)', () => {
     await settle();
     expect(screen.queryByTestId('photo-preview')).toBeNull();
     expect(screen.getByTestId('order-photos-empty')).toBeOnTheScreen();
+  });
+
+  it('EVM-142 AC5 (EVM-146): the preview is a descendant of the content that the lock gate covers - the lock takes it out of the tree with the grid', async () => {
+    const rig = rigWith([photo(1)]);
+    await openPreview(rig);
+    expect(within(screen.getByTestId('lock-content')).getByTestId('photo-preview')).toBeOnTheScreen();
+    expect(within(screen.getByTestId('lock-content')).getByTestId('order-photos')).toBeOnTheScreen();
+  });
+
+  it('EVM-142 AC3 (m8): a photo that stops being "ready" while its preview is open (quarantine) closes the preview', async () => {
+    const rig = rigWith([photo(1)]);
+    await openPreview(rig);
+    expect(screen.getByTestId('photo-preview')).toBeOnTheScreen();
+    rig.sync.photos.set('o1', [photo(1, { state: 'quarantined' })]);
+    await act(async () => {
+      rig.sync.set({ lastSuccessAt: Date.now() + 1000 });
+      await Promise.resolve();
+    });
+    await settle();
+    expect(screen.queryByTestId('photo-preview')).toBeNull();
+    const tile = screen.getByTestId('photo-tile-0');
+    expect(tile).toHaveProp('accessibilityLabel', `${CATEGORY.defect}, ${when(1)}, ${pl.orderPhotos.states.quarantined}`);
   });
 
   it('EVM-142 AC3: the grid under the preview is hidden from the reader', async () => {

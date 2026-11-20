@@ -2,9 +2,11 @@
  * The two network steps of an image (EVM-142 AC1, AC5): the signed address from the API (`createMediaAssetDownloadUrl`, with the token of the session) and the bytes
  * from the address of the bucket (plain `fetch`, NO token, no cookies). Nothing of an answer other than the status, `Retry-After` and the validated address and
  * bytes leaves this module; it never logs, and the error of a `fetch` (which may carry the address) is dropped (SR-LOG-02, SR-LOG-08).
- * The network stack of React Native (OkHttp) keeps an HTTP cache on the disk (10 MB in `cacheDir/http-cache`) and the signed addresses allow caching
- * (`private, max-age=300`), so every request of an image sends `Cache-Control: no-store`: OkHttp then neither reads nor writes that cache. The images are
- * not written anywhere (AC5) - the viewer keeps them in memory.
+ * The `fetch` for the bucket is the one of Expo (`expo/fetch`, on the client of `OkHttpClientProvider` of React Native). That client keeps an HTTP cache on the disk
+ * (10 MB in `cacheDir/http-cache`) and the signed addresses allow caching (`private, max-age=300`), so every request of an image sends `Cache-Control: no-store`: OkHttp
+ * then neither reads nor writes that cache. The header is the only means: the option `cache` is dead in that `fetch` (and the `whatwg-fetch` polyfill would append `_=` to
+ * the signed address and break its signature). A redirect is refused (`redirect: 'error'`): the bucket answers the signed address itself. The images are not written
+ * anywhere (AC5) - the viewer keeps them in memory.
  */
 import { readDerivativeUrl } from '../api/media-derivative-url';
 import { isAllowedMediaUrl, type MediaUrlPolicy } from './media-url-policy';
@@ -83,10 +85,12 @@ export function createHttpMediaSource(options: HttpMediaSourceOptions): MediaSou
         const response = await plainFetch(url, {
           method: 'GET',
           headers: { Accept: 'image/webp', 'Cache-Control': 'no-store' },
-          cache: 'no-store',
           credentials: 'omit',
+          redirect: 'error',
           signal,
         });
+        // a redirect is never followed (`redirect: 'error'`); a 3xx that comes back anyway is not an image of ours
+        if (response.status >= 300 && response.status < 400) return { kind: 'error' };
         if (!response.ok) return { kind: 'status', status: response.status };
         if (!(response.headers.get('Content-Type') ?? '').toLowerCase().startsWith('image/webp')) return { kind: 'error' };
         const declared = Number(response.headers.get('Content-Length'));

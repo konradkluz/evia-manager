@@ -28,7 +28,7 @@ export function wireMediaView({
     guard.onAppStateChange(evaluate),
     sync.subscribe(evaluate),
     onBeforeSessionEnd(() => {
-      viewer.setAllowed(false);
+      viewer.endSession();
     }),
   ];
   evaluate();

@@ -3,7 +3,16 @@ import type { EviaUploadModule } from '../modules/evia-upload/src';
 import { Challenge, IssuedSession } from '../src/auth/opaque';
 import { useSession } from '../src/screens/session-context';
 import { tokenStore } from '../src/secure-store';
-import { createSessionPorts, NO_API, originOf, PASSWORD_RESET_PATH, sessionMediaUploads, sessionPorts } from '../src/session';
+import * as httpMediaSource from '../src/media-view/http-media-source';
+import {
+  createSessionPorts,
+  NO_API,
+  NO_MEDIA_SOURCE,
+  originOf,
+  PASSWORD_RESET_PATH,
+  sessionMediaUploads,
+  sessionPorts,
+} from '../src/session';
 
 jest.mock('react', () => ({ ...jest.requireActual<typeof import('react')>('react'), useContext: () => null }));
 
@@ -29,6 +38,11 @@ jest.mock('../src/storage', () => {
     },
     randomSource: () => ({ getRandomValues: (bytes: Uint8Array) => crypto.getRandomValues(bytes as Uint8Array<ArrayBuffer>) }),
   };
+});
+
+jest.mock('../src/media-view/http-media-source', () => {
+  const actual = jest.requireActual<typeof import('../src/media-view/http-media-source')>('../src/media-view/http-media-source');
+  return { ...actual, createHttpMediaSource: jest.fn(actual.createHttpMediaSource) };
 });
 
 const config = {
@@ -291,5 +305,56 @@ describe('composition of the native owner and the upload (EVM-130)', () => {
     expect(ports.media.getSnapshot()).toEqual({ files: [], notifications: 'granted', confirmed: 0, read: 'loading' });
     expect(fake.sessionState).not.toHaveBeenCalled();
     spy.mockRestore();
+  });
+
+  it('EVM-142 AC5 (SR-MOB-10): without a valid API address the source of images refuses everything (fail closed): an address and the bytes alike', async () => {
+    const signal = new AbortController().signal;
+    expect(await NO_MEDIA_SOURCE.requestUrl({ workOrderId: 'w', mediaAssetId: 'a', variant: 'thumbnail', signal })).toEqual({
+      kind: 'error',
+    });
+    expect(await NO_MEDIA_SOURCE.fetchImage('https://media.example.eu/x', signal)).toEqual({ kind: 'error' });
+    const created = jest.mocked(httpMediaSource.createHttpMediaSource);
+    created.mockClear();
+    createSessionPorts(null);
+    expect(created).not.toHaveBeenCalled();
+  });
+
+  it('EVM-142 AC5 (SR-MOB-10): the source of images is bound to the bucket hosts of the build - a release build passes its list, the e2e variant none; the API calls go through the session', async () => {
+    const created = jest.mocked(httpMediaSource.createHttpMediaSource);
+    const signal = new AbortController().signal;
+    const bytes = jest
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(() =>
+        Promise.resolve(new Response(new Uint8Array([1]), { status: 200, headers: { 'Content-Type': 'image/webp' } })),
+      );
+    created.mockClear();
+    createSessionPorts({ ...config, storageHosts: ['media.example.eu'] });
+    expect(created).toHaveBeenCalledTimes(1);
+    expect(created.mock.calls[0]?.[0]).toMatchObject({
+      baseUrl: config.apiBaseUrl,
+      allowedHosts: ['media.example.eu'],
+      allowLocalHttp: false,
+    });
+    const source = created.mock.results[0]?.value as httpMediaSource.MediaSource;
+    expect(await source.fetchImage('https://other.example.eu/x', signal)).toEqual({ kind: 'error' });
+    expect(await source.fetchImage('https://sub.media.example.eu/x', signal)).toEqual({ kind: 'error' });
+    expect(bytes).not.toHaveBeenCalled();
+    expect(await source.fetchImage('https://media.example.eu/x', signal)).toEqual({ kind: 'ok', bytes: new Uint8Array([1]) });
+    expect(bytes).toHaveBeenCalledTimes(1);
+    // the call for the address goes through the owner of the session (no session = nothing is sent)
+    const asset = '0194c2a0-0000-7000-8000-000000000001';
+    expect(
+      await source.requestUrl({ workOrderId: '10000000-0000-4000-8000-000000000001', mediaAssetId: asset, variant: 'thumbnail', signal }),
+    ).toEqual({ kind: 'none' });
+    expect(bytes).toHaveBeenCalledTimes(1);
+    // a release build without a bucket refuses every address; the e2e variant has no host list
+    created.mockClear();
+    createSessionPorts(config);
+    expect(created.mock.calls[0]?.[0]).toMatchObject({ allowedHosts: [] });
+    created.mockClear();
+    createSessionPorts({ ...config, buildVariant: 'e2e', storageHosts: ['10.0.2.2:8787'] });
+    expect(created.mock.calls[0]?.[0]).toMatchObject({ allowLocalHttp: true });
+    expect(created.mock.calls[0]?.[0]).not.toHaveProperty('allowedHosts');
+    bytes.mockRestore();
   });
 });

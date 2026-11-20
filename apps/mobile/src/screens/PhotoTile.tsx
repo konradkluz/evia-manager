@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Image, Pressable, Text, View } from 'react-native';
 import { formatDateTime } from '../i18n/format';
 import type { OrderPhoto, PhotoState } from '../orders/order-photos-model';
-import { Ban, Clock, Icon, Image as ImageIcon, ScanSearch, StatusBadge, TriangleAlert } from '../ui';
+import { Ban, Clock, Icon, ImageIcon, ScanSearch, StatusBadge, TriangleAlert } from '../ui';
 import type { BadgeTone } from '../ui';
 import { borderWidth, color, radius, size, space, text } from '../ui/theme';
 import { usePhotoImage } from './order-photos-hooks';
@@ -75,10 +75,19 @@ function EmptyBox({ width, icon, tone }: { width: number; icon: LucideIcon; tone
 }
 
 /** A tile whose file is not ready (or has not arrived): a text group, not a button - a reader is not promised an action that is not there; no request at all. */
-function StaticTile({ photo, width, testID }: { photo: OrderPhoto; width: number; testID: string }) {
+function StaticTile({
+  photo,
+  kind,
+  width,
+  testID,
+}: {
+  photo: OrderPhoto;
+  kind: Exclude<PhotoState, 'ready'>;
+  width: number;
+  testID: string;
+}) {
   const { t } = useTranslation();
   const { category, time } = photoCaption(photo, t);
-  const kind = photo.state === 'ready' ? 'preparing' : photo.state;
   const marker = markerOf(kind, t);
   const icon = kind === 'quarantined' ? TriangleAlert : kind === 'awaiting_file' ? Clock : kind === 'failed' ? ImageIcon : ScanSearch;
   return (
@@ -193,6 +202,7 @@ export function PhotoTile(props: {
   onFailure: (photoId: string, failed: boolean) => void;
   onForbidden: () => void;
 }) {
-  if (props.photo.state !== 'ready') return <StaticTile photo={props.photo} width={props.width} testID={props.testID} />;
+  const { state } = props.photo;
+  if (state !== 'ready') return <StaticTile photo={props.photo} kind={state} width={props.width} testID={props.testID} />;
   return <ReadyTile {...props} />;
 }

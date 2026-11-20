@@ -131,28 +131,41 @@ describe('MediaViewer - loading (EVM-142 AC3, AC5)', () => {
     expect(r.viewer.peek('preview', id(1))).toBeUndefined();
   });
 
-  it('EVM-142 AC3: an address that expired meanwhile or a refusal of the bucket gets ONE new address, silently; a second failure is "failed"', async () => {
+  it('EVM-142 AC3: a refusal of the bucket (an address that expired meanwhile) gets ONE new address, silently; a second failure is "failed"', async () => {
     const r = rig();
-    // expired when it arrives (a slow queue): the second address is used
-    r.setNow(5_000);
-    r.answers.url.push(r.ok(1_000), r.ok());
-    r.answers.image.push(r.bytes(1));
-    expect(await r.load(1).promise).toEqual({ kind: 'ok' });
-    expect(r.urlRequests).toHaveLength(2);
     // the bucket says 403 (expired signature): one new address, then it works
     r.answers.url.push(r.ok(), r.ok());
     r.answers.image.push({ kind: 'status', status: 403 }, r.bytes(2));
     expect(await r.load(2).promise).toEqual({ kind: 'ok' });
+    expect(r.urlRequests).toHaveLength(2);
+    // some stores answer 400 for an expired signature: the same
+    r.answers.url.push(r.ok(), r.ok());
+    r.answers.image.push({ kind: 'status', status: 400 }, r.bytes(3));
+    expect(await r.load(5).promise).toEqual({ kind: 'ok' });
     // the second address fails as well: the result is "failed", no third attempt
     const before = r.urlRequests.length;
-    r.answers.url.push(r.ok(), r.ok());
+    r.answers.url.push(r.ok(), r.ok(), r.ok());
     r.answers.image.push({ kind: 'status', status: 403 }, { kind: 'status', status: 403 });
     expect(await r.load(3).promise).toEqual({ kind: 'failed' });
     expect(r.urlRequests.length - before).toBe(2);
-    // two addresses that are both out of date
-    r.answers.url.push(r.ok(1), r.ok(1));
-    expect(await r.load(4).promise).toEqual({ kind: 'failed' });
     expect(r.viewer.peek('thumbnail', id(3))).toBeUndefined();
+  });
+
+  it('EVM-142 AC3 (m4): an address that looks out of date by the clock of the phone (the clock runs ahead) is still tried - ONE address request per photo, not two', async () => {
+    const r = rig();
+    r.setNow(5_000);
+    r.answers.url.push(r.ok(1_000), r.ok());
+    r.answers.image.push(r.bytes(1));
+    expect(await r.load(1).promise).toEqual({ kind: 'ok' });
+    expect(r.urlRequests).toHaveLength(1);
+    expect(r.imageRequests).toEqual([URL1]);
+    // when the bucket does refuse it, there is exactly ONE more attempt, whatever the clock says of the new address
+    r.answers.url.push(r.ok(1), r.ok(1), r.ok(1));
+    r.answers.image.push({ kind: 'status', status: 403 }, { kind: 'status', status: 403 });
+    const before = r.urlRequests.length;
+    expect(await r.load(2).promise).toEqual({ kind: 'failed' });
+    expect(r.urlRequests.length - before).toBe(2);
+    expect(r.imageRequests).toHaveLength(3);
   });
 
   it('EVM-142 AC4: 403 and 404 of the address are final results of their own; other statuses, errors and a bad image are "failed"; no session is "aborted"', async () => {
@@ -181,7 +194,7 @@ describe('MediaViewer - loading (EVM-142 AC3, AC5)', () => {
 });
 
 describe('MediaViewer - 429 and the parallel limit (EVM-142 AC4)', () => {
-  it('EVM-142 AC4: a 429 stops new requests until the end of Retry-After (capped); after it requests go again; "release all" ends the wait', async () => {
+  it('EVM-142 AC4: a 429 stops new requests until the end of Retry-After (capped); after it requests go again', async () => {
     const r = rig();
     r.answers.url.push({ kind: 'status', status: 429, retryAfter: '30' });
     expect((await r.load(1).promise).kind).toBe('rate_limited');
@@ -227,6 +240,24 @@ describe('MediaViewer - 429 and the parallel limit (EVM-142 AC4)', () => {
     expect(r.urlRequests.filter((request) => request.mediaAssetId === id(MAX_PARALLEL + 2))).toHaveLength(0);
   });
 
+  it('EVM-142 AC4 (m2): tiles that waited for a slot while a 429 arrived do not send their request after it - they get "rate_limited"', async () => {
+    const r = rig();
+    const loads = Array.from({ length: MAX_PARALLEL + 3 }, (_, n) => r.load(n + 1));
+    await flush();
+    expect(r.urlRequests).toHaveLength(MAX_PARALLEL);
+    // the first request is answered with 429: the slot is freed, the waiting tiles take their turn
+    r.heldUrls[0]?.resolve({ kind: 'status', status: 429, retryAfter: '30' });
+    await flush();
+    expect((await loads[0]?.promise)?.kind).toBe('rate_limited');
+    expect((await loads[MAX_PARALLEL]?.promise)?.kind).toBe('rate_limited');
+    expect(r.urlRequests).toHaveLength(MAX_PARALLEL);
+    // the requests that were already in flight finish as they will; the rest of the queue is refused one by one
+    for (const held of r.heldUrls.splice(1)) held.resolve({ kind: 'status', status: 404, retryAfter: null });
+    const rest = await Promise.all(loads.map((l) => l.promise));
+    expect(rest.slice(MAX_PARALLEL).every((result) => result.kind === 'rate_limited')).toBe(true);
+    expect(r.urlRequests).toHaveLength(MAX_PARALLEL);
+  });
+
   it('EVM-142 AC5: releasing everything frees the waiting thumbnails and the slots (nothing is left blocked)', async () => {
     const r = rig();
     const loads = Array.from({ length: MAX_PARALLEL + 2 }, (_, n) => r.load(n + 1));
@@ -237,6 +268,25 @@ describe('MediaViewer - 429 and the parallel limit (EVM-142 AC4)', () => {
     r.answers.url.push(r.ok());
     r.answers.image.push(r.bytes(1));
     expect((await r.load(20).promise).kind).toBe('ok');
+  });
+
+  it('EVM-142 AC4 (m3): freeing the images (the lock, the background) does not end the wait of a 429 - only the end of the session does', async () => {
+    const r = rig();
+    r.answers.url.push({ kind: 'status', status: 429, retryAfter: '30' });
+    expect((await r.load(1).promise).kind).toBe('rate_limited');
+    r.viewer.releaseAll();
+    r.viewer.setAllowed(false);
+    r.viewer.setAllowed(true);
+    r.setNow(10_000);
+    expect((await r.load(2).promise).kind).toBe('rate_limited');
+    expect(r.urlRequests).toHaveLength(1);
+    // the end of the session forgets the wait (the next sign-in starts clean)
+    r.viewer.endSession();
+    expect(r.viewer.allowed).toBe(false);
+    r.viewer.setAllowed(true);
+    r.answers.url.push(r.ok());
+    r.answers.image.push(r.bytes(1));
+    expect((await r.load(3).promise).kind).toBe('ok');
   });
 
   it('EVM-142 AC5: subscribers learn about every release and every change of the permission (the screens load again); an unsubscribed one does not', () => {
