@@ -40,6 +40,8 @@ describe('readOrderPhotos (EVM-142 AC2)', () => {
         media(2, WO, { mediaType: 'video', fileState: 'ready' }),
         media(3, OTHER_WO, { category: 'other' }),
         media(4, WO, { fileState: 'quarantined', capturedAt: null, category: null, description: null }),
+        // a record of a newer server: no state, a time that is not text, a category that is not text - read as unknown, never as a crash
+        media(5, WO, { fileState: undefined, capturedAt: 1_700_000_000_000, category: 7, description: 8 }),
       ],
       cursor: 'cursor-000000000001',
       phase: 'changes',
@@ -49,7 +51,14 @@ describe('readOrderPhotos (EVM-142 AC2)', () => {
       hydrationRemove: [],
     });
     const rows = await replica.readOrderPhotos(WO);
-    expect(rows.map((row) => row.id).sort()).toEqual([asset(1), asset(4)]);
+    expect(rows.map((row) => row.id).sort()).toEqual([asset(1), asset(4), asset(5)]);
+    expect(rows.find((row) => row.id === asset(5))).toEqual({
+      id: asset(5),
+      category: null,
+      description: null,
+      capturedAt: null,
+      fileState: 'unknown',
+    });
     expect(rows.find((row) => row.id === asset(1))).toEqual({
       id: asset(1),
       category: 'defect',

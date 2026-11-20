@@ -49,4 +49,16 @@ describe('order photos model (EVM-142)', () => {
     expect(timeOfUuidV7('10000000-0000-4000-8000-000000000001')).toBeNull();
     expect(buildOrderPhotos([row(1, { id: '10000000-0000-4000-8000-000000000001', capturedAt: null })])[0]?.capturedAt).toBeNull();
   });
+
+  it('EVM-142 AC2: rows without a category, a description or any time are kept - the ones without a time go last, equal ones in a fixed order', () => {
+    const plain = '10000000-0000-4000-8000-0000000000aa';
+    const other = '10000000-0000-4000-8000-0000000000bb';
+    const photos = buildOrderPhotos([
+      row(1, { id: plain, category: null, description: null, capturedAt: null }),
+      row(2, { id: other, category: null, description: null, capturedAt: null }),
+      row(3),
+    ]);
+    expect(photos.map((photo) => photo.id)).toEqual([ID(3), other, plain]);
+    expect(photos[1]).toMatchObject({ category: null, description: null, capturedAt: null });
+  });
 });
