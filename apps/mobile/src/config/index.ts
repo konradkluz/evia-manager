@@ -15,6 +15,19 @@ export interface RuntimeConfig {
   readonly appVersion: string;
   /** `e2e` only in the test build of tools/mobile-e2e (plain HTTP to the emulator host is allowed there, nowhere else). */
   readonly buildVariant: BuildVariant;
+  /** The hosts of the bucket (public build configuration, `extra.storageHosts` from `EVIA_STORAGE_HOSTS`); empty when the build has none. */
+  readonly storageHosts: readonly string[];
+}
+
+/** The hosts of the bucket recorded by app.config.ts in `extra`; anything but a list of non-empty strings gives none (fail closed). */
+function declaredStorageHosts(): readonly string[] {
+  const config: unknown = Constants.expoConfig;
+  if (typeof config !== 'object' || config === null || !('extra' in config)) return [];
+  const extra: unknown = config.extra;
+  if (typeof extra !== 'object' || extra === null || !('storageHosts' in extra)) return [];
+  const hosts: unknown = extra.storageHosts;
+  if (!Array.isArray(hosts)) return [];
+  return hosts.filter((host): host is string => typeof host === 'string' && host !== '');
 }
 
 /** The build variant recorded by app.config.ts in `extra` (absent in an Expo Go or test environment). */
@@ -43,6 +56,7 @@ export function readRuntimeConfig(rawBaseUrl: string | undefined = buildApiBaseU
     // `version` of app.config.ts is the single source; the native value is the installed one.
     appVersion: Application.nativeApplicationVersion ?? Constants.expoConfig?.version ?? 'unknown',
     buildVariant: variant,
+    storageHosts: declaredStorageHosts(),
   };
 }
 

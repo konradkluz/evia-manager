@@ -40,7 +40,21 @@ describe('runtime configuration (EVM-009 AC2, AC3, AC6)', () => {
       platform: 'android',
       appVersion: '0.3.0',
       buildVariant: 'release',
+      storageHosts: [],
     });
+  });
+
+  it('EVM-142 AC5 (SR-MOB-10): the hosts of the bucket come from the build (`extra.storageHosts`); anything else gives none (fail closed)', () => {
+    mockConstants.expoConfig = { extra: { storageHosts: ['media.example.eu', '', 7] } };
+    expect(readRuntimeConfig('https://api.example.test')?.storageHosts).toEqual(['media.example.eu']);
+    for (const extra of [{}, { storageHosts: 'media.example.eu' }, { storageHosts: null }]) {
+      mockConstants.expoConfig = { extra };
+      expect(readRuntimeConfig('https://api.example.test')?.storageHosts).toEqual([]);
+    }
+    mockConstants.expoConfig = null;
+    expect(readRuntimeConfig('https://api.example.test')?.storageHosts).toEqual([]);
+    mockConstants.expoConfig = { extra: 'x' as never };
+    expect(readRuntimeConfig('https://api.example.test')?.storageHosts).toEqual([]);
   });
 
   it('EVM-009 AC3: without a native version the version of app.config.ts is used, and without both the check cannot block', () => {

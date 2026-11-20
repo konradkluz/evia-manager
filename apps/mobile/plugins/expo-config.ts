@@ -112,6 +112,8 @@ export function buildExpoConfig(env: Readonly<Record<string, string | undefined>
     ],
     extra: {
       buildVariant: variant,
+      // EVM-142 AC5 (SR-MOB-10): the hosts of the bucket, public (the same list as pl.eviacharge.STORAGE_HOSTS); the app fetches images only from them
+      storageHosts: storageHosts === null ? [] : storageHosts.split(','),
       // EVM-102: contact of the office (not in the repository: the build variables EVIA_CONTACT_EMAIL / EVIA_CONTACT_PHONE; visible in the CI artifact and in the APK, so only a functional
       // address and number of the office, never of a person)
       contactEmail: contactFrom('EVIA_CONTACT_EMAIL', parseContactEmail, env['EVIA_CONTACT_EMAIL']),

@@ -36,6 +36,7 @@ import { createHttpSyncTransport } from './sync/http-transport';
 import { SyncHost } from './sync/sync-host';
 import { SyncService } from './sync/sync-service';
 import { createHttpMediaSource } from './media-view/http-media-source';
+import { bucketHostsOf } from './media-view/media-url-policy';
 import { MediaViewer } from './media-view/media-viewer';
 import type { MediaSource } from './media-view/http-media-source';
 import { wireMediaView } from './media-view/wire-media-view';
@@ -209,6 +210,8 @@ export function createSessionPorts(
         : createHttpMediaSource({
             baseUrl: config.apiBaseUrl,
             allowLocalHttp: config.buildVariant === 'e2e',
+            // SR-MOB-10: an image is fetched only from the bucket of the build; the e2e variant (the emulator host) is the one exception
+            ...bucketHostsOf(config),
             fetch: (url, init) => owner.authorizedFetch(url, init),
             headers: clientHeaders(config.platform, config.appVersion),
           }),

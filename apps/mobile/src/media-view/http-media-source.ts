@@ -36,8 +36,8 @@ export type FetchLike = (url: string, init?: RequestInit) => Promise<Response | 
 export interface HttpMediaSourceOptions {
   readonly baseUrl: string;
   readonly allowLocalHttp?: boolean;
-  /** The domain of the bucket, when the build knows it (SR-MOB-10). */
-  readonly allowedHost?: string;
+  /** The hosts of the bucket from the build (SR-MOB-10); unset = no host check (e2e only), empty = every address refused. */
+  readonly allowedHosts?: readonly string[];
   readonly fetch: FetchLike;
   /** `X-Client-Platform` and `X-Client-Version`. */
   readonly headers: Readonly<Record<string, string>>;
@@ -52,7 +52,7 @@ export const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 export function createHttpMediaSource(options: HttpMediaSourceOptions): MediaSource {
   const policy: MediaUrlPolicy = {
     ...(options.allowLocalHttp === undefined ? {} : { allowLocalHttp: options.allowLocalHttp }),
-    ...(options.allowedHost === undefined ? {} : { allowedHost: options.allowedHost }),
+    ...(options.allowedHosts === undefined ? {} : { allowedHosts: options.allowedHosts }),
   };
   const secureApi = options.baseUrl.startsWith('https://') || (options.allowLocalHttp === true && options.baseUrl.startsWith('http://'));
   const plainFetch = options.fetchBytes ?? ((url: string, init: RequestInit) => fetch(url, init));

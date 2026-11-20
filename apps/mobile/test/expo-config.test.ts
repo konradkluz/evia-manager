@@ -114,6 +114,15 @@ describe('Expo configuration of the build (EVM-009 AC3, AC5, AC6)', () => {
   });
 });
 
+describe('hosts of the bucket in the build (EVM-142 AC5; SR-MOB-10)', () => {
+  it('EVM-142 AC5: EVIA_STORAGE_HOSTS is recorded in `extra` for the app; a build without it records none', () => {
+    expect(buildExpoConfig({ ...releaseEnv, EVIA_STORAGE_HOSTS: 'Media.Example.eu, s3.example.eu' }).extra).toMatchObject({
+      storageHosts: ['media.example.eu', 's3.example.eu'],
+    });
+    expect(buildExpoConfig(releaseEnv).extra).toMatchObject({ storageHosts: [] });
+  });
+});
+
 describe('contact and the state of the clauses in the build (EVM-102 AC3, AC6)', () => {
   it('EVM-102 AC3: the contact of the office comes from the build variables; without them there is none (nothing in the repository)', () => {
     expect(buildExpoConfig(releaseEnv).extra).toMatchObject({ contactEmail: null, contactPhone: null });

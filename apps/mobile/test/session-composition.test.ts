@@ -31,7 +31,13 @@ jest.mock('../src/storage', () => {
   };
 });
 
-const config = { apiBaseUrl: 'https://manager.example.test', platform: 'android', appVersion: '0.4.0', buildVariant: 'release' } as const;
+const config = {
+  apiBaseUrl: 'https://manager.example.test',
+  platform: 'android',
+  appVersion: '0.4.0',
+  buildVariant: 'release',
+  storageHosts: [],
+} as const;
 
 describe('composition of the session (EVM-100; architect 6)', () => {
   it('EVM-100 AC1: "Nie pamiętasz hasła?" opens the fixed reset page of the panel on the origin of the API', async () => {

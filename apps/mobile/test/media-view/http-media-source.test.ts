@@ -116,7 +116,7 @@ describe('bytes of the image (EVM-142 AC5)', () => {
   });
 
   it('EVM-142 AC5: an address that fails the policy never leaves the phone (no request)', async () => {
-    const s = source({ allowedHost: 'media.example.eu' });
+    const s = source({ allowedHosts: ['media.example.eu'] });
     for (const url of ['http://media.example.eu/x', 'https://other.example.eu/x', 'https://u:p@media.example.eu/x', 'file:///x']) {
       expect(await s.instance.fetchImage(url, signal)).toEqual({ kind: 'error' });
     }
