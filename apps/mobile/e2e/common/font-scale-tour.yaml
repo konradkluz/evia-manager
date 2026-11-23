@@ -141,7 +141,7 @@ appId: pl.eviacharge.manager
     id: 'nav-more'
 - extendedWaitUntil:
     visible:
-      id: 'more-privacy'
+      id: 'sync-indicator'
     timeout: 20000
 - takeScreenshot: ${CFG}-10-more
 - scrollUntilVisible:
