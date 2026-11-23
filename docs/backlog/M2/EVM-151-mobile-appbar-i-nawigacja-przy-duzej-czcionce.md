@@ -78,3 +78,4 @@ Dziś przy 200% i 411 dp „Wstecz” oraz kapsuła synchronizacji („Zsynchr. 
 - 2026-11-23 — utworzono jako szkic (product-owner)
 - 2026-11-23 — konsultacja ux-designera wklejona do „UX / UI” (Tech Lead); Konrad: akceptuje, jedna historyjka, skrót „Zlecenia” dla dolnej nawigacji; status `ready`
 - 2026-11-23 — start realizacji (/deliver): gałąź `feature/EVM-151-appbar-duza-czcionka`, klon `evia-manager-n1`, ścieżka `lekka`, wykonawca mobile-developer (`sonnet`), recenzent ux-designer; Konrad potwierdził kontynuację mimo 9 historyjek in-review
+- 2026-11-23 — implementacja (mobile-developer): `BackButton` (ikona 48 dp), `useFontScaleTier`, AppBar dwuwierszowy i BottomNav z `shortLabel`; scenariusze Maestro `font-scale-*` (krok `display:`), dowód: `docs/qa/EVM-151/dowod-na-emulatorze.md`; kolejność fokusu w układzie dużym wg układu wizualnego — do potwierdzenia ux-designera
