@@ -1138,6 +1138,12 @@ Testy dostępności (narzędzia automatyczne + klawiatura + czytnik ekranu) — 
 ---
 
 ## 8. Changelog
+### Uzupełnienie M2 — 2026-11-23 (EVM-143 „Odtwarzanie filmów zlecenia”, propozycja `ux-designer`, do akceptacji Konrada)
+Film zlecenia w siatce M-08a i odtwarzacz online bez zapisu na telefonie. Specyfikacja: sekcja „UX / UI” historyjki EVM-143; makiety do dopisania w [flows/09](flows/09-mobile-zdjecia-filmy-offline.md) (M-08c). **Bez nowych tokenów.**
+- **§ 3.11 (MINOR, rozszerzenie):** wariant „odtwarzacz filmu w aplikacji” komponentu Lightbox (widok własny w oknie głównym, bez `Modal`, bez pełnego ekranu i PiP; jedna kontrolka „Odtwórz” / „Pauza”, bez natywnych kontrolek, pasek przewijania i głośności; do „Odtwórz” pokazuje miniaturę z siatki, nic się nie pobiera) oraz oznaczenie „Film” w kaflu siatki (ikona `video` + tekst pod miniaturą; na miniaturze tylko dekoracyjna ikona `play`, bez tekstu na obrazie). Uzasadnienie: lightbox web zakłada zdjęcie, przyciski poprzednie / następne i zoom; ograniczenia bezpieczeństwa (SR-MOB-07, FLAG_SECURE, brak zapisu na dysk) wykluczają kontrolki systemowe.
+- **§ 2.10 (ikony aplikacji):** do `icons.ts` dochodzą `video`, `play`, `pause`.
+- **§ 4.14:** stany pliku filmu bez zmian (te same teksty co zdjęcie).
+- **§ 4.18:** odtwarzacz i kafle filmów znikają od razu przy blokadzie, trybie ukrytych danych, `session_revoked`, wylogowaniu i „Wyczyść dane firmowe”; po odblokowaniu wraca siatka.
 ### Poprawka M2 — 2026-11-23 (EVM-151, belka tytułu i dolna nawigacja przy czcionce 130–200%; konsultacja `ux-designer`, do akceptacji Konrada)
 Przy 200% i 411 dp „Wstecz” i kapsuła synchronizacji zajmowały prawie całą belkę, tytuł łamał się w środku słów, a dolna nawigacja ucinała etykiety (WCAG 1.4.4, 1.4.10). **Bez nowych tokenów i komponentów wspólnej biblioteki poza `BackButton`.**
 - **§ 3.18 AppBar:** „Wstecz” to ikona `arrow-left` w celu 48 × 48 dp z nazwą dostępną (zamiast tekstu — zamknięcie odstępstwa kodu od styleguide'u); wysokość `size.app-bar.height.mobile` jest minimalna, pasek rośnie; tytuł zawija się na granicy słów, bez wielokropka; trzy poziomy skali (≤ 100%, 100–130%, > 130% albo > 100% przy ≤ 400 dp) i układ dwuwierszowy dla dużego (wiersz 1: Wstecz i kapsuła, wiersz 2: tytuł); kapsuła z pełnym tekstem, bez `numberOfLines`.
