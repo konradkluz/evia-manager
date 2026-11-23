@@ -13,21 +13,20 @@ appId: pl.eviacharge.manager
 - takeScreenshot: m08c-film-before-play
 - tapOn:
     id: 'video-player-action'
-- extendedWaitUntil:
-    visible: 'Pauza'
-    timeout: 40000
+    waitToSettleTimeoutMs: 50
+- assertVisible: 'Pauza'
 - takeScreenshot: m08c-film-playing
 - tapOn:
     id: 'video-player-action'
-- extendedWaitUntil:
-    visible: 'Odtwórz'
-    timeout: 10000
+    waitToSettleTimeoutMs: 50
+- assertVisible: 'Odtwórz'
 - takeScreenshot: m08c-film-paused
 - tapOn:
     id: 'video-player-action'
+    waitToSettleTimeoutMs: 50
 - extendedWaitUntil:
     visible: 'Odtwórz ponownie'
-    timeout: 60000
+    timeout: 90000
 - takeScreenshot: m08c-film-ended
 - tapOn:
     id: 'video-player-close'

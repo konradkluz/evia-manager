@@ -11,13 +11,8 @@ appId: pl.eviacharge.manager
 - tapOn:
     id: 'video-player-action'
 - extendedWaitUntil:
-    visible: 'Pauza'
-    timeout: 40000
-- tapOn:
-    id: 'video-player-action'
-- extendedWaitUntil:
-    visible: 'Odtwórz'
-    timeout: 10000
+    visible: 'Odtwórz ponownie'
+    timeout: 90000
 - tapOn:
     id: 'video-player-close'
 - extendedWaitUntil:

@@ -84,12 +84,12 @@ export const FILM_SCENARIOS = [
         after: ['film-requests:urls=1,ok>=1', 'film-disk-check', 'photos-logcat-clean', 'film-headers'],
       }),
       // the film playing with the download in progress (the server serves it slowly), then the lock
-      step('164-film-lock-open.yaml', { before: ['photos-reset', 'film-throttle:250'] }),
-      step('164-film-lock.yaml', { after: ['film-disk-check', 'photos-logcat-clean'] }),
+      step('164-film-lock-open.yaml', { before: ['photos-reset', 'film-throttle:5000'] }),
+      step('164-film-lock.yaml', { after: ['film-requests:abandoned>=1', 'film-disk-check', 'photos-logcat-clean'] }),
       // a cold start, the film playing, the background
-      step('164-film-background.yaml', { before: ['film-throttle:0'], after: ['film-disk-check', 'photos-logcat-clean'] }),
+      step('164-film-background.yaml', { after: ['film-requests:abandoned>=2', 'film-disk-check', 'photos-logcat-clean'] }),
       // the film played again, the sign-out
-      step('164-film-logout.yaml', { after: ['film-disk-check', 'photos-logcat-clean', 'film-headers'] }),
+      step('164-film-logout.yaml', { before: ['film-throttle:0'], after: ['film-disk-check', 'photos-logcat-clean', 'film-headers'] }),
       // the sign-in again, the film played, "Wyczyść dane firmowe"
       // ... and the POSITIVE CONTROL of the search on the same install: a planted file MUST be found by the same search
       step('164-film-wipe.yaml', { after: ['film-disk-check', 'photos-logcat-clean', 'film-headers', 'film-disk-control'] }),

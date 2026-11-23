@@ -67,7 +67,7 @@ describe('Maestro flows 160-165 and the film scenarios agree (EVM-143)', () => {
     assert.deepEqual(grid?.after, ['film-requests:urls=0,requests=0,bytes=0']);
     const flow = flowText('160-film-play.yaml');
     for (const wanted of [
-      "visible: 'Pauza'",
+      "assertVisible: 'Pauza'",
       "visible: 'Odtwórz ponownie'",
       'video-player-action',
       'video-player-close',
@@ -114,8 +114,8 @@ describe('Maestro flows 160-165 and the film scenarios agree (EVM-143)', () => {
       assert.ok(found?.after?.includes('film-disk-check'), flow);
       assert.ok(found?.after?.includes('photos-logcat-clean'), flow);
     }
-    assert.ok(trace.steps.find((step) => step.flow === '164-film-lock-open.yaml')?.before?.includes('film-throttle:250'));
-    assert.ok(trace.steps.find((step) => step.flow === '164-film-background.yaml')?.before?.includes('film-throttle:0'));
+    assert.ok(trace.steps.find((step) => step.flow === '164-film-lock-open.yaml')?.before?.includes('film-throttle:5000'));
+    assert.ok(trace.steps.find((step) => step.flow === '164-film-logout.yaml')?.before?.includes('film-throttle:0'));
     assert.ok(trace.steps.at(-1)?.after?.includes('film-disk-control'));
     assert.ok(flowText('164-film-lock.yaml').includes("id: 'lock-overlay'"));
     assert.ok(flowText('164-film-lock.yaml').includes("id: 'video-player'"));

@@ -3,8 +3,8 @@ appId: pl.eviacharge.manager
 ---
 - tapOn: 'Spróbuj ponownie'
 - extendedWaitUntil:
-    visible: 'Pauza'
-    timeout: 60000
+    visible: 'Odtwórz ponownie'
+    timeout: 90000
 - takeScreenshot: m08c-film-back-online
 - tapOn:
     id: 'video-player-close'

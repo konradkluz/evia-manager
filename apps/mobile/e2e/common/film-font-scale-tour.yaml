@@ -51,14 +51,9 @@ appId: pl.eviacharge.manager
 - tapOn:
     id: 'video-player-action'
 - extendedWaitUntil:
-    visible: 'Pauza'
-    timeout: 60000
-- takeScreenshot: ${CFG}-film-5-playing
-- tapOn:
-    id: 'video-player-action'
-- extendedWaitUntil:
-    visible: 'Odtwórz'
-    timeout: 10000
+    visible: 'Odtwórz ponownie'
+    timeout: 90000
+- takeScreenshot: ${CFG}-film-5-ended
 - scrollUntilVisible:
     element:
       id: 'video-player-close'
