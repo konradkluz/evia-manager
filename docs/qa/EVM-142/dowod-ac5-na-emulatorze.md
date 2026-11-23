@@ -64,7 +64,7 @@ Uwaga: zrzut dotyczy ekranu zablokowanego/logowania release (adres API paczki to
 ## 5. Ustalenia do decyzji (nie naprawiałem)
 
 1. **Dwukrotne pobieranie miniatur po powrocie sieci (AC4):** po `offline → online` na otwartej siatce serwer widział **6 adresów i 6 żądań obrazu dla 3 zdjęć** (przy zwykłym otwarciu dokładnie 3). Prawdopodobnie powtórny odczyt repliki po cyklu synchronizacji zwalnia i ładuje kafelki od nowa. Funkcjonalnie poprawne, ale podwaja zużycie wspólnego limitu 1000 adresów / 10 min (por. przyjęte ryzyko m5). Scenariusz asertuje `>=3`.
-2. **Siatka M-08a, kafelki w stanach `processing` i kwarantanna:** na zrzucie (`m08-photos-grid-loaded.png`, 360 dp) odznaki „Przygotowujemy podgląd” i „Plik zatrzymany do sprawdzenia” stoją obok siebie i nachodzą na siebie (pierwsza obcięta). Do oceny ux-designera (AC6, 200% czcionki).
+2. **Siatka M-08a, kafelki w stanach `processing` i kwarantanna — ROZWIĄZANE (2026-11-23, commit `8a676096`):** odznaki zastąpiło „pole stanu” (ikona w polu z zawsze widocznym obrysem, tekst stanu pod nim). Wynik pomiaru na emulatorze, scenariusz `photos-grid` (140): 411 dp / 100% — 3 kolumny, tytuł „Zdjęcia zlecenia” w jednej linii; 360 dp / 100% — 3 kolumny, tytuł w 2 liniach (dozwolone), bez łamania słów w środku, pola nie nachodzą; 411 dp / 130% — 2 kolumny, bez łamania słów; 411 dp / 200% — 1 kolumna (wiersz: pole 96 dp + tekst), bez łamania słów w siatce. **Zastrzeżenie:** przy 200% tytuł AppBar „Zdjęcia zlecenia” łamie się w środku słów (kolumna tytułu zwęża „Wstecz” i kapsuła SyncIndicator, wspólny AppBar) — do decyzji ux-designera (poza siatką). Przy 130% i 200% część kafli jest pod zgięciem, więc scenariusz 140 wymagałby przewijania (`scrollUntilVisible`); pomiar zrobiono na tymczasowo zmienionej kopii przepływu w `C:e`, a w repozytorium scenariusz 140 zostaje dla 100%. Zrzuty: `.scratch/EVM-142/v2-*.png` (nie są w repozytorium).
 
 ## 6. Polecenia i wyniki
 
@@ -75,3 +75,5 @@ Uwaga: zrzut dotyczy ekranu zablokowanego/logowania release (adres API paczki to
 | `pnpm --filter @evia/mobile-e2e run test:coverage` | 432 testy zielone; `photos-stub.mjs` 100% linii / 94,9% gałęzi, `device-photos.mjs` 100% / 92,8% |
 
 > Aktualizacja 2026-11-23: punkt 2 naprawiony w `37cd4236` (etykieta `StatusBadge` zawija się w kafelku, test układu w jest, asercja pełnych tekstów w scenariuszu Maestro 140). Układ na urządzeniu potwierdzi najbliższy przebieg e2e (scenariusz 140 zawiedzie, jeśli odznaki nie będą w pełni widoczne).
+>
+> Aktualizacja 2026-11-23 (później): poprawka `37cd4236` (odznaki zawijane) okazała się niewystarczająca na ocenę UX — pigułka łamała słowa w środku („Przygoto/wujemy”). Zastąpiło ją pole stanu (`8a676096`); wynik pomiarów w punkcie 2 powyżej.
