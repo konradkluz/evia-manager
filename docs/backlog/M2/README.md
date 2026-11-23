@@ -160,6 +160,7 @@ Fazy 1–3 (EVM-090…107) — wpisy, komentarze, lista, szczegóły, szybkie zl
 | [EVM-147](EVM-147-wizja-lokalna-dokumenty-api-i-usuwanie.md) | `draft` (2026-11-20): API przyjmuje ofertę (`quote`) w wizji bez klienta; trwałe usuwanie dokumentów wizji i rejestr — 8 AC, M–L; decyzja ADR-0025 (zaakceptowany 2026-11-23) | story | P1 | pelna | backend / opus | EVM-135, EVM-136, EVM-139 |
 | [EVM-148](EVM-148-web-wizja-lokalna-dokumenty-i-komunikaty-bledow.md) | `draft`: panel — oferta w wizji, ostrzeżenie o danych osobowych, komunikaty błędów wgrywania — 6 AC, M | story | P1 | pelna | web (+ux) / sonnet | EVM-147, EVM-138 |
 | [EVM-149](EVM-149-wizja-lokalna-klauzula-1-1-i-dokumentacja-rodo-dokumentow.md) | `draft`: klauzula 1.1, karta A6, DPIA D14, rodo.md, model zagrożeń, prawa osób — 5 AC, M | enabler | P1 | lekka | security / opus | EVM-133 |
+| [EVM-150](EVM-150-wizja-lokalna-wyscig-usuwania-media.md) | `draft` (2026-11-23): wyścig usuwania wizji a dodawanie mediów — blokada zlecenia przed zapisem medium i sesji wgrywania (panel, sync), test współbieżny — 5 AC, S–M; reguła jak ADR-0025 M1 | story | P2 | pelna | backend / sonnet | EVM-139 (powiązanie: EVM-147) |
 
 Dlaczego 7, a nie 5 historyjek: API podzielone (135 | 136), bo jedna historyjka miałaby ok. 14 AC, a aplikacja potrzebuje tylko 135; przypomnienia i limit (140) oddzielone od usuwania (139), bo usuwanie jest nieodwracalne (art. 17) i wymaga modelu `opus` oraz przeglądu security — i idzie ostatnie. Kolejność i zależności wg ADR-0024 („Podział na przyrosty”).
 
