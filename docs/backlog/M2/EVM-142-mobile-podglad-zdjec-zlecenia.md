@@ -4,7 +4,7 @@ title: "Aplikacja: podgląd zdjęć zlecenia (online, bez zapisu na telefonie)"
 type: story
 milestone: M2
 epic: E11 Zdjęcia i filmy
-status: ready
+status: done
 priority: P2
 path: pelna             # nowy dostęp mobilny do plików (kanał `mobile` dla adresów pochodnych) i obrazy na urządzeniu — obszar „media” i „dane na urządzeniu”
 owner: mobile-developer
@@ -92,3 +92,5 @@ Jako **technik (Administrator lub Edytor)** chcę **w szczegółach zlecenia obe
 - 2026-11-20 — do zrobienia: dowód AC5 na emulatorze (przeszukanie `cache/` i `files/` po zawartości `RIFF…WEBP`, `logcat`, `FLAG_SECURE`), QA, przegląd kodu, ponowny przegląd security, demo
 - 2026-11-20 — przegląd kodu: APPROVE (8 minorów); ponowny przegląd security: APPROVED pod warunkiem dowodu AC5 na emulatorze (S4 host z `` w adresie, S5 martwa opcja `cache`, S6 przekierowania — do poprawy w tej historyjce); QA: CZĘŚCIOWO PASS (brak dowodu na urządzeniu i scenariuszy Maestro)
 - 2026-11-20 — Konrad: m6 (tekst pustego stanu „Pliki zlecenia” nadal mówi, że filmy ogląda biuro w panelu) zostaje jako **świadome odstępstwo od AC6 do czasu EVM-143**; m5 (przewijanie dużych zleceń zużywa wspólny limit adresów 1000 / 10 min; bez cache miniatur) — **ryzyko przyjęte** (alert od 600 zostaje, do ponownej oceny po teście terenowym EVM-112)
+- 2026-11-23 — dowód AC5 na emulatorze (0 plików obrazów w `/data/data` i `/sdcard/Android`, `logcat` czysty, nagłówek `no-store` w 15 z 15 żądań, kontrola dodatnia, `FLAG_SECURE` na release) w `docs/qa/EVM-142/dowod-ac5-na-emulatorze.md`; siatka z polem stanu i kolumnami wg skali czcionki (3 / 2 / 1) potwierdzona na emulatorze przy 411 dp / 100%, 130%, 200% i 360 dp / 100%
+- 2026-11-23 — Konrad: akceptacja; PR #159 scalony (`da7d3629`); status `done`. Odstępstwo od AC6 (m6) i ryzyko m5 zapisane wyżej. Następne: EVM-143 (filmy, odblokowane), EVM-151 (belka i nawigacja przy dużej czcionce — wykryte przy EVM-142; scenariusz Maestro 140 przy 130% i 200% wymaga przewijania i może trafić do EVM-151; przebieg 360 dp / 200% padał na logowaniu)
