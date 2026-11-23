@@ -8,6 +8,8 @@ appId: pl.eviacharge.manager
     id: 'order-photos-grid'
 - assertNotVisible: 'Nie udało się wczytać zdjęcia'
 - assertNotVisible: 'Nie udało się wczytać części zdjęć\.'
+- assertVisible: 'Przygotowujemy podgląd'
+- assertVisible: 'Plik zatrzymany do sprawdzenia'
 - takeScreenshot: m08-photos-grid-loaded
 - tapOn:
     id: 'order-photos-back'

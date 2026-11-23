@@ -28,6 +28,7 @@ export function StatusBadge({ icon, label, tone, testID }: StatusBadgeProps) {
         flexDirection: 'row',
         alignItems: 'center',
         alignSelf: 'flex-start',
+        maxWidth: '100%',
         columnGap: space.inline.xs,
         minHeight: size.badge.height,
         paddingHorizontal: space.inset.sm,
@@ -38,7 +39,7 @@ export function StatusBadge({ icon, label, tone, testID }: StatusBadgeProps) {
       }}
     >
       <Icon icon={icon} color={tone.icon} iconSize="sm" />
-      <Text style={{ ...text.label, color: tone.text }}>{label}</Text>
+      <Text style={{ ...text.label, color: tone.text, flexShrink: 1 }}>{label}</Text>
     </View>
   );
 }
