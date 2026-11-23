@@ -5,13 +5,13 @@
  * The order of the answer (as in the other operations of the module): the guard (401/403) -> the path by schema (400) -> the order through the read
  * policy (404) -> the body by schema (400) -> the right to the VARIANT (`403 forbidden` for Read-only + original, BEFORE any lookup of the medium, so
  * the answer says nothing about the medium; the refusal is audited in a transaction of its own) -> ONE statement for the medium of THIS order (404:
- * another order, a missing medium, a state that does not allow the file, a missing row, a video or a document) -> the limit of the class
+ * another order, a missing medium, a state that does not allow the file, a missing row or a document) -> the limit of the class
  * (`SignedUrlMeters.reserve`: check and count in one synchronous step, `429`; the first refusal of a window is audited in a transaction of its
- * own) -> the signature. The PHONE (EVM-142; SR-AUTHZ-02, SR-MOB-14) gets the thumbnail and the preview of a PHOTO only: its `original` is the `403` of the
- * variant (before any lookup of the medium) and a video is a `404`. The address of an ORIGINAL is audited INSIDE the transaction of the issue: a failed audit means no address (fail closed).
+ * own) -> the signature. The PHONE (EVM-142, EVM-143; SR-AUTHZ-02, SR-MOB-14) gets the thumbnail and the preview of a photo or a video (never the original): its `original` is the `403` of the
+ * variant (before any lookup of the medium). The address of an ORIGINAL is audited INSIDE the transaction of the issue: a failed audit means no address (fail closed).
  *
  * The address lives 300 seconds (a constant of the server), comes from the host of the bucket and carries what the SERVER chose: a derivative is
- * `image/webp` and `inline`; an original has the type the server DETECTED, `private, no-store` and an `attachment` with a cleaned name, and is
+ * `image/webp` (the preview of a video: `video/mp4`) and `inline`; an original has the type the server DETECTED, `private, no-store` and an `attachment` with a cleaned name, and is
  * pinned to the version that passed the scan. The address and the name are never logged and never audited; the answer is `no-store`.
  */
 import type { Channel, MediaDerivativeUrl } from '@evia/contracts';
@@ -142,9 +142,10 @@ export class MediaDownloadUrlService {
     variant: 'thumbnail' | 'preview',
     channel: Channel,
   ): Promise<SignedGetInput> {
-    // the phone sees photos only (EVM-142; the videos are EVM-143): a video is the same absence as a missing medium
-    const source = await findReadyDerivative(media, orderId, mediaAssetId, variant, channel === 'mobile' ? 'photo' : undefined);
+    const source = await findReadyDerivative(media, orderId, mediaAssetId, variant);
     if (source === undefined) throw new ProblemException('not_found');
+    // fail closed on the type recorded with the row (the union already limits it to WebP and MP4): a thumbnail is always an image
+    if (variant === 'thumbnail' && source.contentType !== 'image/webp') throw new ProblemException('not_found');
     return {
       key: source.objectKey,
       expiresInSeconds: DERIVATIVE_URL_SECONDS,

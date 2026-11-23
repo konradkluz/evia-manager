@@ -564,9 +564,8 @@ mediaAssetDownloadUrl:
       zapytania (api-guidelines, „Pliki i podpisane URL-e”); nie zmienia stanu medium, więc nie ma `Idempotency-Key`. Wystawienie adresu
       ORYGINAŁU jest zapisane w dzienniku audytu (`media_file.original_downloaded`, w tej samej transakcji co wystawienie — błąd zapisu
       oznacza brak adresu); audyt dotyczy wystawienia adresu, nie samego pobrania z bucketu. Role Administrator, Edytor i Tylko odczyt, kanał `web` (wymaga `X-CSRF-Token`) oraz `mobile` (EVM-142 AC1; SR-MOB-14): token telefonu
-      Administratora albo Edytora dostaje WYŁĄCZNIE adres miniatury i podglądu ZDJĘCIA (WebP bez metadanych, `no-store`, bez logu i audytu) —
-      `original` z telefonu to `403 forbidden` PRZED odczytem medium (oryginał może nosić lokalizację i zostaje w panelu), a filmy (EVM-143) dla
-      telefonu są `404`, tak jak plik bez gotowej pochodnej; token Tylko odczyt — `403 channel_not_allowed`; telefon wysyła `X-Client-Platform` i
+      Administratora albo Edytora dostaje WYŁĄCZNIE adres miniatury i podglądu ZDJĘCIA albo FILMU (EVM-143 AC0; miniatura WebP, podgląd zdjęcia WebP, podgląd filmu MP4 720p, bez metadanych, `no-store`, `inline`, bez logu i audytu) —
+      `original` z telefonu to `403 forbidden` PRZED odczytem medium (oryginał może nosić lokalizację i zostaje w panelu), oryginał filmu też nie jest wydawany telefonowi; token Tylko odczyt — `403 channel_not_allowed`; telefon wysyła `X-Client-Platform` i
       `X-Client-Version` (`426` tylko dla tokenu Bearer); limit 1000 / 10 min jest wspólny dla panelu i telefonu; wariant `original` tylko dla Administratora i Edytora — Tylko odczyt dostaje `403
       forbidden` PRZED sprawdzeniem medium (odpowiedź nie zdradza, czy medium istnieje). Kolejność: strażnik (`401`/`403`) → ścieżka (`400`) →
       zlecenie przez politykę odczytu (`404`) → treść (`400`; wariant spoza listy, pola obce) → uprawnienie do wariantu (`403`) → JEDNO zapytanie o

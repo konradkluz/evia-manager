@@ -197,7 +197,7 @@ describe('EVM-142 AC1 the phone gets the address of a thumbnail or a preview', (
     expect(current.storage.signedGets).toHaveLength(0);
   });
 
-  it('EVM-142 AC1 a photo of another order, a deleted one, one without a ready derivative, in quarantine, a missing one and a video are ONE 404 for the phone', async () => {
+  it('EVM-142 AC1 a photo of another order, a deleted one, one without a ready derivative, in quarantine and a missing one are ONE 404 for the phone', async () => {
     const orderA = await order();
     const orderB = await order();
     const owner = await panel('administrator');
@@ -213,6 +213,7 @@ describe('EVM-142 AC1 the phone gets the address of a thumbnail or a preview', (
       admin(),
     );
     const video = await readyVideo(orderA, owner.user.id);
+    const foreignVideo = await readyVideo(orderB, owner.user.id);
     const refused = [];
     for (const variant of ['thumbnail', 'preview'] as const) {
       for (const id of [
@@ -221,7 +222,7 @@ describe('EVM-142 AC1 the phone gets the address of a thumbnail or a preview', (
         notReady.mediaAssetId,
         quarantined.mediaAssetId,
         uuidv7(),
-        video.mediaAssetId,
+        foreignVideo.mediaAssetId,
       ]) {
         refused.push(await addressOf(who, orderA, id, { variant }));
       }
@@ -229,11 +230,65 @@ describe('EVM-142 AC1 the phone gets the address of a thumbnail or a preview', (
     expect(refused.map((answer) => answer.status)).toEqual(Array.from({ length: 12 }, () => 404));
     expect(new Set(refused.map(traceless)).size).toBe(1);
     expect(current.storage.signedGets).toHaveLength(0);
-    // the panel still gets the frame of the same video (the closing is for the phone only)
+    // the video of THIS order is addressable for the phone (EVM-143 AC0)
+    expect((await addressOf(who, orderA, video.mediaAssetId, { variant: 'thumbnail' })).status).toBe(200);
     const web = await panel('editor');
     expect(
       (await web.client.post(`${BASE}/${orderA}/media-assets/${video.mediaAssetId}/download-url`, { variant: 'thumbnail' })).status,
     ).toBe(200);
+  });
+
+  it('EVM-143 AC0 the phone gets the thumbnail (image/webp) and the preview (video/mp4) of a video: 300 s, no-store, inline; the original is a 403 before the lookup', async () => {
+    const orderId = await order();
+    const owner = await panel('administrator');
+    const video = await readyVideo(orderId, owner.user.id);
+    for (const role of ['administrator', 'editor'] as const) {
+      const who = await phone(role);
+      for (const [variant, contentType] of [
+        ['thumbnail', 'image/webp'],
+        ['preview', 'video/mp4'],
+      ] as const) {
+        const answer = await addressOf(who, orderId, video.mediaAssetId, { variant });
+        expect(answer.status, role + ' ' + variant).toBe(200);
+        expect(answer.headers['cache-control']).toBe('no-store');
+        const body = answer.body as { url: string; expiresAt: string };
+        expect(Date.parse(body.expiresAt) - current.clock.now().getTime()).toBeLessThanOrEqual(300_000);
+        expect(current.storage.signedGets.at(-1)).toMatchObject({ contentType, disposition: { kind: 'inline' }, cacheControl: 'no-store' });
+      }
+    }
+    const signed = current.storage.signedGets.length;
+    for (const role of ['administrator', 'editor'] as const) {
+      const answer = await addressOf(await phone(role), orderId, video.mediaAssetId, { variant: 'original' });
+      expect(answer.status).toBe(403);
+    }
+    expect(current.storage.signedGets).toHaveLength(signed);
+  });
+
+  it('EVM-143 AC0 a video of another order, a deleted, processing, quarantined or failed one or one without a derivative are ONE 404 for the phone; no address in the log', async () => {
+    const orderA = await order();
+    const orderB = await order();
+    const owner = await panel('administrator');
+    const who = await phone('editor');
+    const foreign = await readyVideo(orderB, owner.user.id);
+    const deleted = await readyVideo(orderA, owner.user.id);
+    await sql`update media.media_assets set deleted_at = now(), deleted_by = ${owner.user.id} where id = ${deleted.mediaAssetId}`.execute(
+      admin(),
+    );
+    const others: string[] = [];
+    for (const state of ['processing', 'quarantined', 'failed']) {
+      const media = await readyVideo(orderA, owner.user.id);
+      await sql`update media.stored_files set state = ${state} where id = ${media.storedFileId}`.execute(admin());
+      others.push(media.mediaAssetId);
+    }
+    const noDerivative = await cleanPhoto(orderA, owner.user.id, 'video');
+    const refused = [];
+    for (const variant of ['thumbnail', 'preview'] as const)
+      for (const id of [foreign.mediaAssetId, deleted.mediaAssetId, ...others, noDerivative.mediaAssetId])
+        refused.push(await addressOf(who, orderA, id, { variant }));
+    expect(refused.every((answer) => answer.status === 404)).toBe(true);
+    expect(new Set(refused.map(traceless)).size).toBe(1);
+    expect(current.storage.signedGets).toHaveLength(0);
+    expect(current.logs.lines.join('\n')).not.toMatch(/bucket\.invalid|X-Amz/);
   });
 
   it('EVM-142 AC1 an order that is not visible (deleted) is a 404 for the phone, the same for every medium and variant', async () => {
