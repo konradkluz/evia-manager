@@ -459,18 +459,33 @@ Zasady wiersza filmu i stanu „Czeka na Wi-Fi” [od EVM-110] (AC1, AC4, AC5; t
 │ …                                │
 └──────────────────────────────────┘
 ```
-Przy czcionce 200% lub wąskim ekranie — **2 kolumny** (poniżej). Pod siatką brak „Wczytaj więcej” — replika zlecenia jest zamknięta zbiorem; siatka jest wirtualizowana (lista przewijana), a **adresy miniatur są pobierane tylko dla kafli widocznych i jednego rzędu przed nimi / za nimi** (limit 1000 adresów / 10 min / użytkownik, AC1; miniatura, która wyjechała poza ekran, zwalnia obraz z pamięci).
+Przy czcionce powyżej 100% lub wąskim ekranie — **2 kolumny**, przy czcionce powyżej 130% — **1 kolumna (wiersz: miniatura 96 dp + tekst obok)** (poniżej). Pod siatką brak „Wczytaj więcej” — replika zlecenia jest zamknięta zbiorem; siatka jest wirtualizowana (lista przewijana), a **adresy miniatur są pobierane tylko dla kafli widocznych i jednego rzędu przed nimi / za nimi** (limit 1000 adresów / 10 min / użytkownik, AC1; miniatura, która wyjechała poza ekran, zwalnia obraz z pamięci).
 
 **Układ siatki (konkrety dla wykonawcy)**
 | Warunek | Kolumny | Uwagi |
 |---|---|---|
-| szerokość kafla przy 3 kolumnach ≥ `size.thumbnail.md` (96 dp) **i** skala czcionki ≤ 130% | 3 (`grid` compact wg § 3.11) | 360 dp: margines `grid.compact.margin` (16) po bokach, odstęp `space.inline.xs` w poziomie → kafel ok. 106 dp |
-| w przeciwnym razie (wąski telefon < ok. 330 dp, skala czcionki > 130%, powiększony rozmiar wyświetlania) | **2** | kafel ok. 156 dp; kategoria i czas mieszczą się w 1–2 liniach przy 200% |
+| skala czcionki ≤ 100% **i** szerokość kafla przy 3 kolumnach ≥ 104 dp | 3 (`grid` compact wg § 3.11) | 360 dp: margines `grid.compact.margin` (16) po bokach, odstęp `space.inline.xs` w poziomie → kafel ok. 106 dp. Najdłuższe słowo etykiety stanu („Przygotowujemy”, ok. 100 dp w `text.body-sm`) mieści się w kaflu — **żadne słowo nie jest łamane w środku** |
+| skala czcionki > 100% i ≤ 130% albo wąski ekran / powiększony rozmiar wyświetlania (kafel 3 kolumn < 104 dp) | **2** | kafel ok. 156 dp; przy 130% najdłuższe słowo ma ok. 130 dp i mieści się |
+| skala czcionki > 130% (aż do 200%) | **1 kolumna — wiersz** | wiersz = miniatura (lub pole stanu) 96 × 96 dp po lewej + tekst (kategoria, czas, stan) po prawej, odstęp `space.inline.sm`; przy 200% najdłuższe słowo (ok. 200 dp) mieści się w ok. 224 dp; cały wiersz jest przyciskiem (lub grupą tekstową) ≥ 96 dp wysokości |
+- Próg liczy się ze skali czcionki systemu (`PixelRatio.getFontScale()`) i szerokości okna; zmiana na żywo, bez opuszczania ekranu (patrz niżej). Kryterium nadrzędne: **w tekście stanu nie ma łamania słów w środku** — jeśli wynik pomiaru w teście na emulatorze (360 i 411 dp; skala 100, 130, 200%) temu przeczy, wykonawca przesuwa próg w stronę mniejszej liczby kolumn, nie zmniejsza czcionki.
 - **Kafel:** kwadrat 1:1 (miniatura 320 px, `resizeMode: cover`), `radius.thumbnail`, wypełnienie przed wczytaniem `color.bg.skeleton`; obrys `color.border.subtle`; pod kaflem odstęp `space.stack.xs`, potem **kategoria** (`text.label`, `color.text.primary`; „Bez kategorii” gdy brak), **czas wykonania** (`text.body-sm`, `color.text.secondary`, format `DD.MM.RRRR, GG:MM` wg § 6.3 — bez dat względnych: kafle nie mają miejsca na „dziś”, a pełna data wyklucza pomyłkę) i ewentualnie znacznik stanu. **Nic nie jest nałożone na samą miniaturę** (tekst na zdjęciu bywa nieczytelny w słońcu — jak znaczniki na podglądzie aparatu, § 3.24). Odstęp między rzędami `space.stack.sm`. Bez nazw plików, autora, opisu, nazwy klienta i adresu.
 - **Zmiana liczby kolumn** (obrót, zmiana skali czcionki w ustawieniach) nie wyrzuca użytkownika z ekranu i zachowuje pozycję przewijania w pobliżu tego samego zdjęcia; adresy miniatur, które już istnieją, nie są pobierane drugi raz.
 - **Cel dotyku:** cały kafel (miniatura + podpis) jest **jednym przyciskiem**; najmniejszy kafel ma ≥ 96 × 96 dp (> 48 × 48); odstęp między kaflami `space.inline.xs`; akcja wykonuje się dopiero po puszczeniu palca na tym samym kaflu (standard dotyku).
 
-**Stany kafla** (jeden stan na kafel; znacznik wg § 4.14: ikona `size.icon.sm` + pełna etykieta, nigdy sama ikona)
+**Stany kafla** (jeden stan na kafel; wg § 4.14 — ikona + pełna etykieta, nigdy sama ikona)
+
+**Wariant „pole stanu” (zmiana po przeglądzie 2026-11-23, EVM-142; zastępuje pigułkę StatusBadge w kaflu siatki).** W kaflu o szerokości ~106 dp pigułka z ikoną obok tekstu zostawiała ok. 60 dp na tekst, przez co słowa łamały się w środku („Przygoto/wujemy”), a kwarantanna miała 4 linie i była owalną plamą wyższą niż sąsiednie kafle. Dlatego w kaflu i wierszu siatki **stan pliku to nie odznaka, tylko pole stanu**:
+- **Ikonę stanu niesie samo puste pole kafla** (kwadrat jak miniatura: `radius.thumbnail`, `size.icon.xl`) — drugiej, małej ikony przy tekście **nie ma**. Pole ma tło i obrys zależne od stanu (tabela niżej) i **zawsze widoczny obrys** `border-width.default`, także gdy tło jest prawie równe tłu ekranu (wcześniej `processing` nie miał widocznego tła: `color.sync.queued.bg` #F5F5F5 na tle ekranu).
+- **Tekst stanu** stoi pod polem, po kategorii i czasie: `text.body-sm`, kolor `*.text` tonu stanu, **bez tła, bez pigułki, bez wypełnienia poziomego**, zawijany **na granicy słów**, bez `numberOfLines`, pełna szerokość kafla. Stan od kategorii odróżnia kolor tekstu i ikona w polu powyżej (nie sam kolor).
+- Kafle w stanie pliku **mogą być wyższe** od kafli z miniaturą (tekst zawija się do 2–3 linii); rząd siatki wyrównany do góry, bez rozciągania — wymóg „równej wysokości” z tej specyfikacji uchylony, bo zmuszał do ucinania tekstu.
+- StatusBadge (§ 3.9) **bez zmian** — pozostaje pigułką (`radius.pill`) tam, gdzie jest szeroko (wiersze M-03, M-08, panel). Wariant pola stanu jest częścią wariantu kafla siatki (§ 3.11) i nie jest komponentem współdzielonym.
+
+| Stan | Ikona w polu (kolor) | Tło pola | Obrys pola | Kolor tekstu stanu |
+|---|---|---|---|---|
+| `preparing` / `awaiting_file` | `scan-search` / `clock` (`color.sync.queued.icon`) | `color.bg.surface-subtle` | `color.border.default` | `color.sync.queued.text` |
+| `quarantined` | `triangle-alert` (`color.sync.error.icon`) | `color.sync.error.bg` | `color.feedback.error.border` | `color.sync.error.text` |
+| `failed`, błąd wczytania, niedostępne | `image` / `image` / `ban` (`color.icon.secondary`) | `color.bg.surface-subtle` | `color.border.default` | `color.text.secondary` |
+Kontrasty z § 2.1.4 (tekst 8,20:1 i 12,99:1, ikona 5,30:1 i 9,51:1). Każdy stan ma więc ten sam układ (pole + tekst pod nim); różni je ikona, tekst i — pomocniczo — kolor.
 | Stan pliku w replice | Miniatura | Tekst pod kaflem | Dotyk |
 |---|---|---|---|
 | `ready`, miniatura się wczytuje | szkielet `color.bg.skeleton` (kształt kafla, bez spinnera) | kategoria i czas od razu (z repliki) | podgląd otwiera się, gdy miniatura gotowa; wcześniej dotyk otwiera M-08b z szkieletem |
@@ -481,7 +496,7 @@ Przy czcionce 200% lub wąskim ekranie — **2 kolumny** (poniżej). Pod siatką
 | `pending_upload` (zdjęcie od kolegi, plik jeszcze nie dotarł) | puste pole z ikoną `clock` | znacznik `clock` **„Czeka na plik”** (istniejąca etykieta § 4.14, `color.sync.queued.*`) | brak akcji; nie ma żądania adresu |
 | błąd wczytania miniatury (sieć, `5xx`, `429`) | puste pole z ikoną `image` | znacznik **„Nie udało się wczytać zdjęcia”** (ton jak `failed`) | dotyk ponawia wczytanie tej miniatury (nazwa dostępna z podpowiedzią „Ponawia wczytywanie”); bez automatycznej pętli ponowień |
 | `404` dla miniatury (zdjęcie zniknęło z serwera, pochodna niegotowa) | puste pole z ikoną `ban` | znacznik **„Zdjęcie niedostępne”** (`color.icon.secondary`) | brak akcji (ponowienie nie pomoże); wpis zniknie po następnej synchronizacji |
-- Kafle bez akcji (stany pliku, niedostępne) są **grupą tekstową**, nie przyciskiem — czytnik nie obiecuje akcji, której nie ma; ich wysokość jest równa kaflom z miniaturą (siatka się nie przesuwa po doładowaniu).
+- Kafle bez akcji (stany pliku, niedostępne) są **grupą tekstową**, nie przyciskiem — czytnik nie obiecuje akcji, której nie ma; szerokość pola stanu = szerokość miniatury, więc siatka nie przesuwa się poziomo po doładowaniu (wysokość tekstu pod polem może się różnić — patrz „pole stanu”).
 - Zmiana stanu pliku (np. `processing` → `ready`) po kolejnej synchronizacji: kafel dostaje miniaturę bez ogłoszeń i bez przesunięcia układu; kolejność nie zmienia się (czas wykonania).
 
 **Stany ekranu**
@@ -508,7 +523,7 @@ Przy czcionce 200% lub wąskim ekranie — **2 kolumny** (poniżej). Pod siatką
   - **Nazwa dostępna kafla z miniaturą:** „[kategoria], [czas]” (np. „Po zakończeniu, 15.11.2026, 14:05”), rola przycisku, podpowiedź „Otwiera podgląd zdjęcia”; **nigdy** nazwa pliku, identyfikator medium lub zlecenia, adres ani nazwa klienta (także w `testID`). Kafel w stanie pliku / błędzie dopisuje stan na końcu: „Po zakończeniu, 15.11.2026, 14:05, Przygotowujemy podgląd”. Miniatura sama jest dekoracją (nie ma własnej etykiety — obraz nie ma opisu poza metadanymi).
   - **Kolejność fokusu i czytania:** AppBar (Wstecz) → komunikat (offline / część zdjęć), jeśli jest → kafle w kolejności wizualnej (od lewej do prawej, rząd po rzędzie, od najnowszego). Czytnik **nie ogłasza** doładowywania miniatur, zmiany układu ani zmiany stanu pojedynczego kafla; wejście na ekran ogłasza tytuł (i „Wczytywanie zdjęć…” tylko podczas stanu ładowania). Komunikat offline i „Nie udało się wczytać części zdjęć.” — raz, po pojawieniu się; powrót sieci nie ogłasza niczego (wystarczy, że zniknął komunikat).
   - Po zamknięciu podglądu fokus wraca na **ten sam kafel**.
-  - Znaczniki stanu niosą tekst + ikonę (nie sam kolor); kontrasty jak § 4.14; 200% czcionki — kategoria i czas zawijają się bez ucinania, siatka przechodzi na 2 kolumny, żaden tekst nie ma `numberOfLines`; cele ≥ 48 dp.
+  - Znaczniki stanu niosą tekst + ikonę (nie sam kolor); kontrasty jak § 4.14; 200% czcionki — kategoria, czas i tekst stanu zawijają się na granicy słów bez ucinania i bez łamania słów w środku (3 kolumny do 100%, 2 do 130%, powyżej 1 kolumna — wiersz), żaden tekst nie ma `numberOfLines`; cele ≥ 48 dp. Tytuł AppBar „Zdjęcia zlecenia” może zawinąć się do 2 linii przy skali > 100% lub 360 dp (AppBar rośnie, tytuł nie jest ucinany); przy 100% i 411 dp ma mieścić się w jednej linii — „Wstecz” jak w M-08 (bez nadmiarowego paddingu), a SyncIndicator bez zmian.
   - Tryb ukrytych danych: brak jakichkolwiek ogłoszeń i nazw dostępnych (§ 4.18).
 
 ## M-08b Podgląd zdjęcia (pełny ekran) — od EVM-142

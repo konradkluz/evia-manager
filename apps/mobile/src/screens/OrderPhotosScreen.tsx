@@ -18,16 +18,19 @@ const HIDDEN_ACTION = {
   clock_anomaly: 'hidden.clockAnomaly.action',
 } as const;
 
-/** Three columns when a tile keeps at least `size.thumbnail.md` and the font is at most 130%, else two (M-08a). */
-const MAX_FONT_SCALE_FOR_THREE = 1.3;
+/** Three columns only at a font of at most 100% and when a tile keeps at least 104 dp; two up to 130%; above that one column - a row (M-08a, measured on the emulator). */
+const MAX_FONT_SCALE_FOR_THREE = 1;
+const MAX_FONT_SCALE_FOR_TWO = 1.3;
+const MIN_TILE_FOR_THREE = 104;
 /** The tiles that load are the visible ones plus one row before and after; before the first report of the list the first three rows. */
 const INITIAL_ROWS = 3;
 /** A module constant: a new object at every render would make the list reset its viewability tracking. */
 const VIEWABILITY_CONFIG = { itemVisiblePercentThreshold: 1 } as const;
 
-export function columnsFor(windowWidth: number, fontScale: number): 2 | 3 {
+export function columnsFor(windowWidth: number, fontScale: number): 1 | 2 | 3 {
+  if (fontScale > MAX_FONT_SCALE_FOR_TWO) return 1;
   const three = (windowWidth - 2 * space.inset.md - 2 * space.inline.xs) / 3;
-  return fontScale <= MAX_FONT_SCALE_FOR_THREE && three >= size.thumbnail.md ? 3 : 2;
+  return fontScale <= MAX_FONT_SCALE_FOR_THREE && three >= MIN_TILE_FOR_THREE ? 3 : 2;
 }
 
 /**
@@ -145,7 +148,7 @@ export function OrderPhotosScreen({
         data={photos}
         numColumns={columns}
         keyExtractor={(photo) => photo.id}
-        columnWrapperStyle={{ columnGap: space.inline.xs }}
+        columnWrapperStyle={columns === 1 ? undefined : { columnGap: space.inline.xs }}
         contentContainerStyle={{ padding: space.inset.md, rowGap: space.stack.sm }}
         onViewableItemsChanged={viewable.current}
         viewabilityConfig={VIEWABILITY_CONFIG}
@@ -175,6 +178,7 @@ export function OrderPhotosScreen({
             photo={item}
             orderId={orderId}
             width={tileWidth}
+            layout={columns === 1 ? 'row' : 'grid'}
             active={active(index)}
             retryKey={retryKey}
             testID={`photo-tile-${String(index)}`}
@@ -200,14 +204,17 @@ export function OrderPhotosScreen({
         <AppBar
           title={t('orderPhotos.title')}
           left={
-            <Button
-              label={t('orderPhotos.back')}
-              accessibilityLabel={t('orderPhotos.backA11y')}
-              variant="tertiary"
-              inverse
-              onPress={onBack}
-              testID="order-photos-back"
-            />
+            // the button brings its own horizontal padding: it is taken back, so that the text of "Wstecz" stands on the margin of the bar and the title keeps its line (M-08a)
+            <View style={{ marginHorizontal: -space.inset.md }} testID="order-photos-back-wrap">
+              <Button
+                label={t('orderPhotos.back')}
+                accessibilityLabel={t('orderPhotos.backA11y')}
+                variant="tertiary"
+                inverse
+                onPress={onBack}
+                testID="order-photos-back"
+              />
+            </View>
           }
           right={<SyncCapsule onPress={onOpenQueue} />}
         />

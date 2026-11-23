@@ -1133,6 +1133,11 @@ Testy dostępności (narzędzia automatyczne + klawiatura + czytnik ekranu) — 
 ---
 
 ## 8. Changelog
+### Poprawka M2 — 2026-11-23 (EVM-142, przegląd siatki na emulatorze; wpis `ux-designer`, do akceptacji Konrada)
+W kaflu siatki zdjęć zlecenia (M-08a, ~106 dp) pigułka StatusBadge łamała słowa w środku i miała 4 linie. **Bez nowych tokenów; StatusBadge (§ 3.9) i § 4.14 dla web bez zmian.**
+- **§ 3.11 (wariant „kafel siatki w aplikacji”):** stan pliku to „pole stanu” — ikona w polu kafla (bez drugiej ikony), obrys zawsze widoczny (`color.border.default` / `color.feedback.error.border`), tekst stanu pod polem bez tła i pigułki, zawijany na granicy słów; kafle w stanie pliku mogą być wyższe od kafli z miniaturą. Uzasadnienie: pigułka o dużym promieniu w kolumnie ~106 dp nie mieści najdłuższych słów etykiet.
+- **Siatka:** 3 kolumny tylko przy skali czcionki ≤ 100%, 2 kolumny do 130%, powyżej 130% 1 kolumna (wiersz: 96 dp + tekst obok). Zamiast dotychczasowych „3 do 130%, 2 powyżej”.
+- **§ 4.14 (odstępstwo tekstowe z 2026-11-19):** bez zmian w brzmieniu etykiet; zmienia się tylko forma (pole stanu zamiast pigułki w aplikacji, w kaflu siatki).
 ### Uzupełnienie M2 — 2026-11-19 (EVM-142 „Podgląd zdjęć zlecenia”, propozycja `ux-designer`, do akceptacji Konrada)
 Zmiana decyzji z 2026-11-12 (przyjęta 2026-11-18): technik ogląda w aplikacji zdjęcia zlecenia **online, bez zapisu na telefonie**. Makiety: [flows/09](flows/09-mobile-zdjecia-filmy-offline.md) (nowe M-08a „Zdjęcia zlecenia” i M-08b „Podgląd zdjęcia”; zmieniony pusty stan M-08), [flows/03](flows/03-szczegoly-zlecenia.md) (wiersz „Zdjęcia zlecenia” w M-03). **Bez nowych tokenów.**
 - **§ 3.11 (MINOR, rozszerzenie):** wariant „kafel siatki w aplikacji” i „podgląd zdjęcia w aplikacji” (uzasadnienie: dotychczasowy kafel i lightbox opisują web — hover, przyciski poprzednie / następne, zoom; aplikacja potrzebuje wariantu dotykowego z podpisem pod miniaturą, 2–3 kolumn zależnych od skali czcionki i pełnego ekranu bez gestów; używa istniejących tokenów).

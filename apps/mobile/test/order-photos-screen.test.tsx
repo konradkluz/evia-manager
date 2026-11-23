@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
-import { AppState, BackHandler } from 'react-native';
+import { AppState, BackHandler, Dimensions, PixelRatio } from 'react-native';
+import { borderWidth, color, space } from '../src/ui/theme';
 import { App } from '../src/App';
 import { columnsFor } from '../src/screens/OrderPhotosScreen';
 import type { MediaSource, UrlAnswer } from '../src/media-view/http-media-source';
@@ -288,6 +289,82 @@ describe('the grid (EVM-142 AC2, AC6)', () => {
     expect(whole('order-photos')).not.toMatch(/wirus|malware|skanow|infected/i);
   });
 
+  it.each([
+    ['preparing', 'surfaceSubtle', 'default', 'queued'],
+    ['awaiting_file', 'surfaceSubtle', 'default', 'queued'],
+    ['quarantined', 'error', 'error', 'error'],
+    ['failed', 'surfaceSubtle', 'default', 'neutral'],
+  ] as const)(
+    'EVM-142 AC6: a %s tile is a state field with an always visible outline and plain text under it (no pill, no line limit)',
+    async (state, bg, border, tone) => {
+      const rig = rigWith([photo(1, { state })]);
+      await openGrid(rig);
+      const box = flat(screen.getByTestId('photo-tile-0-box')) as unknown as Record<string, unknown>;
+      expect(box.backgroundColor).toBe(bg === 'error' ? color.sync.error.bg : color.bg.surfaceSubtle);
+      expect(box.borderColor).toBe(border === 'error' ? color.feedback.error.border : color.border.default);
+      expect(box.borderWidth).toBe(borderWidth.default);
+      const words = {
+        preparing: pl.orderPhotos.states.preparing,
+        awaiting_file: pl.orderPhotos.states.awaiting,
+        quarantined: pl.orderPhotos.states.quarantined,
+        failed: pl.orderPhotos.states.failed,
+      }[state];
+      const label = within(screen.getByTestId('photo-tile-0')).getByText(words);
+      const style = flat(label) as unknown as Record<string, unknown>;
+      expect(style.color).toBe(
+        tone === 'error' ? color.sync.error.text : tone === 'queued' ? color.sync.queued.text : color.text.secondary,
+      );
+      expect(style.backgroundColor).toBeUndefined();
+      expect(style.paddingHorizontal).toBeUndefined();
+      expect(label.props.numberOfLines).toBeUndefined();
+    },
+  );
+
+  it('EVM-142 AC6: a failed load and an unavailable photo use the same neutral state field', async () => {
+    const rig = rigWith([photo(2), photo(1)]);
+    rig.mediaView.autoAnswer = null;
+    await openGrid(rig);
+    await act(async () => {
+      rig.mediaView.pending.find((load) => load.request.mediaAssetId === ID(2))?.settle({ kind: 'not_found' });
+      rig.mediaView.pending.find((load) => load.request.mediaAssetId === ID(1))?.settle({ kind: 'failed' });
+      await Promise.resolve();
+    });
+    await settle();
+    for (const id of ['photo-tile-0-box', 'photo-tile-1-box']) {
+      const box = flat(screen.getByTestId(id)) as unknown as Record<string, unknown>;
+      expect(box.backgroundColor).toBe(color.bg.surfaceSubtle);
+      expect(box.borderColor).toBe(color.border.default);
+    }
+  });
+
+  it('EVM-142 AC6: above 130% of the font the grid is one column of rows - a 96 dp box on the left, the text beside it', async () => {
+    const fontScale = jest.spyOn(PixelRatio, 'getFontScale').mockReturnValue(2);
+    const dims = jest.spyOn(Dimensions, 'get').mockReturnValue({ width: 411, height: 900, scale: 2.6, fontScale: 2 });
+    try {
+      const rig = rigWith([photo(2), photo(1, { state: 'preparing' })]);
+      await openGrid(rig);
+      const ready = flat(screen.getByTestId('photo-tile-0')) as unknown as Record<string, unknown>;
+      expect(ready.flexDirection).toBe('row');
+      expect(ready.minHeight).toBe(96);
+      expect(ready.width).toBe(411 - 32);
+      expect(flat(screen.getByTestId('photo-tile-0-image') as never).width).toBe(96);
+      const state = flat(screen.getByTestId('photo-tile-1')) as unknown as Record<string, unknown>;
+      expect(state.flexDirection).toBe('row');
+      expect(flat(screen.getByTestId('photo-tile-1-box') as never).width).toBe(96);
+      expect(screen.getByTestId('photo-tile-1')).toHaveProp('accessible', true);
+    } finally {
+      fontScale.mockRestore();
+      dims.mockRestore();
+    }
+  });
+
+  it('EVM-142 AC6: "Wstecz" gives its own padding back so that the title keeps its line', async () => {
+    const rig = rigWith([photo(1)]);
+    await openGrid(rig);
+    const wrap = flat(screen.getByTestId('order-photos-back-wrap')) as unknown as Record<string, unknown>;
+    expect(wrap.marginHorizontal).toBe(-space.inset.md);
+  });
+
   it('EVM-142 AC6: no photos - "Brak zdjęć w tym zleceniu" without a button and without a request', async () => {
     const rig = rigWith([]);
     await openGrid(rig);
@@ -419,36 +496,47 @@ describe('the grid (EVM-142 AC2, AC6)', () => {
   });
 
   it('EVM-142 AC2: the thumbnails load lazily - only the first rows ask at first, and the tiles that leave the reported window free their image', async () => {
-    const rig = rigWith(Array.from({ length: 60 }, (_unused, n) => photo(60 - n)));
-    await openGrid(rig);
-    const first = rig.mediaView.requests.length;
-    expect(first).toBeGreaterThan(0);
-    expect(first).toBeLessThan(60);
-    const grid = screen.getByTestId('order-photos-grid');
-    const report = grid.props.onViewableItemsChanged as (info: { viewableItems: { index: number | null }[]; changed: [] }) => void;
-    const released = rig.mediaView.released.length;
-    // the list reports the visible rows (the first two tiles); the tiles further than one row around them stop holding an image
-    await act(async () => {
-      report({ viewableItems: [{ index: 0 }, { index: 1 }, { index: null }], changed: [] });
-      await Promise.resolve();
-    });
-    await settle();
-    expect(rig.mediaView.released.length).toBeGreaterThan(released);
-    expect(rig.mediaView.requests.length).toBe(first);
-    // an empty report changes nothing
-    const count = rig.mediaView.released.length;
-    await act(async () => {
-      report({ viewableItems: [], changed: [] });
-      await Promise.resolve();
-    });
-    expect(rig.mediaView.released.length).toBe(count);
+    // three columns (the jest window is a 200% font, i.e. one column)
+    const dims = jest.spyOn(Dimensions, 'get').mockReturnValue({ width: 411, height: 900, scale: 2.6, fontScale: 1 });
+    try {
+      const rig = rigWith(Array.from({ length: 60 }, (_unused, n) => photo(60 - n)));
+      await openGrid(rig);
+      const first = rig.mediaView.requests.length;
+      expect(first).toBeGreaterThan(0);
+      expect(first).toBeLessThan(60);
+      const grid = screen.getByTestId('order-photos-grid');
+      const report = grid.props.onViewableItemsChanged as (info: { viewableItems: { index: number | null }[]; changed: [] }) => void;
+      const released = rig.mediaView.released.length;
+      // the list reports the visible rows (the first two tiles); the tiles further than one row around them stop holding an image
+      await act(async () => {
+        report({ viewableItems: [{ index: 0 }, { index: 1 }, { index: null }], changed: [] });
+        await Promise.resolve();
+      });
+      await settle();
+      expect(rig.mediaView.released.length).toBeGreaterThan(released);
+      expect(rig.mediaView.requests.length).toBe(first);
+      // an empty report changes nothing
+      const count = rig.mediaView.released.length;
+      await act(async () => {
+        report({ viewableItems: [], changed: [] });
+        await Promise.resolve();
+      });
+      expect(rig.mediaView.released.length).toBe(count);
+    } finally {
+      dims.mockRestore();
+    }
   });
 
-  it('EVM-142 AC6: three columns on a normal screen, two at 200% of the font or on a narrow one (a tile keeps its size)', () => {
+  it('EVM-142 AC6: three columns only at a font of at most 100% and a tile of at least 104 dp, two up to 130%, above that one column', () => {
     expect(columnsFor(412, 1)).toBe(3);
-    expect(columnsFor(412, 2)).toBe(2);
-    expect(columnsFor(412, 1.3)).toBe(3);
+    expect(columnsFor(360, 1)).toBe(3);
+    expect(columnsFor(411, 1.01)).toBe(2);
+    expect(columnsFor(412, 1.3)).toBe(2);
+    expect(columnsFor(412, 1.31)).toBe(1);
+    expect(columnsFor(412, 2)).toBe(1);
     expect(columnsFor(300, 1)).toBe(2);
+    expect(columnsFor(351, 1)).toBe(2); // a tile of 103 dp
+    expect(columnsFor(352, 1)).toBe(3); // a tile of 104 dp
   });
 
   it('EVM-142 AC6: the back action returns to the order; the queue opens from the capsule', async () => {
