@@ -139,6 +139,6 @@ describe('Maestro flows 160-165 and the film scenarios agree (EVM-143)', () => {
       ['165-film-font-scale-200.yaml', 'f200'],
       ['165-film-font-scale-200-narrow.yaml', 'f200n'],
     ])
-      assert.ok(flowText(flow ?? '').includes(`CFG: '${prefix ?? ''}'`), flow);
+      assert.ok(flowText(flow ?? '').includes(`CFG: '${prefix ?? ''}'`), flow ?? '');
   });
 });
