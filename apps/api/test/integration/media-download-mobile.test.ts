@@ -277,7 +277,15 @@ describe('EVM-142 AC1 the phone gets the address of a thumbnail or a preview', (
     const others: string[] = [];
     for (const state of ['processing', 'quarantined', 'failed']) {
       const media = await readyVideo(orderA, owner.user.id);
-      await sql`update media.stored_files set state = ${state} where id = ${media.storedFileId}`.execute(admin());
+      if (state === 'quarantined')
+        await sql`update media.stored_files set state = 'quarantined', state_reason_code = 'malware_detected', quarantined_at = now() where id = ${media.storedFileId}`.execute(
+          admin(),
+        );
+      else if (state === 'failed')
+        await sql`update media.stored_files set state = 'failed', state_reason_code = 'processing_error', process_attempts = 0 where id = ${media.storedFileId}`.execute(
+          admin(),
+        );
+      else await sql`update media.stored_files set state = 'processing' where id = ${media.storedFileId}`.execute(admin());
       others.push(media.mediaAssetId);
     }
     const noDerivative = await cleanPhoto(orderA, owner.user.id, 'video');
