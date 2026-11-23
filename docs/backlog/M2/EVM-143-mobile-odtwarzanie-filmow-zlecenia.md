@@ -4,7 +4,7 @@ title: "Aplikacja: odtwarzanie filmów zlecenia (online, bez zapisu na telefonie
 type: story
 milestone: M2
 epic: E11 Zdjęcia i filmy
-status: in-progress
+status: in-review
 priority: P3
 path: pelna             # film na urządzeniu i prawdopodobna nowa zależność (odtwarzacz) — „media”, „dane na urządzeniu”, łańcuch dostaw
 owner: mobile-developer
@@ -96,3 +96,5 @@ Film po przetworzeniu ma klatkę-miniaturę (WebP) i podgląd wideo 720p (MP4 be
 - 2026-11-23 — start realizacji (/deliver): gałąź `feature/EVM-143-odtwarzanie-filmow`, ścieżka `pelna`, wykonawca mobile-developer (`sonnet`), recenzenci security-engineer, ux-designer, code-reviewer
 - 2026-11-23 — implementacja (mobile-developer): AC0 API (`findReadyDerivative` bez filtra rodzaju, kontrola typu pochodnej, testy integracyjne wideo), `expo-video` 58.0.12 za portem (`video-player-adapter`), sesja odtwarzania, ekran M-08c, kafel filmu, plugin `with-video` i zakazy manifestu APK; dowód na emulatorze (AC5, AC6) i `backend-install` jeszcze do wykonania
 - 2026-11-23 — poprawki rundy 1 (mobile-developer): scenariusze Maestro `film-*` (przepływy 160–165) i część filmową serwera scenariuszy; 22/22 przepływów na emulatorze, dowód AC5/AC6 w `docs/qa/EVM-143/`, zrzuty w `docs/ux/reviews/EVM-143/`; `verify` paczki release wykrył `WAKE_LOCK` z biblioteki odtwarzacza — usunięty wtyczką; natywne zwolnienie odtwarzacza odroczone do odmontowania widoku; otwarte: sieć tracona przy otwartym odtwarzaczu daje „Nie udało się odtworzyć filmu” do odświeżenia statusu; AC6 wspomina brak `POST_NOTIFICATIONS`, który należy do wysyłania plików (EVM-130)
+- 2026-11-23 — przeglądy (security-engineer, ux-designer, code-reviewer): approve po 2 rundach; bramka `pnpm run gate` zielona u Tech Leada (diff coverage 99,6% linii / 95,4% gałęzi; część bazodanowa API tylko w CI); status `in-review`
+- 2026-11-23 — Koszt: ścieżka `pelna`, 13 agentów, ok. 1,36 mln tokenów podagentów, 521 wywołań narzędzi, ok. 3 h, 2 rundy
