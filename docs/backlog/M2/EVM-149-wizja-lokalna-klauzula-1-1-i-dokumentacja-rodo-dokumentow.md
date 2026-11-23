@@ -35,7 +35,7 @@ Zmiany dokumentów i treści zatwierdza Konrad; tylko dane syntetyczne w przykł
 **AC3 — `rodo.md`, DPIA i retencja**
 - Zakładając `docs/security/rodo.md` (m.in. linia 419), `docs/security/dpia.md` i `docs/ops/runbooks/retencja.md`
 - Gdy je uzupełniam
-- Wtedy czynność 9 i inwentaryzacja obejmują dokumenty wizji (kategoria danych: imię, nazwisko i adres zamawiającego w ofercie), retencja 90 / 14 dni i usunięcie razem z wizją są opisane, aneks DPIA D14 ocenia nową kategorię, ryzyko rezydualne (starsze wersje obiektów do 30 dni, kopie bazy do 37 dni) jest zapisane do akceptacji.
+- Wtedy czynność 9 i inwentaryzacja obejmują dokumenty wizji (kategoria danych: imię, nazwisko i adres zamawiającego w ofercie), retencja 90 / 14 dni i usunięcie razem z wizją są opisane, aneks DPIA D14 ocenia nową kategorię, ryzyko rezydualne (starsze wersje obiektów do 30 dni, kopie bazy do 37 dni) jest zapisane do akceptacji jako RR-14 (źródła: media i dokumenty wizji) z odnośnikiem do ADR-0025; procedura ręczna w `retencja.md` (sekcja 5) obejmuje dokumenty.
 
 **AC4 — Wymagania, model zagrożeń i lista E15**
 - Zakładając `docs/security/requirements.md` i `threat-model.md`
@@ -45,7 +45,8 @@ Zmiany dokumentów i treści zatwierdza Konrad; tylko dane syntetyczne w przykł
 **AC5 — Prawa osób i rejestr usunięć**
 - Zakładając runbooki `prawa-osob.md` i `rejestr-usuniec.md`
 - Gdy je uzupełniam
-- Wtedy procedura praw osób (dostęp, usunięcie) wskazuje, jak znaleźć i usunąć ofertę osoby w wizji; rejestr usunięć opisuje wpisy z identyfikatorami dokumentów; `npm run docs:check` bez błędów.
+- Wtedy procedura praw osób (dostęp, usunięcie) wskazuje, jak znaleźć i usunąć ofertę osoby w wizji (także w wizji odrzuconej — wyjątek art. 17 z EVM-147 AC4); rejestr usunięć opisuje wpisy z identyfikatorami dokumentów; `npm run docs:check` bez błędów.
+- Instrukcja dla biura (`docs/user/instrukcja-dla-biura.md`) mówi, że kopie oferty poza systemem (plik źródłowy oferty, e-mail do zamawiającego) nie znikają razem z wizją i biuro usuwa je samo (prawa osób obejmują także te kopie).
 
 ## Poza zakresem
 Kod API i usuwania (EVM-147), panel (EVM-148); wydruk kart i dane spółki (poza repozytorium); zmiana okresów 90 / 14 dni; inne rodzaje dokumentów niż oferta; aplikacja mobilna jako miejsce wgrywania dokumentów.
@@ -53,7 +54,8 @@ Kod API i usuwania (EVM-147), panel (EVM-148); wydruk kart i dane spółki (poza
 ## Decyzje i ograniczenia
 - Decyzje Konrada 2026-11-20: dane zamawiającego w ofercie dozwolone z ostrzeżeniem; dokumenty usuwane z wizją; odrzucona wizja 14 dni, tylko odczyt.
 - Security: H2 (klauzula 1.0 i karta A6 byłyby nieprawdziwe: `rodo.md:419`, `apps/web/src/privacy/content.ts:125`, `apps/mobile/src/privacy/content.ts`, `docs/user/karta-wizji-lokalnej.md:23`) → klauzula 1.1 przed pierwszą realną wizją z dokumentem; Medium: prawa osób i ręczne usuwanie przed `enforce` (RR-102).
-- Pokrewne: do czasu wydania obowiązuje zasada „tylko wizje testowe” (decyzja 16).
+- Decyzje techniczne: [ADR-0025](../../architecture/adr/0025-dokumenty-wizji-lokalnej-przed-klientem.md) (zaakceptowany 2026-11-23); RR-102 (prawa osób i ręczne usunięcie przed `enforce`) obejmuje dokumenty wizji.
+- Pokrewne: do czasu wydania obowiązuje zasada „tylko wizje testowe” (decyzja 16); realne oferty dopiero po EVM-147, EVM-149 i włączonym `enforce` albo zaakceptowanym RR-102 z kartą przeglądu.
 
 ## Otwarte pytania (dla Konrada, rekomendacja pierwsza)
 1. **Treść zdania klauzuli 1.1 i podstawa prawna:** propozycja „na etapie wizji możemy zapisać ofertę z Twoim imieniem i nazwiskiem” (rek.) — podstawa: działania przed zawarciem umowy na żądanie osoby (art. 6 ust. 1 lit. b RODO, do weryfikacji przez prawnika). Wymaga Twojej decyzji o treści prawnej.
@@ -65,3 +67,4 @@ Warunek wydania łączy dwie historyjki: dokumenty na wizji w produkcji dopiero 
 
 ## Dziennik
 - 2026-11-20 — utworzono przy podziale EVM-147 na trzy historyjki (product-owner)
+- 2026-11-23 — uwzględniono ADR-0025: RR-14 z odnośnikiem, instrukcja o kopiach poza systemem, RR-102 dla dokumentów, warunek `enforce` (product-owner)

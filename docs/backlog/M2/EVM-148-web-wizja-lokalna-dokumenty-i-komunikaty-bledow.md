@@ -11,7 +11,7 @@ owner: web-developer
 contributors: []
 reviewers: [code-reviewer, ux-designer]
 model: sonnet
-depends_on: [EVM-147, EVM-138]   # EVM-147: API przyjmuje ofertę w wizji (po ADR-0025); EVM-138: ekran szczegółów wizji (in-review — DoR wymaga done)
+depends_on: [EVM-147, EVM-138]   # EVM-147: API przyjmuje ofertę w wizji (decyzja: ADR-0025, zaakceptowany 2026-11-23); EVM-138: ekran szczegółów wizji (in-review — DoR wymaga done)
 ---
 
 # EVM-148: Panel — oferta w wizji lokalnej i komunikaty błędów wgrywania
@@ -37,10 +37,11 @@ Role: Administrator i Edytor — tak; Tylko odczyt wizji nie widzi (`404`); niez
 - Gdy oglądam szczegóły
 - Wtedy stan pusty dokumentów mówi, że dokumenty znikną razem z wizją (z datą usunięcia), jeśli klient nie zostanie przypisany; przy ZIP i płatnościach zostaje podpowiedź „po przypisaniu klienta”; `documentsHint` zostaje tylko tam, gdzie dokumenty są nadal zablokowane.
 
-**AC4 — Przyczyny `409` przy wgrywaniu**
+**AC4 — Przyczyny `409` i błąd rodzaju przy wgrywaniu**
 - Zakładając wgrywanie dokumentu
 - Gdy serwer odpowie `409` z przyczyną `customer_required`, `id_conflict` albo `invalid_state_transition` (sesja przerwana lub wygasła)
 - Wtedy każda przyczyna ma własny polski komunikat: `customer_required` — „Najpierw przypisz klienta do tej wizji” (bez „Ponów”, ze wskazówką); `id_conflict` — komunikat o konflikcie identyfikatora (jedyne miejsce, gdzie zostaje obecny tekst); `invalid_state_transition` — „Sesja wgrywania wygasła lub została przerwana” z „Ponów”; komunikat nie zawiera nazwy pliku ani tytułu.
+- Gdy serwer odpowie `400 validation_failed` z błędem pola `/kindCode` i kodem `requires_customer` (ADR-0025 pkt 2; obrona w głębi — formularz oferuje tylko ofertę), komunikat wskazuje pole „Rodzaj” (np. „Przed przypisaniem klienta można dodać tylko ofertę/wycenę”), bez „Ponów”, a nie „Najpierw przypisz klienta”.
 
 **AC5 — Pozostałe błędy**
 - Zakładając wgrywanie dokumentu
@@ -59,10 +60,12 @@ Zmiany w API i usuwaniu (EVM-147); klauzula, karta, DPIA (EVM-149); inne rodzaje
 - Decyzje Konrada 2026-11-20: kotwica tylko „zlecenie”, rodzaj tylko Oferta/wycena, dane zamawiającego w ofercie z ostrzeżeniem w formularzu, bez nowych ról.
 - Punkty dotknięte w kodzie (architekt): `documents-section.tsx:91-92`, `document-upload-dialog.tsx:206-208` (`hasSite` pokazałby „Lokalizacja”).
 - UX: brzmienie ostrzeżenia i komunikatów ustala `ux-designer` w przeglądzie; ostrzeżenie „nie wpisuj imion” przy tytule i opisie wynika z przeglądu security (Low).
-- Realne oferty w produkcji dopiero po EVM-147 i EVM-149.
+- Decyzje techniczne: [ADR-0025](../../architecture/adr/0025-dokumenty-wizji-lokalnej-przed-klientem.md) (zaakceptowany 2026-11-23): rodzaj ≠ `quote` to `400` z `/kindCode`, nie `409`.
+- Realne oferty w produkcji dopiero po EVM-147 i EVM-149 (oraz `enforce` albo RR-102 — patrz EVM-147).
 
 ## Notatki
 Błąd komunikatów (AC4, AC5) jest niezależny od API — w razie potrzeby można go wyprzedzić jako osobną drobną poprawkę.
 
 ## Dziennik
 - 2026-11-20 — utworzono przy podziale EVM-147 na trzy historyjki (product-owner)
+- 2026-11-23 — AC4: obsługa `400 /kindCode requires_customer` po ADR-0025 (product-owner)
