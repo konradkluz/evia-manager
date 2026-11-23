@@ -1,7 +1,7 @@
 import type { QueueStore, ReplicaStore, SettledInfo } from '@evia/sync-core';
 import type { OrderDetailSource } from '../orders/order-detail-model';
 import type { OrderListSource } from '../orders/order-list-model';
-import type { OrderPhotoSource } from '../orders/order-photos-model';
+import type { OrderMediaSource } from '../orders/order-photos-model';
 import type { QuickOrderSource } from '../orders/quick-order-model';
 import type { TemplateSet } from '../orders/templates';
 import { Database } from './database';
@@ -63,7 +63,7 @@ export interface UnlockedStore {
     /** The source of the work order details (EVM-104): allow-listed keys of one order; null = not in the active generation. */
     readOrderDetailSource(workOrderId: string): Promise<OrderDetailSource | null>;
     /** The photos of one order from the replica (EVM-142): allow-listed keys of `media_asset` entities with `mediaType = 'photo'`. */
-    readOrderPhotos(workOrderId: string): Promise<OrderPhotoSource[]>;
+    readOrderMedia(workOrderId: string): Promise<OrderMediaSource[]>;
     /** The templates of work orders (EVM-106): the stored document as it is (`unknown`; the reader validates it) and its atomic replacement. */
     readTemplates(): Promise<unknown>;
     writeTemplates(set: TemplateSet): Promise<void>;
@@ -413,7 +413,7 @@ export class LocalDataHost {
         listOrderNumbers: (limit) => replica.listOrderNumbers(limit),
         readOrderListSource: (withData) => replica.readOrderListSource(withData),
         readOrderDetailSource: (workOrderId) => replica.readOrderDetailSource(workOrderId),
-        readOrderPhotos: (workOrderId) => replica.readOrderPhotos(workOrderId),
+        readOrderMedia: (workOrderId) => replica.readOrderMedia(workOrderId),
         readTemplates: () => replica.readTemplates(),
         writeTemplates: (set) => replica.writeTemplates(set),
         readQuickOrderSource: () => replica.readQuickOrderSource(),

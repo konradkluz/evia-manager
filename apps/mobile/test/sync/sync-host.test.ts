@@ -91,14 +91,14 @@ describe('synchronization host (EVM-107 AC2, AC5; security S2, S3)', () => {
     expect(await host.orderNumbers()).toEqual([]); // EVM-108 AC5: no session, nothing to list
     expect(await host.orderList(true)).toEqual([]);
     expect(await host.orderDetail('x')).toBeNull(); // EVM-104 AC5: no session, nothing to show
-    expect(await host.orderPhotos('x')).toEqual([]); // EVM-142 AC4: no session, no photos
+    expect(await host.orderMedia('x')).toEqual([]); // EVM-142 AC4: no session, no photos
     host.setOnline(true);
     host.startSession();
     await settle();
     expect((await host.orderList(true)).map((row) => row.number)).toEqual(['ZL-1']);
     expect((await host.orderNumbers()).map((row) => row.number)).toEqual(['ZL-1']); // EVM-108 AC5
     expect((await host.orderDetail(uid('work_order', 1)))?.number).toBe('ZL-1'); // EVM-104 AC1
-    expect(await host.orderPhotos(uid('work_order', 1))).toEqual([]); // EVM-142 AC2: the replica read, an order without photos
+    expect(await host.orderMedia(uid('work_order', 1))).toEqual([]); // EVM-142 AC2: the replica read, an order without photos
     phone.clockNow += 5_000;
     phone.online = false;
     host.setOnline(false);

@@ -192,7 +192,7 @@ export class FakeHost {
         listOrderNumbers: () => Promise.resolve([]),
         readOrderListSource: () => Promise.resolve({ orders: [], customers: [], sites: [], stages: [] }),
         readOrderDetailSource: () => Promise.resolve(null),
-        readOrderPhotos: () => Promise.resolve([]),
+        readOrderMedia: () => Promise.resolve([]),
         readTemplates: () => Promise.resolve(null),
         writeTemplates: () => Promise.resolve(),
         readQuickOrderSource: () => Promise.resolve({ customers: [], sites: [] }),

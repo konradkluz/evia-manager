@@ -16,7 +16,7 @@ const WO = '10000000-0000-4000-8000-000000000001';
 const OTHER_WO = '10000000-0000-4000-8000-000000000002';
 const asset = (n: number): string => `0194c2a0-0000-7000-8000-${String(n).padStart(12, '0')}`;
 
-describe('readOrderPhotos (EVM-142 AC2)', () => {
+describe('readOrderMedia (EVM-142 AC2)', () => {
   it('EVM-142 AC2: only the photos of THIS order, with the category, description, time and state; films, other orders and every other key stay out', async () => {
     const { db } = await migratedDatabase(disk);
     const replica = new SqlReplicaStore(db);
@@ -50,7 +50,7 @@ describe('readOrderPhotos (EVM-142 AC2)', () => {
       hydrationAdd: [],
       hydrationRemove: [],
     });
-    const rows = await replica.readOrderPhotos(WO);
+    const rows = await replica.readOrderMedia(WO);
     expect(rows.map((row) => row.id).sort()).toEqual([asset(1), asset(4), asset(5)]);
     expect(rows.find((row) => row.id === asset(5))).toEqual({
       id: asset(5),
@@ -74,6 +74,6 @@ describe('readOrderPhotos (EVM-142 AC2)', () => {
       fileState: 'quarantined',
     });
     expect(JSON.stringify(rows)).not.toContain('123456');
-    expect(await replica.readOrderPhotos('10000000-0000-4000-8000-0000000000ff')).toEqual([]);
+    expect(await replica.readOrderMedia('10000000-0000-4000-8000-0000000000ff')).toEqual([]);
   });
 });

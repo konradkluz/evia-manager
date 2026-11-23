@@ -34,7 +34,7 @@ import {
   type TransportResponse,
 } from '@evia/sync-core';
 import { buildOrderDetail, buildPendingOrderDetail, type OrderDetail, type OrderDetailSource } from '../orders/order-detail-model';
-import { buildOrderPhotos, type OrderPhoto, type OrderPhotoSource } from '../orders/order-photos-model';
+import { buildOrderMedia, type OrderMedia, type OrderMediaSource } from '../orders/order-photos-model';
 import { buildOrderList, queueFact, type OrderListSource, type OrderRow } from '../orders/order-list-model';
 import { draftFromQuickPayload, EMPTY_QUICK_SOURCE, type QuickOrderSource } from '../orders/quick-order-model';
 import { parseStoredTemplates, parseTemplateResponse, type TemplateSet } from '../orders/templates';
@@ -78,7 +78,7 @@ export interface SyncServiceStore {
     listOrderNumbers(limit?: number): Promise<{ id: string; number: string }[]>;
     readOrderListSource(withData: boolean): Promise<OrderListSource>;
     readOrderDetailSource(workOrderId: string): Promise<OrderDetailSource | null>;
-    readOrderPhotos(workOrderId: string): Promise<OrderPhotoSource[]>;
+    readOrderMedia(workOrderId: string): Promise<OrderMediaSource[]>;
     /** The templates of work orders (EVM-106): the stored document as it is (`unknown`; the reader validates it) and its atomic replacement. */
     readTemplates(): Promise<unknown>;
     writeTemplates(set: TemplateSet): Promise<void>;
@@ -638,8 +638,8 @@ export class SyncService implements SyncControl {
   }
 
   /** The photos of the order from the replica (EVM-142), newest first; no request to the server. An unreadable replica is an empty list (the screen then says so). */
-  async orderPhotos(workOrderId: string): Promise<readonly OrderPhoto[]> {
-    return buildOrderPhotos(await this.#deps.store.replicaExtras.readOrderPhotos(workOrderId));
+  async orderMedia(workOrderId: string): Promise<readonly OrderMedia[]> {
+    return buildOrderMedia(await this.#deps.store.replicaExtras.readOrderMedia(workOrderId));
   }
 
   /** The feature switches of the server as the phone last heard them (the replica, offline too); anything unknown is off (EVM-137 AC1). */

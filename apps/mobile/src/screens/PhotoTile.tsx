@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Image, Pressable, Text, View } from 'react-native';
 import { formatDateTime } from '../i18n/format';
-import type { OrderPhoto, PhotoState } from '../orders/order-photos-model';
+import type { OrderMedia, PhotoState } from '../orders/order-photos-model';
 import { Ban, Clock, Icon, ImageIcon, ScanSearch, TriangleAlert } from '../ui';
 import { borderWidth, color, radius, size, space, text } from '../ui/theme';
 import { usePhotoImage } from './order-photos-hooks';
@@ -11,7 +11,7 @@ import { usePhotoImage } from './order-photos-hooks';
 type Translate = (key: string) => string;
 
 /** The category and the time of a photo, the same words for the caption under a tile, its accessible name and the bar of the preview (never a name of a file or an id). */
-export function photoCaption(photo: OrderPhoto, t: Translate): { readonly category: string; readonly time: string | null } {
+export function photoCaption(photo: OrderMedia, t: Translate): { readonly category: string; readonly time: string | null } {
   return {
     category: photo.category === null ? t('upload.noCategory') : t(`camera.categories.${photo.category}`),
     time: photo.capturedAt === null ? null : formatDateTime(photo.capturedAt),
@@ -120,7 +120,7 @@ function StaticTile({
   layout,
   testID,
 }: {
-  photo: OrderPhoto;
+  photo: OrderMedia;
   marker: Marker;
   width: number;
   layout: TileLayout;
@@ -158,7 +158,7 @@ function ReadyTile({
   onForbidden,
   testID,
 }: {
-  photo: OrderPhoto;
+  photo: OrderMedia;
   orderId: string;
   width: number;
   layout: TileLayout;
@@ -221,7 +221,7 @@ function ReadyTile({
  * order (the caller passes the position as the testID suffix). `width` is the width of the tile (grid) or of the whole row (`layout="row"`).
  */
 export function PhotoTile(props: {
-  photo: OrderPhoto;
+  photo: OrderMedia;
   orderId: string;
   width: number;
   layout?: TileLayout;

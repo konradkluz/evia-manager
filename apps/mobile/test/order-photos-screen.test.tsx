@@ -9,7 +9,7 @@ import { formatDateTime } from '../src/i18n/format';
 import { pl } from '../src/i18n/pl';
 import type { OrderDetail } from '../src/orders/order-detail-model';
 import { buildOrderList, type OrderListSource } from '../src/orders/order-list-model';
-import { buildOrderPhotos, type OrderPhoto } from '../src/orders/order-photos-model';
+import { buildOrderMedia, type OrderMedia } from '../src/orders/order-photos-model';
 import type { StartupChecker } from '../src/startup';
 import { MIN } from './device-guard/fakes';
 import { stubPorts, type PortsRig } from './session-helpers';
@@ -56,7 +56,7 @@ const DETAIL: OrderDetail = {
   processes: [],
   journal: [],
 };
-const photo = (n: number, patch: Partial<OrderPhoto> = {}): OrderPhoto => ({
+const photo = (n: number, patch: Partial<OrderMedia> = {}): OrderMedia => ({
   id: ID(n),
   category: 'defect',
   description: null,
@@ -67,7 +67,7 @@ const photo = (n: number, patch: Partial<OrderPhoto> = {}): OrderPhoto => ({
 const when = (n: number): string => formatDateTime(T0 + n * MIN_MS);
 const CATEGORY = pl.camera.categories;
 
-function rigWith(photos: readonly OrderPhoto[]): PortsRig {
+function rigWith(photos: readonly OrderMedia[]): PortsRig {
   const rig = stubPorts();
   rig.sync.rows = buildOrderList(SOURCE, []);
   rig.sync.details.set('o1', DETAIL);
@@ -226,7 +226,7 @@ describe('the row "Zdjęcia zlecenia" (EVM-142 AC2, AC6)', () => {
 
 describe('the grid (EVM-142 AC2, AC6)', () => {
   it('EVM-142 AC2: the tiles go from the newest; each has the category and the time, the name "[category], [time]" and requests its thumbnail only', async () => {
-    // the replica read builds the rows with `buildOrderPhotos` (newest first); the fake hands them over as given
+    // the replica read builds the rows with `buildOrderMedia` (newest first); the fake hands them over as given
     const source = (n: number, category: string) => ({
       id: ID(n),
       category,
@@ -234,7 +234,7 @@ describe('the grid (EVM-142 AC2, AC6)', () => {
       capturedAt: T0 + n * MIN_MS,
       fileState: 'ready',
     });
-    const rig = rigWith(buildOrderPhotos([source(1, 'before_work'), source(3, 'measurement'), source(2, 'completed_work')]));
+    const rig = rigWith(buildOrderMedia([source(1, 'before_work'), source(3, 'measurement'), source(2, 'completed_work')]));
     await openGrid(rig);
     expect(screen.getByTestId('order-photos')).toBeOnTheScreen();
     expect(rig.sync.photoRequests).toContain('o1');
@@ -400,7 +400,7 @@ describe('the grid (EVM-142 AC2, AC6)', () => {
 
   it('EVM-142 AC2: the skeleton is shown while the replica read has not answered', async () => {
     const rig = rigWith([photo(1)]);
-    let answer: (photos: readonly OrderPhoto[]) => void = () => undefined;
+    let answer: (photos: readonly OrderMedia[]) => void = () => undefined;
     await open(rig);
     await fireEvent.press(screen.getByTestId('order-row-o1'));
     await settle();

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FlatList, Text, View, useWindowDimensions } from 'react-native';
-import type { OrderPhoto } from '../orders/order-photos-model';
+import type { OrderMedia } from '../orders/order-photos-model';
 import { useStartup } from '../startup';
 import { AppBar, BackButton, Button, EmptyState, EyeOff, ImageIcon, Inbox, InlineAlert, Lock, Skeleton, WifiOff } from '../ui';
 import { color, size, space, text } from '../ui/theme';
@@ -143,7 +143,7 @@ export function OrderPhotosScreen({
     if (forbidden) return <EmptyState icon={Lock} title={t('orderPhotos.forbidden')} testID="order-photos-forbidden" />;
     if (!online) return <OfflineList photos={photos} />;
     return (
-      <FlatList<OrderPhoto>
+      <FlatList<OrderMedia>
         key={columns}
         data={photos}
         numColumns={columns}
@@ -216,10 +216,10 @@ export function OrderPhotosScreen({
 }
 
 /** Offline: the rows of the replica as a one-column list (category, time, the mark of the state), no thumbnails, no empty squares, no button - there is nowhere to go (M-08a). */
-function OfflineList({ photos }: { photos: readonly OrderPhoto[] }) {
+function OfflineList({ photos }: { photos: readonly OrderMedia[] }) {
   const { t } = useTranslation();
   return (
-    <FlatList<OrderPhoto>
+    <FlatList<OrderMedia>
       data={photos}
       keyExtractor={(photo) => photo.id}
       contentContainerStyle={{ padding: space.inset.md, rowGap: space.stack.sm }}
@@ -250,7 +250,7 @@ function OfflineList({ photos }: { photos: readonly OrderPhoto[] }) {
   );
 }
 
-const STATE_LABEL: Readonly<Record<OrderPhoto['state'], string | null>> = {
+const STATE_LABEL: Readonly<Record<OrderMedia['state'], string | null>> = {
   ready: null,
   preparing: 'orderPhotos.states.preparing',
   quarantined: 'orderPhotos.states.quarantined',
