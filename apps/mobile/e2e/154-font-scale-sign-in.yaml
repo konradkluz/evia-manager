@@ -1,0 +1,19 @@
+# EVM-151 AC5 (the note of the story): the sign-in at 200% of the font on a 360 dp screen (the run of EVM-142 fell here). A fresh install, the shared sign-in flow, the list after
+# the first download; screenshots of M-01 (`f200n-0-login`) and of the list. The tour flows sign in at the default scale first and magnify afterwards.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    clearState: true
+    permissions:
+      all: allow
+      camera: unset
+- extendedWaitUntil:
+    visible:
+      id: 'login-email'
+    timeout: 30000
+- takeScreenshot: f200n-0-login
+- runFlow: common/sign-in.yaml
+- extendedWaitUntil:
+    visible: 'ZL-E2E-1'
+    timeout: 60000
+- takeScreenshot: f200n-0-login-done
