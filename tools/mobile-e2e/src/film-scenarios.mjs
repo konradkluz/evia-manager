@@ -66,6 +66,7 @@ export const FILM_SCENARIOS = [
     steps: [
       { ...SIGN_IN, before: ['upload-reset', 'photos-reset', 'film-fixture', 'film-throttle:0'] },
       // no network: the notice, no request for the film
+      step('163-film-open.yaml', { after: ['film-requests:urls=0,requests=0'] }),
       step('163-film-offline.yaml', { airplane: true, after: ['film-requests:urls=0,requests=0'] }),
       // the network is back: nothing starts by itself
       step('163-film-online.yaml', { before: ['photos-wait:6000'], after: ['film-requests:urls=0,requests=0'] }),

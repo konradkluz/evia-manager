@@ -1,14 +1,7 @@
-# EVM-143 AC4: airplane mode: the grid comes from the replica; the film tile opens the player, "Odtwórz" says "Film wymaga internetu" (not "error", no code) with "Spróbuj ponownie".
+# EVM-143 AC4: airplane mode with the player open (163-film-open): "Odtwórz" says "Film wymaga internetu" (not "error", no code) with "Spróbuj ponownie".
 # tools/mobile-e2e then proves that no request for the film left the phone.
 appId: pl.eviacharge.manager
 ---
-- launchApp:
-    stopApp: false
-- tapOn:
-    text: 'Rozumiem'
-    optional: true
-- runFlow: common/film-grid-open.yaml
-- runFlow: common/film-open.yaml
 - tapOn:
     id: 'video-player-action'
 - extendedWaitUntil:

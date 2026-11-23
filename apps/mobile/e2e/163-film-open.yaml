@@ -1,0 +1,10 @@
+# EVM-143 AC4: (online) the grid, the film tile opens the player; nothing is played. The next flow goes offline with the player open.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- runFlow: common/film-grid-open.yaml
+- runFlow: common/film-open.yaml

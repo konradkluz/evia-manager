@@ -3,6 +3,10 @@ appId: pl.eviacharge.manager
 ---
 - launchApp:
     stopApp: false
+# the player of the previous flow may still be open (the background only stops it)
+- tapOn:
+    id: 'video-player-close'
+    optional: true
 - runFlow: common/film-open.yaml
 - tapOn:
     id: 'video-player-action'
