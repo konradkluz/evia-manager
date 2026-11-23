@@ -4,7 +4,7 @@ title: "Aplikacja: belka tytułu i dolna nawigacja czytelne przy dużej czcionce
 type: bug
 milestone: M2
 epic: E9 Dostęp mobilny
-status: in-review
+status: done
 priority: P2
 path: lekka            # zmiana wyglądu wspólnych komponentów mobile, bez danych, API i uprawnień; weryfikacja zrzutami i testem źródła
 owner: mobile-developer
@@ -81,3 +81,4 @@ Dziś przy 200% i 411 dp „Wstecz” oraz kapsuła synchronizacji („Zsynchr. 
 - 2026-11-23 — implementacja (mobile-developer): `BackButton` (ikona 48 dp), `useFontScaleTier`, AppBar dwuwierszowy i BottomNav z `shortLabel`; scenariusze Maestro `font-scale-*` (krok `display:`), dowód: `docs/qa/EVM-151/dowod-na-emulatorze.md`; kolejność fokusu w układzie dużym wg układu wizualnego — do potwierdzenia ux-designera
 - 2026-11-23 — przegląd ux-designera: approve (0 blocker/major; 2 minor, 1 nit); bramka `pnpm run gate` zielona u Tech Leada (diff coverage 99,5% linii / 97,6% gałęzi); status `in-review`
 - 2026-11-23 — Koszt: ścieżka `lekka`, 2 agenty (wykonawca + recenzent), ok. 286 tys. tokenów podagentów, 121 wywołań narzędzi, ok. 55 min; 1 runda, 0 poprawek
+- 2026-11-23 — zaakceptowane przez Konrada, PR #162 scalony; status `done`
