@@ -1,0 +1,7 @@
+# EVM-143 AC6: the tour of the film at the system font 1.3 (130%) on 411 dp (common/film-font-scale-tour.yaml).
+appId: pl.eviacharge.manager
+---
+- runFlow:
+    file: common/film-font-scale-tour.yaml
+    env:
+      CFG: 'f130'

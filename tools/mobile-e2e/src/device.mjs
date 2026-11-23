@@ -13,7 +13,7 @@
  * this module; the steps that read the device and the scenario server of the upload part are in device-upload.mjs (`UploadAction`).
  * @typedef {'force-stop' | 'kill-9' | 'reboot' | 'copy-db' | 'corrupt-db' | 'check-encrypted' | 'check-backup-transport'
  *   | 'adb-backup-start' | 'adb-backup-check' | 'adb-backup-control-check' | 'install-release-debugkey' | 'reinstall-e2e'} LocalAction
- * @typedef {LocalAction | import('./device-upload.mjs').UploadAction | import('./device-camera.mjs').CameraAction | import('./device-video.mjs').VideoAction | import('./device-survey.mjs').SurveyAction | import('./device-lock.mjs').LockAction | import('./device-photos.mjs').PhotosAction | import('./device-display.mjs').DisplayAction} DeviceAction
+ * @typedef {LocalAction | import('./device-upload.mjs').UploadAction | import('./device-camera.mjs').CameraAction | import('./device-video.mjs').VideoAction | import('./device-survey.mjs').SurveyAction | import('./device-lock.mjs').LockAction | import('./device-photos.mjs').PhotosAction | import('./device-film.mjs').FilmAction | import('./device-display.mjs').DisplayAction} DeviceAction
  * @typedef {{ status: number | null, stdout: string, stderr: string }} Outcome
  * @typedef {{ action: DeviceAction | 'check-sync-report', ok: boolean, detail: string, skipped?: boolean }} Check
  * `skipped` (EVM-108): the step could not be performed here (no camera) and is reported as such, never as a pass
@@ -25,6 +25,7 @@ import { isCameraAction, runCameraAction } from './device-camera.mjs';
 import { isDisplayAction, runDisplayAction } from './device-display.mjs';
 import { isLockAction, runLockAction } from './device-lock.mjs';
 import { isPhotosAction, runPhotosAction } from './device-photos.mjs';
+import { isFilmAction, runFilmAction } from './device-film.mjs';
 import { isSurveyAction, runSurveyAction } from './device-survey.mjs';
 import { isVideoAction, runVideoAction } from './device-video.mjs';
 import { isUploadAction, MAESTRO_LINE, runUploadAction } from './device-upload.mjs';
@@ -349,6 +350,8 @@ export async function runDeviceAction(action, context) {
   if (isVideoAction(action)) return /** @type {Promise<Check>} */ (runVideoAction(action, context));
   if (isPhotosAction(action))
     return /** @type {Promise<Check>} */ (runPhotosAction(/** @type {import('./device-photos.mjs').PhotosAction} */ (action), context));
+  if (isFilmAction(action))
+    return /** @type {Promise<Check>} */ (runFilmAction(/** @type {import('./device-film.mjs').FilmAction} */ (action), context));
   if (isDisplayAction(action))
     return /** @type {Promise<Check>} */ (runDisplayAction(/** @type {import('./device-display.mjs').DisplayAction} */ (action), context));
   if (isLockAction(action))

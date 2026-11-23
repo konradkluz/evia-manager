@@ -1,0 +1,15 @@
+# EVM-143 AC2 (shared): the film tile of the grid (photo-tile-0) opens the player M-08c in the main window: the header with the category, the time and "Film", the close, "Odtwórz".
+# Nothing is asked of the server until "Odtwórz".
+appId: pl.eviacharge.manager
+---
+- tapOn:
+    id: 'photo-tile-0'
+- extendedWaitUntil:
+    visible:
+      id: 'video-player'
+    timeout: 20000
+- assertVisible:
+    id: 'video-player-close'
+- assertVisible: 'Po zakończeniu'
+- assertVisible:
+    id: 'video-player-action'

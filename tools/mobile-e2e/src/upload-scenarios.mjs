@@ -21,6 +21,7 @@ import { SURVEY_SCENARIOS } from './survey-scenarios.mjs';
 import { ORDER_FILES_SCENARIOS } from './order-files-scenarios.mjs';
 import { LOCK_SCENARIOS } from './lock-scenarios.mjs';
 import { PHOTOS_SCENARIOS } from './photos-scenarios.mjs';
+import { FILM_SCENARIOS } from './film-scenarios.mjs';
 import { FONT_SCALE_SCENARIOS } from './font-scale-scenarios.mjs';
 import { SCENARIOS } from './scenarios.mjs';
 
@@ -264,6 +265,7 @@ export function selectScenarios(only) {
     ...ORDER_FILES_SCENARIOS,
     ...LOCK_SCENARIOS,
     ...PHOTOS_SCENARIOS,
+    ...FILM_SCENARIOS,
     ...FONT_SCALE_SCENARIOS,
   ].filter((scenario) => only.some((word) => scenario.name.startsWith(word)));
 }

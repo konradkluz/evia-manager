@@ -1,0 +1,46 @@
+# EVM-143 AC5: signs in again, the film is played, then "Więcej" -> "Wyczyść dane firmowe" -> the confirmation: "Wylogowano". tools/mobile-e2e then searches the directories of the app and reads the log.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn: 'Zaloguj się'
+- runFlow: common/sign-in.yaml
+- extendedWaitUntil:
+    visible: 'ZL-E2E-1'
+    timeout: 60000
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- runFlow: common/film-grid-open.yaml
+- runFlow: common/film-open.yaml
+- tapOn:
+    id: 'video-player-action'
+- extendedWaitUntil:
+    visible: 'Pauza'
+    timeout: 60000
+- tapOn:
+    id: 'video-player-close'
+- extendedWaitUntil:
+    notVisible:
+      id: 'video-player'
+    timeout: 10000
+- tapOn:
+    id: 'order-photos-back'
+- tapOn:
+    id: 'nav-more'
+- scrollUntilVisible:
+    element:
+      id: 'more-wipe'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'more-wipe'
+- extendedWaitUntil:
+    visible:
+      id: 'wipe-dialog'
+    timeout: 10000
+- tapOn:
+    id: 'wipe-confirm'
+- extendedWaitUntil:
+    visible: 'Wylogowano'
+    timeout: 90000

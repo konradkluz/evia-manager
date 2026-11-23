@@ -1,0 +1,11 @@
+# EVM-143 AC5: the film is playing (the server serves it slowly, so the download is still in progress). The next flow locks the app.
+appId: pl.eviacharge.manager
+---
+- assertVisible:
+    id: 'order-photos-grid'
+- runFlow: common/film-open.yaml
+- tapOn:
+    id: 'video-player-action'
+- extendedWaitUntil:
+    visible: 'Pauza'
+    timeout: 60000

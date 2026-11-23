@@ -45,7 +45,7 @@ const REJECTED_TYPES = ['CreateNote', 'CreateComment'];
  *   quick: 'ok' | 'quota_exceeded' | 'template_unavailable_first',
  *   survey: 'ok' | 'feature_disabled' | 'validation_failed' | 'deleted' | 'assigned',
  *   features: 'on' | 'off',
- *   photos: 'on' | 'off',
+ *   photos: 'on' | 'off' | 'videos',
  * }} SyncModes
  */
 export const TEMPLATE_HOUSE_ID = '0194c2a0-0000-7000-8000-00000000e201';
@@ -111,7 +111,7 @@ export const SYNC_CLIENT_CONFIG = clientConfig(true);
 const id = (n, prefix = '3') => `${prefix}0000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 
 /** A snapshot page of two aggregates (customer, site, work order each). */
-export function snapshotPage(photos = false) {
+export function snapshotPage(photos = false, withVideo = false) {
   const at = new Date().toISOString();
   /** @param {number} n */
   const aggregate = (n) => [
@@ -231,7 +231,7 @@ export function snapshotPage(photos = false) {
   return {
     result: 'changes',
     phase: 'snapshot',
-    changes: [...aggregate(1), ...aggregate(2), ...details(), ...(photos ? photoReplicaChanges() : [])],
+    changes: [...aggregate(1), ...aggregate(2), ...details(), ...(photos ? photoReplicaChanges(withVideo) : [])],
     cursor: CURSOR_AFTER_SNAPSHOT,
     hasMore: false,
     serverTime: SERVER_TIME(),
@@ -242,9 +242,10 @@ export function snapshotPage(photos = false) {
  * @param {string | null} cursor
  * @param {{ changes: unknown[], cursor: string }} [extra] what the server created since the last page (EVM-106: the numbered quick orders)
  * @param {boolean} [photos] the snapshot page carries the photos of the order ZL-E2E-1 (EVM-142; the mode `photos`)
+ * @param {boolean} [withVideo] ... and one ready film (EVM-143; the mode `photos: 'videos'`)
  */
-export function changesAnswer(cursor, extra, photos = false) {
-  if (cursor === null) return snapshotPage(photos);
+export function changesAnswer(cursor, extra, photos = false, withVideo = false) {
+  if (cursor === null) return snapshotPage(photos, withVideo);
   return {
     result: 'changes',
     phase: 'changes',
@@ -564,7 +565,11 @@ export function createSyncStub() {
           extra = { changes: created, cursor: `e2e-cursor-changes-${String(cursorSerial).padStart(9, '0')}` };
           created = [];
         }
-        return { status: 200, type: 'application/json', body: changesAnswer(given, extra, modes.photos === 'on') };
+        return {
+          status: 200,
+          type: 'application/json',
+          body: changesAnswer(given, extra, modes.photos !== 'off', modes.photos === 'videos'),
+        };
       }
       if (isOrder) return problem(404, 'not_found');
       const fields = /** @type {Record<string, unknown>} */ (typeof body === 'object' && body !== null ? body : {});

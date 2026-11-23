@@ -10,7 +10,7 @@
 import { createServer } from 'node:http';
 import { authAnswer, E2E_ACCOUNT, healthAnswer, OK_MINIMUM, problem, sessionBody, UPDATE_MINIMUM } from './stub-answers.mjs';
 import { createMediaGlue } from './media-replica.mjs';
-import { createPhotosStub } from './photos-stub.mjs';
+import { createPhotosStub, loadVideoFixture } from './photos-stub.mjs';
 import { createSyncStub } from './sync-stub.mjs';
 import { closeServers, createControlServer, createUploadStub, listenOnLoopback, portOf } from './upload-stub.mjs';
 
@@ -57,7 +57,7 @@ export async function startStubApi({ port = 0, uploadControlPort = 0, onRequest,
   let auth = 'ok';
   let issued = 0;
   // EVM-142: the photos of the order (the addresses for the phone, the bucket, the faults); it uses the Bearer check of the upload part
-  const photos = createPhotosStub({ authorize: (header) => upload.authorize(header) });
+  const photos = createPhotosStub({ authorize: (header) => upload.authorize(header), video: loadVideoFixture() });
   const sync = createSyncStub();
   media = createMediaGlue(upload, sync);
   /** @type {RecordedRequest[]} */

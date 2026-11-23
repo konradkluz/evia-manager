@@ -167,12 +167,16 @@ describe('expo-video adapter (EVM-143 AC2, AC5; SR-MOB-14, MASVS-STORAGE-2)', ()
     expect(native().calls).toEqual(['play', 'pause']);
   });
 
-  it('EVM-143 AC5: release pauses, removes the listeners and releases ONCE; everything after is a no-op and no event is delivered', () => {
+  it('EVM-143 AC5: release pauses, removes the listeners and releases ONCE (after the view is unmounted); everything after is a no-op and no event is delivered', () => {
+    jest.useFakeTimers();
     const port = createExpoVideoPlayer();
     const events: PlayerEvent[] = [];
     const stop = port.subscribe((event) => events.push(event));
     port.release();
     port.release();
+    expect(native().calls).toEqual(['pause']);
+    jest.advanceTimersByTime(300);
+    jest.useRealTimers();
     expect(native().calls).toEqual(['pause', 'release']);
     expect(native().removed).toBe(4);
     native().calls.length = 0;

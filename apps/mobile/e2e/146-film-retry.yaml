@@ -1,0 +1,13 @@
+# EVM-143 AC3: the server is well again: "Spróbuj ponownie" asks for a NEW address and the film plays; the player is closed.
+appId: pl.eviacharge.manager
+---
+- tapOn: 'Spróbuj ponownie'
+- extendedWaitUntil:
+    visible: 'Pauza'
+    timeout: 60000
+- tapOn:
+    id: 'video-player-close'
+- extendedWaitUntil:
+    notVisible:
+      id: 'video-player'
+    timeout: 10000

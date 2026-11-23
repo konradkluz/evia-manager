@@ -1,0 +1,6 @@
+# EVM-143 (shared): from the list to the grid "Zdjęcia zlecenia" of the first order, whose replica holds the film (mode videos: the film is the newest tile, photo-tile-0). Ends on the grid.
+appId: pl.eviacharge.manager
+---
+- runFlow: photos-grid-open.yaml
+- assertVisible:
+    id: 'photo-tile-0'

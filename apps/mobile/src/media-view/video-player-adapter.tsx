@@ -14,6 +14,11 @@ import type { PlayerEvent, VideoPlayerPort } from './video-session';
 
 /** Seconds between two `time` events (the position that a refresh resumes from). */
 const TIME_UPDATE_SECONDS = 1;
+/**
+ * The native player is freed this long AFTER `release()`: the session notifies the screen first, and the screen needs a commit to unmount the `VideoView` - releasing a player that is
+ * still attached to a view may throw natively. Meanwhile the port is already silent (paused, no listener, every call a no-op).
+ */
+const NATIVE_RELEASE_DELAY_MS = 300;
 
 /** The port plus the native player the surface draws (the session never sees it). */
 export interface ExpoVideoPlayerPort extends VideoPlayerPort {
@@ -86,7 +91,9 @@ export function createExpoVideoPlayer(): ExpoVideoPlayerPort {
         // already gone
       }
       for (const subscription of subscriptions) subscription.remove();
-      player.release();
+      setTimeout(() => {
+        player.release();
+      }, NATIVE_RELEASE_DELAY_MS);
     },
   };
 }

@@ -1,0 +1,24 @@
+# EVM-143 AC1 AC6: the grid "Zdjęcia zlecenia" with the film. The row of the order says "..., 1 film"; the film is the newest tile and is named "Film, [category], [time]" (no name of
+# a file), with the text "Film" under the thumbnail. tools/mobile-e2e then proves that the server was asked for NO address of the film and for NO byte of it (nothing is fetched
+# before "Odtwórz").
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- runFlow: common/photos-details.yaml
+- assertVisible:
+    id: 'order-photos-row-second'
+    text: '.*1 film'
+- takeScreenshot: m03-film-row
+- tapOn:
+    id: 'order-photos-row'
+- extendedWaitUntil:
+    visible:
+      id: 'order-photos-grid'
+    timeout: 20000
+- assertVisible: 'Film, Po zakończeniu, 20\.11\.2026, \d+:\d\d'
+- assertNotVisible: '.*\.(mp4|mov|webm).*'
+- takeScreenshot: m08-film-grid

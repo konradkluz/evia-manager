@@ -1,0 +1,40 @@
+# EVM-143 AC5: with the film playing the app goes to the background and comes back after 6 minutes (the hook moves the clock; the hook "unlock held" keeps the system unlock from
+# opening the app): the cover "Aplikacja zablokowana" is there, the player and the grid are gone from the tree of views and nothing plays by itself. The player is freed at once.
+appId: pl.eviacharge.manager
+---
+- tapOn:
+    id: 'evia-e2e-hooks-panel'
+- scrollUntilVisible:
+    element:
+      id: 'e2e-unlock-hold'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'e2e-unlock-hold'
+- scrollUntilVisible:
+    element:
+      id: 'e2e-background-6'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'e2e-background-6'
+- scrollUntilVisible:
+    element:
+      id: 'e2e-close'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'e2e-close'
+- pressKey: home
+- launchApp:
+    stopApp: false
+- extendedWaitUntil:
+    visible:
+      id: 'lock-overlay'
+    timeout: 20000
+- assertNotVisible:
+    id: 'video-player'
+- assertNotVisible:
+    id: 'order-photos-grid'
+- assertNotVisible: 'Po zakończeniu.*'
+- takeScreenshot: m08c-film-locked
