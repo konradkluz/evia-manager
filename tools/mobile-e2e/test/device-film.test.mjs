@@ -173,7 +173,7 @@ describe('the film requests and the manifest (EVM-143 AC3 AC5 AC6)', () => {
     assert.equal(judgeFilmHeaders(/** @type {never} */ ({ film: { requests: 1 } })).ok, true);
   });
 
-  it('EVM-143 AC6: the merged manifest has no foreground service, no microphone, no notification permission, no fullscreen activity and no playback service', () => {
+  it('EVM-143 AC6: the merged manifest has no foreground service, no microphone, no fullscreen activity and no playback service', () => {
     assert.equal(judgeFilmManifest(fakeAdb().adb('shell', 'dumpsys package')).ok, true);
     assert.equal(judgeFilmManifest(out('', 1)).ok, false);
     assert.match(judgeFilmManifest(out('Package [other]')).detail, /did not describe/);
@@ -181,7 +181,6 @@ describe('the film requests and the manifest (EVM-143 AC3 AC5 AC6)', () => {
       'android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK',
       'android.permission.FOREGROUND_SERVICE',
       'android.permission.RECORD_AUDIO',
-      'android.permission.POST_NOTIFICATIONS',
       'expo.modules.video.FullscreenPlayerActivity',
       'expo.modules.video.playbackService.ExpoVideoPlaybackService',
     ]) {
@@ -189,6 +188,15 @@ describe('the film requests and the manifest (EVM-143 AC3 AC5 AC6)', () => {
       assert.equal(judged.ok, false, entry);
       assert.match(judged.detail, /forbidden/);
     }
+    // the notification permission of the UPLOAD (EVM-130 AC7) is on the list of the app and is not the player's: the step does not judge it
+    assert.equal(
+      judgeFilmManifest(
+        out(`Package [${APPLICATION_ID}] (a):
+  android.permission.POST_NOTIFICATIONS
+`),
+      ).ok,
+      true,
+    );
     assert.equal(FORBIDDEN_FILM_ENTRY.test('android.permission.INTERNET'), false);
   });
 });

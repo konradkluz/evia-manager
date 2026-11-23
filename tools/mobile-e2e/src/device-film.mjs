@@ -158,12 +158,12 @@ export function filmCounters(report) {
   };
 }
 
-/** What the player must not bring into the merged manifest (AC6): a foreground service, the microphone, a notification, the fullscreen activity, a playback or media session service. */
+/** What the player must not bring into the merged manifest (AC6): a foreground service, the microphone, the fullscreen activity, a playback or media session service. */
 export const FORBIDDEN_FILM_ENTRY =
-  /android\.permission\.(?:FOREGROUND_SERVICE\w*|RECORD_AUDIO|POST_NOTIFICATIONS)|FullscreenPlayerActivity|PlaybackService|MediaSessionService|MediaButtonReceiver|MediaBrowserService/;
+  /android\.permission\.(?:FOREGROUND_SERVICE\w*|RECORD_AUDIO)|FullscreenPlayerActivity|PlaybackService|MediaSessionService|MediaButtonReceiver|MediaBrowserService/;
 
 /**
- * AC6: the manifest as the system merged it holds no foreground service, no microphone, no notification permission and no component of a player that plays in the background.
+ * AC6: the manifest as the system merged it holds no foreground service, no microphone and no component of a player that plays in the background.
  * @param {Outcome} dump `dumpsys package <app>` @returns {Judgement}
  */
 export function judgeFilmManifest(dump) {
@@ -174,8 +174,7 @@ export function judgeFilmManifest(dump) {
   return found.size === 0
     ? {
         ok: true,
-        detail:
-          'the merged manifest has no foreground service, no RECORD_AUDIO, no POST_NOTIFICATIONS, no fullscreen activity, no playback service',
+        detail: 'the merged manifest has no foreground service, no RECORD_AUDIO, no fullscreen activity, no playback service',
       }
     : { ok: false, detail: `${String(found.size)} forbidden entr(y/ies) in the merged manifest: ${[...found].sort().join(', ')}` };
 }
