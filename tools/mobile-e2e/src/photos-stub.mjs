@@ -18,8 +18,8 @@
  *
  * EVM-143 (flows 144-148): the mode `photos: 'videos'` adds ONE ready film to the replica (`VIDEO_ASSET`, the newest tile). The addresses of its `thumbnail` (the WebP of the
  * photos) and of its `preview` (`/bucket/videos/<id>/preview.mp4?X-Amz-Signature=E2EMARK<n>...`) come from the same `download-url`; the bucket answers the preview with the
- * bytes of an MP4 FIXTURE (`loadVideoFixture`: a real H.264 file - the player must really play it; it is NOT in the repository, it is read from the Android SDK of the machine,
- * `EVIA_E2E_VIDEO_FIXTURE` overrides) with `Accept-Ranges`, `206` for a `Range` request (its `moov` is at the end), `Cache-Control: private, max-age=300` on purpose, and an
+ * bytes of an MP4 FIXTURE (`loadVideoFixture`: a real H.264 file - the player must really play it; it is NOT in the repository. `EVIA_E2E_VIDEO_FIXTURE` names it; the fallback is a sample of the Android SDK,
+ * whose High 4:4:4 profile the decoder of the emulator REFUSES - use a Main/High profile file of 10-15 s with the `moov` anywhere, e.g. the sample of a Flutter package) with `Accept-Ranges`, `206` for a `Range` request (its `moov` is at the end), `Cache-Control: private, max-age=300` on purpose, and an
  * optional throttle (the film is served in 16 KiB chunks, `/control/photos-video-throttle`) - the window in which the app is locked / left / signed out with the film in progress.
  * The faults of the target `video` (`403` of an expired address, `500`) are answered to the request for the bytes. The counters of the film never hold an address.
  * Only synthetic data; the three images are 48-96 px lossless WebP made for this file (`RIFF....WEBPVP8L`).
