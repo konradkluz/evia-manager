@@ -7,6 +7,8 @@ export const pl = {
     appName: 'EVia Manager',
     orders: {
       title: 'Moje zlecenia',
+      // EVM-151: the visible label of the bottom navigation at a large font on a narrow screen; the accessible name stays "Moje zlecenia"
+      navShort: 'Zlecenia',
       emptyTitle: 'Nie masz zleceń w telefonie',
       emptyBody: 'Zlecenia pojawią się po synchronizacji.',
       newOrder: 'Nowe zlecenie',
@@ -85,7 +87,6 @@ export const pl = {
     reconnected: 'Połączono z serwerem.',
   },
   orderDetail: {
-    back: 'Wstecz',
     backA11y: 'Wróć do listy zleceń',
     titleFallback: 'Zlecenie',
     loadFailed: 'Nie udało się odczytać zlecenia z telefonu.',
@@ -832,7 +833,6 @@ export const pl = {
     rowA11yAllSent: 'Pliki z tego telefonu, wszystko wysłane',
     allSent: 'Wszystko wysłane',
     title: 'Pliki zlecenia',
-    back: 'Wstecz',
     backA11y: 'Wróć do zlecenia',
     loading: 'Wczytywanie plików…',
     loadFailed: 'Nie udało się wczytać listy plików.',
@@ -851,7 +851,6 @@ export const pl = {
     none: 'Brak zdjęć',
     rowA11yNone: 'Zdjęcia zlecenia, brak zdjęć',
     title: 'Zdjęcia zlecenia',
-    back: 'Wstecz',
     backA11y: 'Wróć do zlecenia',
     loading: 'Wczytywanie zdjęć…',
     empty: 'Brak zdjęć w tym zleceniu',
@@ -885,7 +884,6 @@ export const pl = {
   // EVM-102: M-11 "Prywatność i pomoc" (the clauses themselves come from src/privacy/content.ts, the one source shared with the panel W-19)
   privacy: {
     title: 'Prywatność i pomoc',
-    back: 'Wstecz',
     backA11y: 'Wróć z ekranu Prywatność i pomoc',
     help: {
       title: 'Pomoc',

@@ -1,0 +1,167 @@
+# EVM-151 AC1 AC2 AC3 AC5 (shared): a tour through the screens that have the app bar and the bottom navigation, on a signed-in phone, with the system font and the width of the
+# screen set by tools/mobile-e2e (device step `display:`). Every screen has a screenshot named `${CFG}-<n>-<screen>` that the proof of EVM-151 reads: the title whole, no
+# word broken in the middle, nothing cut, the capsule of the synchronization with its text, the bottom navigation with whole labels. Env: CFG (the prefix of the names).
+# The text of a title is asserted too (whole, as the view tree holds it); the cut itself is judged on the screenshots.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- tapOn:
+    id: 'nav-orders'
+- extendedWaitUntil:
+    visible: 'ZL-E2E-1'
+    timeout: 30000
+- assertVisible:
+    id: 'sync-indicator'
+- takeScreenshot: ${CFG}-1-orders
+- tapOn:
+    id: 'order-row-30000000-0000-4000-8000-000000000001'
+- extendedWaitUntil:
+    visible: 'Zlecenie testowe 1'
+    timeout: 20000
+- assertVisible:
+    id: 'order-detail-back'
+- takeScreenshot: ${CFG}-2-order-detail
+# the order: the photos of the order (M-08), "Pliki zlecenia", the entry form, the camera
+- scrollUntilVisible:
+    element:
+      id: 'order-photos-row'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'order-photos-row'
+- extendedWaitUntil:
+    visible:
+      id: 'order-photos'
+    timeout: 20000
+- extendedWaitUntil:
+    visible:
+      id: 'order-photos-grid'
+    timeout: 20000
+- assertVisible: 'Zdjęcia zlecenia'
+- assertVisible:
+    id: 'order-photos-back'
+- takeScreenshot: ${CFG}-3-order-photos
+- tapOn:
+    id: 'order-photos-back'
+- extendedWaitUntil:
+    visible:
+      id: 'order-detail'
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      id: 'order-files-row'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'order-files-row'
+- extendedWaitUntil:
+    visible:
+      id: 'order-files-count'
+    timeout: 20000
+- assertVisible: 'Pliki zlecenia'
+- takeScreenshot: ${CFG}-4-order-files
+- tapOn:
+    id: 'order-files-back'
+- extendedWaitUntil:
+    visible:
+      id: 'order-detail'
+    timeout: 20000
+- tapOn:
+    id: 'order-detail-add-entry'
+- extendedWaitUntil:
+    visible:
+      id: 'entry-form'
+    timeout: 20000
+- takeScreenshot: ${CFG}-5-entry-form
+- tapOn:
+    id: 'entry-close'
+- extendedWaitUntil:
+    visible:
+      id: 'order-detail'
+    timeout: 20000
+- tapOn:
+    id: 'order-detail-take-photo'
+- extendedWaitUntil:
+    visible:
+      id: 'camera-close'
+    timeout: 20000
+- takeScreenshot: ${CFG}-6-camera
+- tapOn:
+    id: 'camera-close'
+- extendedWaitUntil:
+    visible:
+      id: 'order-detail'
+    timeout: 20000
+- tapOn:
+    id: 'order-detail-back'
+# the sheet "Dodaj": the quick order and the site survey (both forms have a bar with "Zamknij")
+- tapOn:
+    id: 'orders-add'
+- extendedWaitUntil:
+    visible:
+      id: 'add-sheet'
+    timeout: 10000
+- tapOn:
+    id: 'add-new-order'
+- extendedWaitUntil:
+    visible:
+      id: 'quick-order'
+    timeout: 20000
+- takeScreenshot: ${CFG}-7-quick-order
+- tapOn:
+    id: 'quick-order-close'
+- tapOn:
+    id: 'orders-add'
+- extendedWaitUntil:
+    visible:
+      id: 'add-sheet'
+    timeout: 10000
+- tapOn:
+    id: 'add-site-survey'
+- extendedWaitUntil:
+    visible:
+      id: 'site-survey'
+    timeout: 20000
+- takeScreenshot: ${CFG}-8-site-survey
+- tapOn:
+    id: 'survey-close'
+# the queue and "Więcej" (the bottom navigation on each), the privacy screen
+- tapOn:
+    id: 'nav-queue'
+- extendedWaitUntil:
+    visible:
+      id: 'sync-indicator'
+    timeout: 20000
+- takeScreenshot: ${CFG}-9-queue
+- tapOn:
+    id: 'nav-more'
+- extendedWaitUntil:
+    visible:
+      id: 'sync-indicator'
+    timeout: 20000
+- takeScreenshot: ${CFG}-10-more
+- scrollUntilVisible:
+    element:
+      id: 'more-privacy'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'more-privacy'
+- extendedWaitUntil:
+    visible: 'Prywatność i pomoc'
+    timeout: 10000
+- assertVisible:
+    id: 'privacy-help-back'
+- takeScreenshot: ${CFG}-11-privacy
+- tapOn:
+    id: 'privacy-help-back'
+- extendedWaitUntil:
+    visible:
+      id: 'more-help'
+    timeout: 10000
+- tapOn:
+    id: 'nav-orders'

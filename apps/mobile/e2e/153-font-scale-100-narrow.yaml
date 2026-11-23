@@ -1,0 +1,8 @@
+# EVM-151 AC4: the tour through the screens with the app bar and the bottom navigation at the system font 1.0 (100%) on a 360 dp screen - the bars as before (tools/mobile-e2e sets it before the flow,
+# step `display:`, and puts it back); screenshots `f100n-<n>-<screen>` (common/font-scale-tour.yaml).
+appId: pl.eviacharge.manager
+---
+- runFlow:
+    file: common/font-scale-tour.yaml
+    env:
+      CFG: 'f100n'

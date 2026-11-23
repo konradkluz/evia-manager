@@ -10,6 +10,7 @@ import { SURVEY_SCENARIOS } from '../src/survey-scenarios.mjs';
 import { ORDER_FILES_SCENARIOS } from '../src/order-files-scenarios.mjs';
 import { LOCK_SCENARIOS } from '../src/lock-scenarios.mjs';
 import { PHOTOS_SCENARIOS } from '../src/photos-scenarios.mjs';
+import { FONT_SCALE_SCENARIOS } from '../src/font-scale-scenarios.mjs';
 import { UPLOAD_SCENARIOS } from '../src/upload-scenarios.mjs';
 
 const APP = join(import.meta.dirname, '..', '..', '..', 'apps', 'mobile');
@@ -45,6 +46,8 @@ describe('Maestro flows and scenarios agree (EVM-009 AC4)', () => {
     const lockFlows = [...new Set(LOCK_SCENARIOS.flatMap((scenario) => scenario.steps.map((step) => step.flow)))];
     // EVM-142: the flows 140-143 belong to the photos scenarios (src/photos-scenarios.mjs; test/photos-flows.test.mjs judges them)
     const photosFlows = [...new Set(PHOTOS_SCENARIOS.flatMap((scenario) => scenario.steps.map((step) => step.flow)))];
+    // EVM-151: the flows 150-154 belong to the font-scale scenarios (src/font-scale-scenarios.mjs; test/font-scale-flows.test.mjs judges them)
+    const fontScaleFlows = [...new Set(FONT_SCALE_SCENARIOS.flatMap((scenario) => scenario.steps.map((step) => step.flow)))];
     assert.deepEqual(
       [
         ...new Set([
@@ -56,6 +59,7 @@ describe('Maestro flows and scenarios agree (EVM-009 AC4)', () => {
           ...orderFilesFlows,
           ...lockFlows,
           ...photosFlows,
+          ...fontScaleFlows,
         ]),
       ].sort(),
       files,

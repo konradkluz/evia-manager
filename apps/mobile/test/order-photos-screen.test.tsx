@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
 import { AppState, BackHandler, Dimensions, PixelRatio } from 'react-native';
-import { borderWidth, color, space } from '../src/ui/theme';
+import { borderWidth, color } from '../src/ui/theme';
 import { App } from '../src/App';
 import { columnsFor } from '../src/screens/OrderPhotosScreen';
 import type { MediaSource, UrlAnswer } from '../src/media-view/http-media-source';
@@ -358,11 +358,14 @@ describe('the grid (EVM-142 AC2, AC6)', () => {
     }
   });
 
-  it('EVM-142 AC6: "Wstecz" gives its own padding back so that the title keeps its line', async () => {
+  it('EVM-151 AC2: the back action is the icon in a 48 x 48 dp target with its name for the reader - it needs no padding taken back (EVM-142 AC6)', async () => {
     const rig = rigWith([photo(1)]);
     await openGrid(rig);
-    const wrap = flat(screen.getByTestId('order-photos-back-wrap')) as unknown as Record<string, unknown>;
-    expect(wrap.marginHorizontal).toBe(-space.inset.md);
+    expect(screen.queryByTestId('order-photos-back-wrap')).toBeNull();
+    const back = flat(screen.getByTestId('order-photos-back')) as unknown as Record<string, unknown>;
+    expect(back.minWidth).toBe(48);
+    expect(back.minHeight).toBe(48);
+    expect(screen.getByRole('button', { name: pl.orderPhotos.backA11y })).toBeOnTheScreen();
   });
 
   it('EVM-142 AC6: no photos - "Brak zdjęć w tym zleceniu" without a button and without a request', async () => {

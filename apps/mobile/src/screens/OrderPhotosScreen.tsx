@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { FlatList, Text, View, useWindowDimensions } from 'react-native';
 import type { OrderPhoto } from '../orders/order-photos-model';
 import { useStartup } from '../startup';
-import { AppBar, Button, EmptyState, EyeOff, ImageIcon, Inbox, InlineAlert, Lock, Skeleton, WifiOff } from '../ui';
+import { AppBar, BackButton, Button, EmptyState, EyeOff, ImageIcon, Inbox, InlineAlert, Lock, Skeleton, WifiOff } from '../ui';
 import { color, size, space, text } from '../ui/theme';
 import { PhotoPreview } from './PhotoPreview';
 import { PhotoTile, photoCaption } from './PhotoTile';
@@ -203,19 +203,7 @@ export function OrderPhotosScreen({
       >
         <AppBar
           title={t('orderPhotos.title')}
-          left={
-            // the button brings its own horizontal padding: it is taken back, so that the text of "Wstecz" stands on the margin of the bar and the title keeps its line (M-08a)
-            <View style={{ marginHorizontal: -space.inset.md }} testID="order-photos-back-wrap">
-              <Button
-                label={t('orderPhotos.back')}
-                accessibilityLabel={t('orderPhotos.backA11y')}
-                variant="tertiary"
-                inverse
-                onPress={onBack}
-                testID="order-photos-back"
-              />
-            </View>
-          }
+          left={<BackButton accessibilityLabel={t('orderPhotos.backA11y')} onPress={onBack} testID="order-photos-back" />}
           right={<SyncCapsule onPress={onOpenQueue} />}
         />
         <View style={{ flex: 1 }}>{content()}</View>
