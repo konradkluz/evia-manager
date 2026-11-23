@@ -11,6 +11,7 @@ import { File as AppFile, Paths } from 'expo-file-system';
 import { useCallback, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { readRuntimeConfig } from '../config';
 import { NO_OVERRIDES, type DeviceOverrides } from '../device-guard/overrides';
 import { LocalDataLostScreen } from '../screens/LocalDataScreens';
 import { loadEviaUpload } from '../../modules/evia-upload/src';
@@ -85,6 +86,7 @@ const LABELS = {
   mediaStatus: 'media: status',
   captureBatch: 'media: capture N',
   captureVideo: 'media: capture video',
+  cacheControl: 'cache: control fetch',
 } as const;
 
 /** EVM-130 (media block): the synthetic file of the scenarios — a work order that never existed, a size in MiB, random content made natively. */
@@ -125,12 +127,27 @@ export interface E2eHooksDeps {
    * written to `cacheDir/Camera/<uuid>.mp4` instead of the file of `recordAsync`; the import (a MOVE), the digest and the registration are the path of a film.
    */
   readonly captureVideo?: () => { readonly shoot: (request: CaptureRequest, seed: number, mib: number) => Promise<VideoResult> };
+  /**
+   * EVM-142 AC5 (positive control of the proof on the emulator): fetches `/bucket/control.webp` of the scenario server with the plain global `fetch` and WITHOUT the
+   * header `Cache-Control: no-store` that the viewer sends, so the HTTP cache of the app client MAY keep it (the server answers `private, max-age=300`). The search of the
+   * app directories must then find that file; a search that finds nothing proves nothing. Resolves with the status and the size only; `null` = no usable address.
+   */
+  readonly controlFetch?: () => Promise<{ readonly status: number; readonly bytes: number } | null>;
 }
 
 /** The failure of a film that could not even be started (no session, no camera source). */
 const NO_FILM: VideoResult = { ok: false, code: 'camera_failed' };
 
+/** The marker in the address of the control image: the search of the directories of the app looks for it as well as for the bytes of the picture. */
+export const CONTROL_IMAGE_PATH = '/bucket/control.webp?X-Amz-Signature=E2EMARK-CTRL&X-Amz-Expires=300';
+
 const realDeps = (): E2eHooksDeps => ({
+  controlFetch: async () => {
+    const base = readRuntimeConfig()?.apiBaseUrl;
+    if (base === undefined) return null;
+    const response = await fetch(`${base}${CONTROL_IMAGE_PATH}`);
+    return { status: response.status, bytes: (await response.arrayBuffer()).byteLength };
+  },
   host: localData(),
   deleteDatabaseKey: () => tokenStore.delete('databaseKey'),
   wipeFault: storageE2eSupport.wipeFault,
@@ -442,6 +459,14 @@ export function E2eHooks({ deps: injected }: { deps?: E2eHooksDeps } = {}) {
     setStatus({ video_added: added });
   });
 
+  /** EVM-142 AC5: the positive control of the search for cached images (see `E2eHooksDeps.controlFetch`); the status line carries the code and the size only. */
+  const cacheControl = guarded(async () => {
+    const result = await (get().controlFetch ?? realDeps().controlFetch)?.();
+    setStatus(
+      result === null || result === undefined ? { error: 'no_control' } : { control_status: result.status, control_bytes: result.bytes },
+    );
+  });
+
   const device = (name: string, change: (o: DeviceOverrides) => void) => () => {
     change(deviceOverrides);
     setStatus({ device: name });
@@ -511,6 +536,7 @@ export function E2eHooks({ deps: injected }: { deps?: E2eHooksDeps } = {}) {
         <TextInput testID="e2e-video-mib" value={videoMib} onChangeText={setVideoMib} keyboardType="number-pad" style={input} />
         <TextInput testID="e2e-video-count" value={videoCount} onChangeText={setVideoCount} keyboardType="number-pad" style={input} />
         <Button label={LABELS.captureVideo} onPress={captureVideo} testID="e2e-capture-video" />
+        <Button label={LABELS.cacheControl} onPress={cacheControl} testID="e2e-cache-control" />
         <Button
           label={LABELS.lockOff}
           onPress={device('lock_off', (o) => {
