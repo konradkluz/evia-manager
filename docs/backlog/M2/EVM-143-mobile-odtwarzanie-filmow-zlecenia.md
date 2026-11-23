@@ -59,7 +59,7 @@ Film po przetworzeniu ma klatkę-miniaturę (WebP) i podgląd wideo 720p (MP4 be
 **AC6 — Dostępność i dane**
 - Zakładając czytnik ekranu i 200% czcionki
 - Gdy używam odtwarzacza
-- Wtedy przyciski mają nazwy dostępne i cele ≥ 48 dp, a nazwa filmu w siatce to „Film, [kategoria], [czas]” (bez nazwy pliku); scalony manifest po dodaniu odtwarzacza przechodzi istniejący test `permissions-minimal` bez zmiany listy uprawnień (brak `FOREGROUND_SERVICE*`, `RECORD_AUDIO`, `POST_NOTIFICATIONS`) i bez usług odtwarzania w tle; po zamknięciu nie ma dźwięku ani powiadomień.
+- Wtedy przyciski mają nazwy dostępne i cele ≥ 48 dp, a nazwa filmu w siatce to „Film, [kategoria], [czas]” (bez nazwy pliku); scalony manifest po dodaniu odtwarzacza przechodzi istniejący test `permissions-minimal` bez zmiany listy uprawnień (brak `FOREGROUND_SERVICE*`, `RECORD_AUDIO`; `POST_NOTIFICATIONS` pochodzi z EVM-130 i nie jest nowe) i bez usług odtwarzania w tle; po zamknięciu nie ma dźwięku ani powiadomień.
 
 ## Poza zakresem
 - Pobieranie i zapis filmu, odtwarzanie offline, pełny ekran obrócony, napisy, prędkości, przewijanie z podglądem klatek.
@@ -98,3 +98,4 @@ Film po przetworzeniu ma klatkę-miniaturę (WebP) i podgląd wideo 720p (MP4 be
 - 2026-11-23 — poprawki rundy 1 (mobile-developer): scenariusze Maestro `film-*` (przepływy 160–165) i część filmową serwera scenariuszy; 22/22 przepływów na emulatorze, dowód AC5/AC6 w `docs/qa/EVM-143/`, zrzuty w `docs/ux/reviews/EVM-143/`; `verify` paczki release wykrył `WAKE_LOCK` z biblioteki odtwarzacza — usunięty wtyczką; natywne zwolnienie odtwarzacza odroczone do odmontowania widoku; otwarte: sieć tracona przy otwartym odtwarzaczu daje „Nie udało się odtworzyć filmu” do odświeżenia statusu; AC6 wspomina brak `POST_NOTIFICATIONS`, który należy do wysyłania plików (EVM-130)
 - 2026-11-23 — przeglądy (security-engineer, ux-designer, code-reviewer): approve po 2 rundach; bramka `pnpm run gate` zielona u Tech Leada (diff coverage 99,6% linii / 95,4% gałęzi; część bazodanowa API tylko w CI); status `in-review`
 - 2026-11-23 — Koszt: ścieżka `pelna`, 13 agentów, ok. 1,36 mln tokenów podagentów, 521 wywołań narzędzi, ok. 3 h, 2 rundy
+- 2026-11-23 — Konrad akceptuje: doprecyzowanie AC6 (brak nowych uprawnień) i ryzyka rezydualne Low (przekierowania natywnego odtwarzacza, podstawowa MediaSession, host bucketu w logcat); push i PR
