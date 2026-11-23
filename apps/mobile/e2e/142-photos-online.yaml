@@ -1,0 +1,13 @@
+# EVM-142 AC4: the network is back (tools/mobile-e2e switched the airplane mode off) while the grid is open: the message goes away and the thumbnails load by themselves, with no
+# touch. tools/mobile-e2e then sees the three requests.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- extendedWaitUntil:
+    notVisible: 'Podgląd zdjęć wymaga internetu'
+    timeout: 90000
+- assertVisible:
+    id: 'order-photos-grid'
+- assertVisible: 'Po zakończeniu, 20\.11\.2026, \d+:\d\d'
+- takeScreenshot: m08-photos-back-online

@@ -10,6 +10,7 @@
 import { createServer } from 'node:http';
 import { authAnswer, E2E_ACCOUNT, healthAnswer, OK_MINIMUM, problem, sessionBody, UPDATE_MINIMUM } from './stub-answers.mjs';
 import { createMediaGlue } from './media-replica.mjs';
+import { createPhotosStub } from './photos-stub.mjs';
 import { createSyncStub } from './sync-stub.mjs';
 import { closeServers, createControlServer, createUploadStub, listenOnLoopback, portOf } from './upload-stub.mjs';
 
@@ -55,6 +56,8 @@ export async function startStubApi({ port = 0, uploadControlPort = 0, onRequest,
   /** @type {AuthMode} */
   let auth = 'ok';
   let issued = 0;
+  // EVM-142: the photos of the order (the addresses for the phone, the bucket, the faults); it uses the Bearer check of the upload part
+  const photos = createPhotosStub({ authorize: (header) => upload.authorize(header) });
   const sync = createSyncStub();
   media = createMediaGlue(upload, sync);
   /** @type {RecordedRequest[]} */
@@ -62,6 +65,10 @@ export async function startStubApi({ port = 0, uploadControlPort = 0, onRequest,
   const server = createServer((request, response) => {
     if (upload.claims(request.method, new URL(request.url ?? '/', 'http://stub.local').pathname)) {
       upload.handleApp(request, response);
+      return;
+    }
+    if (photos.claims(request.method, new URL(request.url ?? '/', 'http://stub.local').pathname)) {
+      photos.handleApp(request, response);
       return;
     }
     const isHealth = request.method === 'GET' && request.url === '/api/health';
@@ -149,7 +156,11 @@ export async function startStubApi({ port = 0, uploadControlPort = 0, onRequest,
   const address = server.address();
   if (address === null || typeof address === 'string') throw new Error('the scenario server has no TCP address');
   upload.setPort(address.port);
-  const controlServer = createControlServer(upload);
+  photos.setPort(address.port);
+  // the control port of the host: the photos part answers its own paths (`/control/photos-*`), the upload part the rest
+  const controlServer = createControlServer({
+    control: (method, path, body) => photos.control(method, path, body) ?? upload.control(method, path, body),
+  });
   await listenOnLoopback(controlServer, uploadControlPort);
   return {
     port: address.port,

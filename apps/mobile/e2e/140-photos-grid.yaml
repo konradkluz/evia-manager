@@ -1,0 +1,40 @@
+# EVM-142 AC2 AC6: the technician opens the details of the order ZL-E2E-1 (the replica holds five photos: three ready, one processing, one in quarantine) and chooses the
+# row "Zdjęcia zlecenia" ("5 zdjęć"). The grid shows, newest first, a tile named "[category], [time]" for every ready photo (no name of a file), and for the two other
+# states only the text of the state - "Przygotowujemy podgląd" and "Plik zatrzymany do sprawdzenia" (without a reason). tools/mobile-e2e then proves that the server was asked
+# for the thumbnails of the three ready photos only (no request at all for the other two) and never for a preview or an original.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- runFlow: common/photos-details.yaml
+- assertVisible: 'Zdjęcia zlecenia'
+- assertVisible:
+    id: 'order-photos-row-second'
+    text: '5 zdjęć'
+- takeScreenshot: m03-photos-row
+- tapOn:
+    id: 'order-photos-row'
+- extendedWaitUntil:
+    visible:
+      id: 'order-photos-grid'
+    timeout: 20000
+- assertVisible: 'Po zakończeniu, 20\.11\.2026, \d+:\d\d'
+- assertVisible: 'W trakcie prac, 20\.11\.2026, \d+:\d\d'
+- assertVisible: 'Stan przed pracami, 20\.11\.2026, \d+:\d\d'
+- assertVisible: 'Usterka / problem, .*Przygotowujemy podgląd'
+- assertVisible: 'Przygotowujemy podgląd'
+- assertVisible: 'Plik zatrzymany do sprawdzenia'
+# no name of a file; scoped to this screen: the screens below (list, order) stay in the view tree and do show the customer
+- assertNotVisible: '.*\.(jpg|jpeg|png|webp).*'
+- assertNotVisible:
+    text: 'Klient Testowy.*'
+    childOf:
+      id: 'order-photos'
+- assertNotVisible:
+    text: 'Testowa.*'
+    childOf:
+      id: 'order-photos'
+- takeScreenshot: m08-photos-grid

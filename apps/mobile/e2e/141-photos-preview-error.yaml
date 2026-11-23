@@ -1,0 +1,16 @@
+# EVM-142 AC3: the server answers every request of a preview with 500: the preview says "Nie udało się wczytać zdjęcia" and offers "Spróbuj ponownie" (a 500 is no expired
+# address, so there is NO second address request). The flow ends with the preview open and the message on it.
+appId: pl.eviacharge.manager
+---
+# no `launchApp`: the app stays in the foreground (a launch would put it through the background, which closes the preview on purpose)
+- assertVisible:
+    id: 'order-photos-grid'
+- tapOn:
+    id: 'photo-tile-1'
+- extendedWaitUntil:
+    visible:
+      id: 'photo-preview-retry'
+    timeout: 20000
+- assertVisible: 'Nie udało się wczytać zdjęcia'
+- assertVisible: 'Spróbuj ponownie'
+- takeScreenshot: m08-photo-preview-error

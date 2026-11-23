@@ -1,0 +1,26 @@
+# EVM-142 AC5 (the POSITIVE CONTROL of the proof, the same install): the hook "cache: control fetch" of the e2e variant fetches a separate picture (control.webp) with the plain
+# global `fetch` and WITHOUT `Cache-Control: no-store` - the server answers `private, max-age=300`. tools/mobile-e2e then runs the SAME search of the directories of the app
+# and the SAME filter of the log: they MUST find the cached picture and the line E2EMARK-CTRL. A search that finds nothing here proves nothing above.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    id: 'evia-e2e-hooks-panel'
+- scrollUntilVisible:
+    element:
+      id: 'e2e-cache-control'
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: 'e2e-cache-control'
+- scrollUntilVisible:
+    element:
+      id: 'e2e-status'
+    direction: UP
+    centerElement: true
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-status'
+      text: 'control_status=200;control_bytes=48'
+    timeout: 30000

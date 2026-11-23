@@ -1,0 +1,13 @@
+# EVM-142 AC5: the preview of the flow 143-photos-view is closed once tools/mobile-e2e saw the renewal of the address; the grid stays.
+appId: pl.eviacharge.manager
+---
+# no `launchApp`: the app stays in the foreground (a launch would put it through the background, which closes the preview on purpose)
+- assertNotVisible: 'Nie udało się wczytać zdjęcia'
+- tapOn:
+    id: 'photo-preview-close'
+- extendedWaitUntil:
+    notVisible:
+      id: 'photo-preview'
+    timeout: 10000
+- assertVisible:
+    id: 'order-photos-grid'

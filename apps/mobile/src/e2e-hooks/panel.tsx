@@ -28,6 +28,9 @@ import { localData, storageE2eSupport, type LocalDataHost, type OpenResult, type
 import { Button } from '../ui';
 import { borderWidth, color, size, space, text } from '../ui/theme';
 
+/** The distance of the toggle of the panel from the bottom edge (above the bottom bar of the app). */
+const TOGGLE_ABOVE_BAR = 96;
+
 /** Unique marker of the hooks in a bundle (also the testID of the toggle): tools/mobile-apk/src/contents.mjs E2E_HOOKS_MARKER. */
 export const E2E_HOOKS_MARKER = 'evia-e2e-hooks-panel';
 
@@ -498,7 +501,15 @@ export function E2eHooks({ deps: injected }: { deps?: E2eHooksDeps } = {}) {
         onPress={() => {
           setOpen(true);
         }}
-        style={{ position: 'absolute', top: insets.top, left: 0, minWidth: size.touchTarget.min, minHeight: size.touchTarget.min }}
+        // EVM-142: at the BOTTOM edge, not top-left - the close button of the preview of a photo (M-08b) is at the top-left and the toggle covered it, so a tap on "Zamknij podgląd"
+        // opened this panel instead. Above the bottom bar the right edge holds nothing a flow touches.
+        style={{
+          position: 'absolute',
+          bottom: insets.bottom + TOGGLE_ABOVE_BAR,
+          right: 0,
+          minWidth: size.touchTarget.min,
+          minHeight: size.touchTarget.min,
+        }}
       />
     );
 

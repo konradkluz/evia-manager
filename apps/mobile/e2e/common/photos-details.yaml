@@ -1,0 +1,17 @@
+# EVM-142 AC2 (shared): from any screen of the list to the details of the first order (ZL-E2E-1, the order of the scenario server) - the row "Zdjęcia zlecenia" is
+# there, above "Pliki z tego telefonu". Ends on the details with the row on screen.
+appId: pl.eviacharge.manager
+---
+- tapOn:
+    id: 'nav-orders'
+- tapOn:
+    id: 'order-row-30000000-0000-4000-8000-000000000001'
+- extendedWaitUntil:
+    visible: 'Zlecenie testowe 1'
+    timeout: 20000
+# the row sits in the scrolled content of M-03 (above the journal), below the fold on a phone: bring it on screen
+- scrollUntilVisible:
+    element:
+      id: 'order-photos-row'
+    direction: DOWN
+    centerElement: true

@@ -1,0 +1,14 @@
+# EVM-142 AC5: the first photo is opened in the preview. The picture is NOT there yet: the server holds the answer for the image (tools/mobile-e2e set the delay), so the request is
+# in progress. tools/mobile-e2e reads the tree of views of the unlocked screen (the positive control of the read under the lock).
+appId: pl.eviacharge.manager
+---
+# no `launchApp`: the app stays in the foreground (a launch would put it through the background, which closes the preview on purpose)
+- assertVisible:
+    id: 'order-photos-grid'
+- tapOn:
+    id: 'photo-tile-0'
+- extendedWaitUntil:
+    visible:
+      id: 'photo-preview'
+    timeout: 20000
+- assertVisible: 'Opis testowy completed_work'

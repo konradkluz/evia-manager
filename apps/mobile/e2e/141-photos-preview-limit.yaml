@@ -1,0 +1,13 @@
+# EVM-142 AC3 AC4: the API answers the request for an address with 429 (the limit of the server): the preview says "Nie udało się wczytać zdjęcia" and offers "Spróbuj ponownie"
+# - no detail of the answer. The flow ends with the preview open; tools/mobile-e2e waits out the `Retry-After` and the next flow asks again.
+appId: pl.eviacharge.manager
+---
+# no `launchApp`: the app stays in the foreground (a launch would put it through the background, which closes the preview on purpose)
+- tapOn:
+    id: 'photo-tile-2'
+- extendedWaitUntil:
+    visible:
+      id: 'photo-preview-retry'
+    timeout: 20000
+- assertVisible: 'Nie udało się wczytać zdjęcia'
+- assertVisible: 'Spróbuj ponownie'

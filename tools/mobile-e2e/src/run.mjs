@@ -223,6 +223,7 @@ export async function runE2e({ skipBuild, port, only = null }, host) {
           quick: step.quick ?? 'ok',
           survey: step.survey ?? 'ok',
           features: step.features ?? 'on',
+          photos: step.photos ?? 'off',
         });
         if (step.background === true) {
           adb(...adbArgs(serial, 'shell', 'input', 'keyevent', 'KEYCODE_HOME'));
