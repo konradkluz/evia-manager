@@ -1,6 +1,7 @@
 # ADR-0024: Wizja lokalna — zlecenie bez klienta w statusie „Wycena” z jawnym terminem wygaśnięcia, zamiast osobnego agregatu
 
 - **Status:** Zaakceptowana (Konrad, 2026-11-16) — wariant B wraz z rekomendacjami: klient przypisywany jednorazowo, wizje na głównej liście z etykietą, trwałe usuwanie w trybie `report` do czasu kopii zapasowych, własny klucz rejestru usunięć dla `worker`, na telefonie wizję widzi twórca i osoba przypisana
+- **Częściowo zastąpiona przez:** [ADR-0025](0025-dokumenty-wizji-lokalnej-przed-klientem.md) — zakres: pkt 4 (dokumenty) i pkt 9 (zakres usuwania i rejestru). Pozostała treść obowiązuje.
 - **Data:** 2026-11-16
 - **Decydent:** Konrad (akceptacja) · **Autor:** solution-architect
 - **Powiązane:** EVM-135…EVM-140 (M2, szkice), EVM-099/106 (szybkie zlecenie), EVM-108/110 (aparat, filmy), EVM-051 (trwałe usuwanie plików), EVM-133 (klauzule); ADR-0021 (doprecyzowuje regułę zakresu — D1, D3), ADR-0017 (projekcja `overview`), ADR-0010 (zadania w `worker`), ADR-0003 (migracje), ADR-0004 (kompatybilność); RR-55, TM-128

@@ -132,6 +132,7 @@ flowchart LR
 
 ## Next
 - **M3 Procesy:** szablony procesów z checklistami wymaganych dokumentów (OSD, administracja, ekspertyza, ppoż, projekt), terminy i przypomnienia (np. brak odpowiedzi administracji > 14 dni), widok „Moje zadania”, książka kontaktów (administracje, projektanci, rzeczoznawcy, OSD), wersjonowanie dokumentów, generowanie pism z szablonów (np. pełnomocnictwo, wnioski), powiadomienia e-mail/push, pulpit (lejek zleceń, czas w etapach, nieopłacone).
+  - **Warunek realnych ofert w wizji lokalnej (ADR-0025 pkt 9; zasada organizacyjna):** do czasu spełnienia wszystkich trzech — wizje wyłącznie testowe: scalone EVM-147, wdrożona klauzula 1.1 i dokumentacja RODO (EVM-149) oraz włączony tryb `enforce` usuwania wizji (EVM-139) — albo, gdy oferty mają ruszyć wcześniej, zaakceptowane przez Konrada RR-102 z kartą przeglądu obejmującą dokumenty. Zamknięcie wyścigu usuwania (EVM-150) zalecane przed `enforce`.
 - **M4 Konfiguracja i raporty:** panel administracyjny katalogu usług, szablonów, procesów, statusów i pól dodatkowych; rola „Monter” (tylko przypisane zlecenia) i dostęp partnerów; raporty i eksport (CSV/XLSX), KPI; wyszukiwanie pełnotekstowe; polityki retencji i archiwizacji.
 
 ## Later
