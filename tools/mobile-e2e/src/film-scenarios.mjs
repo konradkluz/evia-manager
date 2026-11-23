@@ -45,7 +45,10 @@ export const FILM_SCENARIOS = [
       // the grid: the film is a tile; nothing of the film was asked for
       step('160-film-grid.yaml', { after: ['film-requests:urls=0,requests=0,bytes=0'] }),
       // the player: Odtwórz / Pauza / Odtwórz / Odtwórz ponownie
-      step('160-film-play.yaml', { after: ['film-requests:urls=1,ranges>=1,ok>=1', 'film-headers'] }),
+      step('160-film-play.yaml', {
+        onFail: ['film-requests:urls>=0,requests>=0,ranges>=0,ok>=0,failed>=0,abandoned>=0,bytes>=0'],
+        after: ['film-requests:urls=1,ranges>=1,ok>=1', 'film-headers'],
+      }),
       // an address that is already expired: ONE silent renewal (two addresses), the film goes on
       step('161-film-expired.yaml', {
         before: ['photos-reset', 'film-expire:1'],
