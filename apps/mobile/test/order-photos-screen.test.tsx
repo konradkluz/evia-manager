@@ -58,6 +58,7 @@ const DETAIL: OrderDetail = {
 };
 const photo = (n: number, patch: Partial<OrderMedia> = {}): OrderMedia => ({
   id: ID(n),
+  kind: 'photo',
   category: 'defect',
   description: null,
   capturedAt: T0 + n * MIN_MS,
@@ -229,6 +230,7 @@ describe('the grid (EVM-142 AC2, AC6)', () => {
     // the replica read builds the rows with `buildOrderMedia` (newest first); the fake hands them over as given
     const source = (n: number, category: string) => ({
       id: ID(n),
+      mediaType: 'photo',
       category,
       description: null,
       capturedAt: T0 + n * MIN_MS,
@@ -581,6 +583,7 @@ describe('the real viewer on the screen (EVM-142 AC3, AC4)', () => {
         urls.push(request.mediaAssetId);
         return Promise.resolve<UrlAnswer>({ kind: 'ok', url: SIGNED, expiresAt: Date.now() - 1000 });
       },
+      requestVideoUrl: () => Promise.resolve<UrlAnswer>({ kind: 'error' }),
       fetchImage: (url) => {
         bytes.push(url);
         if (bytes.length === 1) return Promise.resolve({ kind: 'status' as const, status: 403 });
@@ -619,6 +622,7 @@ describe('the real viewer on the screen (EVM-142 AC3, AC4)', () => {
         sent.push(request.mediaAssetId);
         return Promise.resolve<UrlAnswer>({ kind: 'none' });
       },
+      requestVideoUrl: () => Promise.resolve<UrlAnswer>({ kind: 'error' }),
       fetchImage: () => Promise.reject(new Error('no request to the bucket expected')),
     };
     await openGridWithViewer(rig, source);

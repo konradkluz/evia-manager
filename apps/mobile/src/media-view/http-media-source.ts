@@ -30,6 +30,15 @@ export interface MediaSource {
     readonly signal: AbortSignal;
   }): Promise<UrlAnswer>;
   fetchImage(url: string, signal: AbortSignal): Promise<BytesAnswer>;
+  /**
+   * The address of the 720p preview of a film (EVM-143). The film NEVER passes through `fetchImage` (its bytes would sit in the memory of the process - the limit of a
+   * derivative is 1 GiB): only the player gets this address, and it is checked against the policy of the bucket BEFORE it is returned (`error` when it fails).
+   */
+  requestVideoUrl(request: {
+    readonly workOrderId: string;
+    readonly mediaAssetId: string;
+    readonly signal: AbortSignal;
+  }): Promise<UrlAnswer>;
 }
 
 /** The shape of `MobileSessionOwner.authorizedFetch`: `null` = no session (nothing was sent). */
@@ -58,26 +67,33 @@ export function createHttpMediaSource(options: HttpMediaSourceOptions): MediaSou
   };
   const secureApi = options.baseUrl.startsWith('https://') || (options.allowLocalHttp === true && options.baseUrl.startsWith('http://'));
   const plainFetch = options.fetchBytes ?? ((url: string, init: RequestInit) => fetch(url, init));
+  const ask = async (workOrderId: string, mediaAssetId: string, variant: ImageVariant, signal: AbortSignal): Promise<UrlAnswer> => {
+    if (!secureApi || !UUID.test(workOrderId) || !UUID.test(mediaAssetId)) return { kind: 'error' };
+    try {
+      const response = await options.fetch(
+        `${options.baseUrl}/api/v1/work-orders/${workOrderId}/media-assets/${mediaAssetId}/download-url`,
+        {
+          method: 'POST',
+          headers: { ...options.headers, Accept: 'application/json', 'Content-Type': 'application/json' },
+          body: JSON.stringify({ variant }),
+          signal,
+        },
+      );
+      if (response === null) return { kind: 'none' };
+      if (response.status !== 200) return { kind: 'status', status: response.status, retryAfter: response.headers.get('Retry-After') };
+      const url = readDerivativeUrl(await response.json());
+      return url === null ? { kind: 'error' } : { kind: 'ok', url: url.url, expiresAt: url.expiresAt };
+    } catch {
+      return { kind: 'error' };
+    }
+  };
   return {
-    async requestUrl({ workOrderId, mediaAssetId, variant, signal }) {
-      if (!secureApi || !UUID.test(workOrderId) || !UUID.test(mediaAssetId)) return { kind: 'error' };
-      try {
-        const response = await options.fetch(
-          `${options.baseUrl}/api/v1/work-orders/${workOrderId}/media-assets/${mediaAssetId}/download-url`,
-          {
-            method: 'POST',
-            headers: { ...options.headers, Accept: 'application/json', 'Content-Type': 'application/json' },
-            body: JSON.stringify({ variant }),
-            signal,
-          },
-        );
-        if (response === null) return { kind: 'none' };
-        if (response.status !== 200) return { kind: 'status', status: response.status, retryAfter: response.headers.get('Retry-After') };
-        const url = readDerivativeUrl(await response.json());
-        return url === null ? { kind: 'error' } : { kind: 'ok', url: url.url, expiresAt: url.expiresAt };
-      } catch {
-        return { kind: 'error' };
-      }
+    requestUrl: ({ workOrderId, mediaAssetId, variant, signal }) => ask(workOrderId, mediaAssetId, variant, signal),
+    async requestVideoUrl({ workOrderId, mediaAssetId, signal }) {
+      const answer = await ask(workOrderId, mediaAssetId, 'preview', signal);
+      // the address goes to the native player, whose HTTP stack follows redirects: the policy is checked HERE, before the address leaves the module
+      if (answer.kind === 'ok' && !isAllowedMediaUrl(answer.url, policy)) return { kind: 'error' };
+      return answer;
     },
     async fetchImage(url, signal) {
       if (!isAllowedMediaUrl(url, policy)) return { kind: 'error' };

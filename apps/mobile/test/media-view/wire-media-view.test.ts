@@ -26,7 +26,11 @@ function setup() {
     appState: { current: () => appState, subscribe: () => () => undefined },
   } as unknown as DeviceGuard;
   const viewer = new MediaViewer({
-    source: { requestUrl: () => Promise.resolve({ kind: 'error' }), fetchImage: () => Promise.resolve({ kind: 'error' }) },
+    source: {
+      requestUrl: () => Promise.resolve({ kind: 'error' }),
+      fetchImage: () => Promise.resolve({ kind: 'error' }),
+      requestVideoUrl: () => Promise.resolve({ kind: 'error' }),
+    },
     now: () => 0,
   });
   const stop = wireMediaView({

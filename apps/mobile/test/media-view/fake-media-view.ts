@@ -1,5 +1,12 @@
 // A fake of the viewer of the photos seen by the screens (EVM-142): the test decides what a request answers; the images are strings in a map, like in the real viewer.
-import type { ImageRequest, ImageResult, ImageVariant, MediaViewControl } from '../../src/media-view/types';
+import type {
+  ImageRequest,
+  ImageResult,
+  ImageVariant,
+  MediaViewControl,
+  VideoUrlRequest,
+  VideoUrlResult,
+} from '../../src/media-view/types';
 
 export interface PendingLoad {
   readonly request: ImageRequest;
@@ -28,6 +35,17 @@ export class FakeMediaView implements MediaViewControl {
     };
   };
   getEpoch = (): number => this.#epoch;
+  /** The permission to ask (the lock, the hidden-data mode and the background turn it off in the real viewer). */
+  allowed = true;
+  isAllowed = (): boolean => this.allowed;
+  /** Every address of a film the player asked for. */
+  readonly videoRequests: VideoUrlRequest[] = [];
+  /** What the next request for the address of a film answers. */
+  videoAnswer: VideoUrlResult = { kind: 'ok', url: 'https://bucket.example.test/preview.mp4?sig=SYNTHETIC' };
+  requestVideoUrl(request: VideoUrlRequest): Promise<VideoUrlResult> {
+    this.videoRequests.push(request);
+    return Promise.resolve(this.videoAnswer);
+  }
   peek(variant: ImageVariant, id: string): string | undefined {
     return this.#images.get(keyOf(variant, id));
   }

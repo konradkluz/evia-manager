@@ -4,6 +4,7 @@ import { buildOrderMedia, timeOfUuidV7, type OrderMediaSource } from '../../src/
 const ID = (n: number): string => `0194c2a0-0000-7000-8000-${String(n).padStart(12, '0')}`;
 const row = (n: number, patch: Partial<OrderMediaSource> = {}): OrderMediaSource => ({
   id: ID(n),
+  mediaType: 'photo',
   category: 'defect',
   description: null,
   capturedAt: 1_000 * n,
@@ -12,6 +13,11 @@ const row = (n: number, patch: Partial<OrderMediaSource> = {}): OrderMediaSource
 });
 
 describe('order photos model (EVM-142)', () => {
+  it('EVM-143 AC1: a film is kind video, a photo (and a kind of a newer version) is photo, in one list ordered by the time', () => {
+    const kinds = buildOrderMedia([row(1), row(2, { mediaType: 'video' }), row(3, { mediaType: 'other' })]).map((item) => item.kind);
+    expect(kinds).toEqual(['photo', 'video', 'photo']);
+  });
+
   it('EVM-142 AC2: newest first by the time of the capture; equal times keep a fixed order (the identifier), whatever the order of the rows', () => {
     const a = buildOrderMedia([row(1), row(3), row(2, { capturedAt: 3_000 })]).map((photo) => photo.id);
     const b = buildOrderMedia([row(2, { capturedAt: 3_000 }), row(3), row(1)]).map((photo) => photo.id);

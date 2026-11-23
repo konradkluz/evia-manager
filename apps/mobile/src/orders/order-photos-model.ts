@@ -1,12 +1,14 @@
 /**
- * The photos of an order as "Zdjęcia zlecenia" shows them (EVM-142 AC2, AC6): built from the `media_asset` entities of the REPLICA (type, category, description, time
- * of the capture, state of the file - no name of a file, no address, no author), photos only (films: EVM-143), newest first. Pure code, no import of the store.
+ * The photos of an order as "Zdjęcia zlecenia" shows them (EVM-142 AC2, AC6): built from the `media_asset` entities of the REPLICA (kind, category, description, time
+ * of the capture, state of the file - no name of a file, no address, no author), photos and films (EVM-143) together, newest first. Pure code, no import of the store.
  */
 import { MEDIA_CATEGORIES, type MediaCategory } from '../upload/create-media-asset';
 
 /** One `media_asset` of the replica, allow-listed keys only (`readOrderMedia`); `capturedAt` in ms. */
 export interface OrderMediaSource {
   readonly id: string;
+  /** `photo` or `video` (the replica reads only these two). */
+  readonly mediaType: string;
   readonly category: string | null;
   readonly description: string | null;
   readonly capturedAt: number | null;
@@ -21,6 +23,8 @@ export type PhotoState = 'ready' | 'preparing' | 'quarantined' | 'failed' | 'awa
 
 export interface OrderMedia {
   readonly id: string;
+  /** A film is played by the player screen (EVM-143); a photo opens the preview. */
+  readonly kind: 'photo' | 'video';
   /** `null` = no category, or a code of a newer version ("Bez kategorii"). */
   readonly category: MediaCategory | null;
   readonly description: string | null;
@@ -50,6 +54,7 @@ export function timeOfUuidV7(id: string): number | null {
 export function buildOrderMedia(rows: readonly OrderMediaSource[]): readonly OrderMedia[] {
   const photos = rows.map<OrderMedia>((row) => ({
     id: row.id,
+    kind: row.mediaType === 'video' ? 'video' : 'photo',
     category: (MEDIA_CATEGORIES as readonly string[]).includes(row.category ?? '') ? (row.category as MediaCategory) : null,
     description: row.description === null || row.description.trim() === '' ? null : row.description,
     capturedAt: row.capturedAt ?? timeOfUuidV7(row.id),

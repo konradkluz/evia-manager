@@ -13,13 +13,14 @@
 import { parseRetryAfter } from '../auth/retry-after';
 import type { BytesAnswer, MediaSource } from './http-media-source';
 import { toBase64 } from './base64';
-import type { ImageRequest, ImageResult, ImageVariant, MediaViewControl } from './types';
+import type { ImageRequest, ImageResult, ImageVariant, MediaViewControl, VideoUrlRequest, VideoUrlResult } from './types';
 
 export const MAX_PARALLEL = 4;
 /** A `Retry-After` is honoured up to this long (a photo is not worth the hour that the sign-in screen may wait). */
 export const MAX_IMAGE_BACKOFF_MS = 300_000;
 
 const ABORTED: ImageResult = { kind: 'aborted' };
+const VIDEO_ABORTED: VideoUrlResult = { kind: 'aborted' };
 const NOTHING = Symbol('aborted');
 // a function call, so that the compiler does not keep the earlier narrowing of `signal.aborted` across an await
 const isAborted = (signal: AbortSignal): boolean => signal.aborted;
@@ -106,6 +107,45 @@ export class MediaViewer implements MediaViewControl {
   endSession(): void {
     this.setAllowed(false);
     this.#blockedUntil = 0;
+  }
+
+  isAllowed = (): boolean => this.#allowed;
+
+  /**
+   * The address of the preview of a film (EVM-143 AC3, AC5), for the player ONLY. Same gate as an image: nothing is asked unless allowed and not within a `429` wait; every
+   * lock / hidden-data / background / end of session aborts the request and a late answer is dropped (epoch). 403 / 404 / 429 are final answers - no automatic backoff here
+   * (the person decides with "Spróbuj ponownie"); the address is returned once and kept nowhere in this module. No log, no message of an error.
+   */
+  async requestVideoUrl({ workOrderId, mediaAssetId, signal }: VideoUrlRequest): Promise<VideoUrlResult> {
+    if (!this.#allowed || signal.aborted) return VIDEO_ABORTED;
+    if (this.#now() < this.#blockedUntil) return { kind: 'rate_limited' };
+    const control = new AbortController();
+    const forward = (): void => {
+      control.abort();
+    };
+    signal.addEventListener('abort', forward, { once: true });
+    this.#inflight.add(control);
+    const epoch = this.#epoch;
+    try {
+      const answer = await untilAborted(
+        this.#source.requestVideoUrl({ workOrderId, mediaAssetId, signal: control.signal }),
+        control.signal,
+      );
+      if (answer === NOTHING || isAborted(control.signal) || epoch !== this.#epoch || !this.allowed) return VIDEO_ABORTED;
+      if (answer.kind === 'none') return VIDEO_ABORTED;
+      if (answer.kind === 'error') return { kind: 'failed' };
+      if (answer.kind === 'status') {
+        const refused = this.#refusal(answer.status, answer.retryAfter);
+        if (refused.kind === 'forbidden' || refused.kind === 'not_found' || refused.kind === 'rate_limited') return { kind: refused.kind };
+        return { kind: 'failed' };
+      }
+      return { kind: 'ok', url: answer.url };
+    } catch {
+      return control.signal.aborted ? VIDEO_ABORTED : { kind: 'failed' };
+    } finally {
+      signal.removeEventListener('abort', forward);
+      this.#inflight.delete(control);
+    }
   }
 
   async load(request: ImageRequest): Promise<ImageResult> {

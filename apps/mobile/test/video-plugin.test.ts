@@ -29,7 +29,8 @@ describe('film player config plugin (EVM-143 AC2, AC6; SR-MOB-14, MASVS-PLATFORM
     apply(base);
     expect(JSON.stringify(base)).toBe(once);
     const bare: TestManifest = { manifest: { $: {}, application: [{ $: {} }] } };
-    expect(apply(bare).manifest.application[0]?.activity).toHaveLength(1);
+    apply(bare);
+    expect(bare.manifest.application[0]?.activity).toHaveLength(1);
   });
 
   it('EVM-143 AC2: a manifest without an application element is a build error', () => {

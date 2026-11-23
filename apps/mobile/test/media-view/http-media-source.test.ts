@@ -174,4 +174,34 @@ describe('bytes of the image (EVM-142 AC5)', () => {
       globalThis.fetch = original;
     }
   });
+
+  it('EVM-143 AC2: the bytes of a film never go through the image path - video/mp4 (and any type other than WebP) is refused by fetchImage', async () => {
+    const s = source();
+    s.image(() => Promise.resolve(new Response(new Uint8Array([0, 0, 0, 24]), { status: 200, headers: { 'Content-Type': 'video/mp4' } })));
+    expect(await s.instance.fetchImage(SIGNED, signal)).toEqual({ kind: 'error' });
+  });
+
+  it('EVM-143 AC0: the address of the preview of a film is asked as variant preview, with the token path of the session, and checked against the policy of the bucket', async () => {
+    const s = source({ allowedHosts: ['media.example.eu'] });
+    const answer = await s.instance.requestVideoUrl({ workOrderId: WO, mediaAssetId: ASSET, signal });
+    expect(answer).toEqual({ kind: 'ok', url: SIGNED, expiresAt: Date.parse('2030-01-01T00:00:00Z') });
+    expect(JSON.parse(s.calls[0]?.init?.body as string)).toEqual({ variant: 'preview' });
+    expect(s.bucket).toHaveLength(0);
+  });
+
+  it('EVM-143 AC2: an address of another host, http or with credentials is never returned for the player; refusals and "no session" pass through', async () => {
+    const s = source({ allowedHosts: ['media.example.eu'] });
+    for (const url of ['https://evil.example.eu/x.mp4?sig=1', 'http://media.example.eu/x.mp4', 'https://u:p@media.example.eu/x.mp4']) {
+      s.answer(json(200, { url, expiresAt: '2030-01-01T00:00:00Z' }));
+      expect(await s.instance.requestVideoUrl({ workOrderId: WO, mediaAssetId: ASSET, signal })).toEqual({ kind: 'error' });
+    }
+    s.answer(json(429, {}, { 'Retry-After': '30' }));
+    expect(await s.instance.requestVideoUrl({ workOrderId: WO, mediaAssetId: ASSET, signal })).toEqual({
+      kind: 'status',
+      status: 429,
+      retryAfter: '30',
+    });
+    s.answer(null);
+    expect(await s.instance.requestVideoUrl({ workOrderId: WO, mediaAssetId: ASSET, signal })).toEqual({ kind: 'none' });
+  });
 });
