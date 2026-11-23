@@ -44,7 +44,13 @@ describe('film player config plugin (EVM-143 AC2, AC6; SR-MOB-14, MASVS-PLATFORM
     expect(names).not.toContain('expo-video');
   });
 
-  it('EVM-143 AC2: the exported plugin writes into the manifest of the config', () => {
-    expect(typeof withVideo).toBe('function');
+  it('EVM-143 AC2: the plugin registers one manifest mod that writes the removal', async () => {
+    type Mod = (config: unknown) => Promise<{ modResults: unknown }>;
+    const result = withVideo({ name: 'x', slug: 'x' });
+    const mods = (result as unknown as { mods: { android: Record<string, Mod> } }).mods.android;
+    expect(Object.keys(mods)).toEqual(['manifest']);
+    const base = manifest();
+    await mods['manifest']?.({ modResults: base, modRequest: {}, mods: {} });
+    expect(base.manifest.application[0]?.activity?.at(-1)?.$['tools:node']).toBe('remove');
   });
 });

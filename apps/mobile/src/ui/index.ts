@@ -86,6 +86,7 @@ export {
   Square,
   ThumbsDown,
   ThumbsUp,
+  Play,
   Video,
   VolumeOff,
   Wifi,

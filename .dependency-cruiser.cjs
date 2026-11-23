@@ -270,6 +270,14 @@ module.exports = {
       to: { path: 'node_modules/expo-secure-store(/|$)' },
     },
     {
+      name: 'mobile-expo-video-only-in-player-adapter',
+      comment:
+        'The film player is behind a port: only media-view/video-player-adapter.tsx imports expo-video; the session and the screens depend on the port and are tested on a fake player (EVM-143; SR-MOB-14).',
+      severity: 'error',
+      from: { path: '^apps/mobile/', pathNot: '^apps/mobile/(src/media-view/video-player-adapter\.tsx$|test/)' },
+      to: { path: 'node_modules/expo-video(/|$)' },
+    },
+    {
       name: 'mobile-installation-proof-only-in-sign-in-adapter',
       comment:
         'The installation proof (pair deviceId + secret, EVM-100 security W3) is created by the local store and unwrapped only by the HTTP adapter of the sign-in.',

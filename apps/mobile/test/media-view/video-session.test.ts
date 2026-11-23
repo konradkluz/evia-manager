@@ -1,51 +1,11 @@
 // EVM-143 AC2-AC5: the playback session of a film on a fake player - no autostart, one silent refresh from the same second, progress clears the count, 403/404/429, offline,
 // the lock / background / end of the session release the player, late answers and events of a released player are ignored.
-import {
-  MAX_SILENT_REFRESHES,
-  VideoSession,
-  type PlayerEvent,
-  type VideoPlayerPort,
-  type VideoSnapshot,
-} from '../../src/media-view/video-session';
+import { MAX_SILENT_REFRESHES, VideoSession, type VideoSnapshot } from '../../src/media-view/video-session';
+import { FakePort } from './fake-video-port';
 import type { VideoUrlRequest, VideoUrlResult } from '../../src/media-view/types';
 
 const URL1 = 'https://bucket.example.test/preview-1.mp4?sig=SYNTHETIC-1';
 const URL2 = 'https://bucket.example.test/preview-2.mp4?sig=SYNTHETIC-2';
-
-class FakePort implements VideoPlayerPort {
-  readonly loads: { url: string; startAt: number }[] = [];
-  readonly calls: string[] = [];
-  released = false;
-  at = 0;
-  readonly #listeners = new Set<(event: PlayerEvent) => void>();
-  load(url: string, startAt: number): void {
-    if (this.released) return;
-    this.loads.push({ url, startAt });
-  }
-  play(): void {
-    this.calls.push('play');
-  }
-  pause(): void {
-    this.calls.push('pause');
-  }
-  position(): number {
-    return this.at;
-  }
-  subscribe(listener: (event: PlayerEvent) => void): () => void {
-    this.#listeners.add(listener);
-    return () => {
-      this.#listeners.delete(listener);
-    };
-  }
-  release(): void {
-    this.released = true;
-    this.calls.push('release');
-  }
-  /** Delivers an event the way a native player does - also to a released one (the session must ignore it). */
-  emit(event: PlayerEvent): void {
-    for (const listener of [...this.#listeners]) listener(event);
-  }
-}
 
 function rig() {
   const ports: FakePort[] = [];

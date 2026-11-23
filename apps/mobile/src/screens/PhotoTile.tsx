@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Image, Pressable, Text, View } from 'react-native';
 import { formatDateTime } from '../i18n/format';
 import type { OrderMedia, PhotoState } from '../orders/order-photos-model';
-import { Ban, Clock, Icon, ImageIcon, ScanSearch, TriangleAlert } from '../ui';
+import { Ban, Clock, Icon, ImageIcon, Play, ScanSearch, TriangleAlert, Video } from '../ui';
 import { borderWidth, color, radius, size, space, text } from '../ui/theme';
 import { usePhotoImage } from './order-photos-hooks';
 
@@ -85,9 +85,28 @@ const boxStyle = (box: number) =>
   }) as const;
 
 /** The text under/beside the tile: the category, the time and the text of the state (no pill, no background); it wraps on word boundaries and is never cut (200% of the font). */
-function Caption({ category, time, marker, row }: { category: string; time: string | null; marker: Marker | null; row: boolean }) {
+function Caption({
+  category,
+  time,
+  marker,
+  row,
+  film = false,
+}: {
+  category: string;
+  time: string | null;
+  marker: Marker | null;
+  row: boolean;
+  film?: boolean;
+}) {
+  const { t } = useTranslation();
   return (
     <View style={{ rowGap: space.stack.xs, ...(row ? { flex: 1 } : {}) }}>
+      {film ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center', columnGap: space.inline.xs }}>
+          <Icon icon={Video} color={color.text.primary} iconSize="sm" />
+          <Text style={{ ...text.label, color: color.text.primary }}>{t('orderPhotos.videoLabel')}</Text>
+        </View>
+      ) : null}
       <Text style={{ ...text.label, color: color.text.primary }}>{category}</Text>
       {time === null ? null : <Text style={{ ...text.bodySm, color: color.text.secondary }}>{time}</Text>}
       {marker === null ? null : <Text style={{ ...text.bodySm, color: marker.look.text }}>{marker.label}</Text>}
@@ -131,12 +150,14 @@ function StaticTile({
   return (
     <View
       accessible
-      accessibilityLabel={[category, time, marker.label].filter((part): part is string => part !== null).join(', ')}
+      accessibilityLabel={[photo.kind === 'video' ? t('orderPhotos.videoLabel') : null, category, time, marker.label]
+        .filter((part): part is string => part !== null)
+        .join(', ')}
       style={frameStyle(width, layout)}
       testID={testID}
     >
       <StateBox box={boxSizeOf(width, layout)} marker={marker} testID={`${testID}-box`} />
-      <Caption category={category} time={time} marker={marker} row={layout === 'row'} />
+      <Caption category={category} time={time} marker={marker} row={layout === 'row'} film={photo.kind === 'video'} />
     </View>
   );
 }
@@ -183,13 +204,16 @@ function ReadyTile({
     return <StaticTile photo={photo} marker={markerOf('unavailable', t)} width={width} layout={layout} testID={testID} />;
   }
   const marker = state === 'retry' ? markerOf('loadFailed', t) : null;
-  const name = [category, time, marker?.label ?? null].filter((part): part is string => part !== null).join(', ');
+  const film = photo.kind === 'video';
+  const name = [film ? t('orderPhotos.videoLabel') : null, category, time, marker?.label ?? null]
+    .filter((part): part is string => part !== null)
+    .join(', ');
   const box = boxSizeOf(width, layout);
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={name}
-      accessibilityHint={marker !== null ? t('orderPhotos.tileRetryHint') : t('orderPhotos.tileHint')}
+      accessibilityHint={marker !== null ? t('orderPhotos.tileRetryHint') : t(film ? 'orderPhotos.videoTileHint' : 'orderPhotos.tileHint')}
       onPress={marker !== null ? reload : onOpen}
       testID={testID}
       style={{ ...frameStyle(width, layout), minHeight: layout === 'row' ? size.thumbnail.md : size.touchTarget.min }}
@@ -209,9 +233,29 @@ function ReadyTile({
               testID={`${testID}-image`}
             />
           )}
+          {film ? (
+            // decorative: a mark that this is a film, not a target of its own (the whole tile is the button)
+            <View
+              style={{
+                position: 'absolute',
+                width: size.touchTarget.min,
+                height: size.touchTarget.min,
+                borderRadius: radius.pill,
+                backgroundColor: color.bg.inverse,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+              accessible={false}
+              importantForAccessibility="no-hide-descendants"
+              pointerEvents="none"
+              testID={`${testID}-play`}
+            >
+              <Icon icon={Play} color={color.icon.inverse} iconSize="md" />
+            </View>
+          ) : null}
         </View>
       )}
-      <Caption category={category} time={time} marker={marker} row={layout === 'row'} />
+      <Caption category={category} time={time} marker={marker} row={layout === 'row'} film={film} />
     </Pressable>
   );
 }
