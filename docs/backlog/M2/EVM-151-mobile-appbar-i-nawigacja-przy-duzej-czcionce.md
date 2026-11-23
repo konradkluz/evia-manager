@@ -4,7 +4,7 @@ title: "Aplikacja: belka tytułu i dolna nawigacja czytelne przy dużej czcionce
 type: bug
 milestone: M2
 epic: E9 Dostęp mobilny
-status: ready
+status: in-progress
 priority: P2
 path: lekka            # zmiana wyglądu wspólnych komponentów mobile, bez danych, API i uprawnień; weryfikacja zrzutami i testem źródła
 owner: mobile-developer
@@ -77,3 +77,4 @@ Dziś przy 200% i 411 dp „Wstecz” oraz kapsuła synchronizacji („Zsynchr. 
 ## Dziennik
 - 2026-11-23 — utworzono jako szkic (product-owner)
 - 2026-11-23 — konsultacja ux-designera wklejona do „UX / UI” (Tech Lead); Konrad: akceptuje, jedna historyjka, skrót „Zlecenia” dla dolnej nawigacji; status `ready`
+- 2026-11-23 — start realizacji (/deliver): gałąź `feature/EVM-151-appbar-duza-czcionka`, klon `evia-manager-n1`, ścieżka `lekka`, wykonawca mobile-developer (`sonnet`), recenzent ux-designer; Konrad potwierdził kontynuację mimo 9 historyjek in-review
