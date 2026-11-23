@@ -64,3 +64,4 @@ Jako **administrator danych (EVia Charge)** chcę, aby **medium dodane do wizji 
 ## Dziennik
 - 2026-11-23 — utworzono (product-owner) na decyzję Konrada; stan: draft
 - 2026-11-23 — Konrad: model `sonnet`; notatki z telefonu (`CreateTimelineEntry`) poza zakresem do czasu oceny security (zlecona); blokada `lockVisible` na każdym zleceniu zostaje, wpływ na równoległe dodawanie mediów do zmierzenia w realizacji
+- 2026-11-23 — Konrad: wyścig dla dziennika (notatki, komentarze) poza zakresem EVM-150 — ryzyko Low zapisane w EVM-139 (dziennik, 2026-11-23); jeśli realizacja zmieni wspólną metodę `stateOf` dla mediów i notatek, dopisać test także dla notatek
