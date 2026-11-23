@@ -2,6 +2,13 @@
 # tools/mobile-e2e then proves that no request for the film left the phone.
 appId: pl.eviacharge.manager
 ---
+# the app learns about the lost network when it comes back to the foreground (the status of the start, as for the photos): Home, back, wait for the capsule
+- pressKey: home
+- launchApp:
+    stopApp: false
+- extendedWaitUntil:
+    visible: 'Brak zasięgu.*'
+    timeout: 30000
 - tapOn:
     id: 'video-player-action'
 - extendedWaitUntil:
