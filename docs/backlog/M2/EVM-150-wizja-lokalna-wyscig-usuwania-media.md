@@ -63,3 +63,4 @@ Jako **administrator danych (EVia Charge)** chcę, aby **medium dodane do wizji 
 
 ## Dziennik
 - 2026-11-23 — utworzono (product-owner) na decyzję Konrada; stan: draft
+- 2026-11-23 — Konrad: model `sonnet`; notatki z telefonu (`CreateTimelineEntry`) poza zakresem do czasu oceny security (zlecona); blokada `lockVisible` na każdym zleceniu zostaje, wpływ na równoległe dodawanie mediów do zmierzenia w realizacji
