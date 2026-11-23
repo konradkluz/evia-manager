@@ -4,7 +4,7 @@ title: "Aplikacja: odtwarzanie filmów zlecenia (online, bez zapisu na telefonie
 type: story
 milestone: M2
 epic: E11 Zdjęcia i filmy
-status: ready
+status: in-progress
 priority: P3
 path: pelna             # film na urządzeniu i prawdopodobna nowa zależność (odtwarzacz) — „media”, „dane na urządzeniu”, łańcuch dostaw
 owner: mobile-developer
@@ -85,3 +85,4 @@ Film po przetworzeniu ma klatkę-miniaturę (WebP) i podgląd wideo 720p (MP4 be
 - 2026-11-18 — utworzono jako szkic (product-owner); podział potrzeby Konrada z 2026-11-18 na zdjęcia (EVM-142) i filmy
 - 2026-11-18 — naniesiono konsultację security (Tech Lead): dodane AC0 (serwer dziś nie wydaje adresów wideo), AC2, AC5 i AC6 doprecyzowane (okno główne, brak zapisu na dysk, test uprawnień); status `draft`
 - 2026-11-18 — Konrad: „Akceptuję rekomendacje” — wszystkie pytania rozstrzygnięte wg rekomendacji; status `ready` (Tech Lead)
+- 2026-11-23 — start realizacji (/deliver): gałąź `feature/EVM-143-odtwarzanie-filmow`, ścieżka `pelna`, wykonawca mobile-developer (`sonnet`), recenzenci security-engineer, ux-designer, code-reviewer
