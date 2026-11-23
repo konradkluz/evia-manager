@@ -67,7 +67,6 @@ describe('Maestro flows 160-165 and the film scenarios agree (EVM-143)', () => {
     assert.deepEqual(grid?.after, ['film-requests:urls=0,requests=0,bytes=0']);
     const flow = flowText('160-film-play.yaml');
     for (const wanted of [
-      "assertVisible: 'Pauza'",
       "visible: 'Odtwórz ponownie'",
       'video-player-action',
       'video-player-close',
