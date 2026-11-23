@@ -51,3 +51,4 @@ export { default as Wifi } from 'lucide-react-native/icons/wifi';
 export { default as Wrench } from 'lucide-react-native/icons/wrench';
 export { default as X } from 'lucide-react-native/icons/x';
 export { default as ChevronRight } from 'lucide-react-native/icons/chevron-right';
+export { default as ArrowLeft } from 'lucide-react-native/icons/arrow-left';

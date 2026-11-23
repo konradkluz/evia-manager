@@ -51,7 +51,8 @@ export function SyncIndicator({ state, label, accessibilityLabel, onPress, testI
         borderRadius: radius.pill,
         borderWidth: size.focusRing.width,
         borderColor: focused ? color.focus.ringInverse : 'transparent',
-        flexShrink: 0,
+        // may shrink only when the whole bar has no more room: the text then wraps, it is never cut (EVM-151)
+        flexShrink: 1,
       }}
     >
       <View
@@ -68,9 +69,7 @@ export function SyncIndicator({ state, label, accessibilityLabel, onPress, testI
         }}
       >
         <Icon icon={glyph} color={tokens.icon} iconSize="md" />
-        <Text numberOfLines={1} style={{ ...text.label, color: tokens.text }}>
-          {label}
-        </Text>
+        <Text style={{ ...text.label, color: tokens.text }}>{label}</Text>
       </View>
     </Pressable>
   );

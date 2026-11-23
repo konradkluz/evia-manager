@@ -7,7 +7,7 @@ import type { ContactConfig } from '../config/contact-values';
 import { formatDateTime } from '../i18n/format';
 import { ADMINISTRATOR, CLAUSES, type Clause, type ClauseBlock } from '../privacy/content';
 import { LICENSES } from '../privacy/licenses';
-import { AppBar, Button, CircleAlert, Disclosure, InlineAlert } from '../ui';
+import { AppBar, BackButton, Button, CircleAlert, Disclosure, InlineAlert } from '../ui';
 import { color, space, text } from '../ui/theme';
 
 /** The section the entry opens (anchors `#pomoc` and `#prywatnosc` of M-11): "Pomoc" or "Prywatność". */
@@ -144,16 +144,7 @@ export function PrivacyHelpScreen({ section, contact, version, build, lastSyncAt
     >
       <AppBar
         title={t('privacy.title')}
-        left={
-          <Button
-            label={t('privacy.back')}
-            accessibilityLabel={t('privacy.backA11y')}
-            variant="tertiary"
-            inverse
-            onPress={onBack}
-            testID="privacy-help-back"
-          />
-        }
+        left={<BackButton accessibilityLabel={t('privacy.backA11y')} onPress={onBack} testID="privacy-help-back" />}
       />
       <ScrollView ref={scroll} contentContainerStyle={{ padding: space.inset.md, rowGap: space.stack.lg }}>
         <View style={{ rowGap: space.stack.sm }} onLayout={measure('help')} testID="privacy-help-section-help">

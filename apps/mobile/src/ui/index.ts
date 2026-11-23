@@ -2,6 +2,9 @@
 export { AlertDialog } from './AlertDialog';
 export type { AlertDialogProps } from './AlertDialog';
 export { AppBar } from './AppBar';
+export { BackButton } from './BackButton';
+export { fontScaleTier, useFontScaleTier } from './fontScale';
+export type { FontScaleTier } from './fontScale';
 export { AttentionCard } from './AttentionCard';
 export type { AttentionAction, AttentionCardProps } from './AttentionCard';
 export { BottomBar } from './BottomBar';
@@ -39,6 +42,7 @@ export { TextField } from './TextField';
 export type { SearchOptions, SecureToggle, TextFieldProps } from './TextField';
 export type { SyncIndicatorProps, SyncState } from './SyncIndicator';
 export {
+  ArrowLeft,
   Ban,
   Binoculars,
   CalendarX,

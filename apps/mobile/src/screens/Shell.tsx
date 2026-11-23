@@ -380,6 +380,7 @@ export function Shell() {
             {
               key: 'orders',
               label: t('shell.orders.title'),
+              shortLabel: t('shell.orders.navShort'),
               icon: ClipboardList,
               selected: tab === 'orders',
               onPress: () => {

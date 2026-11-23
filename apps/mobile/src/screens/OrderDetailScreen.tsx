@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AccessibilityInfo, FlatList, Text, View } from 'react-native';
 import type { JournalItem, OrderDetail } from '../orders/order-detail-model';
-import { AppBar, BottomBar, Button, Clock, EmptyState, Inbox, InlineAlert, Skeleton, StatusBadge, ThumbsDown } from '../ui';
+import { AppBar, BackButton, BottomBar, Button, Clock, EmptyState, Inbox, InlineAlert, Skeleton, StatusBadge, ThumbsDown } from '../ui';
 import { color, space, text } from '../ui/theme';
 import { ConnectionNotices } from './ConnectionNotices';
 import { HiddenDataNotice } from './DeviceNotices';
@@ -275,16 +275,7 @@ export function OrderDetailScreen({
     <View style={{ flex: 1, backgroundColor: color.bg.canvas }} testID="order-detail">
       <AppBar
         title={title}
-        left={
-          <Button
-            label={t('orderDetail.back')}
-            accessibilityLabel={t('orderDetail.backA11y')}
-            variant="tertiary"
-            inverse
-            onPress={onBack}
-            testID="order-detail-back"
-          />
-        }
+        left={<BackButton accessibilityLabel={t('orderDetail.backA11y')} onPress={onBack} testID="order-detail-back" />}
         right={<SyncCapsule onPress={onOpenQueue} />}
       />
       <ConnectionNotices />

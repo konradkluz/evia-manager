@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { AccessibilityInfo, ScrollView, Text, View } from 'react-native';
 import { filesOfOrder } from '../upload/order-files';
 import type { MediaFileView } from '../upload/types';
-import { AppBar, Button, Check, CircleCheck, EmptyState, EyeOff, Icon, Inbox, InlineAlert, Skeleton } from '../ui';
+import { AppBar, BackButton, Button, Check, CircleCheck, EmptyState, EyeOff, Icon, Inbox, InlineAlert, Skeleton } from '../ui';
 import { color, space, text } from '../ui/theme';
 import { FileDiscardDialog } from './FileDiscardDialog';
 import { FileRow } from './FileRow';
@@ -181,16 +181,7 @@ export function OrderFilesScreen({ orderId, onBack, onOpenQueue }: { orderId: st
     <View style={{ flex: 1, backgroundColor: color.bg.canvas }} testID="order-files">
       <AppBar
         title={t('orderFiles.title')}
-        left={
-          <Button
-            label={t('orderFiles.back')}
-            accessibilityLabel={t('orderFiles.backA11y')}
-            variant="tertiary"
-            inverse
-            onPress={onBack}
-            testID="order-files-back"
-          />
-        }
+        left={<BackButton accessibilityLabel={t('orderFiles.backA11y')} onPress={onBack} testID="order-files-back" />}
         right={<SyncCapsule onPress={onOpenQueue} />}
       />
       <View style={{ flex: 1 }}>{content()}</View>
