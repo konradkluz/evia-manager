@@ -67,6 +67,7 @@ describe('Expo configuration of the build (EVM-009 AC3, AC5, AC6)', () => {
       './plugins/with-hardening.ts',
       './plugins/with-upload.ts',
       './plugins/with-camera.ts',
+      './plugins/with-video.ts',
     ]);
   });
 

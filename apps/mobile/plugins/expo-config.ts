@@ -109,6 +109,7 @@ export function buildExpoConfig(env: Readonly<Record<string, string | undefined>
       ['./plugins/with-hardening.ts', { variant }],
       ['./plugins/with-upload.ts', { variant, apiBaseUrl: url.url, storageHosts }],
       './plugins/with-camera.ts',
+      './plugins/with-video.ts',
     ],
     extra: {
       buildVariant: variant,
