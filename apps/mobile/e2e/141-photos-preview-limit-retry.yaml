@@ -1,0 +1,17 @@
+# EVM-142 AC3 AC4: after the wait of the `Retry-After` "Spróbuj ponownie" gets the picture; the preview closes.
+appId: pl.eviacharge.manager
+---
+# no `launchApp`: the app stays in the foreground (a launch would put it through the background, which closes the preview on purpose)
+- tapOn:
+    id: 'photo-preview-retry'
+- extendedWaitUntil:
+    notVisible: 'Nie udało się wczytać zdjęcia'
+    timeout: 20000
+- assertVisible:
+    id: 'photo-preview'
+- tapOn:
+    id: 'photo-preview-close'
+- extendedWaitUntil:
+    notVisible:
+      id: 'photo-preview'
+    timeout: 10000

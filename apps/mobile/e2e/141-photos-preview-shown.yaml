@@ -1,0 +1,18 @@
+# EVM-142 AC3: after the expired address was renewed (tools/mobile-e2e saw both requests) the preview shows no error and no flicker of a message; "Zamknij podgląd" closes it
+# and the grid is there again (no gesture, no touch of the background closes it - only the button).
+appId: pl.eviacharge.manager
+---
+# no `launchApp`: the app stays in the foreground (a launch would put it through the background, which closes the preview on purpose)
+- assertVisible:
+    id: 'photo-preview'
+- assertNotVisible: 'Nie udało się wczytać zdjęcia'
+- assertNotVisible:
+    id: 'photo-preview-retry'
+- tapOn:
+    id: 'photo-preview-close'
+- extendedWaitUntil:
+    notVisible:
+      id: 'photo-preview'
+    timeout: 10000
+- assertVisible:
+    id: 'order-photos-grid'

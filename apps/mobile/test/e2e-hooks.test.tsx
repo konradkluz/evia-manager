@@ -6,6 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { E2eHooks as Slot, deviceOverrides as releaseOverrides } from '../src/e2e-hooks';
 import { NO_OVERRIDES } from '../src/device-guard/overrides';
 import {
+  CONTROL_IMAGE_PATH,
   E2E_HOOKS_MARKER,
   E2E_MEDIA_WORK_ORDER,
   E2E_USERS,
@@ -43,6 +44,10 @@ jest.mock('../src/e2e-hooks/synthetic-video', () => ({
     mockCapture.films.push({ id, seed, bytes });
     return Promise.resolve({ uri: `file:///synthetic/cache/Camera/${id}.mp4` });
   },
+}));
+const mockConfig = { apiBaseUrl: 'https://api.example.invalid' as string | null };
+jest.mock('../src/config', () => ({
+  readRuntimeConfig: () => (mockConfig.apiBaseUrl === null ? null : { apiBaseUrl: mockConfig.apiBaseUrl }),
 }));
 jest.mock('../src/session', () => ({
   sessionPorts: () => ({
@@ -704,5 +709,56 @@ describe('the synthetic film hook (EVM-110 AC8; SEC-110-18)', () => {
       .map((path) => path.slice(src.length + 1).replaceAll(String.fromCharCode(92), '/'));
     expect(importers).toEqual(['e2e-hooks/panel.tsx']);
     expect(readFileSync(join(src, 'e2e-hooks', 'panel.tsx'), 'utf8')).toContain('export const E2E_HOOKS_MARKER');
+  });
+});
+
+describe('the control fetch of the cache proof (EVM-142 AC5)', () => {
+  it('EVM-142 AC5: "cache: control fetch" asks the plain global fetch for the control image with NO headers (so no Cache-Control: no-store) and shows the status and the size only', async () => {
+    const calls: unknown[][] = [];
+    const original = global.fetch;
+    global.fetch = ((...args: unknown[]) => {
+      calls.push(args);
+      return Promise.resolve({ status: 200, arrayBuffer: () => Promise.resolve(new ArrayBuffer(34)) });
+    }) as unknown as typeof fetch;
+    try {
+      mockConfig.apiBaseUrl = 'http://10.0.2.2:8123';
+      await render(inProvider(<E2eHooks />));
+      await tap(E2E_HOOKS_MARKER);
+      await tap('e2e-cache-control');
+      await expectStatus('control_status=200;control_bytes=34');
+      // one argument only: no init, hence no header of ours - the cache of the client of the app decides alone
+      expect(calls).toEqual([[`http://10.0.2.2:8123${CONTROL_IMAGE_PATH}`]]);
+      expect(CONTROL_IMAGE_PATH).toContain('E2EMARK');
+    } finally {
+      global.fetch = original;
+      mockConfig.apiBaseUrl = 'https://api.example.invalid';
+    }
+  });
+
+  it('EVM-142 AC5: without a usable address of the API the control reports a code and fetches nothing', async () => {
+    const original = global.fetch;
+    const calls: unknown[] = [];
+    global.fetch = (...args: unknown[]) => {
+      calls.push(args);
+      return Promise.reject(new Error('must not be called'));
+    };
+    try {
+      mockConfig.apiBaseUrl = null;
+      await render(inProvider(<E2eHooks />));
+      await tap(E2E_HOOKS_MARKER);
+      await tap('e2e-cache-control');
+      await expectStatus('error=no_control');
+      expect(calls).toEqual([]);
+    } finally {
+      global.fetch = original;
+      mockConfig.apiBaseUrl = 'https://api.example.invalid';
+    }
+  });
+
+  it('EVM-142 AC5: an injected control is used as it is', async () => {
+    await render(inProvider(<E2eHooks deps={{ ...depsOf(), controlFetch: () => Promise.resolve({ status: 204, bytes: 0 }) }} />));
+    await tap(E2E_HOOKS_MARKER);
+    await tap('e2e-cache-control');
+    await expectStatus('control_status=204;control_bytes=0');
   });
 });

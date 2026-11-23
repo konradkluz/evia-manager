@@ -1,0 +1,17 @@
+# EVM-142 AC5: the grid and a preview are used (the first request of the preview was answered 403, an expired address, by tools/mobile-e2e); the flow ends with the preview open.
+# tools/mobile-e2e then searches the directories of the app for the picture and the address and reads the log.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- runFlow: common/photos-grid-open.yaml
+- tapOn:
+    id: 'photo-tile-0'
+- extendedWaitUntil:
+    visible:
+      id: 'photo-preview'
+    timeout: 20000
+- assertVisible: 'Opis testowy completed_work'

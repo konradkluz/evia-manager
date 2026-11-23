@@ -26,17 +26,19 @@ const SHELL_ENV = {
 const GIT = P(win ? '/bin/git.exe' : '/bin/git');
 
 /**
- * @param {{ v2?: boolean, v3?: boolean, signers?: number, cert?: string, dn?: string }} [over]
+ * `label`: build-tools up to 36 print "Signer #1 certificate …", build-tools 37 print "V3.0 Signer: certificate …" (one block per scheme).
+ * @param {{ v2?: boolean, v3?: boolean, signers?: number, cert?: string, dn?: string, label?: string, more?: string[] }} [over]
  */
-function report({ v2 = true, v3 = true, signers = 1, cert = CERT, dn = 'CN=Synthetic Owner' } = {}) {
+function report({ v2 = true, v3 = true, signers = 1, cert = CERT, dn = 'CN=Synthetic Owner', label = 'Signer #1', more = [] } = {}) {
   return [
     'Verifies',
     'Verified using v1 scheme (JAR signing): false',
     `Verified using v2 scheme (APK Signature Scheme v2): ${String(v2)}`,
     `Verified using v3 scheme (APK Signature Scheme v3): ${String(v3)}`,
     `Number of signers: ${String(signers)}`,
-    `Signer #1 certificate DN: ${dn}`,
-    cert === '' ? '' : `Signer #1 certificate SHA-256 digest: ${cert}`,
+    `${label} certificate DN: ${dn}`,
+    cert === '' ? '' : `${label} certificate SHA-256 digest: ${cert}`,
+    ...more,
   ].join('\n');
 }
 
@@ -596,6 +598,26 @@ describe('local signing of the package (EVM-009 AC5; security-engineer K-A)', ()
       assert.ok(!files.has(P('/out/signed.apk')), `output removed for ${String(pattern)}`);
       assert.ok(!files.has(`${P('/out/signed.apk')}.aligned.tmp`));
     }
+  });
+
+  it('EVM-009 AC5: the report of build-tools 37 ("V3.0 Signer: certificate …") is read like the older one; two different certificates fail', () => {
+    const signed = world({ report: report({ label: 'V3.0 Signer:', more: [`V2 Signer: certificate SHA-256 digest: ${CERT}`] }) });
+    assert.equal(signApk(options({ expectedCertSha256: CERT }), signed.host), 0, signed.logs.join('\n'));
+    assert.ok(signed.logs.join('\n').includes(`SHA-256 certificate: ${CERT}`));
+    assert.ok(signed.files.has(P('/out/signed.apk')));
+
+    const pinned = world({ report: report({ label: 'V3.0 Signer:', cert: 'cd'.repeat(32) }) });
+    assert.equal(signApk(options({ expectedCertSha256: CERT }), pinned.host), 1);
+    assert.match(pinned.logs.join('\n'), /certificate differs from the expected one/);
+
+    const debug = world({ report: report({ label: 'V3.0 Signer:', dn: 'C=US, O=Android, CN=Android Debug' }) });
+    assert.equal(signApk(options(), debug.host), 1);
+    assert.match(debug.logs.join('\n'), /debug key/);
+
+    const two = world({ report: report({ label: 'V3.0 Signer:', more: [`V2 Signer: certificate SHA-256 digest: ${'cd'.repeat(32)}`] }) });
+    assert.equal(signApk(options(), two.host), 1);
+    assert.match(two.logs.join('\n'), /more than one certificate/);
+    assert.ok(!two.files.has(P('/out/signed.apk')));
   });
 
   it('EVM-009 AC5: a certificate that differs from the pinned digest fails and removes the signed package', () => {

@@ -35,6 +35,11 @@ import { localData, randomSource, recordingMarker } from './storage';
 import { createHttpSyncTransport } from './sync/http-transport';
 import { SyncHost } from './sync/sync-host';
 import { SyncService } from './sync/sync-service';
+import { createHttpMediaSource } from './media-view/http-media-source';
+import { bucketHostsOf } from './media-view/media-url-policy';
+import { MediaViewer } from './media-view/media-viewer';
+import type { MediaSource } from './media-view/http-media-source';
+import { wireMediaView } from './media-view/wire-media-view';
 import { CameraRequests } from './capture/camera-requests';
 import { expoDiskSpace } from './capture/disk-space';
 import { MediaUploads } from './upload/media-uploads';
@@ -66,6 +71,12 @@ const NO_SYNC_TRANSPORT = {
   getWorkOrderSnapshot: () => Promise.resolve({ kind: 'network' as const }),
   getClientConfig: () => Promise.resolve({ kind: 'network' as const }),
   listWorkOrderTemplates: () => Promise.resolve({ kind: 'network' as const }),
+};
+
+/** Without a valid API address no image is requested (every request is a failure). */
+export const NO_MEDIA_SOURCE: MediaSource = {
+  requestUrl: () => Promise.resolve({ kind: 'error' }),
+  fetchImage: () => Promise.resolve({ kind: 'error' }),
 };
 
 let makeId: (() => string) | undefined;
@@ -191,6 +202,22 @@ export function createSessionPorts(
     appState: { current: () => guard.appState.current(), subscribe: (listener) => guard.onAppStateChange(listener) },
     sync,
   });
+  // EVM-142: the images of the photos of an order live in the memory only; the lock, the hidden-data mode, the background and the end of the session free them
+  const mediaView = new MediaViewer({
+    source:
+      config === null
+        ? NO_MEDIA_SOURCE
+        : createHttpMediaSource({
+            baseUrl: config.apiBaseUrl,
+            allowLocalHttp: config.buildVariant === 'e2e',
+            // SR-MOB-10: an image is fetched only from the bucket of the build; the e2e variant (the emulator host) is the one exception
+            ...bucketHostsOf(config),
+            fetch: (url, init) => owner.authorizedFetch(url, init),
+            headers: clientHeaders(config.platform, config.appVersion),
+          }),
+    now: Date.now,
+  });
+  wireMediaView({ viewer: mediaView, guard, sync, onBeforeSessionEnd: (listener) => owner.onBeforeSessionEnd(listener) });
   owner.onBeforeSessionEnd(() => {
     sync.stop();
     clipboard.clear();
@@ -228,6 +255,7 @@ export function createSessionPorts(
     camera: new CameraRequests({ orders: () => sync.orderList(false) }),
     sync,
     media,
+    mediaView,
     copyToClipboard: (text) => clipboard.copy(text),
     unsentBeforeSignIn: () => host.unsentItemCountBeforeSignIn(),
     openForgotPassword: () => {

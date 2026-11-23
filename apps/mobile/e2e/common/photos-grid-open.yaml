@@ -1,0 +1,10 @@
+# EVM-142 AC2 (shared): from the list to the grid "Zdjęcia zlecenia" of the first order. Ends on the screen of the photos (the grid online, the list offline).
+appId: pl.eviacharge.manager
+---
+- runFlow: photos-details.yaml
+- tapOn:
+    id: 'order-photos-row'
+- extendedWaitUntil:
+    visible:
+      id: 'order-photos'
+    timeout: 20000

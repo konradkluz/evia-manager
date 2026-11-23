@@ -368,6 +368,7 @@ describe('smoke test run (EVM-009 AC4; ADR-0015)', () => {
           quick: step.quick ?? 'ok',
           survey: step.survey ?? 'ok',
           features: step.features ?? 'on',
+          photos: step.photos ?? 'off',
         })),
       ),
     );

@@ -20,6 +20,7 @@ import { VIDEO_SCENARIOS } from './video-scenarios.mjs';
 import { SURVEY_SCENARIOS } from './survey-scenarios.mjs';
 import { ORDER_FILES_SCENARIOS } from './order-files-scenarios.mjs';
 import { LOCK_SCENARIOS } from './lock-scenarios.mjs';
+import { PHOTOS_SCENARIOS } from './photos-scenarios.mjs';
 import { SCENARIOS } from './scenarios.mjs';
 
 /** The answer to every part is held this long (ms): ten parts of the big file take about a minute. */
@@ -261,5 +262,6 @@ export function selectScenarios(only) {
     ...SURVEY_SCENARIOS,
     ...ORDER_FILES_SCENARIOS,
     ...LOCK_SCENARIOS,
+    ...PHOTOS_SCENARIOS,
   ].filter((scenario) => only.some((word) => scenario.name.startsWith(word)));
 }

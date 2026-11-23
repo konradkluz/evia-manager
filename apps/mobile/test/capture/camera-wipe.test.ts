@@ -25,7 +25,13 @@ jest.mock('../../src/storage', () => {
   };
 });
 
-const config = { apiBaseUrl: 'https://manager.example.test', platform: 'android', appVersion: '0.4.0', buildVariant: 'release' } as const;
+const config = {
+  apiBaseUrl: 'https://manager.example.test',
+  platform: 'android',
+  appVersion: '0.4.0',
+  buildVariant: 'release',
+  storageHosts: [],
+} as const;
 
 /** The module of the phone as far as the wipe goes: the private folder of the originals and the cache of the camera. */
 function phone(stuck: ReadonlySet<string> = new Set()) {

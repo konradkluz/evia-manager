@@ -4,6 +4,7 @@
  */
 import type { OrderDetail } from '../orders/order-detail-model';
 import type { OrderRow } from '../orders/order-list-model';
+import type { OrderPhoto } from '../orders/order-photos-model';
 import type { AttentionAction, AttentionReason, EnqueueInput, MutationType, TransportResponse } from '@evia/sync-core';
 import type { QuickOrderDraft, QuickOrderSource } from '../orders/quick-order-model';
 import type { TemplateSet } from '../orders/templates';
@@ -154,6 +155,11 @@ export interface SyncControl {
    * the scope of the phone or deleted). Never called in the hidden-data mode.
    */
   orderDetail(workOrderId: string): Promise<OrderDetail | null>;
+  /**
+   * The photos of one work order (EVM-142): the local replica only, never the server (the images themselves come from the viewer). Newest first; never called in the
+   * hidden-data mode (the screen decides).
+   */
+  orderPhotos(workOrderId: string): Promise<readonly OrderPhoto[]>;
   /**
    * The templates of work orders stored on the phone (EVM-106 AC1) - the replica only, never the server; `null` = none downloaded yet.
    * Not personal data, so also readable in the hidden-data mode (the form itself is not).

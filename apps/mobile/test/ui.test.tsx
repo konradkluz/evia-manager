@@ -239,6 +239,15 @@ describe('list controls (EVM-103; styleguide § 3.7, § 3.9)', () => {
     expect(flat(screen.getByTestId('badge')).backgroundColor).toBe(color.status.order.quoting.bg);
   });
 
+  it('EVM-142 AC6: StatusBadge label wraps inside its tile - shrinks, is never cut (no numberOfLines) and the badge cannot outgrow the tile (200% of the font)', async () => {
+    await render(<StatusBadge icon={Calculator} label="Plik zatrzymany do sprawdzenia" tone={color.status.order.quoting} testID="badge" />);
+    const label = screen.getByText('Plik zatrzymany do sprawdzenia');
+    expect(label.props.numberOfLines).toBeUndefined();
+    expect(label.props.ellipsizeMode).toBeUndefined();
+    expect(flat(label).flexShrink).toBe(1);
+    expect(flat(screen.getByTestId('badge')).maxWidth).toBe('100%');
+  });
+
   it('EVM-103 AC6: the search variant of TextField turns off every learning property, limits the length and offers a 48 dp clear button only for a filled field', async () => {
     const onClear = jest.fn();
     const view = await render(

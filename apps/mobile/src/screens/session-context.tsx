@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useState, useSyncExt
 import type { CameraRequests } from '../capture/camera-requests';
 import type { QueueEntryRow } from '../auth/ports';
 import type { DeviceGuard, GuardSnapshot } from '../device-guard/device-guard';
+import type { MediaViewControl } from '../media-view/types';
 import type { QueueItem, QueueView, SyncControl, SyncSnapshot } from '../sync/types';
 import type { MediaControl, MediaUploadsSnapshot } from '../upload/types';
 
@@ -27,6 +28,8 @@ export interface SessionActions {
   readonly sync: SyncControl;
   /** The files of the queue (EVM-130): states, "Ponów", the notification consent and the target of a notification. */
   readonly media: MediaControl;
+  /** The photos of an order from the server, online, in the memory of the process only (EVM-142). */
+  readonly mediaView: MediaViewControl;
   /** "Kopiuj treść": the sensitive clipboard (marked, removed after 60 s); false when it could not be done. */
   readonly copyToClipboard: (text: string) => boolean;
   /** "Utwórz ponownie" of a rejected entry: opens the form where there is one (M-10), otherwise creates it again at once. */

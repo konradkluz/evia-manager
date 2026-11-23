@@ -1,0 +1,17 @@
+# EVM-142 AC3: the server is well again (tools/mobile-e2e cleared the fault): "Spróbuj ponownie" asks for a NEW address and the picture comes; the message is gone.
+appId: pl.eviacharge.manager
+---
+# no `launchApp`: the app stays in the foreground (a launch would put it through the background, which closes the preview on purpose)
+- tapOn:
+    id: 'photo-preview-retry'
+- extendedWaitUntil:
+    notVisible: 'Nie udało się wczytać zdjęcia'
+    timeout: 20000
+- assertVisible:
+    id: 'photo-preview'
+- tapOn:
+    id: 'photo-preview-close'
+- extendedWaitUntil:
+    notVisible:
+      id: 'photo-preview'
+    timeout: 10000

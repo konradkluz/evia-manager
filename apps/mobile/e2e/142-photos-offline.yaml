@@ -1,0 +1,21 @@
+# EVM-142 AC4: no network (airplane mode, set by tools/mobile-e2e); the replica was downloaded at the sign-in. The grid "Zdjęcia zlecenia" lists the five photos from the replica
+# (category and time) with the message "Podgląd zdjęć wymaga internetu" instead of thumbnails and WITHOUT an error of the server; no request left the phone (tools/mobile-e2e
+# counts them).
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- extendedWaitUntil:
+    visible: 'Brak zasięgu.*'
+    timeout: 30000
+- runFlow: common/photos-grid-open.yaml
+- assertVisible: 'Podgląd zdjęć wymaga internetu'
+- assertVisible: 'Po zakończeniu.*'
+- assertVisible: 'W trakcie prac.*'
+- assertVisible: 'Stan przed pracami.*'
+- assertNotVisible: 'Nie udało się wczytać zdjęcia'
+- assertNotVisible: 'Nie udało się wczytać części zdjęć\.'
+- takeScreenshot: m08-photos-offline

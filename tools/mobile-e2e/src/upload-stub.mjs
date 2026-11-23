@@ -736,6 +736,8 @@ export function createUploadStub({
     checkpoint,
     registerAsset,
     claims,
+    /** The Bearer check of the API (the photos part of the scenario server uses it for `createMediaAssetDownloadUrl`). */
+    authorize,
     /** @param {number} value the port of the app listener (it goes into the part addresses) */
     setPort: (value) => {
       port = value;

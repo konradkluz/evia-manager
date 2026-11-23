@@ -64,4 +64,5 @@ export const MOBILE_OPERATIONS: readonly string[] = Object.freeze([
   'getUploadPartUrl',
   'completeUploadSession',
   'abortUploadSession',
+  'createMediaAssetDownloadUrl',
 ]);

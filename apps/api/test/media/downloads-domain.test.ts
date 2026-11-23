@@ -15,10 +15,19 @@ const ID = '0198a7a0-1234-7000-8000-000000000001';
 describe('EVM-045 AC4 AC6 who may request which variant and which files are downloadable', () => {
   it('EVM-045 AC4 Read-only never gets the original; Administrator and Editor get every variant; Read-only gets both derivatives', () => {
     for (const variant of DOWNLOAD_VARIANTS) {
-      expect(mayRequest('administrator', variant)).toBe(true);
-      expect(mayRequest('editor', variant)).toBe(true);
-      expect(mayRequest('read_only', variant)).toBe(variant !== 'original');
+      expect(mayRequest('administrator', variant, 'web')).toBe(true);
+      expect(mayRequest('editor', variant, 'web')).toBe(true);
+      expect(mayRequest('read_only', variant, 'web')).toBe(variant !== 'original');
     }
+  });
+
+  it('EVM-142 AC1 the phone gets the derivatives only: no role gets the original on the mobile channel', () => {
+    for (const role of ['administrator', 'editor', 'read_only'] as const) {
+      expect(mayRequest(role, 'original', 'mobile')).toBe(false);
+      expect(mayRequest(role, 'thumbnail', 'mobile')).toBe(true);
+      expect(mayRequest(role, 'preview', 'mobile')).toBe(true);
+    }
+    expect(mayRequest('administrator', 'original', 'web')).toBe(true);
   });
 
   it('EVM-045 AC5 the thumbnail and the preview are one class, the original another', () => {

@@ -9,6 +9,7 @@ import type { DeviceCheck, SessionControl, SessionStep } from '../auth/session-o
 import type { CameraRequests } from '../capture/camera-requests';
 import type { DeviceGuard } from '../device-guard/device-guard';
 import { useStartup } from '../startup';
+import type { MediaViewControl } from '../media-view/types';
 import type { QueueItem, SyncRuntime } from '../sync/types';
 import type { MediaControl } from '../upload/types';
 import { DeviceStateScreen, QueuePreviewScreen, type DeviceStateVariant } from './DeviceStateScreen';
@@ -51,6 +52,8 @@ export interface SessionPorts {
   readonly sync: SyncRuntime;
   /** The files of the queue (EVM-130): the module's upload, the consent for notifications, the target of a notification. */
   readonly media: MediaControl;
+  /** The photos of an order from the server, online, in the memory only (EVM-142); the composition frees them with the lock, the background and the end of the session. */
+  readonly mediaView: MediaViewControl;
   /** The sensitive clipboard (marked, removed after 60 s); `false` = not copied. */
   readonly copyToClipboard: (text: string) => boolean;
   /** "Utwórz ponownie": opens the form of the quick work order (M-10) once it exists; without it the entry is created again at once. */
@@ -295,6 +298,7 @@ export function SessionRoot({ ports, children }: { ports: SessionPorts; children
       queueEntries: (withLabels) => owner.queueEntries(withLabels),
       sync,
       media: ports.media,
+      mediaView: ports.mediaView,
       copyToClipboard: ports.copyToClipboard,
       openRecreate:
         ports.openRecreate ??

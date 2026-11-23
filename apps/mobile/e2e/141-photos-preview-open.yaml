@@ -1,0 +1,22 @@
+# EVM-142 AC3: a touch on the first tile opens the preview (1600 px) in the main window with the category, the time, the description and "Zamknij podgląd". The scenario server
+# answered the FIRST request of the preview with 403 (an expired address): the app asks for ONE more address, silently. The flow ends with the preview open;
+# tools/mobile-e2e then counts the requests (two addresses, two requests for the picture), waits, and the next flow shows that nothing went wrong on the screen.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- runFlow: common/photos-grid-open.yaml
+- tapOn:
+    id: 'photo-tile-0'
+- extendedWaitUntil:
+    visible:
+      id: 'photo-preview'
+    timeout: 20000
+- assertVisible: 'Po zakończeniu'
+- assertVisible: 'Opis testowy completed_work'
+- assertVisible:
+    id: 'photo-preview-close'
+- takeScreenshot: m08-photo-preview

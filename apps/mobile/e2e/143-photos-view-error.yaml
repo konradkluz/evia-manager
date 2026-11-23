@@ -1,0 +1,17 @@
+# EVM-142 AC5: a preview whose picture the server refuses with 500 (the failed load): the message, "Spróbuj ponownie"; the preview is closed again.
+appId: pl.eviacharge.manager
+---
+# no `launchApp`: the app stays in the foreground (a launch would put it through the background, which closes the preview on purpose)
+- tapOn:
+    id: 'photo-tile-1'
+- extendedWaitUntil:
+    visible:
+      id: 'photo-preview-retry'
+    timeout: 20000
+- assertVisible: 'Nie udało się wczytać zdjęcia'
+- tapOn:
+    id: 'photo-preview-close'
+- extendedWaitUntil:
+    notVisible:
+      id: 'photo-preview'
+    timeout: 10000

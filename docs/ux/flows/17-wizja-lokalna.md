@@ -187,7 +187,7 @@ Dopisek do [M-03](03-szczegoly-zlecenia.md#m-03-szczegóły-zlecenia). **Jedyne 
 
 - **Cel:** zobaczyć adres i od razu dokumentować oględziny zdjęciami i filmami.
 - **Główna akcja:** „Zrób zdjęcie” (dolny pasek jak w M-03).
-- **Hierarchia treści:** 1) numer (albo „Oczekuje na numer”) + status; 2) oznaczenie „Wizja lokalna” i termin; 3) adres (`text.body-lg`); 4) telefon zamawiającego (jeśli jest) jako akcja „Zadzwoń”; 5) „Brak klienta — uzupełni biuro.”; 6) wiersz „Pliki z tego telefonu” (od EVM-111; jak w M-03) → M-08 „Pliki zlecenia”; 7) dziennik (wpisy i elementy kolejki) + „Dodaj wpis”.
+- **Hierarchia treści:** 1) numer (albo „Oczekuje na numer”) + status; 2) oznaczenie „Wizja lokalna” i termin; 3) adres (`text.body-lg`); 4) telefon zamawiającego (jeśli jest) jako akcja „Zadzwoń”; 5) „Brak klienta — uzupełni biuro.”; 6) wiersz „Zdjęcia zlecenia” (od EVM-142; jak w M-03, jeśli zdjęcia wizji są mediami zlecenia — do weryfikacji w planie EVM-142) → M-08a, nad wierszem „Pliki z tego telefonu” (od EVM-111; jak w M-03) → M-08 „Pliki zlecenia”; 7) dziennik (wpisy i elementy kolejki) + „Dodaj wpis”.
 
 **Makieta (compact)**
 ```text

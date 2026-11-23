@@ -1,0 +1,40 @@
+# EVM-142 AC5: a cold start of the app (the lock of the previous flow is gone with the process), the photo is looked at again (grid, preview), then "Więcej" -> "Wyloguj" ->
+# the confirmation: M-02 "Wylogowano". tools/mobile-e2e then searches the directories of the app and reads the log.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: true
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- extendedWaitUntil:
+    visible: 'ZL-E2E-1'
+    timeout: 60000
+- runFlow: common/photos-grid-open.yaml
+- tapOn:
+    id: 'photo-tile-0'
+- extendedWaitUntil:
+    visible:
+      id: 'photo-preview'
+    timeout: 20000
+- assertVisible: 'Opis testowy completed_work'
+- tapOn:
+    id: 'photo-preview-close'
+- extendedWaitUntil:
+    notVisible:
+      id: 'photo-preview'
+    timeout: 10000
+- tapOn:
+    id: 'order-photos-back'
+- tapOn:
+    id: 'nav-more'
+- tapOn:
+    id: 'more-sign-out'
+- extendedWaitUntil:
+    visible: 'Wylogować się?'
+    timeout: 30000
+- tapOn:
+    id: 'logout-confirm'
+- extendedWaitUntil:
+    visible: 'Wylogowano'
+    timeout: 30000

@@ -16,6 +16,7 @@ import {
   type ImageProcessingErrorCode,
 } from '../../../platform/media-processing/image-processor.ts';
 import type { VideoProcessingErrorCode } from '../../../platform/media-processing/video-processor.ts';
+import type { Channel } from '@evia/contracts';
 import type { FileState } from './scan-outcome.ts';
 
 export { DERIVATIVE_VARIANTS, VARIANT_EDGES, type DerivativeVariant };
@@ -23,6 +24,12 @@ export { DERIVATIVE_VARIANTS, VARIANT_EDGES, type DerivativeVariant };
 export const DERIVATIVE_CONTENT_TYPE = 'image/webp';
 /** The browser may keep a derivative for as long as its address lives, and no longer (P3: the picture of a private site stays in the shared cache of nobody). */
 export const DERIVATIVE_CACHE_CONTROL = 'private, max-age=300';
+/** EVM-142 AC5: the phone keeps no copy of a photo, and the HTTP cache of its network layer is a copy on disk - so an address for the phone forbids caching (second line of defence next to the header of the app). */
+export const MOBILE_DERIVATIVE_CACHE_CONTROL = 'no-store';
+
+/** The `response-cache-control` of a signed address of a derivative; the channel is required (fail closed, ASVS V8.3.1). */
+export const derivativeCacheControl = (channel: Channel): string =>
+  channel === 'mobile' ? MOBILE_DERIVATIVE_CACHE_CONTROL : DERIVATIVE_CACHE_CONTROL;
 
 /** How many times the loop TAKES a file (raised when it is taken, so a processor that crashes on a file still uses an attempt). */
 export const MAX_PROCESSING_ATTEMPTS = 3;

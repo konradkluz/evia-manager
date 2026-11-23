@@ -1,6 +1,7 @@
 // A fake of the synchronization seen by the screens (EVM-107): a settable snapshot and queue, recorded calls.
 import type { EnqueueInput } from '@evia/sync-core';
 import type { OrderDetail } from '../../src/orders/order-detail-model';
+import type { OrderPhoto } from '../../src/orders/order-photos-model';
 import { redactRows, type OrderRow } from '../../src/orders/order-list-model';
 import type { QuickOrderSource } from '../../src/orders/quick-order-model';
 import type { TemplateSet } from '../../src/orders/templates';
@@ -113,6 +114,15 @@ export class FakeSync implements SyncRuntime {
     this.detailRequests.push(id);
     if (this.orderDetailHook !== undefined) return this.orderDetailHook(id);
     return Promise.resolve(this.details.get(id) ?? null);
+  }
+  /** The photos the fake answers by order id (set by the test; EVM-142); an order that is not there has none. */
+  photos = new Map<string, readonly OrderPhoto[]>();
+  readonly photoRequests: string[] = [];
+  orderPhotosHook: ((id: string) => Promise<readonly OrderPhoto[]>) | undefined;
+  orderPhotos(id: string): Promise<readonly OrderPhoto[]> {
+    this.photoRequests.push(id);
+    if (this.orderPhotosHook !== undefined) return this.orderPhotosHook(id);
+    return Promise.resolve(this.photos.get(id) ?? []);
   }
   /** The templates and the customers the fake answers (set by the test; EVM-106). */
   templateSet: TemplateSet | null = null;

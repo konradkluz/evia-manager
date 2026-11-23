@@ -37,7 +37,7 @@ function requirePrincipal(request: Request): Principal {
   return principal;
 }
 
-/** The five operations of the upload session are open to the panel AND the phone (EVM-131): the principal is the one of the credential the guard accepted. */
+/** The five operations of the upload session (EVM-131) and the address of a derivative (EVM-142) are open to the panel AND the phone: the principal is the one of the credential the guard accepted. */
 function requireSessionPrincipal(request: Request): Principal {
   const principal = dualChannelPrincipalOf(request);
   if (principal === null) throw new ProblemException('unauthenticated');
@@ -210,7 +210,7 @@ export class MediaController {
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ): Promise<MediaDerivativeUrl> {
-    return this.#derivatives.create(requirePrincipal(request), params, body, webEventContext(request, response));
+    return this.#derivatives.create(requireSessionPrincipal(request), params, body, webEventContext(request, response));
   }
 
   @Post(`${SESSION}/abort`)

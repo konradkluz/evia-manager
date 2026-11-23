@@ -11,6 +11,8 @@
  * of the sign-in part (no verification of a real token). Nothing is logged and no body is kept except the ids of the mutations.
  */
 
+import { photoReplicaChanges } from './photos-stub.mjs';
+
 const UUIDV7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const MUTATION_TYPES = ['CreateNote', 'CreateComment', 'CreateQuickWorkOrder', 'CreateMediaAsset', 'CreateSiteSurvey'];
 const SERVER_TIME = () => new Date().toISOString();
@@ -43,6 +45,7 @@ const REJECTED_TYPES = ['CreateNote', 'CreateComment'];
  *   quick: 'ok' | 'quota_exceeded' | 'template_unavailable_first',
  *   survey: 'ok' | 'feature_disabled' | 'validation_failed' | 'deleted' | 'assigned',
  *   features: 'on' | 'off',
+ *   photos: 'on' | 'off',
  * }} SyncModes
  */
 export const TEMPLATE_HOUSE_ID = '0194c2a0-0000-7000-8000-00000000e201';
@@ -108,7 +111,7 @@ export const SYNC_CLIENT_CONFIG = clientConfig(true);
 const id = (n, prefix = '3') => `${prefix}0000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 
 /** A snapshot page of two aggregates (customer, site, work order each). */
-export function snapshotPage() {
+export function snapshotPage(photos = false) {
   const at = new Date().toISOString();
   /** @param {number} n */
   const aggregate = (n) => [
@@ -228,7 +231,7 @@ export function snapshotPage() {
   return {
     result: 'changes',
     phase: 'snapshot',
-    changes: [...aggregate(1), ...aggregate(2), ...details()],
+    changes: [...aggregate(1), ...aggregate(2), ...details(), ...(photos ? photoReplicaChanges() : [])],
     cursor: CURSOR_AFTER_SNAPSHOT,
     hasMore: false,
     serverTime: SERVER_TIME(),
@@ -238,9 +241,10 @@ export function snapshotPage() {
 /**
  * @param {string | null} cursor
  * @param {{ changes: unknown[], cursor: string }} [extra] what the server created since the last page (EVM-106: the numbered quick orders)
+ * @param {boolean} [photos] the snapshot page carries the photos of the order ZL-E2E-1 (EVM-142; the mode `photos`)
  */
-export function changesAnswer(cursor, extra) {
-  if (cursor === null) return snapshotPage();
+export function changesAnswer(cursor, extra, photos = false) {
+  if (cursor === null) return snapshotPage(photos);
   return {
     result: 'changes',
     phase: 'changes',
@@ -411,7 +415,7 @@ export function createSyncStub() {
   /** @type {Map<string, string>} mutation id -> the code of the rejection (stable on every repeat) */
   let rejectedIds = new Map();
   /** @type {SyncModes} */
-  let modes = { templates: 'ok', quick: 'ok', survey: 'ok', features: 'on' };
+  let modes = { templates: 'ok', quick: 'ok', survey: 'ok', features: 'on', photos: 'off' };
   /** EVM-137: the surveys the server created and the office has not yet touched (by `workOrderId`), and the ones it deleted. @type {Map<string, { number: string, siteId: string | null }>} */
   let surveyOrders = new Map();
   /** @type {Set<string>} */
@@ -560,7 +564,7 @@ export function createSyncStub() {
           extra = { changes: created, cursor: `e2e-cursor-changes-${String(cursorSerial).padStart(9, '0')}` };
           created = [];
         }
-        return { status: 200, type: 'application/json', body: changesAnswer(given, extra) };
+        return { status: 200, type: 'application/json', body: changesAnswer(given, extra, modes.photos === 'on') };
       }
       if (isOrder) return problem(404, 'not_found');
       const fields = /** @type {Record<string, unknown>} */ (typeof body === 'object' && body !== null ? body : {});

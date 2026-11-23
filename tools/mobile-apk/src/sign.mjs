@@ -323,12 +323,20 @@ export function signApk(options, host) {
       return fail(
         `apksigner verify failed (exit ${String(report.status)}): ${redact(`${report.stdout}\n${report.stderr ?? ''}`, secrets, [keystore, apk, out])}`,
       );
-    const certificate = /Signer #1 certificate SHA-256 digest: ([0-9a-f]{64})/i.exec(report.stdout)?.[1]?.toLowerCase() ?? '';
+    // build-tools up to 36 print "Signer #1 certificate SHA-256 digest: …"; build-tools 37 print one block per scheme
+    // ("V2 Signer: certificate …", "V3.0 Signer: certificate …"). Every block must name the same certificate.
+    const certificates = new Set(
+      [...report.stdout.matchAll(/^(?:Signer #1|V[0-9.]+ Signer:) certificate SHA-256 digest: ([0-9a-f]{64})\s*$/gim)].map((match) =>
+        String(match[1]).toLowerCase(),
+      ),
+    );
+    const certificate = certificates.size === 1 ? String([...certificates][0]) : '';
     if (!/Verified using v2 scheme \(APK Signature Scheme v2\): true/.test(report.stdout))
       return fail('the signature is not verified with APK Signature Scheme v2');
     if (!/Verified using v3 scheme \(APK Signature Scheme v3\): true/.test(report.stdout))
       return fail('the signature is not verified with APK Signature Scheme v3');
     if (!/Number of signers: 1\b/.test(report.stdout)) return fail('the package must have exactly one signer');
+    if (certificates.size > 1) return fail('the package is signed with more than one certificate');
     if (certificate === '') return fail('the certificate digest is missing in the output of apksigner');
     if (/certificate DN:.*Android Debug/i.test(report.stdout)) return fail('the package is signed with the debug key');
     if (options.expectedCertSha256 !== '' && certificate !== options.expectedCertSha256) {

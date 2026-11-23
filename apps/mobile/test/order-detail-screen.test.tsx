@@ -605,7 +605,8 @@ describe('hidden-data mode, sign-out, privacy and accessibility (EVM-104 AC6)', 
       );
     }
     const shell = read('Shell.tsx');
-    expect([...shell.matchAll(/useState<string \| null>\(null\)/g)]).toHaveLength(1);
+    // ids only: the open order and (EVM-142) the photo open in the preview - no text, no address, nothing of the data of the order
+    expect([...shell.matchAll(/useState<string \| null>\(null\)/g)]).toHaveLength(2);
     expect(shell).not.toMatch(/AsyncStorage|SecureStore|persist/);
     const config = readFileSync(join(__dirname, '..', 'app.config.ts'), 'utf8');
     expect(config).not.toMatch(/CALL_PHONE|<queries>|intentFilters/);

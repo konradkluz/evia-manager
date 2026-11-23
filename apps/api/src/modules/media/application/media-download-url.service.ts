@@ -7,13 +7,14 @@
  * the answer says nothing about the medium; the refusal is audited in a transaction of its own) -> ONE statement for the medium of THIS order (404:
  * another order, a missing medium, a state that does not allow the file, a missing row, a video or a document) -> the limit of the class
  * (`SignedUrlMeters.reserve`: check and count in one synchronous step, `429`; the first refusal of a window is audited in a transaction of its
- * own) -> the signature. The address of an ORIGINAL is audited INSIDE the transaction of the issue: a failed audit means no address (fail closed).
+ * own) -> the signature. The PHONE (EVM-142; SR-AUTHZ-02, SR-MOB-14) gets the thumbnail and the preview of a PHOTO only: its `original` is the `403` of the
+ * variant (before any lookup of the medium) and a video is a `404`. The address of an ORIGINAL is audited INSIDE the transaction of the issue: a failed audit means no address (fail closed).
  *
  * The address lives 300 seconds (a constant of the server), comes from the host of the bucket and carries what the SERVER chose: a derivative is
  * `image/webp` and `inline`; an original has the type the server DETECTED, `private, no-store` and an `attachment` with a cleaned name, and is
  * pinned to the version that passed the scan. The address and the name are never logged and never audited; the answer is `no-store`.
  */
-import type { MediaDerivativeUrl } from '@evia/contracts';
+import type { Channel, MediaDerivativeUrl } from '@evia/contracts';
 import { zCreateMediaAssetDownloadUrlBody, zCreateMediaAssetDownloadUrlPath } from '@evia/contracts/zod';
 import { Inject, Injectable } from '@nestjs/common';
 import type { Kysely } from 'kysely';
@@ -35,7 +36,7 @@ import {
 import type { SignedUrlMeters } from '../../../platform/signed-url-limits/signed-url-meters.ts';
 import { DATABASE, EVENT_BUS, LOGGER, METRICS, SIGNED_URL_METERS } from '../../../platform/tokens.ts';
 import { WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders/index.ts';
-import { DERIVATIVE_CACHE_CONTROL } from '../domain/derivatives.ts';
+import { derivativeCacheControl } from '../domain/derivatives.ts';
 import { downloadFileName, isOriginalDownloadable, mayRequest, variantClass, type DownloadVariant } from '../domain/downloads.ts';
 import { normalizeContentType } from '../domain/file-rules.ts';
 import type { MediaAuditEvent } from '../events.ts';
@@ -93,12 +94,12 @@ export class MediaDownloadUrlService {
       const order = await this.#orders.findVisible(tx, principal, workOrderId);
       if (order === undefined) throw new ProblemException('not_found');
       const { variant } = parseInput(bodySchema, rawBody) as { variant: DownloadVariant };
-      if (!mayRequest(principal.role, variant)) return { refusal: { kind: 'forbidden', mediaAssetId } };
+      if (!mayRequest(principal.role, variant, principal.channel)) return { refusal: { kind: 'forbidden', mediaAssetId } };
       const media = mediaTables(tx);
       const request =
         variant === 'original'
           ? await this.#original(media, order.id, mediaAssetId)
-          : await this.#derivative(media, order.id, mediaAssetId, variant);
+          : await this.#derivative(media, order.id, mediaAssetId, variant, principal.channel);
       // check and count in ONE synchronous step (no await between them): concurrent requests cannot all pass the check
       const klass = variantClass(variant);
       const decision = this.#meters.reserve(principal.userId, klass);
@@ -134,14 +135,21 @@ export class MediaDownloadUrlService {
     };
   }
 
-  async #derivative(media: MediaDb, orderId: string, mediaAssetId: string, variant: 'thumbnail' | 'preview'): Promise<SignedGetInput> {
-    const source = await findReadyDerivative(media, orderId, mediaAssetId, variant);
+  async #derivative(
+    media: MediaDb,
+    orderId: string,
+    mediaAssetId: string,
+    variant: 'thumbnail' | 'preview',
+    channel: Channel,
+  ): Promise<SignedGetInput> {
+    // the phone sees photos only (EVM-142; the videos are EVM-143): a video is the same absence as a missing medium
+    const source = await findReadyDerivative(media, orderId, mediaAssetId, variant, channel === 'mobile' ? 'photo' : undefined);
     if (source === undefined) throw new ProblemException('not_found');
     return {
       key: source.objectKey,
       expiresInSeconds: DERIVATIVE_URL_SECONDS,
       contentType: source.contentType,
-      cacheControl: DERIVATIVE_CACHE_CONTROL,
+      cacheControl: derivativeCacheControl(channel),
       disposition: { kind: 'inline' },
     };
   }

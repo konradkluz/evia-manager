@@ -1,0 +1,21 @@
+# EVM-142 AC2: the second part of `photos-grid`, once tools/mobile-e2e saw the three thumbnails fetched - the grid is still there, no tile says that its picture
+# could not be loaded, "Wstecz" returns to the ORDER.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- assertVisible:
+    id: 'order-photos-grid'
+- assertNotVisible: 'Nie udało się wczytać zdjęcia'
+- assertNotVisible: 'Nie udało się wczytać części zdjęć\.'
+- assertVisible: 'Przygotowujemy podgląd'
+- assertVisible: 'Plik zatrzymany do sprawdzenia'
+- takeScreenshot: m08-photos-grid-loaded
+- tapOn:
+    id: 'order-photos-back'
+- extendedWaitUntil:
+    visible:
+      id: 'order-detail'
+    timeout: 20000
+- assertVisible:
+    id: 'order-photos-row'
