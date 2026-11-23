@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Scenarios of the film player of an order (EVM-143 AC2-AC6; flows 144-149 of apps/mobile/e2e). Like the photo scenarios they are outside the default run
+ * Scenarios of the film player of an order (EVM-143 AC2-AC6; flows 160-165 of apps/mobile/e2e). Like the photo scenarios they are outside the default run
  * (`node tools/mobile-e2e/cli.mjs --only film-`); the sign-in of the run is served by the upload part of the scenario server (`upload: true`) and the replica carries the five photos of
  * the order ZL-E2E-1 AND one ready film (`photos: 'videos'`: the newest tile). The addresses, the thumbnail and the MP4 come from the photos part of the scenario server
  * (src/photos-stub.mjs); the MP4 is a real H.264 file of the Android SDK of the machine (`EVIA_E2E_VIDEO_FIXTURE` overrides), served with ranges and
@@ -43,18 +43,18 @@ export const FILM_SCENARIOS = [
         after: ['film-manifest', 'permissions-minimal'],
       },
       // the grid: the film is a tile; nothing of the film was asked for
-      step('144-film-grid.yaml', { after: ['film-requests:urls=0,requests=0,bytes=0'] }),
+      step('160-film-grid.yaml', { after: ['film-requests:urls=0,requests=0,bytes=0'] }),
       // the player: Odtwórz / Pauza / Odtwórz / Odtwórz ponownie
-      step('144-film-play.yaml', { after: ['film-requests:urls=1,ranges>=1,ok>=1', 'film-headers'] }),
+      step('160-film-play.yaml', { after: ['film-requests:urls=1,ranges>=1,ok>=1', 'film-headers'] }),
       // an address that is already expired: ONE silent renewal (two addresses), the film goes on
-      step('145-film-expired.yaml', {
+      step('161-film-expired.yaml', {
         before: ['photos-reset', 'film-expire:1'],
         after: ['film-requests:urls=2,failed>=1,ok>=1', 'film-headers'],
       }),
       // 500 on every request for the film: the message and the button
-      step('146-film-error.yaml', { before: ['photos-reset', 'photos-fault:video:500:0'], after: ['film-requests:urls>=2,failed>=2'] }),
+      step('162-film-error.yaml', { before: ['photos-reset', 'photos-fault:video:500:0'], after: ['film-requests:urls>=2,failed>=2'] }),
       // the server is well again: the retry plays
-      step('146-film-retry.yaml', { before: ['photos-fault-clear'], after: ['film-requests:ok>=1', 'photos-logcat-clean'] }),
+      step('162-film-retry.yaml', { before: ['photos-fault-clear'], after: ['film-requests:ok>=1', 'photos-logcat-clean'] }),
     ],
   },
   {
@@ -63,11 +63,11 @@ export const FILM_SCENARIOS = [
     steps: [
       { ...SIGN_IN, before: ['upload-reset', 'photos-reset', 'film-fixture', 'film-throttle:0'] },
       // no network: the notice, no request for the film
-      step('147-film-offline.yaml', { airplane: true, after: ['film-requests:urls=0,requests=0'] }),
+      step('163-film-offline.yaml', { airplane: true, after: ['film-requests:urls=0,requests=0'] }),
       // the network is back: nothing starts by itself
-      step('147-film-online.yaml', { before: ['photos-wait:6000'], after: ['film-requests:urls=0,requests=0'] }),
+      step('163-film-online.yaml', { before: ['photos-wait:6000'], after: ['film-requests:urls=0,requests=0'] }),
       // the manual retry plays
-      step('147-film-online-retry.yaml', { after: ['film-requests:urls=1,ok>=1', 'film-headers'] }),
+      step('163-film-online-retry.yaml', { after: ['film-requests:urls=1,ok>=1', 'film-headers'] }),
     ],
   },
   {
@@ -77,19 +77,19 @@ export const FILM_SCENARIOS = [
       // the baseline: the install after the sign-in, before a single film was played
       { ...SIGN_IN, before: ['upload-reset', 'photos-reset', 'film-fixture', 'film-throttle:0'], after: ['film-disk-baseline'] },
       // the film played, paused, closed
-      step('148-film-view.yaml', {
+      step('164-film-view.yaml', {
         after: ['film-requests:urls=1,ok>=1', 'film-disk-check', 'photos-logcat-clean', 'film-headers'],
       }),
       // the film playing with the download in progress (the server serves it slowly), then the lock
-      step('148-film-lock-open.yaml', { before: ['photos-reset', 'film-throttle:250'] }),
-      step('148-film-lock.yaml', { after: ['film-disk-check', 'photos-logcat-clean'] }),
+      step('164-film-lock-open.yaml', { before: ['photos-reset', 'film-throttle:250'] }),
+      step('164-film-lock.yaml', { after: ['film-disk-check', 'photos-logcat-clean'] }),
       // a cold start, the film playing, the background
-      step('148-film-background.yaml', { before: ['film-throttle:0'], after: ['film-disk-check', 'photos-logcat-clean'] }),
+      step('164-film-background.yaml', { before: ['film-throttle:0'], after: ['film-disk-check', 'photos-logcat-clean'] }),
       // the film played again, the sign-out
-      step('148-film-logout.yaml', { after: ['film-disk-check', 'photos-logcat-clean', 'film-headers'] }),
+      step('164-film-logout.yaml', { after: ['film-disk-check', 'photos-logcat-clean', 'film-headers'] }),
       // the sign-in again, the film played, "Wyczyść dane firmowe"
       // ... and the POSITIVE CONTROL of the search on the same install: a planted file MUST be found by the same search
-      step('148-film-wipe.yaml', { after: ['film-disk-check', 'photos-logcat-clean', 'film-headers', 'film-disk-control'] }),
+      step('164-film-wipe.yaml', { after: ['film-disk-check', 'photos-logcat-clean', 'film-headers', 'film-disk-control'] }),
     ],
   },
   {
@@ -97,9 +97,9 @@ export const FILM_SCENARIOS = [
     ac: 'EVM-143 AC6; EVM-142 note',
     steps: [
       { ...SIGN_IN, before: ['display-reset', 'upload-reset', 'photos-reset', 'film-fixture', 'film-throttle:0'], onFail: [...RESET] },
-      tour('149-film-font-scale-130.yaml', ['display:font=1.3']),
-      tour('149-film-font-scale-200.yaml', ['display:font=2']),
-      tour('149-film-font-scale-200-narrow.yaml', ['display:font=2,dp=360'], true),
+      tour('165-film-font-scale-130.yaml', ['display:font=1.3']),
+      tour('165-film-font-scale-200.yaml', ['display:font=2']),
+      tour('165-film-font-scale-200-narrow.yaml', ['display:font=2,dp=360'], true),
     ],
   },
 ];

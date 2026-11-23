@@ -47,7 +47,7 @@ describe('Maestro flows and scenarios agree (EVM-009 AC4)', () => {
     const lockFlows = [...new Set(LOCK_SCENARIOS.flatMap((scenario) => scenario.steps.map((step) => step.flow)))];
     // EVM-142: the flows 140-143 belong to the photos scenarios (src/photos-scenarios.mjs; test/photos-flows.test.mjs judges them)
     const photosFlows = [...new Set(PHOTOS_SCENARIOS.flatMap((scenario) => scenario.steps.map((step) => step.flow)))];
-    // EVM-143: the flows 144-149 belong to the film scenarios (src/film-scenarios.mjs; test/film-flows.test.mjs judges them)
+    // EVM-143: the flows 160-165 belong to the film scenarios (src/film-scenarios.mjs; test/film-flows.test.mjs judges them)
     const filmFlows = [...new Set(FILM_SCENARIOS.flatMap((scenario) => scenario.steps.map((step) => step.flow)))];
     // EVM-151: the flows 150-154 belong to the font-scale scenarios (src/font-scale-scenarios.mjs; test/font-scale-flows.test.mjs judges them)
     const fontScaleFlows = [...new Set(FONT_SCALE_SCENARIOS.flatMap((scenario) => scenario.steps.map((step) => step.flow)))];
