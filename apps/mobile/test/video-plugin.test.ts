@@ -1,9 +1,13 @@
 import { buildExpoConfig } from '../plugins/expo-config';
-import withVideo, { applyVideoManifest, FULLSCREEN_ACTIVITY } from '../plugins/with-video';
+import withVideo, { applyVideoManifest, FULLSCREEN_ACTIVITY, WAKE_LOCK_PERMISSION } from '../plugins/with-video';
 
 type Element = { $: Record<string, string> };
 interface TestManifest {
-  manifest: { $: Record<string, string>; application: { $: Record<string, string>; activity?: Element[] }[] };
+  manifest: {
+    $: Record<string, string>;
+    'uses-permission'?: Element[];
+    application: { $: Record<string, string>; activity?: Element[] }[];
+  };
 }
 const manifest = (): TestManifest => ({
   manifest: { $: {}, application: [{ $: {}, activity: [{ $: { 'android:name': '.MainActivity' } }] }] },
@@ -20,6 +24,24 @@ describe('film player config plugin (EVM-143 AC2, AC6; SR-MOB-14, MASVS-PLATFORM
       { $: { 'android:name': FULLSCREEN_ACTIVITY, 'tools:node': 'remove' } },
     ]);
     expect(FULLSCREEN_ACTIVITY).toBe('expo.modules.video.FullscreenPlayerActivity');
+  });
+
+  it('EVM-143 AC6: the wake lock permission that the player library declares is removed (the list of permissions of the app does not change), other permissions stay', () => {
+    const base = manifest();
+    base.manifest['uses-permission'] = [
+      { $: { 'android:name': 'android.permission.INTERNET' } },
+      { $: { 'android:name': WAKE_LOCK_PERMISSION } },
+    ];
+    apply(base);
+    expect(base.manifest['uses-permission']).toEqual([
+      { $: { 'android:name': 'android.permission.INTERNET' } },
+      { $: { 'android:name': 'android.permission.WAKE_LOCK', 'tools:node': 'remove' } },
+    ]);
+    apply(base);
+    expect(base.manifest['uses-permission']).toHaveLength(2);
+    const bare = manifest();
+    apply(bare);
+    expect(bare.manifest['uses-permission']).toEqual([{ $: { 'android:name': 'android.permission.WAKE_LOCK', 'tools:node': 'remove' } }]);
   });
 
   it('EVM-143 AC2: a second run gives the same manifest and a manifest without activities works', () => {
