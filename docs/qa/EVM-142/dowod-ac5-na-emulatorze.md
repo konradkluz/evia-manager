@@ -73,3 +73,5 @@ Uwaga: zrzut dotyczy ekranu zablokowanego/logowania release (adres API paczki to
 | `node tools/mobile-e2e/cli.mjs --only photos-` (z budową, `C:\e`) | 3 scenariusze zielone, `photos-no-trace` przerwany na kroku `abandoned` (błąd opóźnienia, naprawiony) |
 | `node tools/mobile-e2e/cli.mjs --skip-build --only photos-no-trace` | 9/9 przepływów passed, wszystkie kroki dowodu `ok`, kontrola dodatnia `ok` |
 | `pnpm --filter @evia/mobile-e2e run test:coverage` | 432 testy zielone; `photos-stub.mjs` 100% linii / 94,9% gałęzi, `device-photos.mjs` 100% / 92,8% |
+
+> Aktualizacja 2026-11-23: punkt 2 naprawiony w `37cd4236` (etykieta `StatusBadge` zawija się w kafelku, test układu w jest, asercja pełnych tekstów w scenariuszu Maestro 140). Układ na urządzeniu potwierdzi najbliższy przebieg e2e (scenariusz 140 zawiedzie, jeśli odznaki nie będą w pełni widoczne).
