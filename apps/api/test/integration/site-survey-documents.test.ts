@@ -494,6 +494,21 @@ describe('EVM-147 AC4: the assignment of the customer, the rejection and the res
     expectNoDocumentSentinel(app().logs.text);
   });
 
+  it('EVM-147 AC4 the upload of an offer created BEFORE the rejection may still finish (ADR-0025 pt 5 blocks the creation, the change and the restore only); the file goes with the survey', async () => {
+    const order = await openSurvey();
+    const editor = await signInTo(app(), 'editor');
+    const body = offer();
+    expect((await create(editor, order.id, body)).status).toBe(201);
+    const rejected = await editor.panel.post(
+      `${BASE}/${order.id}/transitions`,
+      { to: 'cancelled', reasonCode: 'offer_rejected' },
+      { 'If-Match': `"${String(await versionOf('work_orders.work_orders', order.id))}"` },
+    );
+    expect(rejected.status).toBe(200);
+    const opened = await session(editor, order.id, body.id);
+    expect(opened.status, JSON.stringify(opened.body)).toBe(201);
+  });
+
   it('EVM-147 AC4 a cancelled ORDINARY order is not a rejected survey: its documents are added, changed and restored as before (PO-8)', async () => {
     const orderId = await ordinaryOrder('cancelled');
     const editor = await signInTo(app(), 'editor');
