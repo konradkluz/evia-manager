@@ -4,7 +4,7 @@ title: "Wizja lokalna: API przyjmuje ofertę (dokument zlecenia) przed przypisan
 type: story
 milestone: M2
 epic: E15 Wizja lokalna
-status: ready
+status: in-progress
 priority: P1
 path: pelna             # dane osobowe (oferta zawiera dane zamawiającego), pliki, uprawnienia, retencja i trwałe usuwanie
 owner: backend-developer
@@ -85,3 +85,4 @@ Rozmiar M–L (nowy uczestnik purge dla dokumentów). Konsultacje wykonane: arch
 - 2026-11-20 — przepisany po decyzjach Konrada i konsultacjach architekta i security: zakres „API + usuwanie”, podział na EVM-147/148/149 (product-owner)
 - 2026-11-23 — uwzględniono ADR-0025 (zaakceptowany po przeglądzie security): `400` dla rodzaju i klasy, kolejność sprawdzeń, `403` dla Tylko odczyt przy zapisach, wyjątek art. 17 w odrzuconej wizji, niezmiennik `change_note`, warunek realnych ofert (product-owner)
 - 2026-11-24 — zależności EVM-135, 136, 139 zaakceptowane (done); przegląd DoR: 8 AC (pełna), brak otwartych pytań; Konrad akceptuje; status `ready`
+- 2026-11-24 — start realizacji (/deliver): gałąź `feature/EVM-147-oferta-w-wizji-lokalnej`, ścieżka `pelna`, wykonawca backend-developer (`opus`), recenzenci code-reviewer, security-engineer
