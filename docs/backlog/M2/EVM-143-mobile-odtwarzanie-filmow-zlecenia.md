@@ -4,7 +4,7 @@ title: "Aplikacja: odtwarzanie filmów zlecenia (online, bez zapisu na telefonie
 type: story
 milestone: M2
 epic: E11 Zdjęcia i filmy
-status: in-review
+status: done
 priority: P3
 path: pelna             # film na urządzeniu i prawdopodobna nowa zależność (odtwarzacz) — „media”, „dane na urządzeniu”, łańcuch dostaw
 owner: mobile-developer
@@ -99,3 +99,4 @@ Film po przetworzeniu ma klatkę-miniaturę (WebP) i podgląd wideo 720p (MP4 be
 - 2026-11-23 — przeglądy (security-engineer, ux-designer, code-reviewer): approve po 2 rundach; bramka `pnpm run gate` zielona u Tech Leada (diff coverage 99,6% linii / 95,4% gałęzi; część bazodanowa API tylko w CI); status `in-review`
 - 2026-11-23 — Koszt: ścieżka `pelna`, 13 agentów, ok. 1,36 mln tokenów podagentów, 521 wywołań narzędzi, ok. 3 h, 2 rundy
 - 2026-11-23 — Konrad akceptuje: doprecyzowanie AC6 (brak nowych uprawnień) i ryzyka rezydualne Low (przekierowania natywnego odtwarzacza, podstawowa MediaSession, host bucketu w logcat); push i PR
+- 2026-11-24 — zaakceptowane przez Konrada, PR #164 scalony; status `done`
