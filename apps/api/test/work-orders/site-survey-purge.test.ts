@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { ProceduresSurveyPurgeParticipant } from '../../src/modules/procedures/application/site-survey-purge.participant.ts';
+import { TimelineSurveyPurgeParticipant } from '../../src/modules/timeline/application/site-survey-purge.participant.ts';
 import { ANONYMIZED_SITE_VALUES } from '../../src/modules/sites/domain/anonymized-site.ts';
 import { SITE_SURVEY_REJECTED_DAYS } from '../../src/modules/work-orders/domain/site-survey-deadline.ts';
 import { SITE_SURVEY_EXTENSION_DAYS, SITE_SURVEY_MAX_EXTENSIONS } from '../../src/modules/work-orders/domain/site-survey-extension.ts';
@@ -113,5 +115,19 @@ describe('the signal of a broken invariant (EVM-147 AC5; ADR-0025 pt 4)', () => 
     expect(error.name).toBe('SurveyPurgeInvariantViolated');
     expect(error.code).toBe('change_note_invariant');
     expect(error.message).toBe('site survey purge: an invariant of the erasure is broken (change_note_invariant)');
+  });
+});
+
+describe('the participants without documents declare none (EVM-147 AC5; ADR-0025 pt 4)', () => {
+  it('EVM-147 AC5 procedures and timeline hold no media and no document and do not hold the location; they register themselves', async () => {
+    const registry = new SiteSurveyPurgeRegistry();
+    const procedures = new ProceduresSurveyPurgeParticipant(registry);
+    const timeline = new TimelineSurveyPurgeParticipant(registry);
+    procedures.onModuleInit();
+    timeline.onModuleInit();
+    expect(registry.names()).toEqual(['procedures', 'timeline']);
+    for (const participant of [procedures, timeline]) {
+      expect(await participant.identify()).toEqual({ mediaAssetIds: [], documentIds: [], holdsSite: false });
+    }
   });
 });
