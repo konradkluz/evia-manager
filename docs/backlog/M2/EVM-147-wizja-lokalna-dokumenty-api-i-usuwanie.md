@@ -4,7 +4,7 @@ title: "Wizja lokalna: API przyjmuje ofertę (dokument zlecenia) przed przypisan
 type: story
 milestone: M2
 epic: E15 Wizja lokalna
-status: in-review
+status: done
 priority: P1
 path: pelna             # dane osobowe (oferta zawiera dane zamawiającego), pliki, uprawnienia, retencja i trwałe usuwanie
 owner: backend-developer
@@ -94,3 +94,4 @@ Rozmiar M–L (nowy uczestnik purge dla dokumentów). Konsultacje wykonane: arch
 - 2026-11-24 — implementacja AC1–AC8 (kontrakt, domena, media, usuwanie dokumentów z wizją, rejestr `documentIds`, runbooki); bramka lokalna i testy integracyjne w kontenerze zielone (backend-developer)
 - 2026-11-24 — przeglądy (code-reviewer, security-engineer): approve w rundzie 1; bramka `pnpm run gate` i testy integracyjne API w kontenerze (2969 zielonych) u Tech Leada; pokrycie zmienionego kodu z częścią bazodanową 97,9% linii / 94,2% gałęzi; status `in-review`
 - 2026-11-24 — Koszt: ścieżka `pelna`, 7 agentów (w tym zablokowany przebieg planu), ok. 0,93 mln tokenów podagentów, ok. 360 wywołań narzędzi, ok. 2,6 h, 1 runda, 0 poprawek
+- 2026-11-24 — zaakceptowane przez Konrada, PR #167 scalony; status `done`
