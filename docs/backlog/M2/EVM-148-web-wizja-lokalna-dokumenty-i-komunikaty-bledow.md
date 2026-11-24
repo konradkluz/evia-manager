@@ -4,7 +4,7 @@ title: "Panel: wgrywanie oferty w wizji lokalnej, ostrzeżenie o danych osobowyc
 type: story
 milestone: M2
 epic: E15 Wizja lokalna
-status: ready
+status: in-progress
 priority: P1
 path: pelna             # formularz z ostrzeżeniem o danych osobowych, uprawnienia ról
 owner: web-developer
@@ -72,3 +72,4 @@ Błąd komunikatów (AC4, AC5) jest niezależny od API — w razie potrzeby moż
 - 2026-11-20 — utworzono przy podziale EVM-147 na trzy historyjki (product-owner)
 - 2026-11-23 — AC4: obsługa `400 /kindCode requires_customer` po ADR-0025 (product-owner)
 - 2026-11-24 — refinement: zależności EVM-147 i EVM-138 done; konsultacja ux-designera (brzmienia, komponenty, luki AC); Konrad akceptuje zmiany AC (AC2–AC5); 6 AC; status `ready`
+- 2026-11-24 — start realizacji (/deliver): gałąź `feature/EVM-148-oferta-w-panelu-wizji`, ścieżka `pelna`, wykonawca web-developer (`sonnet`), recenzenci code-reviewer, ux-designer
