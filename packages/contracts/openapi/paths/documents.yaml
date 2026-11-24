@@ -76,7 +76,11 @@ workOrderDocuments:
     description: >-
       EVM-050: opcjonalne `anchor` (`work_order` domyślnie, `site`, `customer`) - dokument lokalizacji albo klienta ZLECENIA ze ścieżki (serwer bierze `siteId`/`customerId`
       ze zlecenia; w treści - `400 read_only_field`); `anchor=site` z klasą `identity_data` - `400` (`/anchor`, `identity_data_not_on_site`, SR-AUTHZ-08, AB-19);
-      `anchor=customer` przy zleceniu bez klienta (wizja lokalna) - `409` (`customer_required`); etap przy kotwicy innej niż zlecenie - `400` (`requires_work_order_anchor`).
+      etap przy kotwicy innej niż zlecenie - `400` (`requires_work_order_anchor`). Wizja lokalna bez klienta (EVM-147, ADR-0025): dokument zlecenia rodzaju
+      Oferta/wycena (`quote`) - tak; płatności i ZIP po przypisaniu klienta; `anchor=site`/`anchor=customer` - `409 customer_required`; inny rodzaj - `400`
+      (`/kindCode`, `requires_customer`); `confidentialityOverride: identity_data` - `400` (`/confidentialityOverride`, `requires_customer`); odrzucona
+      wizja - `409 work_order_closed`. Zlecenie jest czytane z blokadą wiersza (`FOR NO KEY UPDATE`), więc tworzenie czeka na trwające usuwanie wizji
+      i dostaje wtedy `404`. Kolejność: `404`, `503`, `Idempotency-Key`, treść (`400`), `409 customer_required`, `409 work_order_closed`, pola (`400`).
       Idempotencja: skrót treści obejmuje `anchor` (ten sam klucz z inną kotwicą - `422 idempotency_mismatch`). Plik kotwicy lokalizacji i klienta wgrywa się
       ścieżką zlecenia (`upload-sessions`), z którego dokument powstał.
       Utworzenie dokumentu, jego wersji 1 i rekordu pliku w stanie `pending_upload` (EVM-047 AC1-AC4, AC6, AC7; SR-AUTHZ-02, SR-AUTHZ-05, SR-AUTHZ-07,
@@ -153,7 +157,9 @@ documentById:
       nieaktualna wersja - `412 version_conflict`. Pola: `title`, `description`, `procedureStageId` (etap TEGO zlecenia - inny, usunięty albo
       nieistniejący: `400 validation_failed`, `/procedureStageId`) i `confidentialityOverride` (ściśle wyższe od klasy efektywnej, inaczej `400
       validation_failed`; nigdy poniżej klasy rodzaju); każde inne - `400 read_only_field`. Rodzaj i zlecenie dokumentu nie zmieniają się. Dokument
-      innego zlecenia niż w ścieżce oraz medium o tym identyfikatorze - `404`. Zlecenie rozliczone albo anulowane nadal przyjmuje zmianę (PO-8).
+      innego zlecenia niż w ścieżce oraz medium o tym identyfikatorze - `404`. Zlecenie rozliczone albo anulowane nadal przyjmuje zmianę (PO-8),
+      ale odrzucona wizja lokalna nie (`409 work_order_closed`, EVM-147, ADR-0025 pkt 5; po `404` dokumentu, przed treścią); w wizji bez klienta
+      podniesienie klasy do `identity_data` - `400` (`/confidentialityOverride`, `requires_customer`). Plik trwale usunięty - `409 file_erased`.
       Żądanie bez realnej zmiany - `200` bez zmiany wersji i bez audytu.
     x-evia-authz:
       roles: [administrator, editor]
@@ -190,6 +196,8 @@ documentById:
         $ref: ../components/responses.yaml#/Forbidden
       '404':
         $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/media-responses.yaml#/DocumentUpdateConflict
       '412':
         $ref: ../components/responses.yaml#/PreconditionFailed
       '413':
@@ -655,7 +663,8 @@ documentRestore:
     summary: Przywrócenie usuniętego dokumentu (Administrator)
     description: >-
       „Cofnij” po usunięciu (EVM-051 AC1, AC4, AC6). Tylko Administrator, kanał `web`, z `X-CSRF-Token`. Dokument usunięty (miękko) wraca na listy; dokument
-      nieusunięty - `409 invalid_state_transition`; dokument z trwale usuniętym plikiem - `409 file_erased`; spoza zakresu zlecenia i nieistniejący - `404`.
+      nieusunięty - `409 invalid_state_transition`; dokument z trwale usuniętym plikiem - `409 file_erased`; spoza zakresu zlecenia i nieistniejący - `404`;
+      dokument odrzuconej wizji lokalnej - `409 work_order_closed` (EVM-147, ADR-0025 pkt 5: usunięcie i trwałe usunięcie pliku działają, przywrócenie nie).
       Dokument usuniętej lokalizacji albo klienta jest poza zakresem tej ścieżki (wymaga wcześniejszego przywrócenia kotwicy). Audyt: `document.restored`.
     x-evia-authz:
       roles: [administrator]
