@@ -6,7 +6,7 @@
 import type { EnqueueInput } from '@evia/sync-core';
 import type { OrderDetail } from '../orders/order-detail-model';
 import type { OrderRow } from '../orders/order-list-model';
-import type { OrderPhoto } from '../orders/order-photos-model';
+import type { OrderMedia } from '../orders/order-photos-model';
 import { EMPTY_QUICK_SOURCE, type QuickOrderSource } from '../orders/quick-order-model';
 import type { TemplateSet } from '../orders/templates';
 import { SyncService, type SyncServiceStore } from './sync-service';
@@ -120,8 +120,8 @@ export class SyncHost implements SyncRuntime {
   orderDetail(workOrderId: string): Promise<OrderDetail | null> {
     return this.#service?.orderDetail(workOrderId) ?? Promise.resolve(null);
   }
-  orderPhotos(workOrderId: string): Promise<readonly OrderPhoto[]> {
-    return this.#service?.orderPhotos(workOrderId) ?? Promise.resolve([]);
+  orderMedia(workOrderId: string): Promise<readonly OrderMedia[]> {
+    return this.#service?.orderMedia(workOrderId) ?? Promise.resolve([]);
   }
   isSurvey(workOrderId: string): Promise<boolean> {
     return this.#service?.isSurvey(workOrderId) ?? Promise.resolve(false);

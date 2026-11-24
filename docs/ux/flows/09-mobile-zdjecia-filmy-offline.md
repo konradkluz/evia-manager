@@ -1,6 +1,6 @@
 # 09 — Mobile: zdjęcie i film offline → kolejka → upload
 
-> Dokument żywy (EVM-004) · przepływ AC2 nr 9 · kanał: mobile · ekrany: M-06 (z arkuszem wyboru zlecenia), M-07, M-08, M-08a, M-08b (od EVM-142), M-09 · indeks: [README.md](README.md)
+> Dokument żywy (EVM-004) · przepływ AC2 nr 9 · kanał: mobile · ekrany: M-06 (z arkuszem wyboru zlecenia), M-07, M-08, M-08a, M-08b (od EVM-142), M-08c (od EVM-143), M-09 · indeks: [README.md](README.md)
 > Źródła: styleguide § 3.12, § 4.7, § 5 (teren, SyncIndicator, stany pliku, „nic nie ginie”); `offline-sync.md` (komenda `CreateMediaAsset`, kolejka, obiekty lokalne oczekujące, „Wymaga uwagi”, punkt 7 — usuwanie lokalnego oryginału); ADR-0007 (w tym ryzyka 4 i 10 — zapis wideo, mało miejsca; komunikat „wysyłanie wstrzymane — otwórz aplikację”), ADR-0009; polityki P2, P3, P5 (bitrate filmu), P7; SR-MOB-02, -05, -06, -08, -12, -13, SR-FILE-08; szczegóły techniczne uploadu w tle — spike EVM-011.
 
 > **Zakres wersji 1 (EVM-108, poprawka 2026-11-15) — czytaj najpierw.** Makieta opisuje cały docelowy przepływ, ale aplikacja w EVM-108 dostarcza tylko **zdjęcia**. Znaczniki w tekście:
@@ -415,7 +415,7 @@ Zasady wiersza filmu i stanu „Czeka na Wi-Fi” [od EVM-110] (AC1, AC4, AC5; t
 **Stany**
 | Stan | Zachowanie |
 |---|---|
-| Pusty | Nagłówek „Wszystko wysłane” z ikoną `check` oraz EmptyState (§ 3.15) `circle-check`: „Wszystko wysłane. Zdjęcia zlecenia znajdziesz w wierszu „Zdjęcia zlecenia”. Filmy ogląda biuro w panelu.” (od EVM-142; wcześniej: „…Zdjęcia i filmy zlecenia przegląda biuro w panelu.”) — **bez przycisku** („Zrób zdjęcie” jest w dolnym pasku M-03; wiersz „Zdjęcia zlecenia” — w M-03 tuż nad wierszem „Pliki z tego telefonu”). Tekst nie zależy od sieci. |
+| Pusty | Nagłówek „Wszystko wysłane” z ikoną `check` oraz EmptyState (§ 3.15) `circle-check`: „Wszystko wysłane. Zdjęcia i filmy zlecenia znajdziesz w wierszu „Zdjęcia zlecenia”.” (od EVM-143; od EVM-142 do EVM-143: „…Zdjęcia zlecenia znajdziesz w wierszu „Zdjęcia zlecenia”. Filmy ogląda biuro w panelu.”) — **bez przycisku** („Zrób zdjęcie” jest w dolnym pasku M-03; wiersz „Zdjęcia zlecenia” — w M-03 tuż nad wierszem „Pliki z tego telefonu”). Tekst nie zależy od sieci. |
 | Wczytywanie | Szkielet 3 wierszy (Skeleton § 3.16), dla czytnika „Wczytywanie plików…”; bez spinnera; wiersz M-03 bez drugiej linii. |
 | Błąd odczytu | EmptyState: „Nie udało się wczytać listy plików.” + [Spróbuj ponownie] (ponawia sam odczyt lokalnej bazy); żaden rekord ani plik nie jest zmieniany; wiersz M-03 bez drugiej linii, jeśli nie zna liczby. |
 | Offline | Wszystkie pliki i stany jak z siecią (dane są lokalne), **bez komunikatu o błędzie i bez banera**; jedyny sygnał to kapsuła „Offline · n”. Film bez sieci ma „Czeka na połączenie”. |
@@ -430,7 +430,7 @@ Zasady wiersza filmu i stanu „Czeka na Wi-Fi” [od EVM-110] (AC1, AC4, AC5; t
 
 - **Responsywność:** jedna kolumna; 200% czcionki — nic nie jest ucinane, przyciski akcji pod opisem na pełną szerokość; pozioma orientacja bez zmian układu.
 - **Komponenty i tokeny — tylko istniejące, bez nowych:** AppBar + SyncIndicator (§ 3.18, § 5.4); `FileRow` (§ 3.12 — StatusBadge, ProgressBar, Button „Ponów” i danger-tertiary „Usuń z telefonu”); EmptyState (§ 3.15); Skeleton (§ 3.16); InlineAlert (§ 3.19, `info`) — wynik nieudanego ponowienia; AlertDialog (§ 3.13) „Usuń z telefonu”; nagłówek `text.heading-4` `color.text.primary`, ikona `check` `color.feedback.success.icon`; tony `color.sync.*`; odstępy `space.inset.md`, `space.stack.md`, `space.stack.xs`; cele `size.touch-target.min`.
-- **Mikrocopy:** „Pliki zlecenia” (tytuł) · „n do wysłania” (1 do wysłania, 3 do wysłania, 12 do wysłania — bez odmiany liczebnika) · „Wszystko wysłane” · „Wszystko wysłane. Zdjęcia zlecenia znajdziesz w wierszu „Zdjęcia zlecenia”. Filmy ogląda biuro w panelu.” (od EVM-142) · „Wczytywanie plików…” · „Nie udało się wczytać listy plików.” · „Spróbuj ponownie” · „Dane zleceń są ukryte. Pliki wyślą się dalej — status zobaczysz w Kolejce.” · etykiety stanów: „Oczekuje”, „Wysyła się n%”, „Czeka na Wi-Fi” (od 1 doby z wiekiem), „Czeka na połączenie” (film bez sieci), „Nie wysłano — plik uszkodzony w transmisji”, „Wymaga uwagi” · powody i dialog „Usuń z telefonu” jak w M-07.
+- **Mikrocopy:** „Pliki zlecenia” (tytuł) · „n do wysłania” (1 do wysłania, 3 do wysłania, 12 do wysłania — bez odmiany liczebnika) · „Wszystko wysłane” · „Wszystko wysłane. Zdjęcia i filmy zlecenia znajdziesz w wierszu „Zdjęcia zlecenia”.” (od EVM-143) · „Wczytywanie plików…” · „Nie udało się wczytać listy plików.” · „Spróbuj ponownie” · „Dane zleceń są ukryte. Pliki wyślą się dalej — status zobaczysz w Kolejce.” · etykiety stanów: „Oczekuje”, „Wysyła się n%”, „Czeka na Wi-Fi” (od 1 doby z wiekiem), „Czeka na połączenie” (film bez sieci), „Nie wysłano — plik uszkodzony w transmisji”, „Wymaga uwagi” · powody i dialog „Usuń z telefonu” jak w M-07.
 - **Dostępność:** wiersz jest **jedną grupą** czytaną „[kategoria], [typ], [czas], [stan]”, a przyciski „Ponów” i „Usuń z telefonu” stoją poza grupą; stan niesie tekst etykiety, nie sam kolor ani ikona; postęp „Wysyłanie pliku, 45%” bez ogłaszania każdego procenta; zmiany liczby w nagłówku ogłaszane **zbiorczo** po chwili ciszy (nie przy każdym pliku i procencie); „Wszystko wysłane.” ogłoszone **raz**, gdy ostatni plik potwierdzi serwer (nie po „Usuń z telefonu”); nagłówek ma rolę nagłówka; cele ≥ 48 dp; 200% czcionki bez ucinania; w trybie ukrytych danych brak jakichkolwiek ogłoszeń (region na żywo też ujawniałby dane).
 
 ## M-08a Zdjęcia zlecenia (siatka) — od EVM-142
@@ -505,7 +505,7 @@ Kontrasty z § 2.1.4 (tekst 8,20:1 i 12,99:1, ikona 5,30:1 i 9,51:1). Każdy sta
 |---|---|
 | Wczytywanie (replika / pierwsze kafle) | Szkielet siatki: tyle kafli, ile mieści się na ekranie (kwadrat + dwie linie tekstu — Skeleton § 3.16 „miniatura”), `color.bg.skeleton`, bez spinnera; dla czytnika „Wczytywanie zdjęć…” (jednorazowo, `aria-busy` na kontenerze). Replika jest lokalna, więc stan trwa zwykle chwilę. |
 | Gotowe | Siatka jak wyżej; wiersz tekstu kafli z repliki jest od razu, miniatury dochodzą leniwie (bez ogłoszeń i bez skoku układu). |
-| Pusty | EmptyState (§ 3.15, ikona `image`, `size.icon.2xl`): **„Brak zdjęć w tym zleceniu”** — **bez przycisku** („Zrób zdjęcie” jest w dolnym pasku M-03); bez opisu zachęcającego do akcji i bez wzmianki o filmach (filmy: EVM-143). Pusty stan nie wymaga sieci (replika). |
+| Pusty | EmptyState (§ 3.15, ikona `image`, `size.icon.2xl`): **„Brak zdjęć i filmów w tym zleceniu”** (do EVM-143: „Brak zdjęć w tym zleceniu”) — **bez przycisku** („Zrób zdjęcie” jest w dolnym pasku M-03); bez opisu zachęcającego do akcji i bez wzmianki o filmach (filmy: EVM-143). Pusty stan nie wymaga sieci (replika). |
 | Offline (brak sieci) | **Zamiast siatki — lista jednokolumnowa** wierszy z repliki: kategoria (`text.label`) + czas (`text.body-sm`) + ewentualnie znacznik stanu pliku (jak wyżej, te same teksty), **bez miniatur i bez pustych kwadratów**; wiersz ≥ `size.touch-target.min`, nie jest przyciskiem (nie ma dokąd). Nad listą InlineAlert tonu `info` z ikoną `wifi-off`: **„Podgląd zdjęć wymaga internetu”** — bez słowa „błąd”, bez kodów, bez przycisku (kapsuła SyncIndicator „Offline · n” już mówi o stanie). Nie ma żądań adresów. Po powrocie sieci lista **sama** zamienia się w siatkę (szkielety → miniatury), bez ogłoszeń (patrz Dostępność). Jeśli sieć „jest”, ale żądanie adresu zawiedzie (słaby zasięg w garażu) — to błąd wczytania pojedynczej miniatury, nie stan offline. |
 | Błąd wczytania części zdjęć | Kafle z błędem wg tabeli; **gdy ≥ 1 miniatura zawiodła z powodu sieci lub serwera** — nad siatką InlineAlert tonu `warning`: „Nie udało się wczytać części zdjęć.” + Button tertiary **„Spróbuj ponownie”** (ponawia wszystkie nieudane; ≥ 48 dp). Komunikat `role="alert"` ogłaszany raz, a kolejne zawiedzenia kafli go nie powtarzają. |
 | Brak uprawnień (`403`) | Pierwsze `403` na adresie miniatury = telefon nie ma dostępu do zdjęć (rola, kanał, token): EmptyState zamiast siatki (ikona `lock`, `size.icon.2xl`): **„Zdjęcia niedostępne. Mogły zostać usunięte albo nie masz do nich dostępu.”** — bez kodu, powodu i przycisku ponowienia; brzmienie jak istniejący komunikat „Zlecenie niedostępne. Mogło zostać usunięte albo nie masz do niego dostępu.” (aplikacja nie ujawnia, czy to rola, zlecenie czy plik). Tylko odczyt nie loguje się do aplikacji (M-02). Odrzucony token (`401`) obsługuje istniejący przepływ sesji (§ 4.18 / M-02), nie ten ekran. |
@@ -576,6 +576,49 @@ Kontrasty z § 2.1.4 (tekst 8,20:1 i 12,99:1, ikona 5,30:1 i 9,51:1). Każdy sta
   - Opis nie jest zaznaczalny ani kopiowalny (`selectable` wyłączone); brak długiego dotknięcia, menu, udostępniania i przeciągania obrazu.
 - **Komponenty i tokeny:** nowy **wariant „podgląd zdjęcia w aplikacji” komponentu Lightbox (§ 3.11)** — widok własny, bez `Modal`; IconButton `x` (§ 3.1), Button secondary / tertiary (ciemny wariant z § 3.24), EmptyState-w-miniaturze (ikona + tekst, bez `size.icon.2xl` > 1/4 wysokości), Skeleton; tokeny: `color.bg.inverse`, `color.text.inverse`, `color.icon.inverse`, `text.heading-4`, `text.body`, `text.body-sm`, `text.label-lg`, `size.icon.md`, `size.icon.2xl`, `size.touch-target.min`, `space.inset.md`, `motion.transition.enter`. Ikony: `cloud-alert`, `x`, `ban`, `wifi-off` już są w `icons.ts`. **Bez nowych tokenów.**
 - **Mikrocopy:** „Zamknij podgląd” · „Podgląd zdjęcia” (ogłoszenie) · „Opis” · „Wczytywanie zdjęcia…” · „Nie udało się wczytać zdjęcia” · „Spróbuj ponownie” · „Podgląd zdjęć wymaga internetu” · „Zdjęcie niedostępne. Mogło zostać usunięte albo nie masz do niego dostępu.” · „Bez kategorii”.
+
+## M-08c Odtwarzacz filmu — od EVM-143
+
+> Specyfikacja `ux-designer` z 2026-11-23 (podpunkt „UX / UI” historyjki EVM-143), zapis makiety: `mobile-developer`. Wzorzec: M-08b. Film jest oglądany **online, strumieniowo, bez zapisu na telefonie**.
+
+- **Cel:** zobaczyć na miejscu nagranie z wizji lub montażu bez prośby do biura.
+- **Główna akcja:** jeden przycisk „Odtwórz” / „Pauza” / „Odtwórz ponownie” (Button primary, ciemny wariant § 3.24, ≥ 48 dp, pod obszarem wideo, pełna szerokość — strefa kciuka); „Zamknij” `x` 48 × 48 dp na pasku.
+- **Wejście:** dotyk kafla filmu `ready` w M-08a. Widok w oknie głównym pod `LockGate` (nie `Modal`, nie osobna aktywność — nie omija nakładki blokady i `FLAG_SECURE`). Wyjście: „Zamknij” albo systemowe Wstecz → siatka.
+
+```
+┌──────────────────────────────────┐
+│ [x]  Montaż — stan końcowy       │ pasek (color.bg.inverse), nazwa „Zamknij odtwarzacz”
+│      18.11.2026, 10:30           │ czas wykonania
+│      ‹video› Film                │ etykieta „Film”
+│ ┌──────────────────────────────┐ │
+│ │      (miniatura z siatki)    │ │ obszar wideo 16:9, contain; do „Odtwórz” — miniatura
+│ │                              │ │
+│ └──────────────────────────────┘ │
+│ [[ Odtwórz ]]                    │ → „Pauza” → „Odtwórz ponownie” (po zakończeniu)
+└──────────────────────────────────┘
+```
+
+**Stany ekranu**
+
+| Stan | Zachowanie |
+|---|---|
+| Początek | Miniatura i „Odtwórz”; nic nie jest pobierane (adres podglądu 720p jest wydawany dopiero po dotknięciu). |
+| Przygotowanie / buforowanie | Miniatura zostaje; przycisk w stanie ładowania (spinner w przycisku, wyłączony, nazwa dla czytnika „Wczytywanie filmu…” raz). Bez pełnoekranowego spinnera. |
+| Odtwarzanie / pauza | Ten sam przycisk: „Pauza” ↔ „Odtwórz”; po zakończeniu „Odtwórz ponownie”. Bez paska przewijania, głośności, pełnego ekranu, obrazu w obrazie, napisów, prędkości. |
+| Wygasły adres | Jednorazowo i bez komunikatu: nowy adres, wznowienie od tej samej sekundy (licznik błędów zerowany po postępie ≥ 1 s, więc długi film nie kończy się błędem). |
+| Drugi błąd, błąd sieci lub serwera, `429` | `cloud-alert` + **„Nie udało się odtworzyć filmu”** + „Spróbuj ponownie” (nowy adres, ręcznie); `role="alert"` raz. |
+| `403` / `404` | `ban` + **„Film niedostępny. Mógł zostać usunięty albo nie masz do niego dostępu.”**, bez ponowienia i bez kodu; zostaje „Zamknij”. |
+| Offline (przy otwarciu i utrata w trakcie) | `wifi-off` + **„Film wymaga internetu”** (bez słowa „błąd”) + „Spróbuj ponownie”; po powrocie sieci nic nie startuje samo. |
+| Tło aplikacji | Odtwarzacz zatrzymany i zwolniony, adres odrzucony; po powrocie miniatura i „Odtwórz”. |
+| Blokada, tryb ukrytych danych, `session_revoked`, wylogowanie, „Wyczyść dane firmowe” | Odtwarzacz znika od razu, adres zwolniony, spóźnione odpowiedzi odrzucone, czytnik nic nie ogłasza; po odblokowaniu wraca **siatka**, nie odtwarzacz. |
+
+**Responsywność:** compact — układ pionowy; skala czcionki > 130% — obszar wideo min. 35% wysokości okna, ekran się przewija (przycisk „Odtwórz” zawsze osiągalny; domyka uwagę z EVM-142 o scenariuszach 130% / 200%); orientacja pozioma — wideo po lewej (55% szerokości), przycisk po prawej.
+
+**Dostępność:** przy otwarciu fokus na nagłówku z ogłoszeniem „Odtwarzacz filmu, [kategoria], [czas]” (bez nazwy pliku, identyfikatora i adresu — także w `testID`); wideo nie jest elementem czytnika; bez `liveRegion`, bez ogłoszeń o postępie; błąd raz; brak automatycznego startu, dźwięku i powiadomień po zamknięciu.
+
+**Kafel filmu w M-08a (od EVM-143):** miniatura-klatka jak zdjęcia z dekoracyjną ikoną `play` w kółku `color.bg.inverse`; pod nią wiersz „Film” z ikoną `video`, kategoria i czas; nazwa dostępna „Film, [kategoria], [czas]”, podpowiedź „Otwiera odtwarzacz filmu”; stany `processing`, kwarantanny i `failed` jak zdjęcie (grupa tekstowa, bez adresu i bez przycisku); czasu trwania w siatce nie ma (nie ma go w replice).
+
+**Role:** Administrator i Edytor — tak (kanał `mobile`, `createMediaAssetDownloadUrl`, wyłącznie `thumbnail` i `preview` filmu); Tylko odczyt nie loguje się do aplikacji; oryginał filmu nigdy nie jest wydawany telefonowi.
 
 ## M-09 Więcej
 - **Cel:** ustawienia wysyłania, pomoc i prywatność oraz bezpieczne wylogowanie lub wyczyszczenie danych firmowych.

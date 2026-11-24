@@ -1,0 +1,29 @@
+# EVM-143 AC5: a cold start (the lock of the previous flow is gone with the process): the film is played, the app goes to the background (Home) and comes back: the player screen stays but the player
+# is stopped and freed ("Odtwórz", not "Pauza") and the film does not start by itself.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: true
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- extendedWaitUntil:
+    visible: 'ZL-E2E-1'
+    timeout: 60000
+- runFlow: common/film-grid-open.yaml
+- runFlow: common/film-open.yaml
+- tapOn:
+    id: 'video-player-action'
+- assertVisible:
+    id: 'video-player-action'
+- pressKey: home
+- launchApp:
+    stopApp: false
+# the player screen stays, but the player is stopped and freed: the thumbnail and "Odtwórz", nothing plays by itself
+- extendedWaitUntil:
+    visible:
+      id: 'video-player'
+    timeout: 20000
+- assertVisible: 'Odtwórz'
+- assertNotVisible: 'Pauza'
+- takeScreenshot: m08c-film-after-background

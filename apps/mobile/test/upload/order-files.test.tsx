@@ -327,7 +327,7 @@ describe('"Pliki zlecenia" - empty, loading, failed read, offline (EVM-111 AC3)'
     expect(screen.getByTestId('order-files-count')).toHaveTextContent('Wszystko wysłane', { exact: true });
     const empty = screen.getByTestId('order-files-empty');
     expect(
-      within(empty).getByText('Wszystko wysłane. Zdjęcia zlecenia znajdziesz w wierszu „Zdjęcia zlecenia”. Filmy ogląda biuro w panelu.'),
+      within(empty).getByText('Wszystko wysłane. Zdjęcia i filmy zlecenia znajdziesz w wierszu „Zdjęcia zlecenia”.'),
     ).toBeOnTheScreen();
     expect(within(empty).queryByRole('button')).toBeNull();
     expect(within(screen.getByTestId('order-files')).queryByText(pl.orderDetail.takePhoto)).toBeNull();

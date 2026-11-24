@@ -25,7 +25,7 @@ import type {
   OrderDetailSource,
 } from '../orders/order-detail-model';
 import type { OrderListSource, SourceCustomer, SourceOrder, SourceSite, SourceStage } from '../orders/order-list-model';
-import type { OrderPhotoSource } from '../orders/order-photos-model';
+import type { OrderMediaSource } from '../orders/order-photos-model';
 import type { QuickOrderSource } from '../orders/quick-order-model';
 import type { TemplateSet } from '../orders/templates';
 import { MAX_PARAMS, chunk, type DbAccess, type Tx } from './database';
@@ -721,15 +721,15 @@ export class SqlReplicaStore implements ReplicaStore {
   }
 
   /**
-   * The photos of one work order for "Zdjęcia zlecenia" (EVM-142): the `media_asset` entities of the active generation with `mediaType = 'photo'`, allow-listed keys only
-   * (category, description, time of the capture, state of the file) - no size, no dimension, no stage. The id of the order is a bound parameter. Films are not read (EVM-143).
+   * The photos of one work order for "Zdjęcia zlecenia" (EVM-142): the `media_asset` entities of the active generation with `mediaType` of `photo` or `video` (EVM-143), allow-listed keys only
+   * (kind, category, description, time of the capture, state of the file) - no size, no dimension, no stage, no duration. The id of the order is a bound parameter.
    */
-  async readOrderPhotos(workOrderId: string): Promise<OrderPhotoSource[]> {
+  async readOrderMedia(workOrderId: string): Promise<OrderMediaSource[]> {
     const rows = await this.#db.read((tx) =>
       tx.all(
-        `SELECT e.id AS id, json_extract(e.fields, '$.category') AS category, json_extract(e.fields, '$.description') AS description, json_extract(e.fields, '$.capturedAt') AS captured_at, json_extract(e.fields, '$.fileState') AS file_state
+        `SELECT e.id AS id, json_extract(e.fields, '$.mediaType') AS media_type, json_extract(e.fields, '$.category') AS category, json_extract(e.fields, '$.description') AS description, json_extract(e.fields, '$.capturedAt') AS captured_at, json_extract(e.fields, '$.fileState') AS file_state
          FROM replica_entities e JOIN replica_generations g ON g.generation = e.generation AND g.role = 'active'
-         WHERE e.type = 'media_asset' AND e.work_order_id = ? AND json_extract(e.fields, '$.mediaType') = 'photo'`,
+         WHERE e.type = 'media_asset' AND e.work_order_id = ? AND json_extract(e.fields, '$.mediaType') IN ('photo', 'video')`,
         [workOrderId],
       ),
     );
@@ -737,6 +737,7 @@ export class SqlReplicaStore implements ReplicaStore {
       const at = typeof row['captured_at'] === 'string' ? Date.parse(row['captured_at']) : Number.NaN;
       return {
         id: String(row['id']),
+        mediaType: String(row['media_type']),
         category: typeof row['category'] === 'string' ? row['category'] : null,
         description: typeof row['description'] === 'string' ? row['description'] : null,
         capturedAt: Number.isFinite(at) ? at : null,

@@ -7,7 +7,7 @@ import { useOrderPhotos } from './order-photos-hooks';
 
 /**
  * The row "Zdjęcia zlecenia" of M-03 (EVM-142 AC2, AC5, AC6): the same card and ONE touch target as "Pliki z tego telefonu" (at least 48 dp, it wraps at 200% of the font), right above it.
- * The second line is the number of the photos of the order in the replica ("1 zdjęcie", "3 zdjęcia", "12 zdjęć", "Brak zdjęć") - the replica, so it does not depend on the network; while
+ * The second line is the number of the photos and films of the order in the replica ("1 zdjęcie", "2 zdjęcia, 1 film", "12 zdjęć", "Brak zdjęć i filmów") - the replica, so it does not depend on the network; while
  * it is read (or when the read failed) there is no second line. The accessible name carries the same ("Zdjęcia zlecenia, 12 zdjęć") and is the only thing that changes with the number -
  * no announcement. With the data hidden, the app locked or the session ended the row is NOT there at all, and nothing is read.
  */
@@ -16,12 +16,28 @@ export function OrderPhotosRow({ orderId, onOpen }: { orderId: string; onOpen: (
   const { concealed, photos, failed } = useOrderPhotos(orderId);
   if (concealed) return null;
   const count = photos === null || failed ? null : photos.length;
+  // "2 zdjęcia, 1 film" (EVM-143): each part only when there is one; none at all = "Brak zdjęć i filmów"
+  const films = photos === null || failed ? 0 : photos.filter((item) => item.kind === 'video').length;
+  const pictures = count === null ? 0 : count - films;
   const second =
     count === null
       ? null
       : count === 0
         ? t('orderPhotos.none')
-        : t(pluralKey(count, { one: 'orderPhotos.count_one', few: 'orderPhotos.count_few', many: 'orderPhotos.count_many' }), { count });
+        : [
+            pictures === 0
+              ? null
+              : t(pluralKey(pictures, { one: 'orderPhotos.count_one', few: 'orderPhotos.count_few', many: 'orderPhotos.count_many' }), {
+                  count: pictures,
+                }),
+            films === 0
+              ? null
+              : t(pluralKey(films, { one: 'orderPhotos.film_one', few: 'orderPhotos.film_few', many: 'orderPhotos.film_many' }), {
+                  count: films,
+                }),
+          ]
+            .filter((part): part is string => part !== null)
+            .join(', ');
   const label =
     count === null ? t('orderPhotos.row') : count === 0 ? t('orderPhotos.rowA11yNone') : `${t('orderPhotos.row')}, ${second ?? ''}`;
   return (

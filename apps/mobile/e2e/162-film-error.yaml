@@ -1,0 +1,14 @@
+# EVM-143 AC3: every request for the film is answered 500: after the silent renewal the area shows "Nie udało się odtworzyć filmu" and "Spróbuj ponownie" (no code, no address).
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- runFlow: common/film-open.yaml
+- tapOn:
+    id: 'video-player-action'
+- extendedWaitUntil:
+    visible: 'Nie udało się odtworzyć filmu'
+    timeout: 120000
+- assertVisible: 'Spróbuj ponownie'
+- assertNotVisible: '.*(500|http|X-Amz).*'
+- takeScreenshot: m08c-film-error

@@ -30,6 +30,7 @@ function rig(overrides: Partial<MediaSource> = {}) {
       const next = answers.image.shift();
       return next === undefined ? new Promise<BytesAnswer>((resolve) => heldImages.push({ resolve })) : Promise.resolve(next);
     },
+    requestVideoUrl: () => Promise.resolve({ kind: 'error' }),
     ...overrides,
   };
   const viewer = new MediaViewer({ source, now: () => now });
@@ -305,5 +306,84 @@ describe('MediaViewer - 429 and the parallel limit (EVM-142 AC4)', () => {
     stop();
     r.viewer.releaseAll();
     expect(calls).toBe(3);
+  });
+});
+
+describe('MediaViewer - the address of a film (EVM-143 AC2, AC3, AC5)', () => {
+  const video = (r: ReturnType<typeof rig>, controller = new AbortController()) => ({
+    controller,
+    promise: r.viewer.requestVideoUrl({ workOrderId: WO, mediaAssetId: id(1), signal: controller.signal }),
+  });
+  const withVideo = (answer: () => Promise<UrlAnswer>, spy: string[] = []) =>
+    rig({
+      requestVideoUrl: () => {
+        spy.push('asked');
+        return answer();
+      },
+    });
+
+  it('EVM-143 AC2: the address is handed out once and kept nowhere in the viewer (no image is stored for it)', async () => {
+    const r = withVideo(() => Promise.resolve({ kind: 'ok', url: URL1, expiresAt: FUTURE }));
+    expect(await video(r).promise).toEqual({ kind: 'ok', url: URL1 });
+    expect(r.viewer.peek('preview', id(1))).toBeUndefined();
+    expect(r.imageRequests).toHaveLength(0);
+  });
+
+  it('EVM-143 AC3: 403 and 404 are final answers, 429 stops further requests until the end of Retry-After, other statuses and errors are "failed"', async () => {
+    for (const [status, kind] of [
+      [403, 'forbidden'],
+      [404, 'not_found'],
+      [500, 'failed'],
+    ] as const) {
+      const r = withVideo(() => Promise.resolve({ kind: 'status', status, retryAfter: null }));
+      expect((await video(r).promise).kind).toBe(kind);
+    }
+    const r = withVideo(() => Promise.resolve({ kind: 'status', status: 429, retryAfter: '30' }));
+    expect((await video(r).promise).kind).toBe('rate_limited');
+    expect((await video(r).promise).kind).toBe('rate_limited');
+    r.setNow(31_000);
+    expect((await video(r).promise).kind).toBe('rate_limited');
+    const failing = withVideo(() => Promise.resolve({ kind: 'error' }));
+    expect((await video(failing).promise).kind).toBe('failed');
+    const thrown = withVideo(() => Promise.reject(new Error('https://media.example.eu/a?X-Amz-Signature=SECRET')));
+    expect(await video(thrown).promise).toEqual({ kind: 'failed' });
+  });
+
+  it('EVM-143 AC5: nothing is asked while the viewer is not allowed (lock, hidden data, background) or the signal is aborted; "no session" is aborted', async () => {
+    const spy: string[] = [];
+    const r = withVideo(() => Promise.resolve({ kind: 'none' }), spy);
+    expect(await video(r).promise).toEqual({ kind: 'aborted' });
+    r.viewer.setAllowed(false);
+    expect(r.viewer.isAllowed()).toBe(false);
+    expect(await video(r).promise).toEqual({ kind: 'aborted' });
+    r.viewer.setAllowed(true);
+    const controller = new AbortController();
+    controller.abort();
+    expect(await video(r, controller).promise).toEqual({ kind: 'aborted' });
+    expect(spy).toHaveLength(1);
+  });
+
+  it('EVM-143 AC5: the lock during the request aborts it and the late address is dropped; a source that ignores the signal cannot keep the request alive', async () => {
+    let release: (answer: UrlAnswer) => void = () => undefined;
+    const r = withVideo(() => new Promise<UrlAnswer>((resolve) => (release = resolve)));
+    const pending = video(r);
+    await flush();
+    r.viewer.setAllowed(false);
+    expect(pending.controller.signal.aborted).toBe(false);
+    expect(await pending.promise).toEqual({ kind: 'aborted' });
+    release({ kind: 'ok', url: URL1, expiresAt: FUTURE });
+    r.viewer.setAllowed(true);
+    const second = video(r);
+    await flush();
+    r.viewer.releaseAll();
+    expect(await second.promise).toEqual({ kind: 'aborted' });
+  });
+
+  it('EVM-143 AC5: the caller aborting its own signal ends the request as aborted', async () => {
+    const r = withVideo(() => new Promise<UrlAnswer>(() => undefined));
+    const pending = video(r);
+    await flush();
+    pending.controller.abort();
+    expect(await pending.promise).toEqual({ kind: 'aborted' });
   });
 });

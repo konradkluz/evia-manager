@@ -104,6 +104,6 @@ describe('read of the work order details through the unlocked store (EVM-104 AC1
   it('EVM-142 AC2: the capability of the open store reads the photos of one order from the replica - an order without any has none', async () => {
     const { host } = boot(device);
     const store = unlocked(await host.openForUser(USER_A));
-    expect(await store.replicaExtras.readOrderPhotos(WO)).toEqual([]);
+    expect(await store.replicaExtras.readOrderMedia(WO)).toEqual([]);
   });
 });

@@ -9,12 +9,29 @@ import { formatDateTime } from '../src/i18n/format';
 import { pl } from '../src/i18n/pl';
 import type { OrderDetail } from '../src/orders/order-detail-model';
 import { buildOrderList, type OrderListSource } from '../src/orders/order-list-model';
-import { buildOrderPhotos, type OrderPhoto } from '../src/orders/order-photos-model';
+import { buildOrderMedia, type OrderMedia } from '../src/orders/order-photos-model';
 import type { StartupChecker } from '../src/startup';
 import { MIN } from './device-guard/fakes';
 import { stubPorts, type PortsRig } from './session-helpers';
 
+import type { FakePort } from './media-view/fake-video-port';
+
 const SIGNED = 'https://media.example.eu/derived/thumb.webp?X-Amz-Signature=SYNTHETIC';
+
+// the player of films is the stand-in of the port (the adapter of expo-video has its own test): every player the screen creates is recorded
+const mockPorts: FakePort[] = [];
+jest.mock('../src/media-view/video-player-adapter', () => {
+  const { View } = jest.requireActual<typeof import('react-native')>('react-native');
+  const { FakePort: Fake } = jest.requireActual<typeof import('./media-view/fake-video-port')>('./media-view/fake-video-port');
+  return {
+    createExpoVideoPlayer: () => {
+      const port = new Fake();
+      mockPorts.push(port);
+      return port;
+    },
+    VideoSurface: () => <View testID="video-surface" />,
+  };
+});
 
 jest.mock('react-native-safe-area-context', () => {
   const actual = jest.requireActual<typeof import('react-native-safe-area-context')>('react-native-safe-area-context');
@@ -56,8 +73,9 @@ const DETAIL: OrderDetail = {
   processes: [],
   journal: [],
 };
-const photo = (n: number, patch: Partial<OrderPhoto> = {}): OrderPhoto => ({
+const photo = (n: number, patch: Partial<OrderMedia> = {}): OrderMedia => ({
   id: ID(n),
+  kind: 'photo',
   category: 'defect',
   description: null,
   capturedAt: T0 + n * MIN_MS,
@@ -67,7 +85,7 @@ const photo = (n: number, patch: Partial<OrderPhoto> = {}): OrderPhoto => ({
 const when = (n: number): string => formatDateTime(T0 + n * MIN_MS);
 const CATEGORY = pl.camera.categories;
 
-function rigWith(photos: readonly OrderPhoto[]): PortsRig {
+function rigWith(photos: readonly OrderMedia[]): PortsRig {
   const rig = stubPorts();
   rig.sync.rows = buildOrderList(SOURCE, []);
   rig.sync.details.set('o1', DETAIL);
@@ -185,7 +203,7 @@ const flat = (node: { props: { style?: unknown } }): Record<string, number> =>
 
 describe('the row "Zdjęcia zlecenia" (EVM-142 AC2, AC6)', () => {
   it.each([
-    [0, 'Brak zdjęć', 'Zdjęcia zlecenia, brak zdjęć'],
+    [0, 'Brak zdjęć i filmów', 'Zdjęcia zlecenia, brak zdjęć i filmów'],
     [1, '1 zdjęcie', 'Zdjęcia zlecenia, 1 zdjęcie'],
     [3, '3 zdjęcia', 'Zdjęcia zlecenia, 3 zdjęcia'],
     [5, '5 zdjęć', 'Zdjęcia zlecenia, 5 zdjęć'],
@@ -226,15 +244,16 @@ describe('the row "Zdjęcia zlecenia" (EVM-142 AC2, AC6)', () => {
 
 describe('the grid (EVM-142 AC2, AC6)', () => {
   it('EVM-142 AC2: the tiles go from the newest; each has the category and the time, the name "[category], [time]" and requests its thumbnail only', async () => {
-    // the replica read builds the rows with `buildOrderPhotos` (newest first); the fake hands them over as given
+    // the replica read builds the rows with `buildOrderMedia` (newest first); the fake hands them over as given
     const source = (n: number, category: string) => ({
       id: ID(n),
+      mediaType: 'photo',
       category,
       description: null,
       capturedAt: T0 + n * MIN_MS,
       fileState: 'ready',
     });
-    const rig = rigWith(buildOrderPhotos([source(1, 'before_work'), source(3, 'measurement'), source(2, 'completed_work')]));
+    const rig = rigWith(buildOrderMedia([source(1, 'before_work'), source(3, 'measurement'), source(2, 'completed_work')]));
     await openGrid(rig);
     expect(screen.getByTestId('order-photos')).toBeOnTheScreen();
     expect(rig.sync.photoRequests).toContain('o1');
@@ -368,7 +387,7 @@ describe('the grid (EVM-142 AC2, AC6)', () => {
     expect(screen.getByRole('button', { name: pl.orderPhotos.backA11y })).toBeOnTheScreen();
   });
 
-  it('EVM-142 AC6: no photos - "Brak zdjęć w tym zleceniu" without a button and without a request', async () => {
+  it('EVM-142 AC6: no photos or films - "Brak zdjęć i filmów w tym zleceniu" without a button and without a request', async () => {
     const rig = rigWith([]);
     await openGrid(rig);
     expect(screen.getByTestId('order-photos-empty')).toBeOnTheScreen();
@@ -400,7 +419,7 @@ describe('the grid (EVM-142 AC2, AC6)', () => {
 
   it('EVM-142 AC2: the skeleton is shown while the replica read has not answered', async () => {
     const rig = rigWith([photo(1)]);
-    let answer: (photos: readonly OrderPhoto[]) => void = () => undefined;
+    let answer: (photos: readonly OrderMedia[]) => void = () => undefined;
     await open(rig);
     await fireEvent.press(screen.getByTestId('order-row-o1'));
     await settle();
@@ -581,6 +600,7 @@ describe('the real viewer on the screen (EVM-142 AC3, AC4)', () => {
         urls.push(request.mediaAssetId);
         return Promise.resolve<UrlAnswer>({ kind: 'ok', url: SIGNED, expiresAt: Date.now() - 1000 });
       },
+      requestVideoUrl: () => Promise.resolve<UrlAnswer>({ kind: 'error' }),
       fetchImage: (url) => {
         bytes.push(url);
         if (bytes.length === 1) return Promise.resolve({ kind: 'status' as const, status: 403 });
@@ -619,6 +639,7 @@ describe('the real viewer on the screen (EVM-142 AC3, AC4)', () => {
         sent.push(request.mediaAssetId);
         return Promise.resolve<UrlAnswer>({ kind: 'none' });
       },
+      requestVideoUrl: () => Promise.resolve<UrlAnswer>({ kind: 'error' }),
       fetchImage: () => Promise.reject(new Error('no request to the bucket expected')),
     };
     await openGridWithViewer(rig, source);
@@ -994,5 +1015,315 @@ describe('nothing stays and nothing is requested in the hidden states (EVM-142 A
     expect(screen.queryByTestId('photo-preview')).toBeNull();
     expect(flying.every((load) => load.request.signal.aborted)).toBe(true);
     expect(whole()).not.toMatch(/data:image|Usterka/);
+  });
+});
+
+const film = (n: number, patch: Partial<OrderMedia> = {}): OrderMedia => photo(n, { kind: 'video', ...patch });
+async function openFilm(rig: PortsRig, checker: StartupChecker = online) {
+  await openGrid(rig, checker);
+  await fireEvent.press(screen.getByTestId('photo-tile-0'));
+  await settle();
+}
+const PREVIEW_URL = 'https://bucket.example.test/preview.mp4?X-Amz-Signature=SYNTHETIC-SECRET';
+const lastPort = (): FakePort => mockPorts[mockPorts.length - 1] as FakePort;
+beforeEach(() => {
+  mockPorts.length = 0;
+});
+
+describe('films in the grid (EVM-143 AC1, AC6)', () => {
+  it('EVM-143 AC1: a ready film has a thumbnail with a play mark, the word "Film" with its icon, the category and the time; the name is "Film, [category], [time]" without a file name', async () => {
+    const rig = rigWith([film(2), photo(1)]);
+    await openGrid(rig);
+    const tile = screen.getByTestId('photo-tile-0');
+    expect(tile).toHaveProp('accessibilityLabel', `Film, ${CATEGORY.defect}, ${when(2)}`);
+    expect(tile).toHaveProp('accessibilityHint', pl.orderPhotos.videoTileHint);
+    expect(within(tile).getByText(pl.orderPhotos.videoLabel)).toBeOnTheScreen();
+    expect(screen.getByTestId('photo-tile-0-play', { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(screen.getByTestId('photo-tile-0-image')).toBeOnTheScreen();
+    expect(screen.getByTestId('photo-tile-1')).toHaveProp('accessibilityLabel', `${CATEGORY.defect}, ${when(1)}`);
+    expect(screen.queryByTestId('photo-tile-1-play')).toBeNull();
+    // only the thumbnail of the film was asked for - never the preview, never an address of the video
+    expect(rig.mediaView.requests.map((request) => request.variant)).toEqual(['thumbnail', 'thumbnail']);
+    expect(rig.mediaView.videoRequests).toHaveLength(0);
+    expect(whole()).not.toContain(ID(2));
+  });
+
+  it.each([
+    ['preparing', pl.orderPhotos.states.preparing],
+    ['quarantined', pl.orderPhotos.states.quarantined],
+    ['failed', pl.orderPhotos.states.failed],
+  ] as const)(
+    'EVM-143 AC1: a film that is "%s" shows the text of the state, has no button, and asks for no address',
+    async (state, label) => {
+      const rig = rigWith([film(1, { state })]);
+      await openGrid(rig);
+      const tile = screen.getByTestId('photo-tile-0');
+      expect(tile).toHaveProp('accessibilityLabel', `Film, ${CATEGORY.defect}, ${when(1)}, ${label}`);
+      expect(tile).not.toHaveProp('accessibilityRole', 'button');
+      expect(screen.queryByTestId('photo-tile-0-play')).toBeNull();
+      expect(rig.mediaView.requests).toEqual([]);
+      expect(rig.mediaView.videoRequests).toEqual([]);
+    },
+  );
+
+  it('EVM-143 AC1: the row of M-03 says "2 zdjęcia, 1 film"', async () => {
+    const rig = rigWith([photo(1), photo(2), film(3)]);
+    await open(rig);
+    await fireEvent.press(screen.getByTestId('order-row-o1'));
+    await settle();
+    expect(within(screen.getByTestId('order-photos-row')).getByTestId('order-photos-row-second')).toHaveTextContent('2 zdjęcia, 1 film');
+    expect(screen.getByTestId('order-photos-row')).toHaveProp('accessibilityLabel', 'Zdjęcia zlecenia, 2 zdjęcia, 1 film');
+  });
+
+  it.each([
+    [1, '1 film'],
+    [3, '3 filmy'],
+    [5, '5 filmów'],
+  ])('EVM-143 AC1: %i films only - "%s"', async (count, second) => {
+    const rig = rigWith(Array.from({ length: count }, (_unused, n) => film(n + 1)));
+    await open(rig);
+    await fireEvent.press(screen.getByTestId('order-row-o1'));
+    await settle();
+    expect(within(screen.getByTestId('order-photos-row')).getByTestId('order-photos-row-second')).toHaveTextContent(second);
+  });
+
+  it('EVM-143 AC1, AC4: offline the list keeps the "Film" row for a film, without a button and without a request', async () => {
+    const rig = rigWith([film(1)]);
+    await openGrid(rig, offline);
+    const row = screen.getByTestId('photo-row-0');
+    expect(row).toHaveProp('accessibilityLabel', `Film, ${CATEGORY.defect}, ${when(1)}`);
+    expect(within(row).getByText(pl.orderPhotos.videoLabel)).toBeOnTheScreen();
+    expect(rig.mediaView.videoRequests).toEqual([]);
+  });
+});
+
+describe('the film player (EVM-143 AC2-AC6)', () => {
+  it('EVM-143 AC2: the film opens the player in the main window; nothing is asked and no player exists before "Odtwórz"', async () => {
+    const rig = rigWith([film(1)]);
+    await openFilm(rig);
+    expect(screen.getByTestId('video-player')).toBeOnTheScreen();
+    expect(within(screen.getByTestId('video-player')).getByText(CATEGORY.defect)).toBeOnTheScreen();
+    expect(screen.getByTestId('video-player-header')).toHaveProp('accessibilityLabel', `Odtwarzacz filmu, ${CATEGORY.defect}, ${when(1)}`);
+    expect(screen.getByTestId('video-player-action')).toHaveProp('accessibilityLabel', 'Odtwórz');
+    expect(rig.mediaView.videoRequests).toHaveLength(0);
+    expect(mockPorts).toHaveLength(0);
+    expect(screen.queryByTestId('video-surface')).toBeNull();
+    expect(screen.getByTestId('video-player-close')).toHaveProp('accessibilityLabel', 'Zamknij odtwarzacz');
+  });
+
+  it('EVM-143 AC2: "Odtwórz" asks for the address, loads it into the player and plays; the one button becomes "Pauza" and back; the address is nowhere on the screen', async () => {
+    const rig = rigWith([film(1)]);
+    rig.mediaView.videoAnswer = { kind: 'ok', url: PREVIEW_URL };
+    await openFilm(rig);
+    await fireEvent.press(screen.getByTestId('video-player-action'));
+    await settle();
+    expect(rig.mediaView.videoRequests).toHaveLength(1);
+    expect(lastPort().loads).toEqual([{ url: PREVIEW_URL, startAt: 0 }]);
+    await act(() => {
+      lastPort().emit({ kind: 'ready' });
+      lastPort().emit({ kind: 'playing', playing: true });
+    });
+    expect(lastPort().calls).toContain('play');
+    expect(screen.getByTestId('video-surface')).toBeOnTheScreen();
+    expect(screen.getByTestId('video-player-action')).toHaveProp('accessibilityLabel', 'Pauza');
+    expect(whole()).not.toMatch(/SYNTHETIC-SECRET|bucket\.example\.test|X-Amz/);
+    await fireEvent.press(screen.getByTestId('video-player-action'));
+    expect(lastPort().calls).toContain('pause');
+    await act(() => {
+      lastPort().emit({ kind: 'playing', playing: false });
+    });
+    expect(screen.getByTestId('video-player-action')).toHaveProp('accessibilityLabel', 'Odtwórz');
+    await act(() => {
+      lastPort().emit({ kind: 'ended' });
+    });
+    expect(screen.getByTestId('video-player-action')).toHaveProp('accessibilityLabel', 'Odtwórz ponownie');
+  });
+
+  it('EVM-143 AC2: closing returns to the grid and releases the player', async () => {
+    const rig = rigWith([film(1)]);
+    await openFilm(rig);
+    await fireEvent.press(screen.getByTestId('video-player-action'));
+    await settle();
+    const port = lastPort();
+    await fireEvent.press(screen.getByTestId('video-player-close'));
+    await settle();
+    expect(screen.queryByTestId('video-player')).toBeNull();
+    expect(screen.getByTestId('order-photos-grid')).toBeOnTheScreen();
+    expect(port.released).toBe(true);
+  });
+
+  it('EVM-143 AC3: an error of the player gets one silent new address and resumes from the same second; a second error says "Nie udało się odtworzyć filmu" with "Spróbuj ponownie"', async () => {
+    const rig = rigWith([film(1)]);
+    await openFilm(rig);
+    await fireEvent.press(screen.getByTestId('video-player-action'));
+    await settle();
+    const port = lastPort();
+    await act(() => {
+      port.emit({ kind: 'ready' });
+      port.emit({ kind: 'playing', playing: true });
+      port.emit({ kind: 'time', seconds: 12 });
+    });
+    port.at = 12.4;
+    await act(() => {
+      port.emit({ kind: 'error' });
+    });
+    await settle();
+    expect(rig.mediaView.videoRequests).toHaveLength(2);
+    expect(port.loads.at(-1)?.startAt).toBe(12.4);
+    expect(screen.queryByTestId('video-player-notice')).toBeNull();
+    await act(() => {
+      port.emit({ kind: 'error' });
+    });
+    expect(screen.getByText(pl.orderPhotos.video.failed)).toBeOnTheScreen();
+    expect(screen.getByTestId('video-player-notice')).toHaveProp('accessibilityRole', 'alert');
+    expect(screen.getByTestId('video-player-action')).toHaveProp('accessibilityLabel', 'Spróbuj ponownie');
+    expect(port.released).toBe(true);
+    await fireEvent.press(screen.getByTestId('video-player-action'));
+    await settle();
+    expect(rig.mediaView.videoRequests).toHaveLength(3);
+    expect(mockPorts).toHaveLength(2);
+  });
+
+  it.each([
+    [{ kind: 'forbidden' }, pl.orderPhotos.video.unavailable, false],
+    [{ kind: 'not_found' }, pl.orderPhotos.video.unavailable, false],
+    [{ kind: 'rate_limited' }, pl.orderPhotos.video.failed, true],
+    [{ kind: 'failed' }, pl.orderPhotos.video.failed, true],
+  ] as const)('EVM-143 AC3: the issue answers %j - the general message, no code', async (answer, message, retry) => {
+    const rig = rigWith([film(1)]);
+    rig.mediaView.videoAnswer = answer;
+    await openFilm(rig);
+    await fireEvent.press(screen.getByTestId('video-player-action'));
+    await settle();
+    expect(screen.getByText(message)).toBeOnTheScreen();
+    expect(whole('video-player')).not.toMatch(/40[34]|429/);
+    expect(screen.queryByTestId('video-player-action') !== null).toBe(retry);
+    expect(rig.mediaView.videoRequests).toHaveLength(1);
+    expect(mockPorts).toHaveLength(0);
+  });
+
+  it('EVM-143 AC4: offline at "Odtwórz" says "Film wymaga internetu" without a request; the network coming back starts nothing; a manual retry works', async () => {
+    const rig = rigWith([film(1)]);
+    let net: 'online' | 'offline' = 'online';
+    const checker: StartupChecker = () => Promise.resolve({ kind: net });
+    await openFilm(rig, checker);
+    net = 'offline';
+    await recheck();
+    await fireEvent.press(screen.getByTestId('video-player-action'));
+    await settle();
+    expect(screen.getByText(pl.orderPhotos.video.offline)).toBeOnTheScreen();
+    expect(whole('video-player')).not.toMatch(/błąd|error/i);
+    expect(rig.mediaView.videoRequests).toHaveLength(0);
+    net = 'online';
+    await recheck();
+    expect(rig.mediaView.videoRequests).toHaveLength(0);
+    await fireEvent.press(screen.getByTestId('video-player-action'));
+    await settle();
+    expect(rig.mediaView.videoRequests).toHaveLength(1);
+  });
+
+  it('EVM-143 AC4: the network lost during playback (the player fails while offline) says "Film wymaga internetu" and releases the player', async () => {
+    const rig = rigWith([film(1)]);
+    let net: 'online' | 'offline' = 'online';
+    const checker: StartupChecker = () => Promise.resolve({ kind: net });
+    await openFilm(rig, checker);
+    await fireEvent.press(screen.getByTestId('video-player-action'));
+    await settle();
+    const port = lastPort();
+    await act(() => {
+      port.emit({ kind: 'ready' });
+      port.emit({ kind: 'playing', playing: true });
+    });
+    net = 'offline';
+    await recheck();
+    await act(() => {
+      port.emit({ kind: 'error' });
+    });
+    expect(screen.getByText(pl.orderPhotos.video.offline)).toBeOnTheScreen();
+    expect(port.released).toBe(true);
+  });
+
+  it('EVM-143 AC5: the lock removes the player at once (released), nothing is asked after, and after the unlock the grid comes back - not the player', async () => {
+    const rig = rigWith([film(1)]);
+    await openFilm(rig);
+    await fireEvent.press(screen.getByTestId('video-player-action'));
+    await settle();
+    const port = lastPort();
+    await act(() => {
+      port.emit({ kind: 'ready' });
+      port.emit({ kind: 'playing', playing: true });
+    });
+    await lock(rig);
+    expect(port.released).toBe(true);
+    expect(screen.queryByTestId('video-player')).toBeNull();
+    const asked = rig.mediaView.videoRequests.length;
+    await unlock(rig);
+    expect(screen.queryByTestId('video-player')).toBeNull();
+    expect(screen.getByTestId('order-photos-grid')).toBeOnTheScreen();
+    expect(rig.mediaView.videoRequests).toHaveLength(asked);
+    expect(mockPorts).toHaveLength(1);
+  });
+
+  it('EVM-143 AC5: the hidden-data mode removes the player and releases it', async () => {
+    const rig = rigWith([film(1)]);
+    await openFilm(rig);
+    await fireEvent.press(screen.getByTestId('video-player-action'));
+    await settle();
+    await hide(rig);
+    expect(lastPort().released).toBe(true);
+    expect(screen.queryByTestId('video-player')).toBeNull();
+    expect(screen.getByTestId('order-photos-hidden')).toBeOnTheScreen();
+  });
+
+  it('EVM-143 AC5: when the viewer loses its permission (the background) the player is released and the picture with "Odtwórz" is back; nothing starts by itself', async () => {
+    const rig = rigWith([film(1)]);
+    await openFilm(rig);
+    await fireEvent.press(screen.getByTestId('video-player-action'));
+    await settle();
+    const port = lastPort();
+    await act(() => {
+      port.emit({ kind: 'ready' });
+      port.emit({ kind: 'playing', playing: true });
+    });
+    await act(() => {
+      rig.mediaView.allowed = false;
+      rig.mediaView.releaseAll();
+    });
+    expect(port.released).toBe(true);
+    expect(screen.getByTestId('video-player-action')).toHaveProp('accessibilityLabel', 'Odtwórz');
+    expect(screen.queryByTestId('video-surface')).toBeNull();
+    const asked = rig.mediaView.videoRequests.length;
+    await act(() => {
+      rig.mediaView.allowed = true;
+      rig.mediaView.releaseAll();
+    });
+    await settle();
+    expect(rig.mediaView.videoRequests).toHaveLength(asked);
+    expect(mockPorts).toHaveLength(1);
+  });
+
+  it('EVM-143 AC6: the player has no liveRegion; the touch targets are at least 48 dp; the name of the button equals its text', async () => {
+    const rig = rigWith([film(1)]);
+    await openFilm(rig);
+    const hasLiveRegion = (node: unknown): boolean => {
+      if (typeof node !== 'object' || node === null) return false;
+      const json = node as { props?: Record<string, unknown>; children?: unknown[] };
+      if (json.props?.['accessibilityLiveRegion'] !== undefined && json.props['accessibilityLiveRegion'] !== 'none') return true;
+      return (json.children ?? []).some(hasLiveRegion);
+    };
+    expect(hasLiveRegion(findNode('video-player'))).toBe(false);
+    const close = flat(screen.getByTestId('video-player-close'));
+    expect(close.minHeight ?? close.height).toBeGreaterThanOrEqual(48);
+    expect(within(screen.getByTestId('video-player-action')).getByText('Odtwórz')).toBeOnTheScreen();
+  });
+
+  it('EVM-143 AC2, AC6: at a font of 200% the screen scrolls and keeps the film area at 35% of the window, so "Odtwórz" stays reachable', async () => {
+    jest.spyOn(PixelRatio, 'getFontScale').mockReturnValue(2);
+    jest.spyOn(Dimensions, 'get').mockReturnValue({ width: 360, height: 640, scale: 2, fontScale: 2 });
+    const rig = rigWith([film(1)]);
+    await openFilm(rig);
+    expect(screen.getByTestId('video-player-scroll')).toBeOnTheScreen();
+    expect(flat(screen.getByTestId('video-player-area') as never).minHeight).toBeGreaterThanOrEqual(640 * 0.35 - 1);
+    expect(screen.getByTestId('video-player-action')).toBeOnTheScreen();
   });
 });

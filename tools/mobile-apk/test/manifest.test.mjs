@@ -439,4 +439,44 @@ describe('camera permission and libraries of Google in the manifest (EVM-108 AC8
     );
     assert.deepEqual(checkManifest(ok, { applicationId: ID }), []);
   });
+  it('EVM-143 AC2, AC6: the fullscreen activity, picture in picture, the playback service and a media session service of the film player are refused', () => {
+    const withApplication = (/** @type {string} */ inside) => changed('</application>', inside + '</application>');
+    const cases = /** @type {[string, string][]} */ ([
+      [
+        '<activity android:name="expo.modules.video.FullscreenPlayerActivity" android:exported="false" />',
+        'forbidden activity expo.modules.video.FullscreenPlayerActivity (fullscreen player: skips the lock and FLAG_SECURE)',
+      ],
+      [
+        '<activity android:name="x.Other" android:exported="false" android:supportsPictureInPicture="true" />',
+        'activity x.Other supports picture in picture',
+      ],
+      [
+        '<service android:name="expo.modules.video.playbackService.ExpoVideoPlaybackService" android:exported="false" />',
+        'forbidden service expo.modules.video.playbackService.ExpoVideoPlaybackService (background playback)',
+      ],
+      [
+        '<service android:name="x.Session" android:exported="false"><intent-filter><action android:name="androidx.media3.session.MediaSessionService" /></intent-filter></service>',
+        'x.Session is a media session service (playback in the background)',
+      ],
+    ]);
+    for (const [element, expected] of cases) {
+      assert.ok(checkManifest(withApplication(element), { applicationId: ID }).includes(expected), element);
+    }
+  });
+
+  it('EVM-143 AC6: FOREGROUND_SERVICE_MEDIA_PLAYBACK is refused, and the permission list of the package is exactly the one before the player', () => {
+    const problems = checkManifest(
+      changed('</manifest>', '<uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" /></manifest>'),
+      { applicationId: ID },
+    );
+    assert.deepEqual(problems, [
+      'forbidden permission android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK (foreground service, ADR-0020a)',
+    ]);
+    const names = [...MANIFEST.matchAll(/<uses-permission(?:-sdk-23)?\s+android:name="([^"]+)"/g)].map((match) => match[1]).sort();
+    assert.deepEqual(names, [
+      'android.permission.INTERNET',
+      'android.permission.USE_BIOMETRIC',
+      'pl.eviacharge.manager.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION',
+    ]);
+  });
 });

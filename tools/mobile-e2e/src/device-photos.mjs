@@ -25,7 +25,7 @@
 import { APPLICATION_ID } from './commands.mjs';
 import { lockCommands, findLeaks, parseViewTree, COVER_ID, COVER_TITLE } from './device-lock.mjs';
 import { MAESTRO_LINE } from './device-upload.mjs';
-import { READY_IDS } from './photos-stub.mjs';
+import { READY_IDS, VIDEO_ID } from './photos-stub.mjs';
 
 export const PHOTOS_ACTION_NAMES = new Set([
   'photos-reset',
@@ -222,7 +222,7 @@ export function judgeLogControl(before, after) {
 /** @param {Report} report @returns {Record<string, number>} the counters by the names the steps use */
 export function reportCounters(report) {
   const unready = Object.entries(report.urls.byAsset)
-    .filter(([id]) => !READY_IDS.includes(id))
+    .filter(([id]) => !READY_IDS.includes(id) && id !== VIDEO_ID)
     .reduce((sum, [, count]) => sum + count, 0);
   const images = report.images;
   return {

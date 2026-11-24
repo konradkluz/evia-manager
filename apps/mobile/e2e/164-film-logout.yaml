@@ -1,0 +1,35 @@
+# EVM-143 AC5: the film is played again, the player is closed, then "Więcej" -> "Wyloguj" -> the confirmation: M-02 "Wylogowano". tools/mobile-e2e then searches the app directories and reads the log.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+# the player of the previous flow may still be open (the background only stops it)
+- tapOn:
+    id: 'video-player-close'
+    optional: true
+- runFlow: common/film-open.yaml
+- tapOn:
+    id: 'video-player-action'
+- extendedWaitUntil:
+    visible: 'Odtwórz ponownie'
+    timeout: 90000
+- tapOn:
+    id: 'video-player-close'
+- extendedWaitUntil:
+    notVisible:
+      id: 'video-player'
+    timeout: 10000
+- tapOn:
+    id: 'order-photos-back'
+- tapOn:
+    id: 'nav-more'
+- tapOn:
+    id: 'more-sign-out'
+- extendedWaitUntil:
+    visible: 'Wylogować się?'
+    timeout: 30000
+- tapOn:
+    id: 'logout-confirm'
+- extendedWaitUntil:
+    visible: 'Wylogowano'
+    timeout: 30000

@@ -1,0 +1,14 @@
+# EVM-143 AC4: the manual retry after the network came back plays the film; the player is closed.
+appId: pl.eviacharge.manager
+---
+- tapOn: 'Spróbuj ponownie'
+- extendedWaitUntil:
+    visible: 'Odtwórz ponownie'
+    timeout: 90000
+- takeScreenshot: m08c-film-back-online
+- tapOn:
+    id: 'video-player-close'
+- extendedWaitUntil:
+    notVisible:
+      id: 'video-player'
+    timeout: 10000

@@ -928,10 +928,8 @@ export async function findReadyDerivative(
   workOrderId: string,
   mediaAssetId: string,
   variant: DerivativeVariant,
-  /** Only the media of this kind (the phone sees photos; the panel passes none). */
-  mediaType?: 'photo' | 'video',
 ): Promise<DerivativeSource | undefined> {
-  let query = db
+  const row = await db
     .selectFrom('media.media_assets as a')
     .innerJoin('media.stored_files as f', 'f.media_asset_id', 'a.id')
     .innerJoin('media.file_derivatives as d', (join) => join.onRef('d.stored_file_id', '=', 'f.id').on('d.variant', '=', variant))
@@ -939,9 +937,9 @@ export async function findReadyDerivative(
     .where('a.work_order_id', '=', workOrderId)
     .where('a.deleted_at', 'is', null)
     .where('f.erased_at', 'is', null)
-    .where('f.state', '=', 'ready');
-  if (mediaType !== undefined) query = query.where('a.media_type', '=', mediaType);
-  const row = await query.select(['d.object_key', 'd.content_type']).executeTakeFirst();
+    .where('f.state', '=', 'ready')
+    .select(['d.object_key', 'd.content_type'])
+    .executeTakeFirst();
   return row === undefined ? undefined : { objectKey: row.object_key, contentType: row.content_type };
 }
 

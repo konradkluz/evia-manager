@@ -26,6 +26,15 @@ const BOOT_ACTIONS =
 /** A hostname of the part storage: letters, digits, dots and hyphens; no scheme, port, wildcard, loopback or emulator alias. */
 const STORAGE_HOSTNAME = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
 
+/**
+ * EVM-143 AC2, AC6 (SR-MOB-14, MASVS-PLATFORM-3): the film player runs in the main window. The fullscreen activity of expo-video (a separate window with
+ * picture in picture) would skip the lock overlay and FLAG_SECURE; a media session service would let a headset or the system resume or show a film.
+ */
+const FULLSCREEN_ACTIVITY_SUFFIX = '.FullscreenPlayerActivity';
+const PLAYBACK_SERVICE_SUFFIX = '.ExpoVideoPlaybackService';
+const MEDIA_SESSION_ACTIONS =
+  /^(androidx\.media3\.session\.MediaSessionService|androidx\.media\.MediaBrowserService|android\.media\.browse\.MediaBrowserService)$/;
+
 /** Components that may have an intent filter or be exported: the launcher activity only. */
 const LAUNCHER_ACTIVITY_SUFFIX = '.MainActivity';
 const COMPONENT_TAGS = ['activity', 'activity-alias', 'service', 'receiver', 'provider'];
@@ -135,6 +144,7 @@ export function checkManifest(manifestText, { applicationId, minimumTargetSdk = 
         (component.attributes['android:exported'] === undefined && filters.length > 0);
       if (FORBIDDEN_COMPONENT.test(name)) problems.push(`forbidden component ${name}`);
       problems.push(...uploadComponentProblems(tag, name, component, filters));
+      problems.push(...playerComponentProblems(tag, name, component, filters));
       if (exported && !(tag === 'activity' && name.endsWith(LAUNCHER_ACTIVITY_SUFFIX))) problems.push(`exported component ${name}`);
       if (tag === 'activity' && name.endsWith(LAUNCHER_ACTIVITY_SUFFIX)) problems.push(...launcherProblems(component, filters));
     }
@@ -217,6 +227,29 @@ function uploadConfigProblems(metas, hasUploadService) {
   if (api !== undefined && !/^https:\/\/[^/\s]+/.test(api)) problems.push(`${API_BASE_URL_META} is not an https address`);
   if (hosts !== undefined && hosts.split(',').some((host) => !STORAGE_HOSTNAME.test(host.trim()))) {
     problems.push(`${STORAGE_HOSTS_META} holds something other than plain hostnames (https only)`);
+  }
+  return problems;
+}
+
+/**
+ * The film player (EVM-143 AC2, AC6): no fullscreen activity, no picture in picture, no playback or media session service.
+ * @param {string} tag
+ * @param {string} name
+ * @param {import('./xml.mjs').XmlElement} component
+ * @param {import('./xml.mjs').XmlElement[]} filters
+ * @returns {string[]}
+ */
+function playerComponentProblems(tag, name, component, filters) {
+  /** @type {string[]} */
+  const problems = [];
+  if (tag === 'activity' && name.endsWith(FULLSCREEN_ACTIVITY_SUFFIX))
+    problems.push(`forbidden activity ${name} (fullscreen player: skips the lock and FLAG_SECURE)`);
+  if (tag === 'activity' && component.attributes['android:supportsPictureInPicture'] === 'true')
+    problems.push(`activity ${name} supports picture in picture`);
+  if (tag === 'service' && name.endsWith(PLAYBACK_SERVICE_SUFFIX)) problems.push(`forbidden service ${name} (background playback)`);
+  for (const filter of filters) {
+    if (childrenNamed(filter, 'action').some((action) => MEDIA_SESSION_ACTIONS.test(action.attributes['android:name'] ?? '')))
+      problems.push(`${name} is a media session service (playback in the background)`);
   }
   return problems;
 }

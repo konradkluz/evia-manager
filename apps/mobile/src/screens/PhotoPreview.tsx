@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AccessibilityInfo, Image, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { OrderPhoto } from '../orders/order-photos-model';
+import type { OrderMedia } from '../orders/order-photos-model';
 import { Ban, Button, CloudAlert, Icon, WifiOff, X } from '../ui';
 import { borderWidth, color, size, space, text } from '../ui/theme';
 import { photoCaption } from './PhotoTile';
@@ -61,7 +61,7 @@ export function PhotoPreview({
   online,
   onClose,
 }: {
-  photo: OrderPhoto;
+  photo: OrderMedia;
   orderId: string;
   online: boolean;
   onClose: () => void;

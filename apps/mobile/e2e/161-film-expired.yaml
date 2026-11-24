@@ -1,0 +1,20 @@
+# EVM-143 AC3: the address of the film that the server issued is ALREADY expired (every request with it is 403, like an address that expired in the middle of a film): the player fails,
+# the app asks for ONE more address, silently, and the film goes on - without a message. tools/mobile-e2e counts: two addresses, failed requests.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- runFlow: common/film-open.yaml
+- tapOn:
+    id: 'video-player-action'
+- extendedWaitUntil:
+    visible: 'Odtwórz ponownie'
+    timeout: 90000
+- assertNotVisible: 'Nie udało się odtworzyć filmu'
+- takeScreenshot: m08c-film-renewed
+- tapOn:
+    id: 'video-player-close'
+- extendedWaitUntil:
+    notVisible:
+      id: 'video-player'
+    timeout: 10000

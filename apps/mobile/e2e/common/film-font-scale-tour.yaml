@@ -1,0 +1,67 @@
+# EVM-143 AC6 (shared; and the open note of EVM-142): the grid with the film and the player at a large system font (tools/mobile-e2e sets the font before the flow, step display:, and puts it
+# back). At 130% and 200% not everything is above the fold, so the flow SCROLLS: the film area and the button "Odtwórz" are reachable, the button has a name equal to its text and
+# the close has the name "Zamknij odtwarzacz". Env: CFG (the prefix of the screenshot names).
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- tapOn:
+    id: 'nav-orders'
+- extendedWaitUntil:
+    visible: 'ZL-E2E-1'
+    timeout: 30000
+- tapOn:
+    id: 'order-row-30000000-0000-4000-8000-000000000001'
+- extendedWaitUntil:
+    visible: 'Zlecenie testowe 1'
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      id: 'order-photos-row'
+    direction: DOWN
+    centerElement: true
+- takeScreenshot: ${CFG}-film-1-row
+- tapOn:
+    id: 'order-photos-row'
+- extendedWaitUntil:
+    visible:
+      id: 'order-photos-grid'
+    timeout: 20000
+- assertVisible:
+    id: 'photo-tile-0'
+- takeScreenshot: ${CFG}-film-2-grid
+- tapOn:
+    id: 'photo-tile-0'
+- extendedWaitUntil:
+    visible:
+      id: 'video-player'
+    timeout: 20000
+- assertVisible: 'Zamknij odtwarzacz'
+- takeScreenshot: ${CFG}-film-3-player
+- scrollUntilVisible:
+    element:
+      id: 'video-player-action'
+    direction: DOWN
+    centerElement: true
+- assertVisible: 'Odtwórz'
+- takeScreenshot: ${CFG}-film-4-player-button
+- tapOn:
+    id: 'video-player-action'
+- extendedWaitUntil:
+    visible: 'Odtwórz ponownie'
+    timeout: 90000
+- takeScreenshot: ${CFG}-film-5-ended
+- scrollUntilVisible:
+    element:
+      id: 'video-player-close'
+    direction: UP
+    centerElement: true
+- tapOn:
+    id: 'video-player-close'
+- extendedWaitUntil:
+    notVisible:
+      id: 'video-player'
+    timeout: 10000

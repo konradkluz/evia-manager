@@ -15,16 +15,29 @@
  *
  * `/bucket/control.webp` (signature `E2EMARK-CTRL`) is the image of the POSITIVE CONTROL of the proof: the hook of the e2e variant fetches it with the plain global
  * `fetch` and no `Cache-Control: no-store`, so the HTTP cache of the app MAY keep it; the search of the app directories must then find it.
+ *
+ * EVM-143 (flows 144-148): the mode `photos: 'videos'` adds ONE ready film to the replica (`VIDEO_ASSET`, the newest tile). The addresses of its `thumbnail` (the WebP of the
+ * photos) and of its `preview` (`/bucket/videos/<id>/preview.mp4?X-Amz-Signature=E2EMARK<n>...`) come from the same `download-url`; the bucket answers the preview with the
+ * bytes of an MP4 FIXTURE (`loadVideoFixture`: a real H.264 file - the player must really play it; it is NOT in the repository. `EVIA_E2E_VIDEO_FIXTURE` names it; the fallback is a sample of the Android SDK,
+ * whose High 4:4:4 profile the decoder of the emulator REFUSES - use a Main/High profile file of 10-15 s with the `moov` anywhere, e.g. the sample of a Flutter package) with `Accept-Ranges`, `206` for a `Range` request (its `moov` is at the end), `Cache-Control: private, max-age=300` on purpose, and an
+ * optional throttle (the film is served in 16 KiB chunks, `/control/photos-video-throttle`) - the window in which the app is locked / left / signed out with the film in progress.
+ * The faults of the target `video` (`403` of an expired address, `500`) are answered to the request for the bytes. The counters of the film never hold an address.
  * Only synthetic data; the three images are 48-96 px lossless WebP made for this file (`RIFF....WEBPVP8L`).
  */
 import { Buffer } from 'node:buffer';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 /** The order of the scenario server that owns the photos (`sync-stub.mjs`: ZL-E2E-1). */
 export const PHOTO_ORDER_ID = '30000000-0000-4000-8000-000000000001';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const DOWNLOAD_PATH = /^\/api\/v1\/work-orders\/([0-9a-f-]{36})\/media-assets\/([0-9a-f-]{36})\/download-url$/;
 const BUCKET_PHOTO = /^\/bucket\/photos\/([0-9a-f-]{36})\/(thumbnail|preview)\.webp$/;
+const BUCKET_VIDEO = /^\/bucket\/videos\/([0-9a-f-]{36})\/preview\.mp4$/;
 const CONTROL_PATH = '/bucket/control.webp';
+const VIDEO_CHUNK = 16 * 1024;
+const MAX_THROTTLE_MS = 5000;
+const RANGE = /^bytes=(\d*)-(\d*)$/;
 export const SIGNATURE_MARK = 'E2EMARK';
 export const CONTROL_SIGNATURE = `${SIGNATURE_MARK}-CTRL`;
 export const URL_TTL_S = 300;
@@ -48,6 +61,34 @@ export const PHOTO_ASSETS = Object.freeze([
   { id: '0194c2a0-0000-7000-8000-0000000014a4', category: 'defect', capturedAt: '2026-11-20T09:30:00.000Z', fileState: 'processing' },
   { id: '0194c2a0-0000-7000-8000-0000000014a5', category: 'measurement', capturedAt: '2026-11-20T08:30:00.000Z', fileState: 'quarantined' },
 ]);
+/** The film of the mode `videos`: the newest of the order, ready (a thumbnail and a preview exist). @type {PhotoAsset} */
+export const VIDEO_ASSET = Object.freeze({
+  id: '0194c2a0-0000-7000-8000-0000000014b1',
+  category: 'completed_work',
+  capturedAt: '2026-11-20T13:30:00.000Z',
+  fileState: 'ready',
+});
+export const VIDEO_ID = VIDEO_ASSET.id;
+
+/**
+ * The MP4 the bucket serves as the preview of the film: a real file from the Android SDK of this machine (not a part of the repository), or the file named by
+ * `EVIA_E2E_VIDEO_FIXTURE`. `null` when there is none - the bucket then answers 500 and the scenario fails visibly.
+ * @param {Record<string, string | undefined>} [env] @param {(path: string) => Buffer} [read]
+ * @returns {Buffer | null}
+ */
+export function loadVideoFixture(env = process.env, read = readFileSync) {
+  const given = env['EVIA_E2E_VIDEO_FIXTURE'];
+  const home = env['ANDROID_HOME'] ?? env['ANDROID_SDK_ROOT'];
+  const path = given ?? (home === undefined ? null : join(home, 'emulator', 'resources', 'macroPreviews', 'Track_horizontal_plane.mp4'));
+  if (path === null) return null;
+  try {
+    const bytes = read(path);
+    return bytes.length > 0 ? bytes : null;
+  } catch {
+    return null;
+  }
+}
+
 /** The ones whose images the server serves. */
 export const READY_IDS = Object.freeze(PHOTO_ASSETS.filter((photo) => photo.fileState === 'ready').map((photo) => photo.id));
 
@@ -59,15 +100,15 @@ export const IMAGES = Object.freeze({
 });
 
 /** The `media_asset` entities of the snapshot page (the minimal projection of `SyncMediaAsset`, EVM-131). */
-export function photoReplicaChanges() {
-  return PHOTO_ASSETS.map((photo) => ({
+export function photoReplicaChanges(withVideo = false) {
+  return [...(withVideo ? [VIDEO_ASSET] : []), ...PHOTO_ASSETS].map((photo) => ({
     op: 'upsert',
     entity: {
       type: 'media_asset',
       id: photo.id,
       version: 1,
       workOrderId: PHOTO_ORDER_ID,
-      mediaType: 'photo',
+      mediaType: photo.id === VIDEO_ID ? 'video' : 'photo',
       category: photo.category,
       description: photo.fileState === 'ready' ? `Opis testowy ${photo.category}` : null,
       procedureStageId: null,
@@ -84,7 +125,7 @@ export function photoReplicaChanges() {
 
 /**
  * @typedef {object} Fault
- * @property {'url' | 'image'} target the request for an address or the request for the bytes
+ * @property {'url' | 'image' | 'video'} target the request for an address, for the bytes of an image or for the bytes of the film
  * @property {400 | 403 | 404 | 429 | 500} status
  * @property {number} remaining how many more requests it answers (`Infinity` = until cleared)
  * @property {Variant | null} variant only this variant (`null` = any)
@@ -105,23 +146,38 @@ function problem(status, code, headers) {
 const single = (value) => (Array.isArray(value) ? (value[0] ?? null) : (value ?? null));
 
 /**
- * @param {{ authorize: (header: string | undefined) => Answer | null, publicHost?: string, now?: () => number }} options `authorize`: the Bearer check of the
- *   upload part (the sign-in of these scenarios is served by it)
+ * @param {{ authorize: (header: string | undefined) => Answer | null, publicHost?: string, now?: () => number, video?: Buffer | null }} options `authorize`: the Bearer
+ *   check of the upload part (the sign-in of these scenarios is served by it); `video`: the bytes of the MP4 of the preview (`loadVideoFixture`)
  */
-export function createPhotosStub({ authorize, publicHost = '10.0.2.2', now = Date.now }) {
+export function createPhotosStub({ authorize, publicHost = '10.0.2.2', now = Date.now, video = null }) {
   let port = 0;
   let serial = 0;
-  /** @type {Map<string, { assetId: string, variant: Variant, expiresAt: number }>} */
+  /** @type {Map<string, { assetId: string, variant: Variant, expiresAt: number, film: boolean }>} */
   let signatures = new Map();
   /** @type {Fault[]} */
   let faults = [];
   let delayMs = 0;
+  let throttleMs = 0;
+  /** How many of the next addresses of a film are issued ALREADY EXPIRED (every request with them is `403`, the way an address that expired in the middle of a film behaves). */
+  let expireNext = 0;
   /** @type {ReturnType<typeof fresh>} */
   let counters = fresh();
 
   function fresh() {
     return {
-      urls: { thumbnail: 0, preview: 0, original: 0, byAsset: /** @type {Record<string, number>} */ ({}) },
+      urls: { thumbnail: 0, preview: 0, original: 0, videoPreview: 0, byAsset: /** @type {Record<string, number>} */ ({}) },
+      film: {
+        requests: 0,
+        ranges: 0,
+        ok: 0,
+        failed: 0,
+        authorization: 0,
+        cookie: 0,
+        cacheBust: 0,
+        unknownAddress: 0,
+        abandoned: 0,
+        bytes: 0,
+      },
       images: {
         thumbnail: 0,
         preview: 0,
@@ -140,7 +196,7 @@ export function createPhotosStub({ authorize, publicHost = '10.0.2.2', now = Dat
     };
   }
 
-  /** @param {'url' | 'image'} target @param {Variant | null} variant @returns {Fault | null} the fault that answers this request (it is used up by it) */
+  /** @param {'url' | 'image' | 'video'} target @param {Variant | null} variant @returns {Fault | null} the fault that answers this request (it is used up by it) */
   function takeFault(target, variant) {
     const fault = faults.find(
       (entry) => entry.target === target && entry.remaining > 0 && (entry.variant === null || entry.variant === variant),
@@ -170,20 +226,25 @@ export function createPhotosStub({ authorize, publicHost = '10.0.2.2', now = Dat
       counters.urls.original += 1;
       return problem(403, 'forbidden');
     }
+    const film = assetId === VIDEO_ID;
     counters.urls[variant] += 1;
+    if (film && variant === 'preview') counters.urls.videoPreview += 1;
     counters.urls.byAsset[assetId] = (counters.urls.byAsset[assetId] ?? 0) + 1;
     const fault = takeFault('url', variant);
     if (fault !== null) return faultAnswer(fault.status);
-    if (workOrderId !== PHOTO_ORDER_ID || !READY_IDS.includes(assetId)) return problem(404, 'not_found');
+    if (workOrderId !== PHOTO_ORDER_ID || !(READY_IDS.includes(assetId) || film)) return problem(404, 'not_found');
     serial += 1;
     const signature = `${SIGNATURE_MARK}${String(serial).padStart(6, '0')}`;
     const expiresAt = now() + URL_TTL_S * 1000;
-    signatures.set(signature, { assetId, variant, expiresAt });
+    const expired = film && variant === 'preview' && expireNext > 0;
+    if (expired) expireNext -= 1;
+    signatures.set(signature, { assetId, variant, expiresAt: expired ? 0 : expiresAt, film: film && variant === 'preview' });
+    const place = film && variant === 'preview' ? `videos/${assetId}/preview.mp4` : `photos/${assetId}/${variant}.webp`;
     return {
       status: 200,
       type: 'application/json',
       body: {
-        url: `http://${publicHost}:${String(port)}/bucket/photos/${assetId}/${variant}.webp?X-Amz-Signature=${signature}&X-Amz-Expires=${String(URL_TTL_S)}`,
+        url: `http://${publicHost}:${String(port)}/bucket/${place}?X-Amz-Signature=${signature}&X-Amz-Expires=${String(URL_TTL_S)}`,
         expiresAt: new Date(expiresAt).toISOString(),
       },
     };
@@ -194,6 +255,10 @@ export function createPhotosStub({ authorize, publicHost = '10.0.2.2', now = Dat
    * @param {import('node:http').IncomingMessage} request @param {import('node:http').ServerResponse} response @param {URL} target
    */
   function bucket(request, response, target) {
+    if (BUCKET_VIDEO.test(target.pathname)) {
+      bucketVideo(request, response, target);
+      return;
+    }
     const photo = BUCKET_PHOTO.exec(target.pathname);
     const control = target.pathname === CONTROL_PATH;
     const signature = target.searchParams.get('X-Amz-Signature');
@@ -255,6 +320,99 @@ export function createPhotosStub({ authorize, publicHost = '10.0.2.2', now = Dat
   }
 
   /**
+   * `GET` of the film: the MP4 of a signed address, whole or a range (the `moov` is at the end, so the player asks for ranges), a throttle on request.
+   * @param {import('node:http').IncomingMessage} request @param {import('node:http').ServerResponse} response @param {URL} target
+   */
+  function bucketVideo(request, response, target) {
+    const film = counters.film;
+    const match = BUCKET_VIDEO.exec(target.pathname);
+    const signature = target.searchParams.get('X-Amz-Signature');
+    const known = signature === null ? undefined : signatures.get(signature);
+    const header = single(request.headers['range']);
+    film.requests += 1;
+    if (header !== null) film.ranges += 1;
+    if (request.headers['authorization'] !== undefined) film.authorization += 1;
+    if (request.headers['cookie'] !== undefined) film.cookie += 1;
+    if (target.searchParams.has('_')) film.cacheBust += 1;
+    const fault = takeFault('video', null);
+    let status = 200;
+    if (fault !== null) status = fault.status;
+    else if (match === null || known === undefined || !known.film || known.assetId !== match[1]) {
+      film.unknownAddress += 1;
+      status = 403;
+    } else if (known.expiresAt <= now()) status = 403;
+    else if (video === null) status = 500;
+    let finished = false;
+    response.on('finish', () => {
+      finished = true;
+    });
+    response.on('close', () => {
+      if (!finished) film.abandoned += 1;
+    });
+    if (status !== 200 || video === null) {
+      film.failed += 1;
+      const failure = faultAnswer(status);
+      response.writeHead(status, { 'Content-Type': failure.type, 'Cache-Control': 'no-store', ...(failure.headers ?? {}) });
+      response.end(JSON.stringify(failure.body));
+      return;
+    }
+    const total = video.length;
+    let from = 0;
+    let to = total - 1;
+    let partial = false;
+    const range = header === null ? null : RANGE.exec(header.trim());
+    if (range !== null) {
+      const [, first = '', last = ''] = range;
+      if (first === '') {
+        from = Math.max(0, total - Number(last));
+      } else {
+        from = Number(first);
+        if (last !== '') to = Math.min(to, Number(last));
+      }
+      partial = true;
+    }
+    if (from > to || from >= total) {
+      film.failed += 1;
+      response.writeHead(416, { 'Content-Range': `bytes */${String(total)}`, 'Cache-Control': 'no-store' });
+      response.end();
+      return;
+    }
+    film.ok += 1;
+    const body = video.subarray(from, to + 1);
+    response.writeHead(partial ? 206 : 200, {
+      'Content-Type': 'video/mp4',
+      'Content-Length': String(body.length),
+      'Accept-Ranges': 'bytes',
+      ...(partial ? { 'Content-Range': `bytes ${String(from)}-${String(to)}/${String(total)}` } : {}),
+      // the worst case on purpose: a cacheable answer, so a player that keeps what it streams MAY keep it on the disk
+      'Cache-Control': 'private, max-age=300',
+    });
+    if (throttleMs <= 0) {
+      film.bytes += body.length;
+      response.end(body);
+      return;
+    }
+    let at = 0;
+    const timer = setInterval(() => {
+      if (response.destroyed) {
+        clearInterval(timer);
+        return;
+      }
+      const chunk = body.subarray(at, at + VIDEO_CHUNK);
+      at += chunk.length;
+      film.bytes += chunk.length;
+      if (at >= body.length) {
+        clearInterval(timer);
+        response.end(chunk);
+      } else response.write(chunk);
+    }, throttleMs);
+    timer.unref();
+    response.on('close', () => {
+      clearInterval(timer);
+    });
+  }
+
+  /**
    * @param {string | undefined} method @param {string} pathname
    */
   function claims(method, pathname) {
@@ -309,7 +467,10 @@ export function createPhotosStub({ authorize, publicHost = '10.0.2.2', now = Dat
     return {
       urls: { ...counters.urls, byAsset: { ...counters.urls.byAsset } },
       images: { ...counters.images },
+      film: { ...counters.film },
+      videoLoaded: video !== null,
       delayMs,
+      throttleMs,
       faults: faults.filter((fault) => fault.remaining > 0).length,
     };
   }
@@ -330,12 +491,14 @@ export function createPhotosStub({ authorize, publicHost = '10.0.2.2', now = Dat
       faults = [];
       signatures = new Map();
       delayMs = 0;
+      throttleMs = 0;
+      expireNext = 0;
       serial = 0;
       return ok({ reset: true });
     }
     if (path === '/control/photos-fault') {
       const { target, status, count, variant } = fields;
-      if ((target !== 'url' && target !== 'image') || ![400, 403, 404, 429, 500].includes(Number(status)))
+      if ((target !== 'url' && target !== 'image' && target !== 'video') || ![400, 403, 404, 429, 500].includes(Number(status)))
         return problem(400, 'validation_failed');
       if (variant !== undefined && variant !== 'thumbnail' && variant !== 'preview') return problem(400, 'validation_failed');
       const remaining = typeof count === 'number' && Number.isInteger(count) && count > 0 ? count : Infinity;
@@ -351,6 +514,18 @@ export function createPhotosStub({ authorize, publicHost = '10.0.2.2', now = Dat
       if (typeof ms !== 'number' || !Number.isInteger(ms) || ms < 0 || ms > MAX_DELAY_MS) return problem(400, 'validation_failed');
       delayMs = ms;
       return ok({ delayMs });
+    }
+    if (path === '/control/photos-video-expire') {
+      const { count } = fields;
+      if (typeof count !== 'number' || !Number.isInteger(count) || count < 0 || count > 10) return problem(400, 'validation_failed');
+      expireNext = count;
+      return ok({ expireNext });
+    }
+    if (path === '/control/photos-video-throttle') {
+      const { ms } = fields;
+      if (typeof ms !== 'number' || !Number.isInteger(ms) || ms < 0 || ms > MAX_THROTTLE_MS) return problem(400, 'validation_failed');
+      throttleMs = ms;
+      return ok({ throttleMs });
     }
     return problem(404, 'not_found');
   }

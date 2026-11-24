@@ -1,0 +1,30 @@
+# EVM-143 AC2 AC3: the film tile opens the player; until "Odtwórz" the thumbnail of the grid stands in the film area. "Odtwórz" starts the film (the address is requested by the
+# touch), the same button becomes "Pauza" (the pause itself is judged in jest: the emulator plays this 14 s film faster than Maestro reads the screen), and at the end "Odtwórz ponownie". Ends with the player closed and the grid on the screen.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- runFlow: common/film-grid-open.yaml
+- runFlow: common/film-open.yaml
+- assertVisible: 'Odtwórz'
+- takeScreenshot: m08c-film-before-play
+- tapOn:
+    id: 'video-player-action'
+    waitToSettleTimeoutMs: 50
+# the screenshot does not read the tree of views (which is slow while the film is drawn): it may catch the film in progress; the end is the stable state to wait for
+- takeScreenshot: m08c-film-playing
+- extendedWaitUntil:
+    visible: 'Odtwórz ponownie'
+    timeout: 90000
+- takeScreenshot: m08c-film-ended
+- tapOn:
+    id: 'video-player-close'
+- extendedWaitUntil:
+    notVisible:
+      id: 'video-player'
+    timeout: 10000
+- assertVisible:
+    id: 'order-photos-grid'

@@ -1,0 +1,7 @@
+# EVM-143 AC4: the network is back (tools/mobile-e2e waited for a few seconds before this flow): NOTHING started by itself - the notice stays and the film is not playing.
+# tools/mobile-e2e then proves that no request for the film was made.
+appId: pl.eviacharge.manager
+---
+- assertVisible: 'Film wymaga internetu'
+- assertNotVisible: 'Pauza'
+- assertVisible: 'Spróbuj ponownie'

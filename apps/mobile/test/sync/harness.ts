@@ -197,7 +197,7 @@ export class Phone {
         listOrderNumbers: (limit) => this.replica.listOrderNumbers(limit),
         readOrderListSource: (withData) => this.replica.readOrderListSource(withData),
         readOrderDetailSource: (id) => this.replica.readOrderDetailSource(id),
-        readOrderPhotos: (id) => this.replica.readOrderPhotos(id),
+        readOrderMedia: (id) => this.replica.readOrderMedia(id),
         readTemplates: () => this.replica.readTemplates(),
         writeTemplates: (set) => this.replica.writeTemplates(set),
         readQuickOrderSource: () => this.replica.readQuickOrderSource(),

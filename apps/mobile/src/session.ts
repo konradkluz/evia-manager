@@ -77,6 +77,7 @@ const NO_SYNC_TRANSPORT = {
 export const NO_MEDIA_SOURCE: MediaSource = {
   requestUrl: () => Promise.resolve({ kind: 'error' }),
   fetchImage: () => Promise.resolve({ kind: 'error' }),
+  requestVideoUrl: () => Promise.resolve({ kind: 'error' }),
 };
 
 let makeId: (() => string) | undefined;

@@ -1,0 +1,21 @@
+# EVM-143 AC5: the film is played (the grid, the player, "Odtwórz", "Pauza"), paused and closed. tools/mobile-e2e then searches the directories of the app for any trace of the film.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- tapOn:
+    text: 'Rozumiem'
+    optional: true
+- runFlow: common/film-grid-open.yaml
+- runFlow: common/film-open.yaml
+- tapOn:
+    id: 'video-player-action'
+- extendedWaitUntil:
+    visible: 'Odtwórz ponownie'
+    timeout: 90000
+- tapOn:
+    id: 'video-player-close'
+- extendedWaitUntil:
+    notVisible:
+      id: 'video-player'
+    timeout: 10000

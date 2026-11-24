@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useState, useSyncExternalStore } from 'react';
-import type { OrderPhoto } from '../orders/order-photos-model';
+import type { OrderMedia } from '../orders/order-photos-model';
 import type { ImageVariant } from '../media-view/types';
 import { useGuard, useSession, useSyncSnapshot } from './session-context';
 
@@ -10,7 +10,7 @@ import { useGuard, useSession, useSyncSnapshot } from './session-context';
  */
 export function useOrderPhotos(orderId: string): {
   readonly concealed: boolean;
-  readonly photos: readonly OrderPhoto[] | null;
+  readonly photos: readonly OrderMedia[] | null;
   readonly failed: boolean;
   readonly reload: () => void;
 } {
@@ -18,7 +18,7 @@ export function useOrderPhotos(orderId: string): {
   const guard = useGuard();
   const snapshot = useSyncSnapshot();
   const concealed = guard.hidden !== null || guard.locked;
-  const [photos, setPhotos] = useState<readonly OrderPhoto[] | null>(null);
+  const [photos, setPhotos] = useState<readonly OrderMedia[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [tick, setTick] = useState(0);
   useEffect(() => {
@@ -28,7 +28,7 @@ export function useOrderPhotos(orderId: string): {
       return undefined;
     }
     let active = true;
-    sync.orderPhotos(orderId).then(
+    sync.orderMedia(orderId).then(
       (loaded) => {
         if (!active) return;
         setPhotos(loaded);

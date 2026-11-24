@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FlatList, Text, View, useWindowDimensions } from 'react-native';
-import type { OrderPhoto } from '../orders/order-photos-model';
+import type { OrderMedia } from '../orders/order-photos-model';
 import { useStartup } from '../startup';
-import { AppBar, BackButton, Button, EmptyState, EyeOff, ImageIcon, Inbox, InlineAlert, Lock, Skeleton, WifiOff } from '../ui';
+import { AppBar, BackButton, Button, EmptyState, EyeOff, ImageIcon, Inbox, Icon, InlineAlert, Lock, Skeleton, Video, WifiOff } from '../ui';
 import { color, size, space, text } from '../ui/theme';
 import { PhotoPreview } from './PhotoPreview';
 import { PhotoTile, photoCaption } from './PhotoTile';
 import { SyncCapsule } from './SyncCapsule';
+import { VideoPlayerScreen } from './VideoPlayerScreen';
 import { useOrderPhotos } from './order-photos-hooks';
 import { useGuard, useSession } from './session-context';
 
@@ -40,7 +41,8 @@ export function columnsFor(windowWidth: number, fontScale: number): 1 | 2 | 3 {
  * - Hidden data (any reason), the lock of the app: nothing of the order is drawn - one sentence; the requests are aborted by the cleanups of the tiles (and the viewer is closed by its own wiring).
  * - A `403` on a thumbnail: "Zdjęcia niedostępne..." instead of the grid, without a code or a reason. A `404` is one tile ("Zdjęcie niedostępne"); a failed tile says so and a touch loads it again; any
  *   failure of the network or the server adds "Nie udało się wczytać części zdjęć." with "Spróbuj ponownie" (all failed tiles).
- * - The preview is a layer over the grid in the same window; the shell holds which photo is open (`previewId`: an id is the only datum, like the order).
+ * - The preview is a layer over the grid in the same window; the shell holds which photo is open (`previewId`: an id is the only datum, like the order). A film (EVM-143) opens the player
+ *   (`VideoPlayerScreen`, M-08c) in the same place; the grid shows photos and films together.
  */
 export function OrderPhotosScreen({
   orderId,
@@ -143,7 +145,7 @@ export function OrderPhotosScreen({
     if (forbidden) return <EmptyState icon={Lock} title={t('orderPhotos.forbidden')} testID="order-photos-forbidden" />;
     if (!online) return <OfflineList photos={photos} />;
     return (
-      <FlatList<OrderPhoto>
+      <FlatList<OrderMedia>
         key={columns}
         data={photos}
         numColumns={columns}
@@ -208,7 +210,9 @@ export function OrderPhotosScreen({
         />
         <View style={{ flex: 1 }}>{content()}</View>
       </View>
-      {open === undefined || open.state !== 'ready' || concealed ? null : (
+      {open === undefined || open.state !== 'ready' || concealed ? null : open.kind === 'video' ? (
+        <VideoPlayerScreen video={open} orderId={orderId} online={online} onClose={onClosePreview} />
+      ) : (
         <PhotoPreview photo={open} orderId={orderId} online={online} onClose={onClosePreview} />
       )}
     </View>
@@ -216,10 +220,10 @@ export function OrderPhotosScreen({
 }
 
 /** Offline: the rows of the replica as a one-column list (category, time, the mark of the state), no thumbnails, no empty squares, no button - there is nowhere to go (M-08a). */
-function OfflineList({ photos }: { photos: readonly OrderPhoto[] }) {
+function OfflineList({ photos }: { photos: readonly OrderMedia[] }) {
   const { t } = useTranslation();
   return (
-    <FlatList<OrderPhoto>
+    <FlatList<OrderMedia>
       data={photos}
       keyExtractor={(photo) => photo.id}
       contentContainerStyle={{ padding: space.inset.md, rowGap: space.stack.sm }}
@@ -235,10 +239,18 @@ function OfflineList({ photos }: { photos: readonly OrderPhoto[] }) {
         return (
           <View
             accessible
-            accessibilityLabel={[category, time, label].filter((part): part is string => part !== null).join(', ')}
+            accessibilityLabel={[item.kind === 'video' ? t('orderPhotos.videoLabel') : null, category, time, label]
+              .filter((part): part is string => part !== null)
+              .join(', ')}
             style={{ minHeight: size.touchTarget.min, justifyContent: 'center', rowGap: space.stack.xs }}
             testID={`photo-row-${String(index)}`}
           >
+            {item.kind === 'video' ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', columnGap: space.inline.xs }}>
+                <Icon icon={Video} color={color.text.primary} iconSize="sm" />
+                <Text style={{ ...text.label, color: color.text.primary }}>{t('orderPhotos.videoLabel')}</Text>
+              </View>
+            ) : null}
             <Text style={{ ...text.label, color: color.text.primary }}>{category}</Text>
             {time === null ? null : <Text style={{ ...text.bodySm, color: color.text.secondary }}>{time}</Text>}
             {label === null ? null : <Text style={{ ...text.bodySm, color: color.text.secondary }}>{label}</Text>}
@@ -250,7 +262,7 @@ function OfflineList({ photos }: { photos: readonly OrderPhoto[] }) {
   );
 }
 
-const STATE_LABEL: Readonly<Record<OrderPhoto['state'], string | null>> = {
+const STATE_LABEL: Readonly<Record<OrderMedia['state'], string | null>> = {
   ready: null,
   preparing: 'orderPhotos.states.preparing',
   quarantined: 'orderPhotos.states.quarantined',

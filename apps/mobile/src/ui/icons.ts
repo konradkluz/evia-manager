@@ -45,6 +45,7 @@ export { default as ThumbsDown } from 'lucide-react-native/icons/thumbs-down';
 export { default as ThumbsUp } from 'lucide-react-native/icons/thumbs-up';
 export { default as HardDrive } from 'lucide-react-native/icons/hard-drive';
 export { default as Square } from 'lucide-react-native/icons/square';
+export { default as Play } from 'lucide-react-native/icons/play';
 export { default as Video } from 'lucide-react-native/icons/video';
 export { default as VolumeOff } from 'lucide-react-native/icons/volume-off';
 export { default as Wifi } from 'lucide-react-native/icons/wifi';

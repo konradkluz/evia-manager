@@ -134,8 +134,8 @@ describe('SyncService.orderDetail (EVM-104)', () => {
   it('EVM-142 AC2: the photos of an order come from the local database only - an order without any (or unknown) has none, offline too', async () => {
     const { server, service } = await loaded();
     const calls = server.changeRequests.length;
-    expect(await service.orderPhotos(ORDER_1)).toEqual([]);
-    expect(await service.orderPhotos('00000000-0000-4000-8000-0000000000ff')).toEqual([]);
+    expect(await service.orderMedia(ORDER_1)).toEqual([]);
+    expect(await service.orderMedia('00000000-0000-4000-8000-0000000000ff')).toEqual([]);
     expect(server.changeRequests).toHaveLength(calls);
   });
 

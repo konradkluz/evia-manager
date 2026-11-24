@@ -28,7 +28,27 @@ export type ImageResult =
   | { readonly kind: 'failed' }
   | { readonly kind: 'aborted' };
 
+export interface VideoUrlRequest {
+  readonly workOrderId: string;
+  readonly mediaAssetId: string;
+  /** Aborts the request for the address; an answer that comes after it is dropped. */
+  readonly signal: AbortSignal;
+}
+
+/** The address of the 720p preview of a film (EVM-143): the only thing of the module that hands a signed address out - to the player, never to a screen state, Linking, the clipboard or a log. */
+export type VideoUrlResult =
+  | { readonly kind: 'ok'; readonly url: string }
+  | { readonly kind: 'forbidden' }
+  | { readonly kind: 'not_found' }
+  | { readonly kind: 'rate_limited' }
+  | { readonly kind: 'failed' }
+  | { readonly kind: 'aborted' };
+
 export interface MediaViewControl {
+  /** Whether addresses may be requested now (no lock, hidden data, background or end of the session). */
+  isAllowed: () => boolean;
+  /** Asks for the address of the preview of a film; every refusal of the state of the app is "aborted". The address is validated against the policy of the bucket before it is returned. */
+  requestVideoUrl(request: VideoUrlRequest): Promise<VideoUrlResult>;
   /** Changes whenever images were released or the permission to load changed: screens load again on a new value. */
   subscribe: (listener: () => void) => () => void;
   getEpoch: () => number;
