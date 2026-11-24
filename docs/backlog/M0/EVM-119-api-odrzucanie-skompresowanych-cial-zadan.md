@@ -4,7 +4,7 @@ title: "API odrzuca skompresowane ciała żądań (inflate: false, RR-39)"
 type: enabler
 milestone: M0
 epic: E00 Fundamenty
-status: in-review
+status: done
 priority: P2
 path: lekka
 owner: backend-developer
@@ -54,3 +54,4 @@ Jako **właściciel produktu** chcę, **aby API nie dekodowało skompresowanych 
 - 2026-11-18 — zaakceptowana przez Konrada („akceptuję EVM-111 i EVM-119”); status `ready` (Tech Lead)
 - 2026-11-18 — zaimplementowano (backend-developer): żaden klient (web, mobile wraz z natywnym silnikiem wysyłania, pakiety, infra, tools) nie wysyła skompresowanych ciał; jedyny parser ciał (`express.json` w `json-body.ts`; Nest z `bodyParser: false`) działa z `inflate: false`; testy: `apps/api/test/http/compressed-bodies.test.ts` (AC1, AC2, AC4), `apps/api/test/platform/body-parsers-config.test.ts` (AC3). Kontrakt OpenAPI bez zmian (415 `unsupported_media_type` już istnieje).
 - 2026-11-18 — przegląd security (jedyny recenzent): APPROVE z uwagami, bez ustaleń Medium i wyższych; dopisek przy RR-39 potwierdzony, ocena bez zmian (2 Low); uwagi Low w „Notatkach”; status `in-review` (Tech Lead)
+- 2026-11-24 — zaakceptowane przez Konrada (kod scalony w main); status `done`

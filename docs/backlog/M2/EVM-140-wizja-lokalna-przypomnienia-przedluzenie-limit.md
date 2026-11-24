@@ -4,7 +4,7 @@ title: "Wizja lokalna: przypomnienie przed usunięciem, przedłużenie z powodem
 type: story
 milestone: M2
 epic: E15 Wizja lokalna
-status: in-review
+status: done
 priority: P1
 path: pelna             # audyt, e-mail, limity nadużyć, zadanie w workerze
 owner: backend-developer
@@ -82,3 +82,4 @@ Rozmiar wg ADR-0024: M. Odstępstwo od grafu ADR-0024 (tam 140 równolegle z 136
 - 2026-11-17 — implementacja etapami: API (backend-developer) — kontrakt `82c9ecae`, przedłużenie `7e3632b9`, limit `cbaa3d25`, przypomnienie i migracja `0067` `e0b7c15b`, treść e-maila i dokumenty `75050884`; panel (web-developer) — dialog i komunikat limitu `362a7fbe`, E2E `d02ab807`; rdzeń synchronizacji zna kod limitu `2cb5bf5e` (Tech Lead)
 - 2026-11-17 — przeglądy: security-engineer **APPROVE z uwagami**, QA **PASS z uwagami** (raport `docs/qa/EVM-140/raport-qa.md`, testy brzegowe `7f8742f3`), ux-designer **APPROVE z uwagami** (`1d0e59d5`), code-reviewer **APPROVE z uwagami** — bez blocker i major; poprawka z przeglądu kodu: przywrócenie i odrzucenie zerują znacznik przypomnienia przy zmianie terminu (`6e5b0a1a`)
 - 2026-11-17 — bramka lokalna na gałęzi zintegrowanej z `main` po scaleniu PR #148: `pnpm run gate` — 68/68 zadań, pokrycie zmienionego kodu (natywne) linie 96,4%, gałęzie 97,4% po dopisaniu testów `681908ef`; `npm run test:tools`, `npm run docs:check` (0 błędów), `pnpm run gate:deploy` — kody wyjścia 0; pełna integracja API, E2E Linux i skany — w CI PR-u. **Status `in-review`** — PR wspólny z EVM-139 (Tech Lead)
+- 2026-11-24 — zaakceptowane przez Konrada (kod scalony w main); status `done`

@@ -4,7 +4,7 @@ title: "Panel: wizja lokalna — lista i filtry, założenie, „Przypisz klient
 type: story
 milestone: M2
 epic: E15 Wizja lokalna
-status: in-review
+status: done
 priority: P1
 path: pelna             # zmiana statusu i danych zlecenia, nowa reguła widoczna dla użytkownika
 owner: web-developer
@@ -82,3 +82,4 @@ Rozmiar wg ADR-0024: M.
 - 2026-11-17 — implementacja etapami (web-developer): biblioteka UI `7e6043cb`, refaktor formularza klienta `59a43000`, szczegóły i „Przypisz klienta” `8e579668`, odrzucenie i przywrócenie `cc4b7251`, korekty `7aad7315`, założenie w biurze `9376c2ee`, lista i filtry `58bbc17b`
 - 2026-11-17 — QA (`qa-engineer`): **PASS z uwagami**, raport `docs/qa/EVM-138/raport-qa.md`; code-reviewer **REQUEST CHANGES** z trzema major w dialogu „Przypisz klienta” (etykieta dziennika, reset formularza z telefonem, `404` jako utrata zlecenia) — poprawione `86727b78`, ponowny przegląd **APPROVE z uwagami**; ux-designer **APPROVE z uwagami**; przepływ 17 wyrównany `18222b54`
 - 2026-11-17 — bramka lokalna na gałęzi zintegrowanej (`bc40eeac` + dokumenty): `pnpm run gate` 68/68 zadań, pokrycie zmienionego kodu zielone, `npm run test:tools`, `npm run docs:check` (0 błędów), `pnpm run gate:deploy` — kody wyjścia 0; pełna integracja API, E2E Linux i skany — w CI PR-u (zasada z 2026-11-17). **Status `in-review`** — PR wspólny dla EVM-135…138 i EVM-141; demo i akceptacja Konrada po scaleniu (Tech Lead)
+- 2026-11-24 — zaakceptowane przez Konrada (kod scalony w main); status `done`

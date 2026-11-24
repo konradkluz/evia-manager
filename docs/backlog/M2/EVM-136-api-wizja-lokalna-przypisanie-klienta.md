@@ -4,7 +4,7 @@ title: "API: wizja lokalna — przypisanie klienta, reguła „Zaakceptowane wym
 type: story
 milestone: M2
 epic: E15 Wizja lokalna
-status: in-review
+status: done
 priority: P1
 path: pelna             # nowa operacja zmieniająca dane zlecenia, reguła domeny, IDOR
 owner: backend-developer
@@ -82,3 +82,4 @@ Rozmiar wg ADR-0024: M. Panel przed przypisaniem podstawia telefon zamawiająceg
 - 2026-11-17 — implementacja etapami (backend-developer): przypisanie klienta `72c7680b`, baseline `36db5500`, reguła akceptacji `9fadc083`, odrzucenie i przywrócenie `be68b810`, synchronizacja po przypisaniu `3d259025`, część po scaleniu EVM-135 `22c7bf21`; bez migracji
 - 2026-11-17 — QA (`qa-engineer`): **PASS z uwagami**, raport `docs/qa/EVM-136/raport-qa.md`; przeglądy: security-engineer **APPROVE z uwagami** (W2, W3, W5 spełnione), code-reviewer **APPROVE z uwagami** — bez blocker i major
 - 2026-11-17 — bramka lokalna na gałęzi zintegrowanej (`bc40eeac` + dokumenty): `pnpm run gate` 68/68 zadań, pokrycie zmienionego kodu zielone, `npm run test:tools`, `npm run docs:check` (0 błędów), `pnpm run gate:deploy` — kody wyjścia 0; pełna integracja API, E2E Linux i skany — w CI PR-u (zasada z 2026-11-17). **Status `in-review`** — PR wspólny dla EVM-135…138 i EVM-141; demo i akceptacja Konrada po scaleniu (Tech Lead)
+- 2026-11-24 — zaakceptowane przez Konrada (kod scalony w main); status `done`

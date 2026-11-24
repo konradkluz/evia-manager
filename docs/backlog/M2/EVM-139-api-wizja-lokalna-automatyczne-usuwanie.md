@@ -4,7 +4,7 @@ title: "API i worker: wizja lokalna — automatyczne trwałe usuwanie (90 / 14 d
 type: story
 milestone: M2
 epic: E15 Wizja lokalna
-status: in-review
+status: done
 priority: P1
 path: pelna             # pierwsze automatyczne usuwanie danych biznesowych, art. 17 RODO, nowy sekret
 owner: backend-developer
@@ -85,3 +85,4 @@ Rozmiar wg ADR-0024: **L**. Ostatnia w kolejności (po 138); do tego czasu wszys
 - 2026-11-17 — przeglądy: security-engineer **APPROVE z uwagami** (tylko dla trybu `report`) z jednym major (wolny tekst pozycji zakresu i etapów procesu) — poprawione `810906ca`; QA **PASS z uwagami**, AC6 częściowo (raport `docs/qa/EVM-139/raport-qa.md`, ścisły test AC4 i testy brzegowe `7f8742f3`); code-reviewer **APPROVE z uwagami** z jednym major (medium dodane w trakcie usuwania) — poprawione `040d4ae2`
 - 2026-11-17 — bramka lokalna na gałęzi zintegrowanej z `main` po scaleniu PR #148: `pnpm run gate` — 68/68 zadań, pokrycie zmienionego kodu (natywne) linie 96,4%, gałęzie 97,4% po dopisaniu testów `681908ef`; `npm run test:tools`, `npm run docs:check` (0 błędów), `pnpm run gate:deploy` — kody wyjścia 0; pełna integracja API, E2E Linux i skany — w CI PR-u. **Status `in-review`** — PR wspólny z EVM-140; AC6 częściowo — decyzja Konrada (Tech Lead)
 - 2026-11-23 — ocena security wyścigu dla dziennika (notatki i komentarze z panelu: `create-entry.service.ts:120`; z telefonu: `push-mutations.service.ts:213`, `stateOf`): **Low (minor)** — wpis zatwierdzony w trakcie usuwania (także korekta `supersedesEntryId`, wpis przypisany do etapu) może zostać z tekstem przy nagrobku; po zatwierdzeniu usuwania zapis jest odrzucany (panel `404`, telefon `target_unavailable`). Konrad: **ryzyko przyjęte do czasu włączenia `enforce`** (decyzja przed `enforce` jak powyżej); EVM-150 obejmuje tylko media. Obrona w głębi (wyzwalacz odrzucający `INSERT`) — backlog, wymaga decyzji architekta
+- 2026-11-24 — zaakceptowane przez Konrada (kod scalony w main); status `done`
