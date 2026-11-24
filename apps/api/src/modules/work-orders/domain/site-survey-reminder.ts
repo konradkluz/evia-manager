@@ -43,8 +43,8 @@ export function siteSurveyReminderText(input: SiteSurveyReminderInput): { readon
       ...(extendable
         ? [
             'Po usunięciu wizji znikną także jej zdjęcia, filmy, dokumenty i wpisy —',
-            'tego nie da się cofnąć. Wizję możesz przedłużyć najwyżej dwa razy, za',
-            'każdym razem o 90 dni.',
+            'tego nie da się cofnąć.',
+            'Wizję możesz przedłużyć najwyżej dwa razy, za każdym razem o 90 dni.',
           ]
         : [
             'Ta wizja była już dwukrotnie przedłużona i nie można jej przedłużyć',
