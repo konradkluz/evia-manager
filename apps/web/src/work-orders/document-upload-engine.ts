@@ -20,7 +20,20 @@ import type { PutResult } from './media-upload-engine.ts';
  * memory of the tab only (SR-WEB-05): file names and titles are personal data, nothing goes to the storage of the browser.
  */
 export type DocumentItemStatus = 'hashing' | 'creating' | 'queued' | 'uploading' | 'paused' | 'done' | 'failed';
-export type DocumentFailure = 'network' | 'rate' | 'validation' | 'forbidden' | 'conflict' | 'stage' | 'server';
+/**
+ * Why a document was not sent. `customer` = `409 customer_required` (or `requires_customer` on the class), `kind` = `400 requires_customer` on
+ * `/kindCode` (ADR-0025 pt 2), `closed` = `409 work_order_closed` (a rejected survey), `session` = `409 invalid_state_transition` (the upload
+ * session ended), `conflict` = `409 id_conflict`. The kind is decided by the status and the code only - never by the text of the answer (EVM-148).
+ */
+export type DocumentFailure =
+  'network' | 'rate' | 'validation' | 'forbidden' | 'conflict' | 'stage' | 'server' | 'customer' | 'kind' | 'closed' | 'session';
+
+/** A "Ponów" cannot help here (the same request would be refused again); the engine refuses it too (EVM-148 AC4, AC5; SR-API-02). */
+const FINAL_FAILURES: readonly DocumentFailure[] = ['conflict', 'stage', 'customer', 'kind', 'closed', 'forbidden'];
+export const canRetry = (failure: DocumentFailure | null): boolean => failure !== null && !FINAL_FAILURES.includes(failure);
+
+/** "Dodaj ponownie": the form is opened again with the same file and fields (a new document, a new key) after the customer is assigned. */
+export const canAddAgain = (failure: DocumentFailure | null): boolean => failure === 'customer' || failure === 'kind';
 
 export interface DocumentItem {
   /** The id of the document (UUIDv7 made here). */
@@ -30,6 +43,8 @@ export interface DocumentItem {
   readonly status: DocumentItemStatus;
   readonly percent: number;
   readonly failure: DocumentFailure | null;
+  /** `Retry-After` of a `429` in seconds (clamped); `null` = not given. */
+  readonly retryAfter: number | null;
 }
 
 export interface NewDocument {
@@ -122,7 +137,7 @@ export class DocumentUploadEngine {
   async add(input: NewDocument): Promise<string> {
     const key = this.id();
     this.items.set(key, {
-      item: { key, name: input.file.name, title: input.title, status: 'hashing', percent: 0, failure: null },
+      item: { key, name: input.file.name, title: input.title, status: 'hashing', percent: 0, failure: null, retryAfter: null },
       input,
       sha256: '',
       createKey: this.id(),
@@ -140,7 +155,7 @@ export class DocumentUploadEngine {
   private async prepare(key: string): Promise<void> {
     const entry = this.items.get(key);
     if (entry === undefined) return;
-    this.patch(key, { status: 'hashing', failure: null });
+    this.patch(key, { status: 'hashing', failure: null, retryAfter: null });
     try {
       if (entry.sha256 === '') entry.sha256 = await this.deps.hash(entry.input.file);
     } catch {
@@ -182,15 +197,20 @@ export class DocumentUploadEngine {
       entry.created = true;
       this.patch(key, { status: 'queued' });
     } catch (error) {
-      this.patch(key, { status: 'failed', failure: describe(error) });
+      this.patch(key, { status: 'failed', failure: describe(error), retryAfter: retryAfterOf(error) });
     }
+  }
+
+  /** What was entered for a document, kept in the memory of the tab only (SR-WEB-05), for "Dodaj ponownie"; `undefined` once it is hidden. */
+  inputOf(key: string): NewDocument | undefined {
+    return this.items.get(key)?.input;
   }
 
   /** "Ponów": goes through the steps that are not finished (the same keys, so the server does not add the document twice). */
   retry(key: string): void {
     const entry = this.items.get(key);
-    if (entry?.item.status !== 'failed' || entry.item.failure === 'conflict' || entry.item.failure === 'stage') return;
-    this.patch(key, { failure: null, percent: 0 });
+    if (entry?.item.status !== 'failed' || !canRetry(entry.item.failure)) return;
+    this.patch(key, { failure: null, retryAfter: null, percent: 0 });
     void this.prepare(key).then(() => this.drain());
   }
 
@@ -216,7 +236,7 @@ export class DocumentUploadEngine {
     const key = entry.item.key;
     const controller = new AbortController();
     entry.controller = controller;
-    this.patch(key, { status: 'uploading', failure: null });
+    this.patch(key, { status: 'uploading', failure: null, retryAfter: null });
     const size = entry.input.file.size;
     const percentOf = (bytes: number) => Math.min(99, Math.floor((bytes / size) * 100));
     try {
@@ -248,7 +268,7 @@ export class DocumentUploadEngine {
       // aborted or expired one the server answers `409 invalid_state_transition`: then the retry needs a new key.
       entry.session = null;
       if (isEndedSession(error)) entry.sessionKey = null;
-      this.patch(key, { status: 'failed', failure: describe(error) });
+      this.patch(key, { status: 'failed', failure: describe(error), retryAfter: retryAfterOf(error) });
     } finally {
       entry.controller = null;
     }
@@ -307,14 +327,38 @@ function isEndedSession(error: unknown): boolean {
   return error instanceof ApiError && error.status === 409 && error.code === 'invalid_state_transition';
 }
 
+/** The answer `requires_customer` of the server for the field `pointer` (`400 validation_failed`; ADR-0025 pt 1, 2). */
+const requiresCustomer = (error: ApiError, pointer: string): boolean =>
+  error.status === 400 && error.errors.some((entry) => entry.pointer === pointer && entry.code === 'requires_customer');
+
+/** `Retry-After` of a `429`: whole seconds, at most an hour (a larger or a broken value must not show an absurd wait). */
+const RETRY_AFTER_MAX = 3600;
+function retryAfterOf(error: unknown): number | null {
+  if (!(error instanceof ApiError) || error.status !== 429 || error.retryAfterSeconds === undefined) return null;
+  return Math.min(RETRY_AFTER_MAX, Math.max(1, Math.ceil(error.retryAfterSeconds)));
+}
+
 function describe(error: unknown): DocumentFailure {
   if (!(error instanceof ApiError)) return 'network';
   if (error.status === 429) return 'rate';
   if (error.status === 403) return 'forbidden';
+  if (requiresCustomer(error, '/kindCode')) return 'kind';
+  if (requiresCustomer(error, '/confidentialityOverride')) return 'customer';
   if (isStageRejection(error)) return 'stage';
-  if (isEndedSession(error)) return 'server';
-  if (error.status === 409) return 'conflict';
+  if (error.status === 409) {
+    switch (error.code) {
+      case 'customer_required':
+        return 'customer';
+      case 'work_order_closed':
+        return 'closed';
+      case 'id_conflict':
+        return 'conflict';
+      case 'invalid_state_transition':
+        return 'session';
+      default:
+        return 'server';
+    }
+  }
   if (error.status === 400 || error.status === 422) return 'validation';
-  if (error.status === 0) return 'network';
-  return 'server';
+  return error.status === 0 ? 'network' : 'server';
 }
