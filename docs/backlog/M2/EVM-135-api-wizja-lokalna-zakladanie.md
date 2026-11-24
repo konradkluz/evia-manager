@@ -4,7 +4,7 @@ title: "API: wizja lokalna — zakładanie zlecenia bez klienta (telefon i panel
 type: story
 milestone: M2
 epic: E15 Wizja lokalna
-status: in-review
+status: done
 priority: P1
 path: pelna             # migracje, nowa polityka dostępu, zakres synchronizacji, dane osobowe
 owner: backend-developer
@@ -95,3 +95,4 @@ Rozmiar wg ADR-0024: **L**. Pierwszy punkt planu technicznego: zapytanie kontrol
 - 2026-11-16 … 2026-11-17 — implementacja etapami (backend-developer, devops-engineer): migracja 0066 `0d968f03`, przełącznik `8f8c17e2` i `447ead71`, kontrakt `84766fbf`, zakładanie z telefonu `ac244a1d` i z panelu `b220ab80`, polityka Tylko odczyt `218e8cfa`, lista i filtr `8df4f608`, zakres telefonu `3d956a6e`, blokady `b7489ac4`, test AC8 `506e63f4`, dokumenty `6815808d`
 - 2026-11-17 — przeglądy: code-reviewer **APPROVE z uwagami**, security-engineer **APPROVE z uwagami** (W2, W4, W5, W6, W8, W11 spełnione; migracja oceniona jako bezpieczna dla wdrożenia bez kopii) — bez blocker; ustalenie major (osłabiony test listy) poprawione w `1d7eb47e`; QA (`qa-engineer`): **PASS z uwagami**, raport `docs/qa/EVM-135/raport-qa.md`, testy brzegowe `5d09516c`
 - 2026-11-17 — bramka lokalna na gałęzi zintegrowanej (`bc40eeac` + dokumenty): `pnpm run gate` 68/68 zadań, pokrycie zmienionego kodu zielone, `npm run test:tools`, `npm run docs:check` (0 błędów), `pnpm run gate:deploy` — kody wyjścia 0; pełna integracja API, E2E Linux i skany — w CI PR-u (zasada z 2026-11-17). **Status `in-review`** — PR wspólny dla EVM-135…138 i EVM-141; demo i akceptacja Konrada po scaleniu (Tech Lead)
+- 2026-11-24 — zaakceptowane przez Konrada (kod scalony w main); status `done`

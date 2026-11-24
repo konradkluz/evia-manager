@@ -4,7 +4,7 @@ title: "Wizja lokalna: klauzula informacyjna 1.1 (oferta na wizji), karta A6, DP
 type: enabler
 milestone: M2
 epic: E15 Wizja lokalna
-status: draft
+status: ready
 priority: P1
 path: lekka             # dokumentacja i treści klauzul; kod tylko w plikach treści (content.ts)
 owner: security-engineer
@@ -55,12 +55,11 @@ Kod API i usuwania (EVM-147), panel (EVM-148); wydruk kart i dane spółki (poza
 - Decyzje Konrada 2026-11-20: dane zamawiającego w ofercie dozwolone z ostrzeżeniem; dokumenty usuwane z wizją; odrzucona wizja 14 dni, tylko odczyt.
 - Security: H2 (klauzula 1.0 i karta A6 byłyby nieprawdziwe: `rodo.md:419`, `apps/web/src/privacy/content.ts:125`, `apps/mobile/src/privacy/content.ts`, `docs/user/karta-wizji-lokalnej.md:23`) → klauzula 1.1 przed pierwszą realną wizją z dokumentem; Medium: prawa osób i ręczne usuwanie przed `enforce` (RR-102).
 - Decyzje techniczne: [ADR-0025](../../architecture/adr/0025-dokumenty-wizji-lokalnej-przed-klientem.md) (zaakceptowany 2026-11-23); RR-102 (prawa osób i ręczne usunięcie przed `enforce`) obejmuje dokumenty wizji.
+- **Decyzje Konrada 2026-11-24:** (1) zdanie klauzuli 1.1: „na etapie wizji możemy zapisać ofertę z Twoim imieniem i nazwiskiem” (retencja jak wizji: 90 / 14 dni), podstawa art. 6 ust. 1 lit. b RODO — do weryfikacji przez prawnika przed realnymi danymi; (2) data wersji 1.1 = data scalenia EVM-149, wymagane ponowne potwierdzenie wg mechanizmu wersji z EVM-133; (3) stare wydrukowane karty A6 wycofujemy przed pierwszą realną wizją z ofertą (wydruk poza repozytorium).
 - Pokrewne: do czasu wydania obowiązuje zasada „tylko wizje testowe” (decyzja 16); realne oferty dopiero po EVM-147, EVM-149 i włączonym `enforce` albo zaakceptowanym RR-102 z kartą przeglądu.
 
-## Otwarte pytania (dla Konrada, rekomendacja pierwsza)
-1. **Treść zdania klauzuli 1.1 i podstawa prawna:** propozycja „na etapie wizji możemy zapisać ofertę z Twoim imieniem i nazwiskiem” (rek.) — podstawa: działania przed zawarciem umowy na żądanie osoby (art. 6 ust. 1 lit. b RODO, do weryfikacji przez prawnika). Wymaga Twojej decyzji o treści prawnej.
-2. **Data i numer wersji 1.1:** data wejścia w życie i czy wymagamy ponownego potwierdzenia przez użytkowników (rek.: tak, wg mechanizmu wersji z EVM-133). Konsekwencja: przy „nie” istniejący użytkownicy nie zobaczą zmiany.
-3. **Wydruk karty A6:** czy stare wydrukowane karty wycofać (rek.: tak, przed pierwszą realną wizją z ofertą). Konsekwencja: koszt wydruku.
+## Otwarte pytania
+Brak — rozstrzygnięte przez Konrada 2026-11-24 (patrz „Decyzje i ograniczenia”). Weryfikacja podstawy prawnej przez prawnika przed pierwszą realną wizją z ofertą pozostaje warunkiem produkcji.
 
 ## Notatki
 Warunek wydania łączy dwie historyjki: dokumenty na wizji w produkcji dopiero po EVM-147 i EVM-149.
@@ -68,3 +67,4 @@ Warunek wydania łączy dwie historyjki: dokumenty na wizji w produkcji dopiero 
 ## Dziennik
 - 2026-11-20 — utworzono przy podziale EVM-147 na trzy historyjki (product-owner)
 - 2026-11-23 — uwzględniono ADR-0025: RR-14 z odnośnikiem, instrukcja o kopiach poza systemem, RR-102 dla dokumentów, warunek `enforce` (product-owner)
+- 2026-11-24 — decyzje Konrada w sprawie klauzuli 1.1, daty wersji i kart A6; status `ready`

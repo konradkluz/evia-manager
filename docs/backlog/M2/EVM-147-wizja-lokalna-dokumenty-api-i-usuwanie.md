@@ -4,14 +4,14 @@ title: "Wizja lokalna: API przyjmuje ofertę (dokument zlecenia) przed przypisan
 type: story
 milestone: M2
 epic: E15 Wizja lokalna
-status: draft
+status: ready
 priority: P1
 path: pelna             # dane osobowe (oferta zawiera dane zamawiającego), pliki, uprawnienia, retencja i trwałe usuwanie
 owner: backend-developer
 contributors: []
 reviewers: [code-reviewer, security-engineer]
 model: opus             # zmiana wiążącej reguły ADR-0024 pkt 4 i rozszerzenie trwałego usuwania (EVM-139) o dokumenty
-depends_on: [EVM-135, EVM-136, EVM-139]   # wszystkie w in-review: DoR wymaga done (scalenie wspólnego PR); decyzja: ADR-0025 (zaakceptowany 2026-11-23)
+depends_on: [EVM-135, EVM-136, EVM-139]   # wszystkie done (zaakceptowane 2026-11-24); decyzja: ADR-0025 (zaakceptowany 2026-11-23)
 ---
 
 # EVM-147: Wizja lokalna — oferta w API i usuwanie dokumentów wizji
@@ -74,7 +74,7 @@ Panel i komunikaty błędów (EVM-148); klauzula 1.1, karta A6, DPIA, `rodo.md`,
 - **Architekt (fakty z kodu):** jedyna blokada API to `create-document.service.ts:178-179` (`awaitsCustomer(order)` → `409`); zmiana na `awaitsCustomer(order) && anchor !== 'work_order'`. Sesja wgrywania, pobieranie, lista, edycja i wersje nie blokują. ZIP (`request-media-export.service.ts:111`) i transze (`create-milestone.service.ts:139`) zostają. Migracja niepotrzebna (0066 i triggery nie dotyczą `media.documents`; kotwica niezmienna 0059:70-76). Usuwanie: uczestnik `media` zbiera dziś tylko `media_assets` (`site-survey-purge.participant.ts:55-90`, `survey-purge-store.ts:11-33`, `deletion-register.ts:38-39`) — `identify` zwraca `documentIds` (`SurveyPurgeIdentity`, `site-survey-purge.job.ts:184-217`), rejestr dostaje opcjonalne `documentIds` (addytywnie), `erase`: blokada `FOR UPDATE` plików wszystkich wersji, `closeSessionsOf`, `markFilesErased`; `file_purged_at` przez `coalesce` (trigger 0062:56 pozwala raz); neutralny tytuł jak `markDocumentPurged` (`erasure-store.ts:148-161`), `description=null`, `deleted_at/deleted_by=created_by`; kolejność jak media (wpis rejestru w transakcji → oznaczenie → commit → abort multipart + `deleteObject documents/…/original` → `markObjectsErased`; `ErasureCompletionJob` działa na `stored_files`); narzędzie odtwarzania EVM-062 obsługuje `documentIds` (warunek `enforce`); tekst przypomnienia `site-survey-reminder.ts:45,51`. Testy do zmiany: `site-survey-blocks.test.ts:109-116`, `site-survey-contract.test.ts:184-203`; opisy: `components/media-responses.yaml:28`, `components/documents.yaml:54`, `paths/documents.yaml:79`; komentarze `document-anchor.ts:13,30`. Spike niepotrzebny.
 - **Security (werdykt CHANGES REQUIRED → AC):** H1 → AC5, AC7; H2 → EVM-149; H3 (kotwica lokalizacji odpada: wyciek do Tylko odczyt, przeżywa usunięcie, blokuje anonimizację lokalizacji `survey-purge-store.ts:17-20`) → AC2. `document_versions` tylko insert (migracja 0059:152) — `change_note` dziś zawsze null (`document-store.ts:100`), mimo to zabezpieczony w AC5 (niezmiennik fail-closed). Medium: lista rodzajów (AC2, AC3), prawa osób i RR-102 (EVM-149). Low: brak tytułu w audycie/logach (AC1). Ryzyko rezydualne do akceptacji: usunięty dokument w starszych wersjach obiektów do 30 dni i w kopiach bazy do 37 dni (jak media).
 
-## Otwarte pytania (dla Konrada, rekomendacja pierwsza)
+## Otwarte pytania
 Brak otwartych pytań — rozstrzygnięte: kod odmowy rodzaju (`400`, ADR-0025 pkt 2), ręczne usunięcie w odrzuconej wizji (wyjątek dla `deleteDocument` i `purgeDocumentFile` do art. 17, AC4), blokada techniczna (zasada organizacyjna bez przełącznika, ADR-0025 pkt 9).
 
 ## Notatki
@@ -84,3 +84,4 @@ Rozmiar M–L (nowy uczestnik purge dla dokumentów). Konsultacje wykonane: arch
 - 2026-11-20 — szkic na prośbę Konrada (product-owner)
 - 2026-11-20 — przepisany po decyzjach Konrada i konsultacjach architekta i security: zakres „API + usuwanie”, podział na EVM-147/148/149 (product-owner)
 - 2026-11-23 — uwzględniono ADR-0025 (zaakceptowany po przeglądzie security): `400` dla rodzaju i klasy, kolejność sprawdzeń, `403` dla Tylko odczyt przy zapisach, wyjątek art. 17 w odrzuconej wizji, niezmiennik `change_note`, warunek realnych ofert (product-owner)
+- 2026-11-24 — zależności EVM-135, 136, 139 zaakceptowane (done); przegląd DoR: 8 AC (pełna), brak otwartych pytań; Konrad akceptuje; status `ready`

@@ -4,7 +4,7 @@ title: "Wizja lokalna: dokumenty RODO i bezpieczeństwa, karta informacyjna, aka
 type: enabler
 milestone: M2
 epic: E15 Wizja lokalna
-status: in-review
+status: done
 priority: P1
 path: lekka             # dokumentacja bez kodu
 owner: security-engineer
@@ -78,3 +78,4 @@ Rozmiar wg ADR-0024: M. Wejścia: `security.md` z oceny (W4, W12), ADR-0024.
 - 2026-11-16 — wykonanie (`security-engineer`, opus): 12 dokumentów, commit `9b425f4c`; orkiestrator przed commitem zmienił numer ryzyka RR-101 → RR-102 (kolizja z EVM-134)
 - 2026-11-16 — przegląd (`code-reviewer`): **APPROVE z uwagami** — AC1–AC6 PASS; 1 major (adres lokalizacji wizji widoczny dla Tylko odczyt), 5 minor, 2 nit; jedna runda poprawek (`security-engineer`), commit `85608c69`
 - 2026-11-16 — weryfikacja orkiestratora po poprawkach: `npm run docs:check` 0 błędów i 0 ostrzeżeń; testy przewodnika panelu (`guide-markdown`, `guide-offline`, `guide`) 18/18; linki i kotwice zmienionych plików sprawdzone skryptem recenzenta i wykonawcy (0 błędów). Koszt subagentów: wykonawca ok. 385 tys. tokenów (z rundą poprawek), przegląd ok. 131 tys. **Status `in-review`** (Tech Lead)
+- 2026-11-24 — zaakceptowane przez Konrada (kod scalony w main); status `done`
