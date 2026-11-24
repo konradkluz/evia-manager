@@ -4,7 +4,7 @@ title: "Wizja lokalna: API przyjmuje ofertę (dokument zlecenia) przed przypisan
 type: story
 milestone: M2
 epic: E15 Wizja lokalna
-status: in-progress
+status: in-review
 priority: P1
 path: pelna             # dane osobowe (oferta zawiera dane zamawiającego), pliki, uprawnienia, retencja i trwałe usuwanie
 owner: backend-developer
@@ -80,6 +80,7 @@ Brak otwartych pytań — rozstrzygnięte: kod odmowy rodzaju (`400`, ADR-0025 p
 
 ## Notatki
 Rozmiar M–L (nowy uczestnik purge dla dokumentów). Konsultacje wykonane: architekt (ADR-0025), security. Pozostałe luki do backlogu: redakcja `change_note` przy zwykłym usuwaniu EVM-051; luka wyścigu dla mediów (EVM-139) — nieobjęta tą historyjką; wersjonowanie dokumentu wizji (przyszła historyjka z warunkiem wiążącym ADR-0025 pkt 4).
+- Uwagi nieblokujące z przeglądów (2026-11-24): blokada `lockVisible` zlecenia także przy zmianie, usunięciu i purge-file dokumentu (zamyka wyścig z odrzuceniem wizji; rozszerza ADR-0025 pkt 2 — dopisać zdanie do ADR i sprawdzić timeout zapisu rejestru); wskaźniki `site_survey_purge_candidate_documents` i `site_survey_purge_change_note_violations` ustawiane tylko w `report` (po `enforce` stare wartości); tytuł testu AC4 obiecuje więcej niż sprawdza (sesja wgrywania, bez complete i purge); niepokryte puste zbiory w `survey-purge-store.ts` i `site-survey-purge.job.ts` (nit); `img.png` w katalogu głównym — nie commitować.
 
 ## Dziennik
 - 2026-11-20 — szkic na prośbę Konrada (product-owner)
@@ -91,3 +92,5 @@ Rozmiar M–L (nowy uczestnik purge dla dokumentów). Konsultacje wykonane: arch
 - 2026-11-24 — plan blokował na AC7 i dwóch szczegółach; decyzje Konrada zapisane w „Decyzjach i ograniczeniach”; ponowne uruchomienie potoku
 - 2026-11-24 — plan gotowy (backend-developer)
 - 2026-11-24 — implementacja AC1–AC8 (kontrakt, domena, media, usuwanie dokumentów z wizją, rejestr `documentIds`, runbooki); bramka lokalna i testy integracyjne w kontenerze zielone (backend-developer)
+- 2026-11-24 — przeglądy (code-reviewer, security-engineer): approve w rundzie 1; bramka `pnpm run gate` i testy integracyjne API w kontenerze (2969 zielonych) u Tech Leada; pokrycie zmienionego kodu z częścią bazodanową 97,9% linii / 94,2% gałęzi; status `in-review`
+- 2026-11-24 — Koszt: ścieżka `pelna`, 7 agentów (w tym zablokowany przebieg planu), ok. 0,93 mln tokenów podagentów, ok. 360 wywołań narzędzi, ok. 2,6 h, 1 runda, 0 poprawek
