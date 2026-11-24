@@ -73,3 +73,5 @@ Błąd komunikatów (AC4, AC5) jest niezależny od API — w razie potrzeby moż
 - 2026-11-23 — AC4: obsługa `400 /kindCode requires_customer` po ADR-0025 (product-owner)
 - 2026-11-24 — refinement: zależności EVM-147 i EVM-138 done; konsultacja ux-designera (brzmienia, komponenty, luki AC); Konrad akceptuje zmiany AC (AC2–AC5); 6 AC; status `ready`
 - 2026-11-24 — start realizacji (/deliver): gałąź `feature/EVM-148-oferta-w-panelu-wizji`, ścieżka `pelna`, wykonawca web-developer (`sonnet`), recenzenci code-reviewer, ux-designer
+- 2026-11-24 — plan gotowy (web-developer)
+- 2026-11-24 — implementacja AC1–AC6 gotowa (web-developer): silnik, formularz oferty, panel błędów, testy, e2e, dokumentacja
