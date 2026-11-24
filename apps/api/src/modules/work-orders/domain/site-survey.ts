@@ -74,7 +74,40 @@ export function normalizeSiteSurveyRequest(input: SiteSurveyRequestInput): SiteS
 }
 
 /**
- * Does the order wait for its customer (EVM-135 AC7; ADR-0024 pt 4)? An order without a customer is an open site survey (CHECK of 0066): its payment plan, its
- * documents and the ZIP export of its media are `409 customer_required` until the customer is assigned.
+ * Does the order wait for its customer (EVM-135 AC7; ADR-0024 pt 4; ADR-0025 pt 1)? An order without a customer is an open site survey (CHECK of 0066): its payment plan
+ * and the ZIP export of its media are `409 customer_required` until the customer is assigned. A document is accepted only with the anchor of the ORDER and only of a
+ * kind of {@link SITE_SURVEY_DOCUMENT_KINDS} (EVM-147) - it is purged with the survey; the anchors of the location and the customer still wait for the customer.
  */
 export const awaitsCustomer = (order: { readonly customerId: string | null }): boolean => order.customerId === null;
+
+/**
+ * The kinds of document a survey accepts before its customer (EVM-147 AC2; ADR-0025 pt 2): ONE list, the only place to extend. A kind of the class `standard` is added by a
+ * decision of the owner in a story; a kind of a higher class needs a new ADR and a security review.
+ */
+export const SITE_SURVEY_DOCUMENT_KINDS: readonly string[] = Object.freeze(['quote']);
+
+/** What a document of a survey without a customer states: the kind (absent for a change - the kind never changes) and the requested class. */
+export interface SiteSurveyDocumentInput {
+  readonly kindCode?: string | undefined;
+  readonly confidentialityOverride?: string | null | undefined;
+}
+
+/**
+ * The field rules of a document of a survey without a customer (EVM-147 AC2, AC3; ADR-0025 pt 2): a kind outside the list and the class `identity_data` are
+ * `requires_customer` at their pointer ("this value of the field needs a customer"); `building_security` is allowed. A pointer and a code - never the value.
+ */
+export function siteSurveyDocumentIssues(input: SiteSurveyDocumentInput): FieldIssue[] {
+  const issues: FieldIssue[] = [];
+  if (input.kindCode !== undefined && !SITE_SURVEY_DOCUMENT_KINDS.includes(input.kindCode)) {
+    issues.push({ pointer: '/kindCode', code: 'requires_customer' });
+  }
+  if (input.confidentialityOverride === 'identity_data') issues.push({ pointer: '/confidentialityOverride', code: 'requires_customer' });
+  return issues;
+}
+
+/**
+ * A REJECTED survey (EVM-147 AC4; ADR-0025 pt 5): a survey without a customer that was cancelled - it waits at most 14 days for its purge. Its documents are read only:
+ * no new document, no change and no restore (`409 work_order_closed`); the deletion and the erasure of a file stay (art. 17 RODO). A cancelled ordinary order is not one.
+ */
+export const isRejectedSurvey = (order: { readonly customerId: string | null; readonly status: WorkOrderStatus }): boolean =>
+  awaitsCustomer(order) && order.status === 'cancelled';

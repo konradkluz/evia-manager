@@ -31,7 +31,7 @@ export { ScopeLimitError, WorkOrderScopeRegistry, type ScopeAdditionContext, typ
 export { WorkOrderTransitionRegistry, type TransitionContext, type WorkOrderTransitionParticipant } from './transition-participant.ts';
 export { WorkOrderDeletionRegistry, type DeletionContext, type WorkOrderDeletionParticipant } from './deletion-participant.ts';
 export { decideDeletion, type DeletionAssessment, type DeletionDecision } from './domain/work-order-deletion.ts';
-export { awaitsCustomer } from './domain/site-survey.ts';
+export { awaitsCustomer, isRejectedSurvey, SITE_SURVEY_DOCUMENT_KINDS, siteSurveyDocumentIssues } from './domain/site-survey.ts';
 export {
   CompositionRejectedError,
   WorkOrderCompositionRegistry,
