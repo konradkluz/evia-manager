@@ -2,7 +2,7 @@
  * The object of one record (EVM-040 AC3; SR-PRIV-04, SR-LOG-03): the key and the JSON body, made by the server. Pure.
  * - the key is `<yyyy>/<operationId>.json` - the year of the instant in UTC, the identifier a UUIDv7 made here (time-ordered, so a replay
  *   reads the records in the order they were written); nothing in the key comes from a request;
- * - the body holds `schemaVersion`, `operationId`, `operationCode`, `subjectType`, `subjectId`, `workOrderId` (when the subject has an order), `anchorType` and `anchorId` (a document of a site or a customer), `siteId` and `mediaAssetIds` (the purge of a site survey, EVM-139),
+ * - the body holds `schemaVersion`, `operationId`, `operationCode`, `subjectType`, `subjectId`, `workOrderId` (when the subject has an order), `anchorType` and `anchorId` (a document of a site or a customer), `siteId` and `mediaAssetIds` (the purge of a site survey, EVM-139), `documentIds` (its documents, EVM-147 - only when there are some),
  *   `actorUserId` and `occurredAt` (UTC) - and nothing else: no text, no name, no e-mail. The actor is a pseudonymous identifier; the replay
  *   needs it because the redaction carries `redacted_by`.
  */
@@ -39,6 +39,8 @@ export function registerObjectOf(record: DeletionRecord, at: Date): RegisterObje
     ...(record.anchor === undefined ? {} : { anchorType: record.anchor.type, anchorId: record.anchor.id }),
     ...(record.siteId === undefined ? {} : { siteId: record.siteId }),
     ...(record.mediaAssetIds === undefined ? {} : { mediaAssetIds: record.mediaAssetIds }),
+    // EVM-147 (ADR-0025 pt 4): additive and optional - omitted when there is none, the schema version stays 1
+    ...(record.documentIds === undefined || record.documentIds.length === 0 ? {} : { documentIds: record.documentIds }),
     actorUserId: record.actorUserId,
     occurredAt: at.toISOString(),
   };

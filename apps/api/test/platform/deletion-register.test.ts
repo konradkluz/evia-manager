@@ -158,6 +158,56 @@ describe('EVM-040 AC3 the object of a record (SR-PRIV-04): identifiers and codes
     });
   });
 
+  it('EVM-147 AC5 AC7 the purge of a survey with documents names them by identifier (no title, no file name); the schema version stays 1', () => {
+    const system = '00000000-0000-7000-8000-000000000000';
+    const documentIds = ['0190a1b2-0000-7000-8000-0000000000d1', '0190a1b2-0000-7000-8000-0000000000d2'];
+    const object = registerObjectOf(
+      { ...record, operationCode: 'site_survey_purged', subjectType: 'work_order', mediaAssetIds: [], documentIds, actorUserId: system },
+      new Date(NOW),
+    );
+    expect(JSON.parse(object.body)).toEqual({
+      schemaVersion: 1,
+      operationId: object.operationId,
+      operationCode: 'site_survey_purged',
+      subjectType: 'work_order',
+      subjectId: record.subjectId,
+      workOrderId: record.workOrderId,
+      mediaAssetIds: [],
+      documentIds,
+      actorUserId: system,
+      occurredAt: NOW,
+    });
+  });
+
+  it('EVM-147 AC7 the change is additive: a record without documents (or with none) is the same object as before EVM-147', () => {
+    const system = '00000000-0000-7000-8000-000000000000';
+    const old = {
+      ...record,
+      operationCode: 'site_survey_purged' as const,
+      subjectType: 'work_order' as const,
+      mediaAssetIds: [],
+      actorUserId: system,
+    };
+    const without = JSON.parse(registerObjectOf(old, new Date(NOW)).body) as Record<string, unknown>;
+    const empty = JSON.parse(registerObjectOf({ ...old, documentIds: [] }, new Date(NOW)).body) as Record<string, unknown>;
+    expect(without).not.toHaveProperty('documentIds');
+    expect(empty).not.toHaveProperty('documentIds');
+    expect({ ...empty, operationId: '' }).toEqual({ ...without, operationId: '' });
+    expect(Object.keys(without).sort()).toEqual(
+      [
+        'schemaVersion',
+        'operationId',
+        'operationCode',
+        'subjectType',
+        'subjectId',
+        'workOrderId',
+        'mediaAssetIds',
+        'actorUserId',
+        'occurredAt',
+      ].sort(),
+    );
+  });
+
   it('EVM-051 AC3 the object of a purge of a file holds the identifiers, the code, the owner (the order or the anchor) and the time - no name, no title', () => {
     const media = registerObjectOf({ ...record, operationCode: 'media_file_purged', subjectType: 'media_asset' }, new Date(NOW));
     expect(JSON.parse(media.body)).toEqual({

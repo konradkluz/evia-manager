@@ -37,6 +37,11 @@ export interface DeletionRecord {
   readonly anchor?: { readonly type: 'site' | 'customer'; readonly id: string };
   /** The media of the order the record erases (EVM-139: a survey is purged with all its media in ONE record; identifiers only, never a name or a description). */
   readonly mediaAssetIds?: readonly string[];
+  /**
+   * The documents of the order the record erases (EVM-147; ADR-0025 pt 4: the offer of a site survey goes with it; identifiers only, never a title or a file name).
+   * Additive within `site_survey_purged` and the schema version 1: absent when the survey has no document, so a record without it is what it was before.
+   */
+  readonly documentIds?: readonly string[];
   /** The location the record anonymizes (EVM-139: the one made for the survey, when nothing else points at it); an identifier only. */
   readonly siteId?: string;
   /** The pseudonymous identifier of the person who erased - for the automatic purge the constant of the system: the replay needs it for the columns of the redaction (`redacted_by`). */
