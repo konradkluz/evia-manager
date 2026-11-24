@@ -1,6 +1,7 @@
 /**
- * What waits for the customer of a site survey (EVM-135 AC7; ADR-0024 pt 4; W11): the payment plan, the documents (every anchor) and the ZIP export of the media
- * are `409 customer_required` while the order is an open survey - nothing is written; the scope, the processes, the journal and the media can be added. The
+ * What waits for the customer of a site survey (EVM-135 AC7; ADR-0024 pt 4; W11): the payment plan, the documents of the location and of the customer and the ZIP
+ * export of the media are `409 customer_required` while the order is an open survey - nothing is written (EVM-147, ADR-0025: a document of the ORDER of the kind
+ * `quote` is accepted); the scope, the processes, the journal and the media can be added. The
  * closed list of the refused operations is the one the contract names in its 409. Read-only does not see the survey at all (`404` before the block; W11).
  * The database keeps the phone of the requester to an open survey (CHECK of 0066). Synthetic data only.
  */
@@ -48,9 +49,9 @@ async function signIn(role: Role = 'editor') {
   return panel;
 }
 const pdf = Buffer.concat([Buffer.from('%PDF-1.7\n'), Buffer.alloc(2039, 7)]);
-const documentBody = (anchor: string) => ({
+const documentBody = (anchor: string, kindCode = 'building_documentation') => ({
   id: uuidv7(),
-  kindCode: 'building_documentation',
+  kindCode,
   title: 'Dokumentacja budynku',
   anchor,
   file: {
@@ -64,7 +65,8 @@ const key = () => ({ 'Idempotency-Key': uuidv7() });
 /** The refused operations of AC7, each as the request it sends. */
 const REFUSED: Record<string, (panel: PanelClient, id: string) => ReturnType<PanelClient['post']>> = {
   createPaymentMilestone: (panel, id) => panel.post(`${BASE}/${id}/payment-milestones`, { id: uuidv7(), name: 'Zaliczka' }, key()),
-  createDocument: (panel, id) => panel.post(`${BASE}/${id}/documents`, documentBody('work_order'), key()),
+  // EVM-147 (ADR-0025 pt 1): a document of the LOCATION (or of the customer) waits for the customer; one of the order may be an offer
+  createDocument: (panel, id) => panel.post(`${BASE}/${id}/documents`, documentBody('site'), key()),
   createMediaExport: (panel, id) => panel.post(`${BASE}/${id}/media-exports`, undefined, key()),
 };
 const n = async (query: ReturnType<typeof sql<{ n: string }>>): Promise<number> =>
@@ -106,13 +108,15 @@ describe('what waits for the customer of a site survey (EVM-135 AC7)', () => {
     }
   });
 
-  it('EVM-135 AC7 a document of every anchor waits for the customer (a site and a customer anchor alike)', async () => {
+  it('EVM-147 AC2 a document of the location or of the customer waits for the customer; an offer of the order does not (EVM-135 AC7 narrowed by ADR-0025)', async () => {
     const panel = await signIn('editor');
-    for (const anchor of ['work_order', 'site', 'customer']) {
-      const response = await panel.post(`${BASE}/${surveyId}/documents`, documentBody(anchor), key());
+    for (const anchor of ['site', 'customer']) {
+      const response = await panel.post(`${BASE}/${surveyId}/documents`, documentBody(anchor, 'quote'), key());
       expect(response.status, anchor).toBe(409);
       expect((response.body as { code: string }).code, anchor).toBe('customer_required');
     }
+    const offer = await panel.post(`${BASE}/${surveyId}/documents`, documentBody('work_order', 'quote'), key());
+    expect(offer.status, JSON.stringify(offer.body)).toBe(201);
   });
 
   it('EVM-135 AC7 the same operations on an ordinary order work as before (a milestone and a document are created; the export answers its own rule)', async () => {

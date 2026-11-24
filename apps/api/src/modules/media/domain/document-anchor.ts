@@ -10,7 +10,8 @@ export type DocumentAnchor = (typeof DOCUMENT_ANCHORS)[number];
 
 export interface AnchorIssue {
   readonly pointer: string;
-  // 'no_customer' is only defence in depth: an order without a customer (site survey) is answered earlier with 409 customer_required (EVM-135)
+  // 'no_customer' is only defence in depth: a site survey without a customer takes documents of the ORDER only (EVM-147, ADR-0025 pt 1); the anchors of the location
+  // and the customer are answered earlier with 409 customer_required
   readonly code: 'requires_work_order_anchor' | 'no_customer' | 'no_site' | 'identity_data_not_on_site';
 }
 
@@ -27,7 +28,7 @@ export interface AnchorCheckInput {
 export function checkAnchor(input: AnchorCheckInput): AnchorIssue[] {
   const issues: AnchorIssue[] = [];
   if (input.hasStage && input.anchor !== 'work_order') issues.push({ pointer: '/procedureStageId', code: 'requires_work_order_anchor' });
-  // defence in depth only (see AnchorIssue): the caller answers 409 customer_required before this rule can fire
+  // defence in depth only (see AnchorIssue): for a survey the caller answers 409 customer_required to an anchor other than the order before this rule can fire
   if (input.anchor === 'customer' && !input.hasCustomer) issues.push({ pointer: '/anchor', code: 'no_customer' });
   if (input.anchor === 'site' && !input.hasSite) issues.push({ pointer: '/anchor', code: 'no_site' });
   if (input.anchor === 'site' && input.documentClass === 'identity_data')

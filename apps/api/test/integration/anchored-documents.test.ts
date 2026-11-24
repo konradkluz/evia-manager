@@ -209,7 +209,7 @@ describe('EVM-050 AC1 the document gets the anchor of a site or a customer in th
     const orderId = await orderWithoutCustomer();
     const editor = await signIn('editor');
     const noCustomer = await create(editor, orderId, documentBody(pdf(), { anchor: 'customer' }));
-    // since EVM-135 the only order without a customer is an open site survey: no document of any anchor until it has one (AC7)
+    // since EVM-135 the only order without a customer is an open site survey: no document of the location or the customer until it has one (EVM-147, ADR-0025 pt 1)
     expect(noCustomer.status).toBe(409);
     expect((noCustomer.body as { code: string }).code).toBe('customer_required');
     const { orderA, siteId } = await place();
