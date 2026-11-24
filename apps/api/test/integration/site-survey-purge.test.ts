@@ -55,7 +55,8 @@ describe('EVM-139 AC1: the candidates and the mode report', () => {
     const counts = await job(current).run();
 
     // a deadline ahead is no candidate, one that passed is (day 91), the deadline AT the instant is not (strict), a survey with a customer never is
-    expect(counts).toEqual({ candidates: 3, purged: 0, failed: 0 });
+    // EVM-147: report counts the documents of the candidates and the broken invariants of change_note too (none here)
+    expect(counts).toEqual({ candidates: 3, documents: 0, changeNoteViolations: 0, purged: 0, failed: 0 });
     expect(await everything(current)).toBe(before);
     expect(register.calls).toHaveLength(0);
     expect(metric(current, 'site_survey_purge_candidates')).toBe(3);

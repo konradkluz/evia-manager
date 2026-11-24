@@ -9,7 +9,7 @@
  *   - SOFT DELETE / RESTORE: the order through the read policy (`404`); the subject of THIS order - a document through the scope of the order, so the documents
  *     of its site and customer count while those are visible - under a row lock, also a deleted one (`404`: another order's, a document used as a medium, a
  *     missing one); delete of a deleted one is `404` (it is absent for everybody), restore of a live one `409 invalid_state_transition`, restore after the
- *     erasure `409 file_erased` (D3); the update and the audit event (identifiers only).
+ *     erasure `409 file_erased` (D3), restore of a document of a rejected site survey `409 work_order_closed` (EVM-147 AC4; its deletion and erasure work); the update and the audit event (identifiers only).
  *   - ERASURE OF THE FILES: the same lookup and lock (`404`); a repeat after the erasure is a success that only finishes the removal of the objects; `If-Match`
  *     (`428` / `400`) and the version (`412`); a file the scan or the processing holds right now is `409 file_processing` + `Retry-After`, nothing changes (D2);
  *     THEN the entry in the register of deletions (identifiers, code, owner, actor, time - never a name or a text; unavailable = `503
@@ -51,7 +51,7 @@ import { parseInput, strictObjects } from '../../../platform/http/validation.ts'
 import type { Logger } from '../../../platform/logging/logger.ts';
 import { OBJECT_STORAGE, type ObjectStorage } from '../../../platform/object-storage/object-storage.ts';
 import { CLOCK, DATABASE, EVENT_BUS, LOGGER } from '../../../platform/tokens.ts';
-import { WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders/index.ts';
+import { isRejectedSurvey, WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders/index.ts';
 import { erasureMarker, FILE_PROCESSING_RETRY_SECONDS, isBeingProcessed } from '../domain/erasure.ts';
 import type { MediaAuditEvent } from '../events.ts';
 import { lockDocumentInScope } from '../infrastructure/document-store.ts';
@@ -86,6 +86,8 @@ interface Subject {
   readonly erased: boolean;
   /** The owner for the register: the order, or - a document of a site or a customer has no order - the anchor. */
   readonly owner: Pick<DeletionRecord, 'workOrderId' | 'anchor'>;
+  /** The order of the path is a rejected site survey (EVM-147 AC4; ADR-0025 pt 5): its documents cannot be restored. Always `false` for a medium. */
+  readonly inRejectedSurvey: boolean;
 }
 
 interface Kind {
@@ -165,6 +167,7 @@ export class MediaErasureService {
               deleted: asset.deleted_at !== null,
               erased: asset.file_purged_at !== null,
               owner: { workOrderId: order.id },
+              inRejectedSurvey: false,
             };
       },
       setDeleted: setAssetDeleted,
@@ -181,7 +184,8 @@ export class MediaErasureService {
       register: { code: 'document_file_purged', subjectType: 'document' },
       events: { delete: 'document.deleted', restore: 'document.restored', purge: 'document.file_purged' },
       async find(tx, principal, workOrderId, id) {
-        const order = await orders.findVisible(tx, principal, workOrderId);
+        // the order locked before the document (the order of the locks of the purge of a survey: order, documents, files - ADR-0025 pt 4)
+        const order = await orders.lockVisible(tx, principal, workOrderId);
         if (order === undefined) return undefined;
         const document = await lockDocumentInScope(mediaTables(tx), await scopes.ofOrder(tx, principal, order), id, true);
         if (document === undefined) return undefined;
@@ -197,6 +201,7 @@ export class MediaErasureService {
           deleted: document.deleted_at !== null,
           erased: document.file_purged_at !== null,
           owner: anchor,
+          inRejectedSurvey: isRejectedSurvey(order),
         };
       },
       setDeleted: setDocumentDeleted,
@@ -240,6 +245,8 @@ export class MediaErasureService {
         // a deleted subject is absent for everybody, the Administrator included (the restore is the only way back)
         if (subject.deleted) throw new ProblemException('not_found');
       } else {
+        // EVM-147 AC4 (ADR-0025 pt 5): a rejected survey is read only - the deletion and the erasure (art. 17) work, the restore does not
+        if (subject.inRejectedSurvey) throw new ProblemException('work_order_closed');
         if (subject.erased) throw new ProblemException('file_erased');
         if (!subject.deleted) throw new ProblemException('invalid_state_transition');
       }

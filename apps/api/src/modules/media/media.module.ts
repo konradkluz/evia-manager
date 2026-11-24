@@ -47,6 +47,7 @@ import { MediaErasureService } from './application/media-erasure.service.ts';
 import { MediaDownloadUrlService } from './application/media-download-url.service.ts';
 import { ErasureCompletionJob } from './application/erasure-completion.job.ts';
 import { MediaSurveyPurgeParticipant } from './application/site-survey-purge.participant.ts';
+import { SurveyDocumentPurge } from './application/survey-document-purge.ts';
 import { StorageReconciliationJob } from './application/storage-reconciliation.job.ts';
 import { QuarantineRetentionJob } from './application/quarantine-retention.job.ts';
 import { RescanMediaService } from './application/rescan-media.service.ts';
@@ -92,6 +93,7 @@ import { MEDIA_ASSET_SYNC_SOURCE, MOBILE_MEDIA_COMMANDS } from './system-ports.t
     SignatureMonitorJob,
     ErasureCompletionJob,
     MediaSurveyPurgeParticipant,
+    SurveyDocumentPurge,
     StorageReconciliationJob,
     { provide: MEDIA_ASSET_SYNC_SOURCE, useClass: MediaAssetSyncSourceService },
     { provide: MOBILE_MEDIA_COMMANDS, useClass: MobileMediaCommandsService },

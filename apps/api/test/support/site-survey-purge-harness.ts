@@ -13,9 +13,11 @@ import type { MetricsRegistry } from '../../src/platform/metrics/metrics.ts';
 import { CLOCK, METRICS } from '../../src/platform/tokens.ts';
 import { createIdentityApp, type IdentityApp } from './identity-app.ts';
 import { createUser } from './identity-fixtures.ts';
+import { insertDocumentRow } from './document-fixtures.ts';
 import { insertMedia } from './media-fixtures.ts';
 import { insertProcedure } from './procedure-fixtures.ts';
 import { insertSite } from './site-fixtures.ts';
+import { uuidv7 } from './uuid.ts';
 import { insertScopeItems, insertWorkOrders } from './work-order-fixtures.ts';
 
 export const NOW = '2027-05-01T08:00:00.000Z';
@@ -32,6 +34,10 @@ export const ITEM_NOTE = 'Notatka-pozycji-synt-139-kod-bramy';
 export const BLOCKED = 'Blokada-synt-139-nazwisko';
 export const STAGE_NOTE = 'Notatka-etapu-synt-139-telefon';
 export const STAGE_NAME = 'Etap-reczny-synt-139-nazwisko';
+/** EVM-147: the offer of a survey - its title, description and file name may carry the name and the address of the requester. */
+export const DOC_TITLE = 'Oferta-synt-147-nazwisko-zamawiajacego';
+export const DOC_DESCRIPTION = 'Opis-oferty-synt-147-adres';
+export const DOC_FILE = 'Oferta-synt-147-Nazwisko.pdf';
 export const SENTINELS = [
   STREET,
   CITY,
@@ -46,6 +52,9 @@ export const SENTINELS = [
   BLOCKED,
   STAGE_NOTE,
   STAGE_NAME,
+  DOC_TITLE,
+  DOC_DESCRIPTION,
+  DOC_FILE,
 ];
 
 export interface Started {
@@ -148,6 +157,61 @@ export async function addMedia(app: IdentityApp, order: Survey, count = 2): Prom
   return keys;
 }
 
+export interface AddedDocument {
+  readonly documentId: string;
+  /** The keys of the objects of every version. */
+  readonly keys: readonly string[];
+}
+export interface DocumentOptions {
+  /** Two versions (a second version row and file written by hand - the code has no operation "new version" yet, ADR-0025 pt 4). */
+  readonly versions?: 1 | 2;
+  readonly deleted?: boolean;
+  /** An active upload session on the file of version 1. */
+  readonly session?: boolean;
+}
+
+/** An offer of the survey (EVM-147): a document of the ORDER with sentinels in its title, description and file name, clean files with objects in the storage. */
+export async function addDocument(app: IdentityApp, order: Survey, options: DocumentOptions = {}): Promise<AddedDocument> {
+  const admin = app.database.admin;
+  const row = await insertDocumentRow(admin, {
+    workOrderId: order.id,
+    createdBy: order.creator,
+    kindCode: 'quote',
+    title: DOC_TITLE,
+    description: DOC_DESCRIPTION,
+    fileName: DOC_FILE,
+    state: 'clean',
+    ...(options.session === true ? { session: { userId: order.creator, uploadId: `upload-doc-${String(numbering)}` } } : {}),
+  });
+  const keys = [row.objectKey];
+  if (options.versions === 2) {
+    const versionId = uuidv7();
+    const fileId = uuidv7();
+    const key = `documents/2027/04/${fileId}/original`;
+    await sql`insert into media.document_versions (id, document_id, version_number, change_note, created_at, created_by)
+      select ${versionId}, document_id, 2, null, created_at, created_by from media.document_versions where id = ${row.versionId}`.execute(
+      admin,
+    );
+    await sql`insert into media.stored_files (id, purpose, media_asset_id, document_version_id, object_key, state, state_changed_at, declared_size_bytes,
+        declared_content_type, content_type, declared_sha256, original_filename, created_at, created_by)
+      select ${fileId}, purpose, null, ${versionId}, ${key}, state, state_changed_at, declared_size_bytes, declared_content_type, content_type, declared_sha256,
+        original_filename, created_at, created_by from media.stored_files where id = ${row.storedFileId}`.execute(admin);
+    keys.push(key);
+  }
+  if (options.deleted === true) {
+    await sql`update media.documents set deleted_at = created_at, deleted_by = created_by where id = ${row.documentId}`.execute(admin);
+  }
+  for (const key of keys) {
+    await app.storage.putObjectIfAbsent({
+      key,
+      body: Buffer.from('synthetic offer'),
+      contentType: 'application/pdf',
+      cacheControl: 'private',
+    });
+  }
+  return { documentId: row.documentId, keys };
+}
+
 /** A scope item with a note and a process whose stage has a reason of a block, notes and a name typed by hand - the free text a survey may get (ADR-0024 pt 4). */
 export async function addScopeAndProcess(app: IdentityApp, order: Survey): Promise<void> {
   const [itemId] = await insertScopeItems(app.database.admin, order.id, [{ position: 1 }]);
@@ -183,6 +247,9 @@ export const everything = async (app: IdentityApp): Promise<string> =>
         || (select coalesce(json_agg(s order by s.id), '[]') from sites.sites s)::text
         || (select coalesce(json_agg(m order by m.id), '[]') from media.media_assets m)::text
         || (select coalesce(json_agg(f order by f.id), '[]') from media.stored_files f)::text
+        || (select coalesce(json_agg(d order by d.id), '[]') from media.documents d)::text
+        || (select coalesce(json_agg(v order by v.id), '[]') from media.document_versions v)::text
+        || (select coalesce(json_agg(u order by u.id), '[]') from media.upload_sessions u)::text
         || (select coalesce(json_agg(t order by t.id), '[]') from timeline.timeline_entries t)::text
         || (select coalesce(json_agg(i order by i.id), '[]') from work_orders.scope_items i)::text
         || (select coalesce(json_agg(p order by p.id), '[]') from procedures.procedures p)::text

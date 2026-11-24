@@ -3,12 +3,12 @@
  * AC3, AC4, AC6, AC7; SR-AUTHZ-02, SR-AUTHZ-04, SR-AUTHZ-05, SR-AUTHZ-07, SR-INPUT-02, SR-INPUT-05, SR-LOG-03, SR-ERR-01; AB-20, TM-17, TM-18). The guard has
  * decided before this runs: a signed-in Administrator or Editor on the web channel with a valid CSRF token.
  *
- * ONE transaction on the locked document row. The order: the path (`400`); the order through the read policy (`404`; a settled or cancelled order still accepts
- * the change, PO-8); `If-Match` (`428` missing, `400` malformed); the document of THIS order (`404`: another order's document, a medium with that id and a
+ * ONE transaction on the locked document row. The order: the path (`400`); the order through the read policy, locked (`404`; a settled or cancelled order still accepts
+ * the change, PO-8 - a rejected site survey does not: `409 work_order_closed` after the document is found, EVM-147, ADR-0025 pt 5); `If-Match` (`428` missing, `400` malformed); the document of THIS order (`404`: another order's document, a medium with that id and a
  * missing one are the same absence); the body (`400`: the kind, the order, the file and the other fields of the server are `read_only_field`, an empty body is
  * `validation_failed`; the title and the description are plain text, a title empty after trimming is `required`); the version (`412 version_conflict`); the
  * class: the requested one must be STRICTLY above the effective one - the higher of the kind and the current override - else `400 validation_failed`
- * (a fall is refused also in a request that carries a title); the stage - a live stage of THIS order, read under a lock by the facade of `procedures`
+ * (a fall is refused also in a request that carries a title); in a survey without a customer the class `identity_data` is `400 requires_customer` (EVM-147 AC3); the stage - a live stage of THIS order, read under a lock by the facade of `procedures`
  * (`400` at `/procedureStageId`: a stranger's, a deleted and a missing stage are ONE answer); the update (ONE `version + 1`; the trigger of the database
  * refuses a fall of the class as a second line) and the audit: `document.confidentiality_raised` with the class before and after when the class changes,
  * `document.metadata_updated` when the title, the description or the stage changes. Neither event carries the title, the description, the stage or the
@@ -29,7 +29,13 @@ import { parseInput, strictObjects } from '../../../platform/http/validation.ts'
 import { CLOCK, DATABASE, EVENT_BUS } from '../../../platform/tokens.ts';
 import { DOCUMENT_KIND_DIRECTORY, type DocumentKindDirectory } from '../../catalog/index.ts';
 import { PROCEDURE_STAGE_DIRECTORY, type ProcedureStageDirectory } from '../../procedures/index.ts';
-import { WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders/index.ts';
+import {
+  awaitsCustomer,
+  isRejectedSurvey,
+  siteSurveyDocumentIssues,
+  WORK_ORDER_DIRECTORY,
+  type WorkOrderDirectory,
+} from '../../work-orders/index.ts';
 import { canRaiseTo, effectiveClass, type ConfidentialityOverride } from '../domain/confidentiality.ts';
 import { anchorOf, mayRaiseOnAnchor } from '../domain/document-anchor.ts';
 import {
@@ -121,7 +127,8 @@ export class UpdateDocumentService {
     const request = { ...context, sessionId: principal.sessionId };
 
     return runInTransaction(this.#db, async (tx) => {
-      const order = await this.#orders.findVisible(tx, principal, workOrderId);
+      // the order locked like at the creation (ADR-0025 pt 2): the rejection of a survey and its purge cannot slip between the check and the write
+      const order = await this.#orders.lockVisible(tx, principal, workOrderId);
       if (order === undefined) throw new ProblemException('not_found');
       const expectedVersion = parseIfMatch(ifMatch);
       const tables = mediaTables(tx);
@@ -130,6 +137,8 @@ export class UpdateDocumentService {
       if ((await lockDocumentInScope(tables, scope, documentId)) === undefined) throw new ProblemException('not_found');
       const found = await findDocumentWithFile(tables, scope, documentId, true);
       if (found === undefined) throw new ProblemException('not_found');
+      // EVM-147 AC4 (ADR-0025 pt 5): the documents of a rejected survey are read only until it is purged
+      if (isRejectedSurvey(order)) throw new ProblemException('work_order_closed');
       // a file erased by the administrator keeps its redacted record: nothing is written back into it (SR-PRIV-03)
       if (found.document.file_purged_at !== null) throw new ProblemException('file_erased');
       const body = parseInput(bodySchema, rawBody, READ_ONLY_FIELDS) as Body;
@@ -150,6 +159,9 @@ export class UpdateDocumentService {
       if (raiseTo !== undefined && !canRaiseTo(kindClass, document.confidentiality_override, raiseTo)) {
         throw new ProblemException('validation_failed', { errors: [{ pointer: '/confidentialityOverride', code: 'not_higher' }] });
       }
+      // EVM-147 AC3 (ADR-0025 pt 2): before its customer a survey never holds identity data - `requires_customer`, no value
+      const surveyIssues = awaitsCustomer(order) ? siteSurveyDocumentIssues({ confidentialityOverride: raiseTo }) : [];
+      if (surveyIssues.length > 0) throw new ProblemException('validation_failed', { errors: surveyIssues });
       // a site document is shown in the orders of every customer of the site: the class only goes up, so it must never reach identity data (AB-19)
       const anchor = anchorOf(document);
       if (raiseTo !== undefined && !mayRaiseOnAnchor(anchor, raiseTo)) {

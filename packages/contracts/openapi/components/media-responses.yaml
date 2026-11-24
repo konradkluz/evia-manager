@@ -24,9 +24,11 @@ MediaConflict:
         traceId: 4bf92f3577b34da6a3ce929d0e0e4736
 DocumentCreateConflict:
   description: >-
-    Identyfikator zajęty (`id_conflict` — bez żadnych danych istniejącego zasobu), zlecenie jest wizją lokalną bez klienta
-    (`customer_required`, EVM-135: dokumenty — każda kotwica — dopiero po przypisaniu klienta) albo żądanie z tym samym kluczem
-    idempotencji w toku (`idempotency_in_progress`, z `Retry-After`).
+    Identyfikator zajęty (`id_conflict` — bez żadnych danych istniejącego zasobu), kotwica lokalizacji albo klienta w wizji lokalnej bez
+    klienta (`customer_required`, EVM-147, ADR-0025: w wizji dokument zlecenia rodzaju Oferta/wycena — tak; kotwica lokalizacji i klienta,
+    płatności i ZIP — po przypisaniu klienta; rodzaj inny niż Oferta/wycena to `400`, nie `409`), odrzucona wizja lokalna (`work_order_closed`
+    — dokumenty odrzuconej wizji są tylko do odczytu do jej usunięcia) albo żądanie z tym samym kluczem idempotencji w toku
+    (`idempotency_in_progress`, z `Retry-After`). Odpowiedź nie podaje statusu zlecenia ani danych klienta.
   headers:
     Retry-After:
       description: Liczba sekund do ponowienia (tylko `idempotency_in_progress`).
@@ -43,6 +45,21 @@ DocumentCreateConflict:
         title: The work order has no customer
         status: 409
         code: customer_required
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+DocumentUpdateConflict:
+  description: >-
+    Dokument należy do odrzuconej wizji lokalnej (`work_order_closed` — EVM-147, ADR-0025 pkt 5: dokumenty odrzuconej wizji są tylko do odczytu
+    do jej usunięcia; zwykłe zlecenie rozliczone albo anulowane nadal przyjmuje zmianę, PO-8) albo plik dokumentu został trwale usunięty
+    (`file_erased` — rekord zostaje z neutralnym tytułem, nic się do niego nie zapisuje). Odpowiedź nie zawiera danych dokumentu ani statusu zlecenia.
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/work_order_closed
+        title: The work order is closed
+        status: 409
+        code: work_order_closed
         traceId: 4bf92f3577b34da6a3ce929d0e0e4736
 MediaUnprocessable:
   description: >-
@@ -86,8 +103,9 @@ MediaStorageUnavailable:
 MediaErasureConflict:
   description: >-
     Konflikt usunięcia pliku (EVM-051): plik jest jeszcze przetwarzany (`file_processing`, z `Retry-After` — operacja nic nie zmieniła, można ponowić po
-    zakończeniu zadania), plik został już trwale usunięty (`file_erased` — przywrócenie, nowa wersja pliku i ponowny skan są niemożliwe) albo element nie
-    jest usunięty (`invalid_state_transition` przy przywracaniu). Odpowiedź nie zawiera danych elementu.
+    zakończeniu zadania), plik został już trwale usunięty (`file_erased` — przywrócenie, nowa wersja pliku i ponowny skan są niemożliwe), element nie
+    jest usunięty (`invalid_state_transition` przy przywracaniu) albo dokument należy do odrzuconej wizji lokalnej (`work_order_closed` przy
+    przywracaniu dokumentu — EVM-147, ADR-0025 pkt 5; usunięcie i trwałe usunięcie pliku działają). Odpowiedź nie zawiera danych elementu.
   headers:
     Retry-After:
       description: Liczba sekund do ponowienia (tylko `file_processing`).

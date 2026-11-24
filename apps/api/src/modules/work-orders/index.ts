@@ -6,11 +6,13 @@ export { SiteSurveyPurgeJob } from './application/site-survey-purge.job.ts';
 export {
   SiteSurveyPurgeRegistry,
   SurveyChangedDuringPurge,
+  SurveyPurgeInvariantViolated,
   type AfterCommit,
   type SiteSurveyPurgeParticipant,
   type SurveyEraseContext,
   type SurveyPurgeContext,
   type SurveyPurgeIdentity,
+  type SurveyPurgeReport,
 } from './site-survey-purge-participant.ts';
 export {
   WORK_ORDER_EVENT_TYPES,
@@ -31,7 +33,7 @@ export { ScopeLimitError, WorkOrderScopeRegistry, type ScopeAdditionContext, typ
 export { WorkOrderTransitionRegistry, type TransitionContext, type WorkOrderTransitionParticipant } from './transition-participant.ts';
 export { WorkOrderDeletionRegistry, type DeletionContext, type WorkOrderDeletionParticipant } from './deletion-participant.ts';
 export { decideDeletion, type DeletionAssessment, type DeletionDecision } from './domain/work-order-deletion.ts';
-export { awaitsCustomer } from './domain/site-survey.ts';
+export { awaitsCustomer, isRejectedSurvey, SITE_SURVEY_DOCUMENT_KINDS, siteSurveyDocumentIssues } from './domain/site-survey.ts';
 export {
   CompositionRejectedError,
   WorkOrderCompositionRegistry,

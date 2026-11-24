@@ -4,14 +4,17 @@
  * the web channel with a valid CSRF token - Read-only gets 403 and an anonymous caller 401 without reaching the headers, the body or the table of
  * idempotency records.
  *
- * ONE transaction. The order: the path (`400`); the order of the path through the read policy (`404`); the storage is configured (`503`, fail closed);
- * the `Idempotency-Key` and the strict body (`400`; fields of the server - `read_only_field`); the kind from the catalog (`400 unknown_kind` for a missing or
+ * ONE transaction. The order: the path (`400`); the order of the path through the read policy, LOCKED `FOR NO KEY UPDATE` (`404`; ADR-0025 pt 2 - the purge of
+ * a survey and the assignment of its customer are serialised with this); the storage is configured (`503`, fail closed);
+ * the `Idempotency-Key` and the strict body (`400`; fields of the server - `read_only_field`); for a site survey without a customer (EVM-147, ADR-0025 L6) the anchor
+ * of a location or a customer (`409 customer_required`), then a rejected survey (`409 work_order_closed`), then - with the other field rules - a kind other than the
+ * offer and the class `identity_data` (`400`, `requires_customer`); the kind from the catalog (`400 unknown_kind` for a missing or
  * retired one, never a `500` from a key); the class (`other` needs the answer about identity data; an override must be strictly above the kind) and the
  * file (type, extension, size - `400`, pointers `/file/...`, codes, never values); the idempotency port (a repeat returns the stored result BEFORE the writes;
  * the key is bound to the ORDER); then the INSERT of the document (an identifier that exists - in any order, of any user - is `409 id_conflict`, nothing of
  * it is read), of its version 1 and of its file (the key of the object is assigned HERE: `documents/{year}/{month}/{id of the file}/original`), ONE entry of
  * the journal (the id of the document and the code of its kind) and one audit event (the class as a code). An order that is closed still accepts documents
- * ("nic nie ginie", PO-8). An error anywhere rolls the whole command back. The title, the description and the file name appear in no log, audit event,
+ * ("nic nie ginie", PO-8) - except a rejected site survey, whose documents go with it. An error anywhere rolls the whole command back. The title, the description and the file name appear in no log, audit event,
  * journal entry or error message.
  */
 import type { Document } from '@evia/contracts';
@@ -30,7 +33,13 @@ import { IDEMPOTENCY, type Idempotency } from '../../../platform/idempotency/ide
 import { OBJECT_STORAGE, type ObjectStorage } from '../../../platform/object-storage/object-storage.ts';
 import { CLOCK, DATABASE, EVENT_BUS } from '../../../platform/tokens.ts';
 import { DOCUMENT_KIND_DIRECTORY, type DocumentKindDirectory, type DocumentKindForDocument } from '../../catalog/index.ts';
-import { awaitsCustomer, WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders/index.ts';
+import {
+  awaitsCustomer,
+  isRejectedSurvey,
+  siteSurveyDocumentIssues,
+  WORK_ORDER_DIRECTORY,
+  type WorkOrderDirectory,
+} from '../../work-orders/index.ts';
 import { PROCEDURE_STAGE_DIRECTORY, type ProcedureStageDirectory } from '../../procedures/index.ts';
 import { effectiveClass, resolveNewDocumentClass, type ConfidentialityOverride } from '../domain/confidentiality.ts';
 import { checkAnchor, type DocumentAnchor } from '../domain/document-anchor.ts';
@@ -173,16 +182,19 @@ export class CreateDocumentService {
     const request = { ...context, sessionId: principal.sessionId };
 
     return runInTransaction(this.#db, async (tx) => {
-      const order = await this.#orders.findVisible(tx, principal, workOrderId);
+      // ADR-0025 pt 2 (M1): the order is LOCKED before the customer and the status are judged - a purge of the survey that holds the row makes this wait, and
+      // after its commit the read policy finds no order (`404`): no document is written next to a tombstone
+      const order = await this.#orders.lockVisible(tx, principal, workOrderId);
       if (order === undefined) throw new ProblemException('not_found');
-      // EVM-135 AC7: no document of an open site survey - whatever the anchor - until it has a customer
-      if (awaitsCustomer(order)) throw new ProblemException('customer_required');
       requireStorage(this.#storage);
       const key = idempotencyKeyOf(rawKey);
       const input = parseInput(bodySchema, rawBody, SERVER_FIELDS) as Input;
       const anchor = input.anchor ?? 'work_order';
+      // EVM-147 AC2 (ADR-0025 pt 1, 5): a survey without a customer takes documents of the ORDER only; a rejected survey takes none
+      if (awaitsCustomer(order) && anchor !== 'work_order') throw new ProblemException('customer_required');
+      if (isRejectedSurvey(order)) throw new ProblemException('work_order_closed');
       const scope = await this.#scopes.ofOrder(tx, principal, order);
-      const checked = await this.#validate(tx, input, anchor, scope);
+      const checked = await this.#validate(tx, input, anchor, scope, awaitsCustomer(order));
 
       const perform = async () => {
         await this.#add(tx, principal, order.id, anchorColumns(anchor, scope), input, checked, request);
@@ -202,7 +214,7 @@ export class CreateDocumentService {
   }
 
   /** Everything the client may get wrong, as codes at pointers (never values): the texts, the kind, the class and the file. */
-  async #validate(tx: Kysely<Database>, input: Input, anchor: DocumentAnchor, scope: DocumentScope): Promise<Checked> {
+  async #validate(tx: Kysely<Database>, input: Input, anchor: DocumentAnchor, scope: DocumentScope, survey: boolean): Promise<Checked> {
     const errors: Array<{ pointer: string; code: string }> = [];
     const title = input.title.trim();
     if (title === '') errors.push({ pointer: '/title', code: 'required' });
@@ -213,6 +225,8 @@ export class CreateDocumentService {
 
     const kind = await this.#kinds.findActiveByCode(tx, input.kindCode);
     if (kind === undefined) errors.push({ pointer: '/kindCode', code: 'unknown_kind' });
+    // EVM-147 AC2 (ADR-0025 pt 2): before its customer a survey takes the offer only, never of the class identity_data - `requires_customer`, no value
+    if (survey) errors.push(...siteSurveyDocumentIssues({ kindCode: kind?.code, confidentialityOverride: input.confidentialityOverride }));
     const classification =
       kind === undefined
         ? undefined

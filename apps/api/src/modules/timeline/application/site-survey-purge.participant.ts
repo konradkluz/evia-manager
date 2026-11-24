@@ -33,7 +33,7 @@ export class TimelineSurveyPurgeParticipant implements SiteSurveyPurgeParticipan
   }
 
   identify(): Promise<SurveyPurgeIdentity> {
-    return Promise.resolve({ mediaAssetIds: [], holdsSite: false });
+    return Promise.resolve({ mediaAssetIds: [], documentIds: [], holdsSite: false });
   }
 
   async erase(tx: Kysely<Database>, context: SurveyPurgeContext): Promise<AfterCommit | undefined> {
