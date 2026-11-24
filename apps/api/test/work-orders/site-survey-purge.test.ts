@@ -14,6 +14,7 @@ import { SITE_SURVEY_RETENTION_DAYS, siteSurveyExpiry } from '../../src/modules/
 import {
   SiteSurveyPurgeRegistry,
   SurveyChangedDuringPurge,
+  SurveyPurgeInvariantViolated,
   type SiteSurveyPurgeParticipant,
 } from '../../src/modules/work-orders/site-survey-purge-participant.ts';
 
@@ -72,7 +73,7 @@ describe('the registry of the participants of the purge (EVM-139 AC2)', () => {
   const participant = (name: string, position: number): SiteSurveyPurgeParticipant => ({
     name,
     order: position,
-    identify: () => Promise.resolve({ mediaAssetIds: [], holdsSite: false }),
+    identify: () => Promise.resolve({ mediaAssetIds: [], documentIds: [], holdsSite: false }),
     erase: () => Promise.resolve(undefined),
   });
 
@@ -102,5 +103,15 @@ describe('the signal of a changed survey (EVM-139 AC2)', () => {
     expect(error).toBeInstanceOf(Error);
     expect(error.name).toBe('SurveyChangedDuringPurge');
     expect(error.message).toBe('site survey purge: the survey changed between the register entry and the erasure');
+  });
+});
+
+describe('the signal of a broken invariant (EVM-147 AC5; ADR-0025 pt 4)', () => {
+  it('EVM-147 AC5 SurveyPurgeInvariantViolated carries the fixed code change_note_invariant and no value', () => {
+    const error = new SurveyPurgeInvariantViolated('change_note_invariant');
+    expect(error).toBeInstanceOf(Error);
+    expect(error.name).toBe('SurveyPurgeInvariantViolated');
+    expect(error.code).toBe('change_note_invariant');
+    expect(error.message).toBe('site survey purge: an invariant of the erasure is broken (change_note_invariant)');
   });
 });

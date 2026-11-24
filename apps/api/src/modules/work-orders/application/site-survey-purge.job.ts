@@ -2,15 +2,19 @@
  * The automatic purge of site surveys (EVM-139 AC1-AC6; ADR-0024 pt 9; SR-PRIV-11, SR-PRIV-04, SR-FILE-11, SR-LOG-03, DO-K): a job of the worker, once a day, in one of two modes.
  *
  * - `report` (the DEFAULT, `SITE_SURVEY_PURGE_MODE`): counts the candidates - the surveys with the three conditions `site_survey_expires_at < now AND customer_id IS NULL AND
- *   site_survey_purged_at IS NULL` - and writes the count to the log and to the gauge `site_survey_purge_candidates`. It changes NOTHING.
+ *   site_survey_purged_at IS NULL` - and writes the count to the log and to the gauge `site_survey_purge_candidates`; the participants count what they would erase (EVM-147:
+ *   the documents of the candidates and the versions whose `change_note` breaks the invariant - gauges `site_survey_purge_candidate_documents` and
+ *   `site_survey_purge_change_note_violations`, numbers only). It changes NOTHING.
  * - `enforce` (the decision of the owner after the backups run): erases at most `SITE_SURVEY_PURGE_LIMIT_PER_RUN` candidates. For EACH survey, in ONE transaction of its own:
  *     1. the survey LOCKED with the three conditions asked again (a customer assigned in the last moment wins: the survey is no candidate any more);
- *     2. the participants say which identifiers they will touch (the media; whether they hold the location) - reads only;
+ *     2. the participants say which identifiers they will touch (the media, the documents - EVM-147; whether they hold the location) - reads only;
  *     3. the location, when it was made for the survey and nothing else holds it, LOCKED `FOR UPDATE` (a new order pointing at it waits for the commit);
  *     4. THE ENTRY IN THE REGISTER OF DELETIONS (identifiers only; the actor is the system) - before anything is changed; a register that refuses (not configured, no key,
  *        down) rolls the transaction back: the survey is untouched, the failure is audited and alerted;
  *     5. the participants erase (the files of the media - rows marked, the entries of the journal redacted, the free text of the stages); the location anonymized; the survey becomes the TOMBSTONE (neutral
- *        title, no description, no phone, no free text of the reason, soft deleted, `site_survey_purged_at`), the number stays; the event `work_order.site_survey_purged`
+ *        title, no description, no phone, no free text of the reason, soft deleted, `site_survey_purged_at`), the number stays; the documents of the order are erased like the
+ *        media (EVM-147; ADR-0025 pt 4) - a `change_note` that is not `NULL` is a FAILURE with the reason `change_note_invariant` (fail closed: the survey stays, audited and
+ *        alerted with `site_survey_purge_failed`); the event `work_order.site_survey_purged`
  *        (audit, projection) - identifiers only. The free text of the scope items (`notes`) is cleared here; the reasons, notes and typed names of the stages by `procedures` (a participant). The trigger of `sync.change_log` writes the `delete` markers (identifiers only).
  *        A medium committed while the register was written (the lock of the order does not stop an insert) makes `erase` of the media throw `SurveyChangedDuringPurge`: the
  *        transaction rolls back, the survey is untouched, the next run takes it (counted as `changedDuringPurge`, no alert, no failure). The media are marked by identifier.
@@ -55,6 +59,7 @@ import { workOrderTables } from '../infrastructure/tables.ts';
 import {
   SiteSurveyPurgeRegistry,
   SurveyChangedDuringPurge,
+  SurveyPurgeInvariantViolated,
   type AfterCommit,
   type SurveyEraseContext,
   type SurveyPurgeContext,
@@ -65,6 +70,8 @@ export const SITE_SURVEY_PURGE_FAILED = 'site_survey_purge_failed';
 export const SITE_SURVEY_PURGE_CANDIDATES_GAUGE = 'site_survey_purge_candidates';
 export const SITE_SURVEY_PURGED_COUNTER = 'site_survey_purged_total';
 export const SITE_SURVEY_PURGE_FAILURES_COUNTER = 'site_survey_purge_failures_total';
+export const SITE_SURVEY_PURGE_DOCUMENTS_GAUGE = 'site_survey_purge_candidate_documents';
+export const SITE_SURVEY_PURGE_CHANGE_NOTE_GAUGE = 'site_survey_purge_change_note_violations';
 /** Every day at 03:20 in the business zone, in the quiet of the night; a missed run is made up by the next one (the surveys are still candidates). */
 export const SITE_SURVEY_PURGE_SCHEDULE: JobSchedule = { cron: '20 3 * * *', timezone: 'Europe/Warsaw' };
 
@@ -81,6 +88,8 @@ export class SiteSurveyPurgeJob {
   readonly #sites: SiteAnonymization;
   readonly #mode: SiteSurveyPurgeMode;
   readonly #candidates: ReturnType<MetricsRegistry['gauge']>;
+  readonly #documents: ReturnType<MetricsRegistry['gauge']>;
+  readonly #changeNotes: ReturnType<MetricsRegistry['gauge']>;
   readonly #purged: ReturnType<MetricsRegistry['counter']>;
   readonly #failures: ReturnType<MetricsRegistry['counter']>;
 
@@ -104,6 +113,8 @@ export class SiteSurveyPurgeJob {
     this.#sites = sites;
     this.#mode = config.siteSurveyPurgeMode;
     this.#candidates = metrics.gauge(SITE_SURVEY_PURGE_CANDIDATES_GAUGE);
+    this.#documents = metrics.gauge(SITE_SURVEY_PURGE_DOCUMENTS_GAUGE);
+    this.#changeNotes = metrics.gauge(SITE_SURVEY_PURGE_CHANGE_NOTE_GAUGE);
     this.#purged = metrics.counter(SITE_SURVEY_PURGED_COUNTER, []);
     this.#failures = metrics.counter(SITE_SURVEY_PURGE_FAILURES_COUNTER, ['reason']);
   }
@@ -123,12 +134,30 @@ export class SiteSurveyPurgeJob {
       throw new JobFailure(SITE_SURVEY_PURGE_FAILED);
     }
     this.#candidates.set(candidates);
-    if (this.#mode === 'report') {
-      const counts: JobCounts = { candidates, purged: 0, failed: 0 };
-      this.#logger.info({ job: SITE_SURVEY_PURGE_JOB, mode: 'report', ...counts }, 'site survey purge: report only, nothing is erased');
-      return counts;
-    }
+    if (this.#mode === 'report') return this.#report(candidates, now);
     return this.#enforce(candidates, now);
+  }
+
+  /** The mode `report`: the counts of the candidates and of what the participants would erase (EVM-147: the documents, the broken invariants) - numbers only. */
+  async #report(candidates: number, now: Date): Promise<JobCounts> {
+    let documents = 0;
+    let changeNoteViolations = 0;
+    try {
+      const ids = candidates === 0 ? [] : await candidateIds(workOrderTables(this.#db), now, candidates);
+      for (const participant of this.#participants.ordered()) {
+        const report = await participant.report?.(this.#db, ids);
+        documents += report?.documents ?? 0;
+        changeNoteViolations += report?.changeNoteViolations ?? 0;
+      }
+    } catch (error) {
+      this.#logFailure(error, 'site survey purge: the report failed');
+      throw new JobFailure(SITE_SURVEY_PURGE_FAILED);
+    }
+    this.#documents.set(documents);
+    this.#changeNotes.set(changeNoteViolations);
+    const counts: JobCounts = { candidates, documents, changeNoteViolations, purged: 0, failed: 0 };
+    this.#logger.info({ job: SITE_SURVEY_PURGE_JOB, mode: 'report', ...counts }, 'site survey purge: report only, nothing is erased');
+    return counts;
   }
 
   async #enforce(candidates: number, now: Date): Promise<JobCounts> {
@@ -158,7 +187,12 @@ export class SiteSurveyPurgeJob {
           continue;
         }
         failed += 1;
-        const reason = error instanceof DeletionRegisterUnavailable ? 'register_unavailable' : 'error';
+        const reason =
+          error instanceof DeletionRegisterUnavailable
+            ? 'register_unavailable'
+            : error instanceof SurveyPurgeInvariantViolated
+              ? error.code
+              : 'error';
         this.#failures.increment({ reason });
         this.#logFailure(error, 'site survey purge: one survey failed; it is untouched and is retried');
         await this.#recordFailure(id);
@@ -182,10 +216,12 @@ export class SiteSurveyPurgeJob {
     const participants = this.#participants.ordered();
 
     const mediaAssetIds: string[] = [];
+    const documentIds: string[] = [];
     let holdsSite = false;
     for (const participant of participants) {
       const identity = await participant.identify(tx, context);
       mediaAssetIds.push(...identity.mediaAssetIds);
+      documentIds.push(...identity.documentIds);
       holdsSite = holdsSite || identity.holdsSite;
     }
 
@@ -209,12 +245,14 @@ export class SiteSurveyPurgeJob {
       subjectId: survey.id,
       workOrderId: survey.id,
       mediaAssetIds,
+      // EVM-147 (ADR-0025 pt 4): additive, absent when the survey has no document
+      ...(documentIds.length === 0 ? {} : { documentIds }),
       ...(anonymizeSiteId === undefined ? {} : { siteId: anonymizeSiteId }),
       actorUserId: SYSTEM_ACTOR_ID,
     });
 
     const afterCommit: AfterCommit[] = [];
-    const eraseContext: SurveyEraseContext = { ...context, declaredMediaAssetIds: mediaAssetIds };
+    const eraseContext: SurveyEraseContext = { ...context, declaredMediaAssetIds: mediaAssetIds, declaredDocumentIds: documentIds };
     for (const participant of participants) {
       const step = await participant.erase(tx, eraseContext);
       if (step !== undefined) afterCommit.push(step);
