@@ -90,7 +90,7 @@ describe('W-06 site survey: details (EVM-138 AC3, AC4; flows/17)', () => {
     expect(within(banner).getByText(text)).toBeTruthy();
   });
 
-  it('EVM-138 AC4 payments, documents and the ZIP are disabled with a reason that is their description; photos work', async () => {
+  it('EVM-138 AC4 payments and the ZIP are disabled with a reason that is their description; photos work, and since EVM-148 so do documents', async () => {
     const api = surveyApi(surveyOrder(), {
       [`GET ${SURVEY_URL}/documents`]: () => json(200, { items: [], nextCursor: null, totalCount: 0 }),
       'GET /api/v1/catalog/document-kinds': () => json(200, { items: [] }),
@@ -109,9 +109,10 @@ describe('W-06 site survey: details (EVM-138 AC3, AC4; flows/17)', () => {
     expect(zip.getAttribute('aria-disabled')).toBe('true');
     expect(zip.getAttribute('aria-describedby')).not.toBeNull();
     expect(main().getByText('Eksport ZIP będzie dostępny po przypisaniu klienta.')).toBeTruthy();
+    // EVM-148 AC1 AC3: an open survey takes an offer, so the button works and the old hint is gone
     const add = await main().findByRole('button', { name: 'Dodaj dokument' });
-    expect(add.getAttribute('aria-disabled')).toBe('true');
-    expect(main().getAllByText('Dokumenty dodasz po przypisaniu klienta.').length).toBeGreaterThan(0);
+    expect(add.getAttribute('aria-disabled')).toBeNull();
+    expect(main().queryByText('Dokumenty dodasz po przypisaniu klienta.')).toBeNull();
     expect(main().getByRole('button', { name: 'Dodaj zdjęcia lub filmy' }).getAttribute('aria-disabled')).toBeNull();
   });
 

@@ -414,7 +414,7 @@ describe('EVM-047 AC7 permissions', () => {
     [403, 'forbidden', 'Nie masz uprawnień do dodawania dokumentów.'],
     [400, 'validation_failed', 'Nie wysłano — serwer odrzucił dokument. Sprawdź rodzaj, tytuł i plik.'],
     [409, 'id_conflict', 'Nie wysłano — dokument o tym identyfikatorze już istnieje. Dodaj go ponownie.'],
-    [429, 'rate_limited', 'Zbyt wiele zapytań. Spróbuj ponownie za chwilę.'],
+    [429, 'rate_limited', 'Zbyt wiele zapytań. Poczekaj chwilę i spróbuj ponownie.'],
     [500, 'internal_error', 'Nie udało się wysłać dokumentu. Spróbuj ponownie.'],
   ])(
     'EVM-047 AC7 the answer %i to the creation is told in the panel of the upload and the title stays text',
@@ -463,7 +463,7 @@ describe('EVM-047 AC1 AC8 an upload session that ended on the server', () => {
     });
     await fillAndSend({ kind: 'Warunki przyłączenia', title: 'Warunki' });
     const panel = await screen.findByRole('list', { name: 'Wysyłanie dokumentu' });
-    expect(await within(panel).findByText('Nie udało się wysłać dokumentu. Spróbuj ponownie.')).toBeTruthy();
+    expect(await within(panel).findByText('Sesja wgrywania wygasła lub została przerwana. Spróbuj ponownie.')).toBeTruthy();
     await userEvent.click(within(panel).getByRole('button', { name: 'Ponów' }));
     await waitFor(() => {
       expect(attempts).toBe(2);

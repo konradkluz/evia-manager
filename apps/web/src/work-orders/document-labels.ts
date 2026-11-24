@@ -66,6 +66,7 @@ export const documentText = {
   tooLarge: (name: string) => `Plik „${name}” jest większy niż 100 MB.`,
   emptyFile: (name: string) => `Plik „${name}” jest pusty.`,
   kind: 'Rodzaj dokumentu',
+  kindShort: 'Rodzaj',
   kindPlaceholder: 'Wybierz rodzaj',
   kindMissing: 'Wybierz rodzaj dokumentu.',
   kindsFailed: 'Nie wczytano rodzajów dokumentów. Spróbuj ponownie.',
@@ -144,12 +145,44 @@ export const documentText = {
   sent: 'Wysłano. Sprawdzamy plik.',
   failures: {
     network: 'Nie wysłano — przerwane połączenie.',
-    rate: 'Zbyt wiele zapytań. Spróbuj ponownie za chwilę.',
+    rate: 'Zbyt wiele zapytań. Poczekaj chwilę i spróbuj ponownie.',
     validation: 'Nie wysłano — serwer odrzucił dokument. Sprawdź rodzaj, tytuł i plik.',
     forbidden: 'Nie masz uprawnień do dodawania dokumentów.',
     stage: 'Nie wysłano — wybrany etap nie jest już dostępny. Dodaj dokument ponownie, wybierając inny etap.',
     conflict: 'Nie wysłano — dokument o tym identyfikatorze już istnieje. Dodaj go ponownie.',
     server: 'Nie udało się wysłać dokumentu. Spróbuj ponownie.',
+    // EVM-148: the reasons of the site survey; none of them carries the name of the file or the title
+    customer: 'Nie dodano dokumentu. Najpierw przypisz klienta do tej wizji.',
+    kind: 'Przed przypisaniem klienta można dodać tylko ofertę/wycenę. Zmień pole „Rodzaj”.',
+    closed: 'Ta wizja jest odrzucona i jest tylko do odczytu — dokumentów nie można już dodawać.',
+    session: 'Sesja wgrywania wygasła lub została przerwana. Spróbuj ponownie.',
+  },
+  /** The line under the state of a failure that has a next step of its own. */
+  failureHints: {
+    customer: 'Wybierz „Przypisz klienta” u góry strony, a potem dodaj dokument ponownie.',
+    kind: 'Wybierz „Dodaj ponownie”, żeby poprawić formularz.',
+  },
+  failureForbiddenSurvey: 'Nie masz uprawnień do dodawania dokumentów do tej wizji.',
+  rateIn: (seconds: number) =>
+    `Zbyt wiele zapytań. Poczekaj i spróbuj ponownie za ${seconds >= 60 ? `${String(Math.ceil(seconds / 60))} min` : `${String(seconds)} s`}.`,
+  addAgain: 'Dodaj ponownie',
+  // EVM-148: documents of a site survey (an offer before the customer is known)
+  surveyOffer: {
+    anchorValue: 'Zlecenie',
+    kindValue: 'Oferta/wycena',
+    warningTitle: 'Dane osobowe w ofercie',
+    warning:
+      'Oferta może zawierać imię i nazwisko zamawiającego. Nie dodawaj skanów dokumentów tożsamości i nie wpisuj imion ani nazwisk w tytule i opisie.',
+    descriptionHint: 'Nie wpisuj imion, nazwisk, PESEL ani numerów dokumentów.',
+  },
+  survey: {
+    rejectedHint: 'Wizja jest odrzucona — dokumentów nie można już dodawać.',
+    expiredHint: 'Termin wizji minął — dokumentów nie można już dodawać.',
+    errorHint: 'Nie wczytano danych wizji.',
+    retryLoad: 'Spróbuj ponownie',
+    emptyHint: (date: string) => `Dokumenty znikną razem z wizją dnia ${date}, jeśli nie przypiszesz klienta.`,
+    emptyRejectedHint: (date: string) => `Wizja jest odrzucona. Dokumenty zostaną usunięte razem z nią dnia ${date}.`,
+    line: (date: string) => `Dokumenty znikną razem z wizją dnia ${date}.`,
   },
   // download
   download: 'Pobierz',

@@ -3,10 +3,12 @@ import { Button, Dialog, FileText, InlineAlert, RadioGroup, Select, TextArea, Te
 import { useEffect, useState } from 'react';
 import { checkDocumentFile, DOCUMENT_ACCEPT } from './document-files.ts';
 import { confidentialityLabel, documentText, effectiveClass, higherClasses, OTHER_KIND } from './document-labels.ts';
-import type { DocumentUploadEngine } from './document-upload-engine.ts';
+import type { DocumentUploadEngine, NewDocument } from './document-upload-engine.ts';
 import { formatBytes } from './media-labels.ts';
 import { NO_STAGE, stageSelectOptions, useStageChoices } from './stage-choice.ts';
 
+/** The only kind a site survey without a customer accepts (ADR-0025 pt 2); fixed here, never taken from a field. */
+export const SURVEY_KIND_CODE = 'quote';
 const TITLE_MAX = 200;
 const DESCRIPTION_MAX = 2000;
 // control characters are refused by the server; the panel strips them from what is pasted
@@ -25,12 +27,17 @@ interface Errors {
  * The dialog "Dodaj dokument" (W-09; EVM-047 AC1, AC2, AC3, AC4, AC6): the file (PDF, DOCX, XLSX, JPG, PNG up to 100 MB - refused here before anything is
  * sent, the server and the scan decide again), the kind with the class it gives, the question about PESEL for "Inny dokument" (an answer is required),
  * the title, "Podnieś klasę" (only the classes above the one of the kind) and the description. The send runs in the engine of the tab; the dialog closes.
+ * EVM-148: for a site survey without a customer (`survey`) the form is an offer only: "Przypisz do" and "Rodzaj" are read-only text, the kind is the
+ * fixed `quote`, no class, stage or anchor is chosen (so none can be sent) and a warning about personal data stands above the title. `initial` fills
+ * the form again after "Dodaj ponownie" (the same file and fields, held in the memory of the tab only).
  */
 export function DocumentUploadDialog({
   open,
   workOrderId,
   hasSite,
   hasCustomer,
+  survey,
+  initial,
   kinds,
   kindsFailed,
   engine,
@@ -41,6 +48,10 @@ export function DocumentUploadDialog({
   /** The order has a location / a customer to anchor the document to (EVM-050); an option that cannot work is not offered. */
   readonly hasSite: boolean;
   readonly hasCustomer: boolean;
+  /** EVM-148: a site survey without a customer - the form offers the offer only (decided by the data of the order, never by a guess). */
+  readonly survey: boolean;
+  /** The file and the fields to start with ("Dodaj ponownie"); `null` = an empty form. */
+  readonly initial: NewDocument | null;
   readonly kinds: readonly DocumentKind[];
   readonly kindsFailed: boolean;
   readonly engine: DocumentUploadEngine;
@@ -60,17 +71,17 @@ export function DocumentUploadDialog({
 
   useEffect(() => {
     if (!open) return;
-    setFile(null);
+    setFile(initial === null ? null : { file: initial.file, contentType: initial.contentType });
     setRefused(null);
-    setKindCode('');
+    setKindCode(initial?.kindCode ?? '');
     setIdentity('');
-    setTitle('');
-    setDescription('');
+    setTitle(initial?.title ?? '');
+    setDescription(initial?.description ?? '');
     setRaise('');
     setStage(NO_STAGE);
     setAnchor('work_order');
     setErrors({});
-  }, [open]);
+  }, [open, initial]);
 
   const kind = kinds.find((entry) => entry.code === kindCode);
   const isOther = kindCode === OTHER_KIND;
@@ -100,23 +111,41 @@ export function DocumentUploadDialog({
   const submit = () => {
     const next: Errors = {};
     if (file === null) next.file = documentText.fileMissing;
-    if (kind === undefined) next.kind = documentText.kindMissing;
+    if (!survey && kind === undefined) next.kind = documentText.kindMissing;
     if (isOther && identity === '') next.identity = documentText.identityMissing;
     if (title.trim() === '') next.title = documentText.titleMissing;
     // identity data never sits on a location (AB-19, SR-AUTHZ-08): the server refuses it too (`400 identity_data_not_on_site`)
     if (anchor === 'site' && kind !== undefined && (effective === 'identity_data' || raise === 'identity_data'))
       next.anchor = documentText.anchorIdentityOnSite;
     setErrors(next);
-    if (file === null || kind === undefined || Object.keys(next).length > 0) return;
+    if (file === null || Object.keys(next).length > 0) return;
+    const trimmedTitle = title.replace(CONTROL, ' ').trim();
+    const trimmedText = description.replace(CONTROL, ' ').trim();
+    if (survey) {
+      // K2: the offer of a survey is the kind `quote` for the order and nothing else - no class, no stage, no identity flag, no other anchor
+      onClose();
+      void engine.add({
+        file: file.file,
+        contentType: file.contentType,
+        kindCode: SURVEY_KIND_CODE,
+        title: trimmedTitle,
+        description: trimmedText,
+        containsIdentityData: null,
+        confidentialityOverride: null,
+        procedureStageId: null,
+        anchor: 'work_order',
+      });
+      return;
+    }
+    if (kind === undefined) return;
     const override = raiseOptions.find((value) => value === raise);
-    const trimmedDescription = description.replace(CONTROL, ' ').trim();
     onClose();
     void engine.add({
       file: file.file,
       contentType: file.contentType,
       kindCode: kind.code,
-      title: title.replace(CONTROL, ' ').trim(),
-      description: trimmedDescription,
+      title: trimmedTitle,
+      description: trimmedText,
       containsIdentityData: isOther ? identity === 'yes' : null,
       confidentialityOverride: override ?? null,
       procedureStageId:
@@ -165,33 +194,49 @@ export function DocumentUploadDialog({
       )}
       {refused === null ? null : <InlineAlert tone="error">{refused}</InlineAlert>}
       {errors.file === undefined ? null : <InlineAlert tone="error">{errors.file}</InlineAlert>}
-      {kindsFailed ? <InlineAlert tone="error">{documentText.kindsFailed}</InlineAlert> : null}
-      <Select
-        label={documentText.kind}
-        value={kindCode}
-        options={[{ value: '', label: documentText.kindPlaceholder }, ...kinds.map((entry) => ({ value: entry.code, label: entry.name }))]}
-        {...(errors.kind === undefined ? {} : { error: errors.kind })}
-        onChange={(value) => {
-          setKindCode(value);
-          setIdentity('');
-          setRaise('');
-        }}
-      />
-      {isOther ? (
-        <RadioGroup
-          legend={documentText.identityQuestion}
-          options={[
-            { value: 'no', label: documentText.identityNo },
-            { value: 'yes', label: documentText.identityYes },
-          ]}
-          value={identity}
-          {...(errors.identity === undefined ? {} : { error: errors.identity })}
-          onChange={(value) => {
-            setIdentity(value as 'yes' | 'no');
-            setRaise('');
-          }}
-        />
+      {kindsFailed && !survey ? <InlineAlert tone="error">{documentText.kindsFailed}</InlineAlert> : null}
+      {survey ? (
+        <>
+          <TextField label={documentText.anchorLegend} value={documentText.surveyOffer.anchorValue} readOnly />
+          <TextField label={documentText.kindShort} value={documentText.surveyOffer.kindValue} readOnly />
+          <InlineAlert tone="info" title={documentText.surveyOffer.warningTitle}>
+            {documentText.surveyOffer.warning}
+          </InlineAlert>
+        </>
       ) : null}
+      {survey ? null : (
+        <>
+          <Select
+            label={documentText.kind}
+            value={kindCode}
+            options={[
+              { value: '', label: documentText.kindPlaceholder },
+              ...kinds.map((entry) => ({ value: entry.code, label: entry.name })),
+            ]}
+            {...(errors.kind === undefined ? {} : { error: errors.kind })}
+            onChange={(value) => {
+              setKindCode(value);
+              setIdentity('');
+              setRaise('');
+            }}
+          />
+          {isOther ? (
+            <RadioGroup
+              legend={documentText.identityQuestion}
+              options={[
+                { value: 'no', label: documentText.identityNo },
+                { value: 'yes', label: documentText.identityYes },
+              ]}
+              value={identity}
+              {...(errors.identity === undefined ? {} : { error: errors.identity })}
+              onChange={(value) => {
+                setIdentity(value as 'yes' | 'no');
+                setRaise('');
+              }}
+            />
+          ) : null}
+        </>
+      )}
       <TextField
         label={documentText.titleField}
         value={title}
@@ -200,51 +245,55 @@ export function DocumentUploadDialog({
           setTitle(event.target.value.slice(0, TITLE_MAX));
         }}
       />
-      <RadioGroup
-        legend={documentText.anchorLegend}
-        options={[
-          { value: 'work_order', label: documentText.anchorOrder },
-          ...(hasSite ? [{ value: 'site', label: documentText.anchorSite }] : []),
-          ...(hasCustomer ? [{ value: 'customer', label: documentText.anchorCustomer }] : []),
-        ]}
-        value={anchor}
-        {...(errors.anchor === undefined ? {} : { error: errors.anchor })}
-        onChange={(value) => {
-          setAnchor(value as DocumentAnchor);
-          setErrors((current) => ({ ...current, anchor: undefined }));
-        }}
-      />
-      {anchor === 'site' ? <InlineAlert tone="info">{documentText.anchorSiteNote}</InlineAlert> : null}
-      {anchor === 'customer' ? <p className="text-body text-text-secondary">{documentText.anchorCustomerNote}</p> : null}
-      {kind === undefined ? null : (
-        <p className="text-body text-text-secondary">{documentText.classFromKind(confidentialityLabel(effective))}</p>
+      {survey ? null : (
+        <>
+          <RadioGroup
+            legend={documentText.anchorLegend}
+            options={[
+              { value: 'work_order', label: documentText.anchorOrder },
+              ...(hasSite ? [{ value: 'site', label: documentText.anchorSite }] : []),
+              ...(hasCustomer ? [{ value: 'customer', label: documentText.anchorCustomer }] : []),
+            ]}
+            value={anchor}
+            {...(errors.anchor === undefined ? {} : { error: errors.anchor })}
+            onChange={(value) => {
+              setAnchor(value as DocumentAnchor);
+              setErrors((current) => ({ ...current, anchor: undefined }));
+            }}
+          />
+          {anchor === 'site' ? <InlineAlert tone="info">{documentText.anchorSiteNote}</InlineAlert> : null}
+          {anchor === 'customer' ? <p className="text-body text-text-secondary">{documentText.anchorCustomerNote}</p> : null}
+          {kind === undefined ? null : (
+            <p className="text-body text-text-secondary">{documentText.classFromKind(confidentialityLabel(effective))}</p>
+          )}
+          {kind !== undefined && raiseOptions.length > 0 ? (
+            <Select
+              label={documentText.raise}
+              value={raise}
+              hint={documentText.raiseHint}
+              options={[
+                { value: '', label: documentText.raiseNone },
+                ...raiseOptions.map((value) => ({ value, label: confidentialityLabel(value) })),
+              ]}
+              onChange={setRaise}
+            />
+          ) : null}
+          {anchor === 'work_order' ? (
+            <Select
+              label={documentText.stage}
+              value={stage}
+              options={stageSelectOptions(stages.choices, documentText.noStage)}
+              onChange={setStage}
+            />
+          ) : null}
+          {anchor === 'work_order' && stages.failed ? <InlineAlert tone="error">{documentText.stagesFailed}</InlineAlert> : null}
+        </>
       )}
-      {kind !== undefined && raiseOptions.length > 0 ? (
-        <Select
-          label={documentText.raise}
-          value={raise}
-          hint={documentText.raiseHint}
-          options={[
-            { value: '', label: documentText.raiseNone },
-            ...raiseOptions.map((value) => ({ value, label: confidentialityLabel(value) })),
-          ]}
-          onChange={setRaise}
-        />
-      ) : null}
-      {anchor === 'work_order' ? (
-        <Select
-          label={documentText.stage}
-          value={stage}
-          options={stageSelectOptions(stages.choices, documentText.noStage)}
-          onChange={setStage}
-        />
-      ) : null}
-      {anchor === 'work_order' && stages.failed ? <InlineAlert tone="error">{documentText.stagesFailed}</InlineAlert> : null}
       <TextArea
         label={documentText.descriptionField}
         value={description}
         rows={2}
-        hint={documentText.descriptionHint}
+        hint={survey ? documentText.surveyOffer.descriptionHint : documentText.descriptionHint}
         onChange={(event) => {
           setDescription(event.target.value.slice(0, DESCRIPTION_MAX));
         }}
