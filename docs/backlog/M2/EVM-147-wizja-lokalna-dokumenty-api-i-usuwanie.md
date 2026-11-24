@@ -89,3 +89,5 @@ Rozmiar M–L (nowy uczestnik purge dla dokumentów). Konsultacje wykonane: arch
 - 2026-11-24 — start realizacji (/deliver): gałąź `feature/EVM-147-oferta-w-wizji-lokalnej`, ścieżka `pelna`, wykonawca backend-developer (`opus`), recenzenci code-reviewer, security-engineer
 - 2026-11-24 — plan gotowy (backend-developer)
 - 2026-11-24 — plan blokował na AC7 i dwóch szczegółach; decyzje Konrada zapisane w „Decyzjach i ograniczeniach”; ponowne uruchomienie potoku
+- 2026-11-24 — plan gotowy (backend-developer)
+- 2026-11-24 — implementacja AC1–AC8 (kontrakt, domena, media, usuwanie dokumentów z wizją, rejestr `documentIds`, runbooki); bramka lokalna i testy integracyjne w kontenerze zielone (backend-developer)
