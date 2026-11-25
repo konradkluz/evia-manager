@@ -68,6 +68,8 @@ const sortable = (date: string): string => date.replace(DATE, '$3$2$1');
 /** The documents that must say the same as the clause 1.1 (EVM-149 AC2, AC3): the A6 card and the record of the decisions. */
 const CARD = '../../../docs/user/karta-wizji-lokalnej.md';
 const RODO = '../../../docs/security/rodo.md';
+/** The release notes name the version and the date users see (DoD; the fifth place of the date correction at the merge). */
+const CHANGELOG = '../../../CHANGELOG.md';
 
 /** The sentence of the clause 1.1 decided by the owner (EVM-149, decision of 2026-11-24, item 1). */
 const OFFER_SENTENCE = 'Na etapie wizji możemy zapisać ofertę z Twoim imieniem i nazwiskiem';
@@ -265,6 +267,17 @@ describe('content of W-19 (EVM-063)', () => {
     const rodo = read(RODO);
     expect(rodo).toContain(`klauzule w wersji **${clause?.version ?? ''}**, obowiązują od ${clause?.validFrom ?? ''}`);
     expect(rodo).toContain(OFFER_SENTENCE);
+  });
+
+  it('EVM-149 AC1 the changelog entry of the clause 1.1 carries the same version and date as the panel and the application', () => {
+    const [clause] = CLAUSES;
+    const changelog = read(CHANGELOG);
+    // the entry belongs to the changes not released yet (everything from the [Unreleased] heading on)
+    const start = changelog.indexOf('## [Unreleased]');
+    expect(start).toBeGreaterThanOrEqual(0);
+    expect(changelog.slice(start)).toContain(
+      `Klauzule prywatności w wersji ${clause?.version ?? ''} (panel W-19 i aplikacja M-11, obowiązują od ${clause?.validFrom ?? ''}) [EVM-149`,
+    );
   });
 
   it('EVM-063 AC2 three clauses for the three groups, each with a version and a date', () => {
