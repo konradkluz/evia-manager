@@ -4,7 +4,7 @@ title: "Wizja lokalna: klauzula informacyjna 1.1 (oferta na wizji), karta A6, DP
 type: enabler
 milestone: M2
 epic: E15 Wizja lokalna
-status: in-review
+status: done
 priority: P1
 path: lekka             # dokumentacja i treści klauzul; kod tylko w plikach treści (content.ts)
 owner: security-engineer
@@ -82,3 +82,4 @@ Warunek wydania łączy dwie historyjki: dokumenty na wizji w produkcji dopiero 
 - 2026-11-25 — poprawki rundy 1 (security-engineer, ustalenie major code-reviewer): wpis EVM-149 w `CHANGELOG.md` („Zmieniono”) jako piąte miejsce korekty daty przy scaleniu (Notatki, `rodo.md` pkt 3); nowy test `EVM-149 AC1` pilnuje, że wersja i data we wpisie są równe `content.ts`
 - 2026-11-25 — Koszt: ścieżka `lekka`, 6 agentów, ok. 0,63 mln tokenów podagentów, 272 wywołania narzędzi, ok. 45 min, 1 runda, 1 poprawka (CHANGELOG)
 - 2026-11-25 — weryfikacja Tech Leada: `pnpm run gate` zielona (pokrycie zmienionego kodu 100%), `docs:check` 0 błędów, `web-e2e-linux` 1568 passed / 4 flaky / 0 failed; status `in-review`
+- 2026-11-25 — zaakceptowano (Konrad); PR #171 scalony do `main` (squash), status `done`
