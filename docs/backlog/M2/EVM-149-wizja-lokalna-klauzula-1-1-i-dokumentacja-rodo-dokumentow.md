@@ -4,7 +4,7 @@ title: "Wizja lokalna: klauzula informacyjna 1.1 (oferta na wizji), karta A6, DP
 type: enabler
 milestone: M2
 epic: E15 Wizja lokalna
-status: ready
+status: in-progress
 priority: P1
 path: lekka             # dokumentacja i treści klauzul; kod tylko w plikach treści (content.ts)
 owner: security-engineer
@@ -68,3 +68,4 @@ Warunek wydania łączy dwie historyjki: dokumenty na wizji w produkcji dopiero 
 - 2026-11-20 — utworzono przy podziale EVM-147 na trzy historyjki (product-owner)
 - 2026-11-23 — uwzględniono ADR-0025: RR-14 z odnośnikiem, instrukcja o kopiach poza systemem, RR-102 dla dokumentów, warunek `enforce` (product-owner)
 - 2026-11-24 — decyzje Konrada w sprawie klauzuli 1.1, daty wersji i kart A6; status `ready`
+- 2026-11-25 — start realizacji (/deliver): gałąź `feature/EVM-149-klauzula-1-1-wizja`, ścieżka `lekka`, wykonawca security-engineer (`opus`), recenzent code-reviewer
