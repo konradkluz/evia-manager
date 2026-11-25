@@ -4,7 +4,7 @@ title: "Wizja lokalna: klauzula informacyjna 1.1 (oferta na wizji), karta A6, DP
 type: enabler
 milestone: M2
 epic: E15 Wizja lokalna
-status: in-progress
+status: in-review
 priority: P1
 path: lekka             # dokumentacja i treści klauzul; kod tylko w plikach treści (content.ts)
 owner: security-engineer
@@ -80,3 +80,5 @@ Warunek wydania łączy dwie historyjki: dokumenty na wizji w produkcji dopiero 
 - 2026-11-25 — weryfikacja implementacji (web-developer): `content.ts` w panelu i aplikacji identyczne; testy prywatności web 39/39 (Vitest), mobile 45/45 (Jest); `pnpm run gate` zielona (pokrycie zmian 6/6 linii, 4/4 gałęzi), `docs:check` 0 błędów, 0 ostrzeżeń; bez zmian w kodzie
 - 2026-11-25 — weryfikacja implementacji (mobile-developer): `content.ts` w aplikacji = panel (`diff`), wersja 1.1 z `VALID_FROM` 25.11.2026; testy mobile 133 zestawy / 2206 testów zielone, prywatność web 39/39; `pnpm run gate` zielona (pokrycie zmian 100%), `docs:check` 0 błędów, 0 ostrzeżeń; bez zmian w kodzie
 - 2026-11-25 — poprawki rundy 1 (security-engineer, ustalenie major code-reviewer): wpis EVM-149 w `CHANGELOG.md` („Zmieniono”) jako piąte miejsce korekty daty przy scaleniu (Notatki, `rodo.md` pkt 3); nowy test `EVM-149 AC1` pilnuje, że wersja i data we wpisie są równe `content.ts`
+- 2026-11-25 — Koszt: ścieżka `lekka`, 6 agentów, ok. 0,63 mln tokenów podagentów, 272 wywołania narzędzi, ok. 45 min, 1 runda, 1 poprawka (CHANGELOG)
+- 2026-11-25 — weryfikacja Tech Leada: `pnpm run gate` zielona (pokrycie zmienionego kodu 100%), `docs:check` 0 błędów, `web-e2e-linux` 1568 passed / 4 flaky / 0 failed; status `in-review`
