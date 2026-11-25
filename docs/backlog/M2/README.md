@@ -160,8 +160,9 @@ Fazy 1–3 (EVM-090…107) — wpisy, komentarze, lista, szczegóły, szybkie zl
 | [EVM-141](EVM-141-wizja-lokalna-dokumenty-i-rodo.md) | Dokumenty RODO i bezpieczeństwa, akapit klauzuli, karta informacyjna, instrukcja — 6 AC, M | enabler | P1 | lekka | security / opus | — (EVM-133 nie blokuje) |
 | [EVM-147](EVM-147-wizja-lokalna-dokumenty-api-i-usuwanie.md) | `draft` (2026-11-20): API przyjmuje ofertę (`quote`) w wizji bez klienta; trwałe usuwanie dokumentów wizji i rejestr — 8 AC, M–L; decyzja ADR-0025 (zaakceptowany 2026-11-23) | story | P1 | pelna | backend / opus | EVM-135, EVM-136, EVM-139 |
 | [EVM-148](EVM-148-web-wizja-lokalna-dokumenty-i-komunikaty-bledow.md) | `draft`: panel — oferta w wizji, ostrzeżenie o danych osobowych, komunikaty błędów wgrywania — 6 AC, M | story | P1 | pelna | web (+ux) / sonnet | EVM-147, EVM-138 |
-| [EVM-149](EVM-149-wizja-lokalna-klauzula-1-1-i-dokumentacja-rodo-dokumentow.md) | `draft`: klauzula 1.1, karta A6, DPIA D14, rodo.md, model zagrożeń, prawa osób — 5 AC, M | enabler | P1 | lekka | security / opus | EVM-133 |
+| [EVM-149](EVM-149-wizja-lokalna-klauzula-1-1-i-dokumentacja-rodo-dokumentow.md) | `done` (PR #171; podstawy rozdzielone w EVM-152): klauzula 1.1, karta A6, DPIA D14, rodo.md, model zagrożeń, prawa osób — 5 AC, M | enabler | P1 | lekka | security / opus | EVM-133 |
 | [EVM-150](EVM-150-wizja-lokalna-wyscig-usuwania-media.md) | `draft` (2026-11-23): wyścig usuwania wizji a dodawanie mediów — blokada zlecenia przed zapisem medium i sesji wgrywania (panel, sync), test współbieżny — 5 AC, S–M; reguła jak ADR-0025 M1 | story | P2 | pelna | backend / sonnet | EVM-139 (powiązanie: EVM-147) |
+| [EVM-152](EVM-152-wizja-lokalna-klauzula-1-2-rozdzielone-podstawy-prawne.md) | `ready` (2026-11-25): klauzula i karta A6 1.2 z rozdzielonymi podstawami (lit. b / lit. f), test równowagi, stopka oferty i formuły, rejestr i DPIA — opinia prawna AI (W1–W5, W8) — 6 AC, M | enabler | P1 | lekka | security / opus | EVM-149, EVM-147, EVM-148 |
 
 Dlaczego 7, a nie 5 historyjek: API podzielone (135 | 136), bo jedna historyjka miałaby ok. 14 AC, a aplikacja potrzebuje tylko 135; przypomnienia i limit (140) oddzielone od usuwania (139), bo usuwanie jest nieodwracalne (art. 17) i wymaga modelu `opus` oraz przeglądu security — i idzie ostatnie. Kolejność i zależności wg ADR-0024 („Podział na przyrosty”).
 
@@ -214,6 +215,13 @@ Lista kontrolna E15 — dokumenty na wizji (skrót; pełna z dowodami: [instrukc
 - [ ] Stare karty A6 wycofane przed pierwszą realną wizją z ofertą, karty 1.1 wydrukowane.
 - [ ] Aneks DPIA v1.2 i czynność 9 z dokumentami zatwierdzone przez Konrada.
 - [ ] `enforce` włączony albo RR-102 zaakceptowane z kartą przeglądu obejmującą dokumenty.
+
+Dodatkowe warunki po opinii prawnej modelu AI z 2026-11-25 (werdykt „podstawa wystarczająca pod warunkami”; decyzje Konrada: karty A6 1.1 nie drukujemy; warunkiem realnych ofert jest włączony `enforce` EVM-139, nie samo RR-102). Powyższy wiersz o `enforce` czytaj odtąd jako „`enforce` włączony”; wiersz o stałych kartach — jako karty 1.2:
+- [ ] **Klauzula i karta A6 w wersji 1.2** (EVM-152: rozdzielone podstawy lit. b / lit. f, podstawa dla 14 dni, stopka oferty, formuły przy zgłoszeniu) scalone i wdrożone.
+- [ ] **Pisemny test równowagi interesów** (EVM-152, `docs/security/`) zatwierdzony przez Konrada przed przetwarzaniem.
+- [ ] W6: kopie oferty poza systemem (e-mail, plik źródłowy) usuwane w terminach wizji z dowodem w karcie przeglądu — działanie organizacyjne Konrada.
+- [ ] W7: sprawdzony dostawca poczty (lokalizacja, EOG, umowa powierzenia); zdania o UE/EOG w karcie i klauzuli zgodne z faktami — działanie organizacyjne Konrada.
+- [ ] W9: weryfikacja przez licencjonowanego radcę prawnego lub adwokata pozostaje otwarta — opinii AI nie zapisujemy jako „zweryfikowanej przez prawnika”.
 
 ### Decyzje Konrada (2026-11-16, „akceptuję wg rekomendacji”) — wszystkie pytania zamknięte
 Nazwa „Wizja lokalna”; Tylko odczyt bez dostępu; na telefonie twórca i opiekun; adres tylko w szczegółach; klient po przypisaniu niezmienny, telefon zamawiającego czyszczony, powody odrzucenia „Oferta odrzucona” / „Rezygnacja klienta”; luki w numeracji akceptowane (nagrobek zachowuje numer); wizje na głównej liście z etykietą; przypomnienie e-mailem 15 dni przed terminem, przedłużenie tylko w panelu ≤ 2 razy, limity 20 / 100; `enforce` po kopiach, do tego `report`; do czasu 139/141/133 tylko wizje testowe, przełącznik włączony; karta A6 z QR, bez znacznika „informację przekazano”. Rozstrzygnięcia Tech Leada z delegacji, do potwierdzenia przy demo, są w sekcjach „Decyzje i ograniczenia” poszczególnych historyjek (chip „Wizje lokalne”, kody powodu przedłużenia, edycja telefonu w panelu, karta w `docs/user/`).
