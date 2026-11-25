@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { pl } from '../src/i18n/pl.ts';
-import { ADMINISTRATOR, CLAUSES, CONTACT_EMAIL, DRAFT } from '../src/privacy/content.ts';
+import { ADMINISTRATOR, CLAUSES, CONTACT_EMAIL, DRAFT, clauseVersion } from '../src/privacy/content.ts';
 
 // Static content of W-19 (EVM-063 AC2, AC4; SR-WEB-03, SR-WEB-07, SR-PRIV-08): no personal data, no external resources.
 // Final version 1.0 (EVM-133): the data of the controller, the decided points, the mobile application.
@@ -226,6 +226,9 @@ describe('content of W-19 (EVM-063)', () => {
     expect(date).toMatch(DATE);
     // the date of 1.1 is the day of the merge of EVM-149 (decision of the owner); it is never the date of 1.0
     expect(sortable(date) > sortable('19.11.2026')).toBe(true);
+    // a draft would never show the number of the approved text (the release gate refuses "projekt")
+    expect(clauseVersion(false)).toBe('1.1');
+    expect(clauseVersion(true)).toBe('0.1 (projekt)');
   });
 
   it('EVM-149 AC1 the clause for clients says that an offer with the name may be saved at the site visit, on the basis and with the periods of the visit', () => {

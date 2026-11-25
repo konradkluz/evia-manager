@@ -48,8 +48,11 @@ export const ADMINISTRATOR: AdministratorData = {
   dataContact: `${DATA_MAILBOX} albo listownie na adres siedziby z dopiskiem „Dane osobowe”. Nie wyznaczyliśmy inspektora ochrony danych.`,
 };
 
+/** The version shown under the title of every clause: a draft says "projekt", the approved text has its number (EVM-149: 1.1). */
+export const clauseVersion = (draft: boolean): string => (draft ? '0.1 (projekt)' : '1.1');
+
 /** Version and date of validity shown under the title of every clause (format of the date: styleguide § 6.3). */
-const VERSION = DRAFT ? '0.1 (projekt)' : '1.1';
+const VERSION = clauseVersion(DRAFT);
 const VALID_FROM = '25.11.2026';
 
 export type ClauseBlock =

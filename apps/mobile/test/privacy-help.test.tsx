@@ -5,7 +5,7 @@ import { AccessibilityInfo, BackHandler, StyleSheet } from 'react-native';
 import { App } from '../src/App';
 import { NO_CONTACT, parseContactEmail, parseContactPhone, readContactConfig } from '../src/config/contact-values';
 import { pl } from '../src/i18n/pl';
-import { ADMINISTRATOR, CLAUSES } from '../src/privacy/content';
+import { ADMINISTRATOR, CLAUSES, clauseVersion } from '../src/privacy/content';
 import { LICENSES } from '../src/privacy/licenses';
 import { PrivacyHelpScreen, type PrivacyHelpScreenProps } from '../src/screens/PrivacyHelpScreen';
 import type { StartupChecker } from '../src/startup';
@@ -123,6 +123,8 @@ describe('the content of M-11 (EVM-102 AC1)', () => {
     expect(date).toMatch(/^\d{2}\.\d{2}\.\d{4}$/);
     expect(date).not.toBe('19.11.2026');
     expect(stamps).toEqual(new Set([`1.1 ${date}`]));
+    expect(clauseVersion(false)).toBe('1.1');
+    expect(clauseVersion(true)).toBe('0.1 (projekt)');
     expect(screen.getAllByText(`Wersja 1.1 · od ${date}`)).toHaveLength(3);
     // the sentence of the clause 1.1 about the offer at the site visit reaches the application (EVM-149 AC1)
     const clients = CLAUSES.find((clause) => clause.id === 'clients')?.blocks ?? [];
