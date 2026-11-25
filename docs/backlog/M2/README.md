@@ -208,6 +208,13 @@ flowchart LR
 ### Przed realnymi wizjami u klientów
 **Obecnie (decyzja 16): tylko wizje testowe**, flaga `SITE_SURVEYS_ENABLED` włączona po scaleniu. Realni klienci dopiero, gdy: EVM-133 scalone (klauzula z akapitem z EVM-141); EVM-141 zatwierdzone przez Konrada (rejestr, aneks DPIA, karta wydrukowana, instrukcja); EVM-139 wdrożone (do `enforce` — pisemne zobowiązanie do ręcznego usunięcia ≤ 90 dni); upoważnienia uczestników. Realnych wizji nie ma w teście EVM-112. **Dokumenty (oferty) na wizji w produkcji** — dodatkowo dopiero po EVM-147 (usuwanie dokumentów) i EVM-149 (klauzula 1.1, karta, DPIA) oraz włączonym `enforce` (EVM-139) albo zaakceptowanym RR-102 z kartą przeglądu; do tego czasu procedura ręczna `retencja.md` sekcja 5 obejmuje także dokumenty (ADR-0025).
 
+Lista kontrolna E15 — dokumenty na wizji (skrót; pełna z dowodami: [instrukcja administratora](../../ops/runbooks/wizja-lokalna.md#2-lista-kontrolna-przed-pierwszą-realną-wizją-ac6), pkt 12):
+- [ ] **Dokumenty na wizji w produkcji dopiero po EVM-147 i EVM-149** — obie scalone i wdrożone (panel pokazuje klauzule w wersji 1.1).
+- [ ] Podstawa prawna oferty na etapie wizji (art. 6 ust. 1 lit. b) zweryfikowana przez prawnika — warunek produkcji (decyzja Konrada 2026-11-24).
+- [ ] Stare karty A6 wycofane przed pierwszą realną wizją z ofertą, karty 1.1 wydrukowane.
+- [ ] Aneks DPIA v1.2 i czynność 9 z dokumentami zatwierdzone przez Konrada.
+- [ ] `enforce` włączony albo RR-102 zaakceptowane z kartą przeglądu obejmującą dokumenty.
+
 ### Decyzje Konrada (2026-11-16, „akceptuję wg rekomendacji”) — wszystkie pytania zamknięte
 Nazwa „Wizja lokalna”; Tylko odczyt bez dostępu; na telefonie twórca i opiekun; adres tylko w szczegółach; klient po przypisaniu niezmienny, telefon zamawiającego czyszczony, powody odrzucenia „Oferta odrzucona” / „Rezygnacja klienta”; luki w numeracji akceptowane (nagrobek zachowuje numer); wizje na głównej liście z etykietą; przypomnienie e-mailem 15 dni przed terminem, przedłużenie tylko w panelu ≤ 2 razy, limity 20 / 100; `enforce` po kopiach, do tego `report`; do czasu 139/141/133 tylko wizje testowe, przełącznik włączony; karta A6 z QR, bez znacznika „informację przekazano”. Rozstrzygnięcia Tech Leada z delegacji, do potwierdzenia przy demo, są w sekcjach „Decyzje i ograniczenia” poszczególnych historyjek (chip „Wizje lokalne”, kody powodu przedłużenia, edycja telefonu w panelu, karta w `docs/user/`).
 

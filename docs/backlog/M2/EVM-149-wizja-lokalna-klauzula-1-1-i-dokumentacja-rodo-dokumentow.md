@@ -4,7 +4,7 @@ title: "Wizja lokalna: klauzula informacyjna 1.1 (oferta na wizji), karta A6, DP
 type: enabler
 milestone: M2
 epic: E15 Wizja lokalna
-status: ready
+status: in-review
 priority: P1
 path: lekka             # dokumentacja i treści klauzul; kod tylko w plikach treści (content.ts)
 owner: security-engineer
@@ -64,7 +64,21 @@ Brak — rozstrzygnięte przez Konrada 2026-11-24 (patrz „Decyzje i ograniczen
 ## Notatki
 Warunek wydania łączy dwie historyjki: dokumenty na wizji w produkcji dopiero po EVM-147 i EVM-149.
 
+- **Data wersji 1.1 (decyzja 2 — dzień scalenia):** mechanizm z EVM-133 wymaga stałej (`VALID_FROM` w `apps/web/src/privacy/content.ts`, dosłowna kopia w aplikacji). W gałęzi jest **25.11.2026** — dzień przygotowania treści, nie przewidywany dzień scalenia. Jeśli PR zostanie scalony innego dnia, ostatni commit przed scaleniem (Tech Lead) zmienia datę w pięciu miejscach naraz: `VALID_FROM` w obu `content.ts`, nagłówek i stopka karty A6 (`docs/user/karta-wizji-lokalnej.md`), zdanie „Wersja bieżąca” w `rodo.md` → „Rozstrzygnięcia klauzul”, wpis EVM-149 w `CHANGELOG.md` („Zmieniono”, „obowiązują od …”). Testy `EVM-149 AC1`/`AC2` (`apps/web/test/privacy-content.test.ts`, `apps/mobile/test/privacy-help.test.tsx`) nie mają daty na sztywno — sprawdzają zgodność tych miejsc i to, że data jest późniejsza niż 19.11.2026.
+- **Ponowne potwierdzenie** = mechanizm wersji z EVM-133 (system nie zbiera potwierdzeń od klientów): nowa wersja i data widoczne w panelu i aplikacji, przegląd treści i zatwierdzenie Konrada przy scaleniu PR, karta A6 w nowej wersji i zniszczenie starych wydruków; aplikacja pokaże 1.1 od następnej paczki APK (`privacyClauses.versions = 1.1`). Opis: `rodo.md` → „Klauzula 1.1 i dokumenty wizji”, pkt 3.
+- **Warunek produkcji:** weryfikacja podstawy prawnej (art. 6 ust. 1 lit. b dla oferty na wizji) przez prawnika przed pierwszą realną wizją z ofertą — `rodo.md` (pkt 6), DPIA aneks v1.2 (warunek 3), lista kontrolna `wizja-lokalna.md` pkt 12, lista E15 w `docs/backlog/M2/README.md`.
+- **Numer zagrożenia (AC4):** TM-152 nadała 2026-11-20 EVM-142 (podgląd zdjęć) — „dokumenty wizji” mają pierwszy wolny numer **TM-153** (zapis w nagłówku aktualizacji `threat-model.md`).
+- **Ustalenie przy realizacji (Low, kandydat do backlogu):** dokument miękko usunięty („Usuń”) znika z panelu także dla Administratora, a w wizji odrzuconej nie da się go przywrócić (`409 work_order_closed`) — przed `enforce` jego pliku nie usuniemy w panelu. Mitygacja proceduralna w `retencja.md` sekcja 5 i `prawa-osob.md` (najpierw „Usuń plik trwale…”, nigdy samo „Usuń”); usuwa go zadanie w `enforce` (`documentIds` obejmuje dokumenty miękko usunięte).
+
 ## Dziennik
 - 2026-11-20 — utworzono przy podziale EVM-147 na trzy historyjki (product-owner)
 - 2026-11-23 — uwzględniono ADR-0025: RR-14 z odnośnikiem, instrukcja o kopiach poza systemem, RR-102 dla dokumentów, warunek `enforce` (product-owner)
 - 2026-11-24 — decyzje Konrada w sprawie klauzuli 1.1, daty wersji i kart A6; status `ready`
+- 2026-11-25 — start realizacji (/deliver): gałąź `feature/EVM-149-klauzula-1-1-wizja`, ścieżka `lekka`, wykonawca security-engineer (`opus`), recenzent code-reviewer
+- 2026-11-25 — realizacja (security-engineer): klauzule 1.1 w panelu i aplikacji (testy `EVM-149 AC1`, `AC2`), karta A6 1.1, instrukcja dla biura, `rodo.md`, DPIA aneks v1.2, `retencja.md`, TM-153, RR-14, RR-102, SR-PRIV-04/11/12, SR-AUTHZ-13, `prawa-osob.md`, `rejestr-usuniec.md`, lista kontrolna E15; data 1.1 = 25.11.2026 do korekty przy scaleniu (Notatki); `pnpm run gate` zielona (68/68, pokrycie zmian 100%), `docs:check` 0 błędów
+- 2026-11-25 — weryfikacja AC (product-owner): AC1–AC5 pokryte; odchylenia do akceptacji Konrada: TM-153 zamiast TM-152 (numer zajęty), data 1.1 = 25.11.2026 do korekty przy scaleniu, ustalenie Low (miękko usunięty dokument w wizji odrzuconej) — kandydat do backlogu; bramkę i `docs:check` ponownie uruchamia orkiestrator (brak powłoki)
+- 2026-11-25 — weryfikacja implementacji (web-developer): `content.ts` w panelu i aplikacji identyczne; testy prywatności web 39/39 (Vitest), mobile 45/45 (Jest); `pnpm run gate` zielona (pokrycie zmian 6/6 linii, 4/4 gałęzi), `docs:check` 0 błędów, 0 ostrzeżeń; bez zmian w kodzie
+- 2026-11-25 — weryfikacja implementacji (mobile-developer): `content.ts` w aplikacji = panel (`diff`), wersja 1.1 z `VALID_FROM` 25.11.2026; testy mobile 133 zestawy / 2206 testów zielone, prywatność web 39/39; `pnpm run gate` zielona (pokrycie zmian 100%), `docs:check` 0 błędów, 0 ostrzeżeń; bez zmian w kodzie
+- 2026-11-25 — poprawki rundy 1 (security-engineer, ustalenie major code-reviewer): wpis EVM-149 w `CHANGELOG.md` („Zmieniono”) jako piąte miejsce korekty daty przy scaleniu (Notatki, `rodo.md` pkt 3); nowy test `EVM-149 AC1` pilnuje, że wersja i data we wpisie są równe `content.ts`
+- 2026-11-25 — Koszt: ścieżka `lekka`, 6 agentów, ok. 0,63 mln tokenów podagentów, 272 wywołania narzędzi, ok. 45 min, 1 runda, 1 poprawka (CHANGELOG)
+- 2026-11-25 — weryfikacja Tech Leada: `pnpm run gate` zielona (pokrycie zmienionego kodu 100%), `docs:check` 0 błędów, `web-e2e-linux` 1568 passed / 4 flaky / 0 failed; status `in-review`

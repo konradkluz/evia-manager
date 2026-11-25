@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createQueryClient } from '../src/app.tsx';
 import { createI18n } from '../src/i18n/i18n.ts';
 import { LoadedSections } from '../src/pages/privacy-page.tsx';
+import { CLAUSES } from '../src/privacy/content.ts';
 import { axeViolations } from './a11y.ts';
 import { ACTIVE_SESSION, createFakeApi, ENROLLMENT_SESSION, json, problem, SESSION_ROUTE } from './api-fake.ts';
 import { renderPanel } from './render.tsx';
@@ -156,7 +157,10 @@ describe('content of W-19 (EVM-063 AC2, AC3, AC6)', () => {
     expect(screen.queryByRole('alert')).toBeNull();
   });
 
-  it('EVM-133 AC1 AC2 three clauses with version 1.0 and the date of validity, collapsed; the controller is shown, there is no note about a draft', async () => {
+  it('EVM-133 AC1 AC2, EVM-149 AC1 three clauses with version 1.1 and the date of validity, collapsed; the controller is shown, there is no note about a draft', async () => {
+    // the date of 1.1 is the day of the merge of EVM-149 (content.ts; EVM-149 AC1 in privacy-content.test.ts checks it)
+    const date = (CLAUSES[0]?.validFrom ?? '').replaceAll('.', '\\.');
+    expect(date).toMatch(/^\d{2}\\\.\d{2}\\\.\d{4}$/);
     const user = setupUser();
     await renderPage();
     expect(screen.getByRole('heading', { level: 3, name: 'Administrator danych' })).toBeTruthy();
@@ -171,7 +175,7 @@ describe('content of W-19 (EVM-063 AC2, AC3, AC6)', () => {
     ];
     for (const title of titles) {
       const toggle = screen.getByRole('button', {
-        name: new RegExp(`^${title.replaceAll(/[()]/g, '\\$&')}\\s*Wersja 1\\.0 · obowiązuje od 19\\.11\\.2026$`),
+        name: new RegExp(`^${title.replaceAll(/[()]/g, '\\$&')}\\s*Wersja 1\\.1 · obowiązuje od ${date}$`),
       });
       expect(toggle.getAttribute('aria-expanded')).toBe('false');
       expect(toggle.closest('h3')).toBeTruthy();

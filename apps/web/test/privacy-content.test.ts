@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { pl } from '../src/i18n/pl.ts';
-import { ADMINISTRATOR, CLAUSES, CONTACT_EMAIL, DRAFT } from '../src/privacy/content.ts';
+import { ADMINISTRATOR, CLAUSES, CONTACT_EMAIL, DRAFT, clauseVersion } from '../src/privacy/content.ts';
 
 // Static content of W-19 (EVM-063 AC2, AC4; SR-WEB-03, SR-WEB-07, SR-PRIV-08): no personal data, no external resources.
 // Final version 1.0 (EVM-133): the data of the controller, the decided points, the mobile application.
@@ -59,6 +59,20 @@ const HOST = /\b[\p{L}\d-]+\.(pl|com|eu|net|org|io|cloud|de|fr|fi|app|dev|tech)\
 const COMPONENT_VERSION = /\bv?\d+\.\d+\.\d+\b/;
 const PHONE = /\+?\d[\d\s-]{7,}\d/;
 const IP = /\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/;
+/** The date of validity as the page shows it (styleguide § 6.3): DD.MM.RRRR. */
+const DATE = /^(\d{2})\.(\d{2})\.(\d{4})$/;
+
+/** `DD.MM.RRRR` → `RRRRMMDD`, so two dates compare as strings. */
+const sortable = (date: string): string => date.replace(DATE, '$3$2$1');
+
+/** The documents that must say the same as the clause 1.1 (EVM-149 AC2, AC3): the A6 card and the record of the decisions. */
+const CARD = '../../../docs/user/karta-wizji-lokalnej.md';
+const RODO = '../../../docs/security/rodo.md';
+/** The release notes name the version and the date users see (DoD; the fifth place of the date correction at the merge). */
+const CHANGELOG = '../../../CHANGELOG.md';
+
+/** The sentence of the clause 1.1 decided by the owner (EVM-149, decision of 2026-11-24, item 1). */
+const OFFER_SENTENCE = 'Na etapie wizji możemy zapisać ofertę z Twoim imieniem i nazwiskiem';
 
 describe('content of W-19 (EVM-063)', () => {
   it('EVM-063 AC4 the written texts hold no address of a resource, host, e-mail, telephone, IP or version of a component', () => {
@@ -133,11 +147,12 @@ describe('content of W-19 (EVM-063)', () => {
     expect(ADMINISTRATOR.dataContact).not.toMatch(PHONE);
   });
 
-  it('EVM-133 AC2 final version: the draft flag is off, version 1.0, a date of validity, no marker of the owner or of a lawyer anywhere', () => {
+  it('EVM-133 AC2 final version: the draft flag is off, a date of validity, no marker of the owner or of a lawyer anywhere', () => {
     expect(DRAFT).toBe(false);
+    // the version and the date moved on with 1.1 (EVM-149 AC1, below); a final version is never a draft
     for (const clause of CLAUSES) {
-      expect(clause.version).toBe('1.0');
-      expect(clause.validFrom).toBe('19.11.2026');
+      expect(clause.version).toMatch(/^\d+\.\d+$/);
+      expect(clause.validFrom).toMatch(DATE);
     }
     const joined = everyText().join('\n');
     expect(joined).not.toMatch(/\[(DO UZUPEŁNIENIA|PRAWNIK\/IOD)\]/);
@@ -202,6 +217,67 @@ describe('content of W-19 (EVM-063)', () => {
     expect(clients).toContain('łącznie nie dłużej niż 270 dni od zapisania wizji');
     expect(clients).toContain('14 dni od rezygnacji lub odrzucenia');
     expect(clients).not.toMatch(/90 dni od wizji|usuwamy automatycznie/);
+  });
+
+  it('EVM-149 AC1 version 1.1: one new version and one new date for every clause, later than the date of 1.0', () => {
+    expect(DRAFT).toBe(false);
+    expect(new Set(CLAUSES.map((clause) => clause.version))).toEqual(new Set(['1.1']));
+    const dates = new Set(CLAUSES.map((clause) => clause.validFrom));
+    expect(dates.size).toBe(1);
+    const [date = ''] = [...dates];
+    expect(date).toMatch(DATE);
+    // the date of 1.1 is the day of the merge of EVM-149 (decision of the owner); it is never the date of 1.0
+    expect(sortable(date) > sortable('19.11.2026')).toBe(true);
+    // a draft would never show the number of the approved text (the release gate refuses "projekt")
+    expect(clauseVersion(false)).toBe('1.1');
+    expect(clauseVersion(true)).toBe('0.1 (projekt)');
+  });
+
+  it('EVM-149 AC1 the clause for clients says that an offer with the name may be saved at the site visit, on the basis and with the periods of the visit', () => {
+    const clients = textOf('clients');
+    // the sentence decided by the owner, the basis (art. 6 ust. 1 lit. b) and the periods of the visit (90 / 14 days)
+    expect(clients).toContain(`${OFFER_SENTENCE} (może zawierać także Twój adres)`);
+    expect(clients).toContain(
+      'przygotowaną na Twoje żądanie przed zawarciem umowy (art. 6 ust. 1 lit. b RODO). Ofertę przechowujemy i usuwamy razem z danymi z wizji',
+    );
+    expect(clients).toContain(
+      'dane z wizji lokalnej (także oferta zapisana na etapie wizji), po której nie zawarliśmy umowy — najpóźniej po 90 dniach od zapisania wizji w naszym systemie',
+    );
+    expect(clients).toContain('14 dni od rezygnacji lub odrzucenia');
+    // only the offer: no other documents and no copies of identity documents at this stage
+    expect(clients).toContain('Innych dokumentów na tym etapie nie zapisujemy');
+    // the sentence of 1.0 that would be untrue after EVM-147 (security H2) is gone from every clause
+    for (const clause of CLAUSES) {
+      expect(textOf(clause.id)).not.toMatch(/imienia i nazwiska na tym etapie nie zapisujemy/i);
+    }
+    // the offer sentence is said once and only in the clause for clients
+    expect(clients.split(OFFER_SENTENCE)).toHaveLength(2);
+    expect(textOf('parties')).not.toContain(OFFER_SENTENCE);
+    expect(textOf('employees')).not.toContain(OFFER_SENTENCE);
+  });
+
+  it('EVM-149 AC2 the A6 card and rodo.md carry the version and the date of the clause 1.1 and no longer deny the name at the visit', () => {
+    const [clause] = CLAUSES;
+    const stamp = `${clause?.version ?? ''} z dnia ${clause?.validFrom ?? ''}`;
+    const card = read(CARD);
+    expect(card).toContain(`Karta A6, wersja ${stamp}`);
+    expect(card).toContain(`klauzula „Klienci” w wersji ${stamp}`);
+    expect(card).not.toMatch(/Imienia i nazwiska na tym etapie nie zapisujemy/);
+    expect(card).toContain('ofertę z Twoim imieniem i nazwiskiem');
+    const rodo = read(RODO);
+    expect(rodo).toContain(`klauzule w wersji **${clause?.version ?? ''}**, obowiązują od ${clause?.validFrom ?? ''}`);
+    expect(rodo).toContain(OFFER_SENTENCE);
+  });
+
+  it('EVM-149 AC1 the changelog entry of the clause 1.1 carries the same version and date as the panel and the application', () => {
+    const [clause] = CLAUSES;
+    const changelog = read(CHANGELOG);
+    // the entry belongs to the changes not released yet (everything from the [Unreleased] heading on)
+    const start = changelog.indexOf('## [Unreleased]');
+    expect(start).toBeGreaterThanOrEqual(0);
+    expect(changelog.slice(start)).toContain(
+      `Klauzule prywatności w wersji ${clause?.version ?? ''} (panel W-19 i aplikacja M-11, obowiązują od ${clause?.validFrom ?? ''}) [EVM-149`,
+    );
   });
 
   it('EVM-063 AC2 three clauses for the three groups, each with a version and a date', () => {

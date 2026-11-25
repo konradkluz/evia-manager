@@ -1,12 +1,14 @@
 # Karta informacyjna „Wizja lokalna” (A6) i naklejka z kodem QR
 
-> Dokument żywy (EVM-141 AC4). Właściciel: `security-engineer`; układ graficzny: `ux-designer`; treść zatwierdza Konrad. Wersja **projekt, 2026-11-16**. Markdown do wydruku — panel go nie publikuje (stroną panelu jest tylko [instrukcja dla biura](instrukcja-dla-biura.md)). Spełnia obowiązek informacyjny z art. 13 RODO **w chwili zbierania danych** — technik **wręcza kartę przed pierwszym zdjęciem** ([instrukcja dla biura](instrukcja-dla-biura.md), rozdział 4). Zasady: [`rodo.md` → „Wizja lokalna”](../security/rodo.md#wizja-lokalna--zasady-przetwarzania-evm-141). Ocena własna administratora bez prawnika i IOD (RR-95) — nie jest poradą prawną.
+> Dokument żywy (EVM-141 AC4). Właściciel: `security-engineer`; układ graficzny: `ux-designer`; treść zatwierdza Konrad. Wersja **1.1 z dnia 25.11.2026** — zgodna z klauzulą „Klienci” 1.1 (EVM-149: oferta na etapie wizji, [ADR-0025](../architecture/adr/0025-dokumenty-wizji-lokalnej-przed-klientem.md)); wersja i data karty są zawsze takie same jak wersja i data klauzuli (test `EVM-149 AC2` w `apps/web/test/privacy-content.test.ts`), poprzednio: projekt z 2026-11-16. Markdown do wydruku — panel go nie publikuje (stroną panelu jest tylko [instrukcja dla biura](instrukcja-dla-biura.md)). Spełnia obowiązek informacyjny z art. 13 RODO **w chwili zbierania danych** — technik **wręcza kartę przed pierwszym zdjęciem** ([instrukcja dla biura](instrukcja-dla-biura.md), rozdział 4). Zasady: [`rodo.md` → „Wizja lokalna”](../security/rodo.md#wizja-lokalna--zasady-przetwarzania-evm-141). Ocena własna administratora bez prawnika i IOD (RR-95) — nie jest poradą prawną.
 
 ## Zanim wydrukujesz
-- **Drukujemy dopiero po scaleniu EVM-133** (klauzule w wersji ostatecznej z akapitem o wizji) — treść karty musi być zgodna z klauzulą „Klienci”, do której prowadzi kod QR. Do tego czasu obowiązują wyłącznie wizje testowe i karta nie jest potrzebna.
+- **Drukujemy dopiero po scaleniu EVM-149 i wdrożeniu panelu z klauzulą 1.1** (EVM-133 dało wersję 1.0 z akapitem o wizji; 1.1 dodaje ofertę na etapie wizji) — treść karty musi być zgodna z klauzulą „Klienci”, do której prowadzi kod QR. Do tego czasu obowiązują wyłącznie wizje testowe i karta nie jest potrzebna.
 - Pola w nawiasach kwadratowych `[…]` wypełnia Konrad przy druku — **danymi spółki z klauzuli w wersji ostatecznej** (sekcja „Administrator danych” w „Prywatność i pomoc”). W repozytorium zostają nawiasy (repozytorium publiczne — bez danych, których Konrad nie podał w EVM-133).
 - Karta nie zawiera żadnych danych klienta ani numeru zlecenia — jedna treść dla wszystkich wizji. Niczego na niej nie dopisujemy ręcznie.
 - Zmiana klauzuli „Klienci” (nowa wersja) = sprawdzenie, czy karta jest nadal zgodna; niezgodne wydruki niszczymy.
+- **Wersja 1.1 (EVM-149, decyzja Konrada 2026-11-24):** karta mówi o ofercie z imieniem i nazwiskiem zapisywanej na etapie wizji i o jej usunięciu razem z wizją. **Wydruki kart sprzed wersji 1.1 (bez stopki „Karta A6, wersja 1.1…”) wycofujemy i niszczymy przed pierwszą realną wizją z ofertą** — były zgodne z klauzulą 1.0, która twierdziła, że na etapie wizji nie zapisujemy imienia i nazwiska. Wydruk i zniszczenie starych kart odbywają się poza repozytorium (dowód: data w [liście kontrolnej](../ops/runbooks/wizja-lokalna.md#2-lista-kontrolna-przed-pierwszą-realną-wizją-ac6), pkt 12).
+- **Data na stopce** jest datą klauzuli 1.1 = dniem scalenia EVM-149; jeśli scalenie nastąpi innego dnia niż data w repozytorium, zmienia się ją w tej samej zmianie co datę klauzuli (stała `VALID_FROM` w `apps/web/src/privacy/content.ts` i jej kopia w aplikacji) — drukujemy dopiero z datą, która jest w panelu.
 
 ## Karta A6 — strona 1 (przód)
 **Wizja lokalna — co dzieje się z Twoimi danymi**
@@ -20,7 +22,7 @@ Dziękujemy za zaproszenie. Zanim zrobimy zdjęcia, prosimy o przeczytanie tej i
 Żeby przygotować ofertę, o którą prosisz — to działania na Twoje żądanie przed zawarciem umowy (art. 6 ust. 1 lit. b RODO). Osoby, pojazdy i tabliczki z nazwiskami, które przypadkiem znajdą się w kadrze, przetwarzamy w naszym prawnie uzasadnionym interesie: przygotowania oferty i udokumentowania stanu miejsca przed pracami (art. 6 ust. 1 lit. f RODO).
 
 **Jakie dane zapisujemy?**
-Adres miejsca instalacji, zdjęcia i filmy posesji, garażu i instalacji elektrycznej (filmy bez dźwięku), notatki z oględzin oraz Twój numer telefonu — tylko jeśli go podasz. Imienia i nazwiska na tym etapie nie zapisujemy. Staramy się nie fotografować osób, tablic rejestracyjnych i tabliczek z nazwiskami — jeśli czegoś nie chcesz na zdjęciu, powiedz technikowi.
+Adres miejsca instalacji, zdjęcia i filmy posesji, garażu i instalacji elektrycznej (filmy bez dźwięku), notatki z oględzin oraz Twój numer telefonu — tylko jeśli go podasz. Na etapie wizji możemy zapisać ofertę z Twoim imieniem i nazwiskiem (i adresem, jeśli jest w ofercie) — usuwamy ją razem z wizją, w tych samych terminach. Innych dokumentów i kopii dokumentów tożsamości na tym etapie nie zapisujemy. Staramy się nie fotografować osób, tablic rejestracyjnych i tabliczek z nazwiskami — jeśli czegoś nie chcesz na zdjęciu, powiedz technikowi.
 
 **Jak długo?**
 - bez umowy — usuwamy najpóźniej po **90 dniach** od zapisania wizji w naszym systemie (zwykle w dniu wizji); gdy decyzja wymaga czasu (np. uchwały wspólnoty), możemy przedłużyć ten okres najwyżej dwa razy o 90 dni (łącznie nie dłużej niż **270 dni** od zapisania wizji),
@@ -43,11 +45,13 @@ Masz prawo dostępu do danych i otrzymania ich kopii, sprostowania, usunięcia, 
 [kod QR — 25 × 25 mm]
 [adres strony z klauzulą „Klienci” — ten sam, który koduje QR, wydrukowany pod kodem]
 
+_Stopka (drobnym drukiem, co najmniej 7 pt):_ Karta A6, wersja 1.1 z dnia 25.11.2026 — zgodna z informacją pełną: klauzula „Klienci” w wersji 1.1 z dnia 25.11.2026.
+
 ## Naklejka (z kodem QR)
 Do naklejenia na teczkę lub podkładkę technika albo na protokół z oględzin zostawiany zamawiającemu — gdy karta się skończy, technik pokazuje naklejkę do zeskanowania. Format: 50 × 70 mm (pion), naklejka papierowa matowa.
 
 **Wizja lokalna — Twoje dane**
-[pełna nazwa spółki] przetwarza adres, zdjęcia i filmy posesji oraz — jeśli go podasz — Twój telefon, żeby przygotować ofertę (art. 6 ust. 1 lit. b RODO). Bez umowy usuwamy je najpóźniej po 90 dniach od zapisania wizji w naszym systemie (z przedłużeniem — najwyżej 270), po rezygnacji — po 14 dniach. Prawa, sprzeciw i kontakt:
+[pełna nazwa spółki] przetwarza adres, zdjęcia i filmy posesji, Twój telefon (jeśli go podasz) oraz — gdy ją przygotujemy — ofertę z Twoim imieniem i nazwiskiem, żeby przygotować ofertę (art. 6 ust. 1 lit. b RODO). Bez umowy usuwamy je najpóźniej po 90 dniach od zapisania wizji w naszym systemie (z przedłużeniem — najwyżej 270), po rezygnacji — po 14 dniach. Prawa, sprzeciw i kontakt:
 [kod QR — 25 × 25 mm]
 [adres strony z klauzulą „Klienci”]
 
@@ -60,7 +64,7 @@ Do naklejenia na teczkę lub podkładkę technika albo na protokół z oględzin
 | Kod QR | co najmniej 25 × 25 mm, poziom korekcji błędów M, margines (strefa ciszy) 4 moduły, czarny na białym; pod kodem — ten sam adres tekstem (dla osób bez skanera) |
 | Logo | opcjonalnie, w nagłówku; nie zmniejsza kodu QR ani tekstu |
 | Nakład | na start po 20 kart na osobę zakładającą wizje; uzupełnia Administrator |
-| Sprawdzenie przed drukiem całego nakładu | wydruk próbny; kod QR skanuje się dwoma różnymi telefonami (aparat systemowy) i otwiera klauzulę „Klienci” w wersji ostatecznej; treść zgodna z klauzulą (okresy 90 / 270 / 14 dni liczone od zapisania wizji w systemie — [`rodo.md` → „Od kiedy liczymy”](../security/rodo.md#wizja-lokalna--zasady-przetwarzania-evm-141), kontakt) |
+| Sprawdzenie przed drukiem całego nakładu | wydruk próbny; kod QR skanuje się dwoma różnymi telefonami (aparat systemowy) i otwiera klauzulę „Klienci” w wersji ostatecznej; treść zgodna z klauzulą (okresy 90 / 270 / 14 dni liczone od zapisania wizji w systemie — [`rodo.md` → „Od kiedy liczymy”](../security/rodo.md#wizja-lokalna--zasady-przetwarzania-evm-141), oferta na etapie wizji, kontakt); wersja i data na stopce = wersja i data klauzuli „Klienci” pokazywane w panelu („Wersja 1.1 · od …”) |
 
 ## Kod QR
 - **Cel kodu (rekomendacja z delegacji, do potwierdzenia przez Konrada):** publiczny adres klauzuli „Klienci”, który otwiera się bez logowania. Dziś jest nim strona „Prywatność i pomoc” panelu, dostępna bez sesji: `https://panel.eviacharge.pl/privacy#prywatnosc` (W-19). Docelowo — strona klauzuli na publicznej stronie firmy (przegląd prawny EVM-133, C9); po jej uruchomieniu karty drukujemy z nowym adresem.

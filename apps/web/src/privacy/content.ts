@@ -8,6 +8,10 @@
  * the owner" (RR-95; docs/security/rodo.md → "Rozstrzygnięcia klauzul"). Every later change of the text is a NEW version and a new
  * date (the history is in git). The same file lives in `apps/mobile/src/privacy/content.ts` — a verbatim copy, a test compares them.
  *
+ * Version 1.1 (EVM-149, ADR-0025): the clause for clients says that an offer with the name of the person who ordered the site visit
+ * may be saved at the visit and is erased with it. The date of 1.1 is the day of the merge of EVM-149 (decision of the owner
+ * 2026-11-24); the A6 card and rodo.md carry the same version and date (tests EVM-149 AC1, AC2).
+ *
  * The texts describe what the system does today (RODO art. 5 ust. 1 lit. a, art. 12–14), including the mobile application.
  */
 
@@ -44,9 +48,12 @@ export const ADMINISTRATOR: AdministratorData = {
   dataContact: `${DATA_MAILBOX} albo listownie na adres siedziby z dopiskiem „Dane osobowe”. Nie wyznaczyliśmy inspektora ochrony danych.`,
 };
 
+/** The version shown under the title of every clause: a draft says "projekt", the approved text has its number (EVM-149: 1.1). */
+export const clauseVersion = (draft: boolean): string => (draft ? '0.1 (projekt)' : '1.1');
+
 /** Version and date of validity shown under the title of every clause (format of the date: styleguide § 6.3). */
-const VERSION = DRAFT ? '0.1 (projekt)' : '1.0';
-const VALID_FROM = '19.11.2026';
+const VERSION = clauseVersion(DRAFT);
+const VALID_FROM = '25.11.2026';
 
 export type ClauseBlock =
   | { readonly kind: 'heading'; readonly text: string }
@@ -122,7 +129,10 @@ const CLIENTS: Clause = {
       'Jeżeli prosisz nas o ofertę, nasz pracownik może najpierw obejrzeć miejsce instalacji (wizja lokalna). Robimy to wyłącznie na Twoje zgłoszenie — w celu przygotowania oferty, czyli działań podejmowanych na Twoje żądanie przed zawarciem umowy (art. 6 ust. 1 lit. b RODO).',
     ),
     paragraph(
-      'Na tym etapie zapisujemy w naszym systemie: adres miejsca instalacji, zdjęcia i filmy posesji, garażu i instalacji elektrycznej (filmy nagrane w aplikacji — bez dźwięku; wraz z danymi zapisanymi w pliku, np. datą, a w plikach dodanych w panelu także miejscem wykonania), notatki z oględzin oraz — jeśli go podasz — Twój numer telefonu do kontaktu w sprawie oferty. Twojego imienia i nazwiska na tym etapie nie zapisujemy. Dane pochodzą od Ciebie i z oględzin wykonanych przez naszego pracownika.',
+      'Na tym etapie zapisujemy w naszym systemie: adres miejsca instalacji, zdjęcia i filmy posesji, garażu i instalacji elektrycznej (filmy nagrane w aplikacji — bez dźwięku; wraz z danymi zapisanymi w pliku, np. datą, a w plikach dodanych w panelu także miejscem wykonania), notatki z oględzin oraz — jeśli go podasz — Twój numer telefonu do kontaktu w sprawie oferty. Dane pochodzą od Ciebie i z oględzin wykonanych przez naszego pracownika.',
+    ),
+    paragraph(
+      'Na etapie wizji możemy zapisać ofertę z Twoim imieniem i nazwiskiem (może zawierać także Twój adres), przygotowaną na Twoje żądanie przed zawarciem umowy (art. 6 ust. 1 lit. b RODO). Ofertę przechowujemy i usuwamy razem z danymi z wizji — w terminach podanych w sekcji „Jak długo przechowujemy dane” (najpóźniej po 90 dniach od zapisania wizji w naszym systemie, przy przedłużeniu najwyżej po 270 dniach, a po Twojej rezygnacji albo odrzuceniu oferty — po 14 dniach). Innych dokumentów na tym etapie nie zapisujemy, w szczególności kopii dokumentów tożsamości.',
     ),
     paragraph(
       'Jeżeli na zdjęciach mimo naszej ostrożności znajdą się inne osoby, ich pojazdy albo tabliczki z nazwiskami, przetwarzamy je w naszym prawnie uzasadnionym interesie — udokumentowania stanu miejsca przed pracami (art. 6 ust. 1 lit. f RODO); zasady opisuje sekcja „Osoby postronne na zdjęciach i filmach”.',
@@ -144,7 +154,7 @@ const CLIENTS: Clause = {
     paragraph(NO_OTHER_TRANSFER),
     heading('Jak długo przechowujemy dane'),
     list(
-      'dane z wizji lokalnej, po której nie zawarliśmy umowy — najpóźniej po 90 dniach od zapisania wizji w naszym systemie (zwykle w dniu wizji); gdy decyzja wymaga więcej czasu (np. uchwały wspólnoty), możemy ten okres przedłużyć najwyżej dwa razy o 90 dni — łącznie nie dłużej niż 270 dni od zapisania wizji,',
+      'dane z wizji lokalnej (także oferta zapisana na etapie wizji), po której nie zawarliśmy umowy — najpóźniej po 90 dniach od zapisania wizji w naszym systemie (zwykle w dniu wizji); gdy decyzja wymaga więcej czasu (np. uchwały wspólnoty), możemy ten okres przedłużyć najwyżej dwa razy o 90 dni — łącznie nie dłużej niż 270 dni od zapisania wizji,',
       'dane z wizji lokalnej po Twojej rezygnacji albo odrzuceniu oferty — 14 dni od rezygnacji lub odrzucenia; jeżeli zawrzemy umowę, dokumentacja z wizji staje się częścią dokumentacji zlecenia i przechowujemy ją jak dane zlecenia,',
       'dane zlecenia, dokumenty i zdjęcia — 6 lat od końca roku kalendarzowego, w którym zlecenie zamknięto,',
       'zlecenie anulowane przed akceptacją — 12 miesięcy od anulowania,',

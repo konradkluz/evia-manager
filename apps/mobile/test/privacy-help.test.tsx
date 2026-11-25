@@ -5,7 +5,7 @@ import { AccessibilityInfo, BackHandler, StyleSheet } from 'react-native';
 import { App } from '../src/App';
 import { NO_CONTACT, parseContactEmail, parseContactPhone, readContactConfig } from '../src/config/contact-values';
 import { pl } from '../src/i18n/pl';
-import { ADMINISTRATOR, CLAUSES } from '../src/privacy/content';
+import { ADMINISTRATOR, CLAUSES, clauseVersion } from '../src/privacy/content';
 import { LICENSES } from '../src/privacy/licenses';
 import { PrivacyHelpScreen, type PrivacyHelpScreenProps } from '../src/screens/PrivacyHelpScreen';
 import type { StartupChecker } from '../src/startup';
@@ -111,13 +111,26 @@ describe('the content of M-11 (EVM-102 AC1)', () => {
     }
   });
 
-  it('EVM-133 AC1: the data of the controller are shown as the panel has them (the data of the register, one version and one date)', async () => {
+  it('EVM-133 AC1, EVM-149 AC1: the data of the controller are shown as the panel has them (the data of the register, one version 1.1 and one date)', async () => {
     await render(<PrivacyHelpScreen {...props()} />);
     expect(ADMINISTRATOR.name).toBe('Electroplus Realty');
     expect(ADMINISTRATOR.registry).toContain('KRS 0001109597');
     expect(ADMINISTRATOR.dataContact).toContain('kontakt@electroplus.io');
-    expect(new Set(CLAUSES.map((clause) => `${clause.version} ${clause.validFrom}`))).toEqual(new Set(['1.0 19.11.2026']));
-    expect(screen.getAllByText('Wersja 1.0 · od 19.11.2026')).toHaveLength(3);
+    // one version and one date for the three clauses; the date of 1.1 is the day of the merge of EVM-149 (never the date of 1.0)
+    const stamps = new Set(CLAUSES.map((clause) => `${clause.version} ${clause.validFrom}`));
+    expect(stamps.size).toBe(1);
+    const date = CLAUSES[0]?.validFrom ?? '';
+    expect(date).toMatch(/^\d{2}\.\d{2}\.\d{4}$/);
+    expect(date).not.toBe('19.11.2026');
+    expect(stamps).toEqual(new Set([`1.1 ${date}`]));
+    expect(clauseVersion(false)).toBe('1.1');
+    expect(clauseVersion(true)).toBe('0.1 (projekt)');
+    expect(screen.getAllByText(`Wersja 1.1 · od ${date}`)).toHaveLength(3);
+    // the sentence of the clause 1.1 about the offer at the site visit reaches the application (EVM-149 AC1)
+    const clients = CLAUSES.find((clause) => clause.id === 'clients')?.blocks ?? [];
+    const texts = clients.flatMap((block) => (block.kind === 'list' ? block.items : [block.text])).join('\n');
+    expect(texts).toContain('Na etapie wizji możemy zapisać ofertę z Twoim imieniem i nazwiskiem');
+    expect(texts).not.toMatch(/imienia i nazwiska na tym etapie nie zapisujemy/i);
     expect(screen.getByText(`Nazwa: ${ADMINISTRATOR.name}`)).toBeOnTheScreen();
     expect(screen.getByText(`Kontakt w sprawach danych: ${ADMINISTRATOR.dataContact}`)).toBeOnTheScreen();
   });
