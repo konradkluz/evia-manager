@@ -126,4 +126,23 @@ describe('UploadQueueItem (styleguide § 3.12, § 4.14; EVM-044 AC1, AC4, AC5)',
     );
     expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('0');
   });
+
+  it('EVM-148 AC6 a failure that is announced is an alert with the state and the detail; without it the row is plain content', async () => {
+    const { container, rerender } = render(
+      <ul>
+        <UploadQueueItem name="Oferta testowa" state="failed" statusLabel="Nie dodano dokumentu." detail="Przypisz klienta." announce />
+      </ul>,
+    );
+    const alert = screen.getByRole('alert');
+    expect(alert.textContent).toContain('Nie dodano dokumentu.');
+    expect(alert.textContent).toContain('Przypisz klienta.');
+    expect(alert.textContent).not.toContain('Oferta testowa');
+    expect(await axeViolations(container)).toEqual([]);
+    rerender(
+      <ul>
+        <UploadQueueItem name="Oferta testowa" state="failed" statusLabel="Nie dodano dokumentu." />
+      </ul>,
+    );
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
 });

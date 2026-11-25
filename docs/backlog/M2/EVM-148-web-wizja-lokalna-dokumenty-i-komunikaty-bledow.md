@@ -4,7 +4,7 @@ title: "Panel: wgrywanie oferty w wizji lokalnej, ostrzeżenie o danych osobowyc
 type: story
 milestone: M2
 epic: E15 Wizja lokalna
-status: ready
+status: in-review
 priority: P1
 path: pelna             # formularz z ostrzeżeniem o danych osobowych, uprawnienia ról
 owner: web-developer
@@ -67,8 +67,14 @@ Zmiany w API i usuwaniu (EVM-147); klauzula, karta, DPIA (EVM-149); inne rodzaje
 
 ## Notatki
 Błąd komunikatów (AC4, AC5) jest niezależny od API — w razie potrzeby można go wyprzedzić jako osobną drobną poprawkę.
+- Uwagi nieblokujące (2026-11-24): `400 requires_customer` na `/kindCode` w wizji mówi „Zmień pole „Rodzaj””, choć pole jest tylko do odczytu (dotyczy wyłącznie rozjazdu z serwerem; do potwierdzenia przy demo); stan ładowania danych wizji nie występuje na tym ekranie (sekcja renderuje się po załadowaniu zlecenia); nieznany kod 409 daje teraz komunikat ogólny z „Ponów” (wcześniej „conflict”); niepokryte gałęzie: `document-labels.ts:167`, wiersze `invalid_state_transition` i brak sieci w `site-survey-documents.test.tsx` (nit); realne oferty nadal po EVM-149 i `enforce` albo RR-102.
 
 ## Dziennik
 - 2026-11-20 — utworzono przy podziale EVM-147 na trzy historyjki (product-owner)
 - 2026-11-23 — AC4: obsługa `400 /kindCode requires_customer` po ADR-0025 (product-owner)
 - 2026-11-24 — refinement: zależności EVM-147 i EVM-138 done; konsultacja ux-designera (brzmienia, komponenty, luki AC); Konrad akceptuje zmiany AC (AC2–AC5); 6 AC; status `ready`
+- 2026-11-24 — start realizacji (/deliver): gałąź `feature/EVM-148-oferta-w-panelu-wizji`, ścieżka `pelna`, wykonawca web-developer (`sonnet`), recenzenci code-reviewer, ux-designer
+- 2026-11-24 — plan gotowy (web-developer)
+- 2026-11-24 — implementacja AC1–AC6 gotowa (web-developer): silnik, formularz oferty, panel błędów, testy, e2e, dokumentacja
+- 2026-11-24 — przeglądy (code-reviewer, ux-designer): approve w rundzie 1; bramka `pnpm run gate` zielona u Tech Leada (pokrycie zmienionego kodu 100% linii / 93,5% gałęzi); `web-e2e-linux`: 1568 przeszło, 3 flaky, 1 pad Firefoksa w niezwiązanym `work-order-media-preview` (EVM-045) pod obciążeniem — osobno 26/26 zielone; status `in-review`
+- 2026-11-24 — Koszt: ścieżka `pelna`, 6 agentów, ok. 0,52 mln tokenów podagentów, 141 wywołań narzędzi, ok. 56 min, 1 runda, 0 poprawek

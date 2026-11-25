@@ -295,7 +295,16 @@ export function WorkOrderPage() {
             ) : tab === MEDIA_TAB ? (
               <div className="flex flex-col gap-stack-lg">
                 <MediaSection order={order} media={media} />
-                <DocumentsSection order={order} upload={documents} />
+                <DocumentsSection
+                  order={order}
+                  upload={documents}
+                  header={{
+                    state: header.isError ? 'error' : 'ready',
+                    reload: () => {
+                      void header.refetch();
+                    },
+                  }}
+                />
                 {order.site === null ? null : (
                   <AnchoredDocumentsSection
                     owner={{ anchor: 'site', id: order.site.id }}

@@ -31,7 +31,6 @@ export const surveyText = {
   payments: 'Płatności',
   paymentsHint: 'Płatności dodasz po przypisaniu klienta.',
   addMilestone: 'Dodaj transzę',
-  documentsHint: 'Dokumenty dodasz po przypisaniu klienta.',
   exportHint: 'Eksport ZIP będzie dostępny po przypisaniu klienta.',
   descriptionHint: 'Nie wpisuj imion, nazwisk ani telefonów. Nie wpisuj też PESEL, numerów dokumentów ani kodów do bram i alarmów.',
   customerCardHint: 'Klienta przypiszesz po akceptacji oferty.',

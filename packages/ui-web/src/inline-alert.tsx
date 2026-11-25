@@ -5,6 +5,8 @@ import { CircleAlert, CircleCheck, Info } from './icons.ts';
 export interface InlineAlertProps {
   readonly tone: 'error' | 'info' | 'success';
   readonly children: ReactNode;
+  /** Optional title above the text (`text.label-lg`, styleguide § 3.19). */
+  readonly title?: string;
   /** Optional exit action (§ 4.9: "Spróbuj ponownie", "Przejdź do …"). */
   readonly action?: ReactNode;
   /** Makes the alert focusable programmatically: after a failed submit focus moves to the message (§ 4.1, W-01). */
@@ -26,7 +28,7 @@ const TONES = {
  * InlineAlert (styleguide § 3.19): tone icon + text on the tone's background with a leading indicator; `role="alert"`
  * only for errors, `role="status"` for success (announced politely), an info alert is plain content.
  */
-export function InlineAlert({ tone, children, action, alertRef }: InlineAlertProps) {
+export function InlineAlert({ tone, children, title, action, alertRef }: InlineAlertProps) {
   const { Icon, role, box, icon } = TONES[tone];
   return (
     <div
@@ -40,7 +42,14 @@ export function InlineAlert({ tone, children, action, alertRef }: InlineAlertPro
     >
       <div className="flex items-start gap-inline-md">
         <Icon aria-hidden="true" className={classNames('size-icon-md shrink-0', icon)} />
-        <p>{children}</p>
+        {title === undefined ? (
+          <p>{children}</p>
+        ) : (
+          <div className="flex flex-col gap-stack-xs">
+            <p className="text-label-lg font-semibold">{title}</p>
+            <p>{children}</p>
+          </div>
+        )}
       </div>
       {action}
     </div>

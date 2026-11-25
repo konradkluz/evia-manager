@@ -30,6 +30,9 @@ export interface SurveyServer {
   assignments: Array<{ customerId: string; version: number }>;
   /** The bodies of the extensions (`POST …/site-survey/extensions`, EVM-140 AC6) as the server saw them. */
   extensions: Array<{ reason: string; version: number }>;
+  /** EVM-148: the bodies of `POST …/documents` as the server saw them; the answer is `409` with `documentRefusal` as its code (`null` = `500`). */
+  documentCreates: Array<Record<string, unknown>>;
+  documentRefusal: string | null;
   /** The bodies of POST /site-surveys as the server saw them, with the key of idempotency (EVM-138 AC2). */
   creations: Array<{ body: Record<string, unknown>; key: string | undefined }>;
 }
@@ -53,6 +56,8 @@ export function newSurveyServer(daysLeft = 80): SurveyServer {
     assignments: [],
     extensions: [],
     creations: [],
+    documentCreates: [],
+    documentRefusal: null,
   };
 }
 
@@ -175,6 +180,11 @@ export function answerSurveyRoute(server: SurveyServer, input: SurveyInput): Ans
     server.requesterPhone = null;
     server.version += 1;
     return details(server, input);
+  }
+  if (part === '/documents' && input.method === 'POST') {
+    // EVM-148: the creation of a document is refused with the reason the spec sets; the upload itself belongs to the specs of the media
+    server.documentCreates.push(input.body() as Record<string, unknown>);
+    return server.documentRefusal === null ? problem(500, 'internal_error') : problem(409, server.documentRefusal);
   }
   if (part === '/site-survey/extensions' && input.method === 'POST') {
     // EVM-140 AC2, AC3: an open survey only (a rejected one is restored, one with a customer is an ordinary order), twice at most,

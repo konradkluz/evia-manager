@@ -23,6 +23,8 @@ export interface UploadQueueItemProps {
   readonly actions?: ReactNode;
   /** An extra line under the state (what to do next, the reason). */
   readonly detail?: string;
+  /** The state and the detail are announced at once (`role="alert"`): for a failure that the person has to know about (EVM-148). */
+  readonly announce?: boolean;
 }
 
 interface Look {
@@ -51,7 +53,16 @@ const LOOKS: Readonly<Record<UploadQueueItemState, Look>> = {
  * progress bar of a file being sent (`size.progress-bar.height`, `color.sync.progress.*`) and the visible buttons of the row.
  * A list item: put it in a `<ul>`.
  */
-export function UploadQueueItem({ name, state, statusLabel, percent, progressLabel, actions, detail }: UploadQueueItemProps) {
+export function UploadQueueItem({
+  name,
+  state,
+  statusLabel,
+  percent,
+  progressLabel,
+  actions,
+  detail,
+  announce = false,
+}: UploadQueueItemProps) {
   const { icon: IconComponent, classes, iconClasses } = LOOKS[state];
   const value = percent === undefined ? undefined : Math.max(0, Math.min(100, Math.round(percent)));
   return (
@@ -60,16 +71,18 @@ export function UploadQueueItem({ name, state, statusLabel, percent, progressLab
         <span className="min-w-0 break-words text-body text-text-primary">{name}</span>
         {actions === undefined ? null : <span className="flex flex-wrap gap-inline-sm">{actions}</span>}
       </div>
-      <span
-        className={classNames(
-          'inline-flex w-fit max-w-full items-start gap-inline-xs rounded-pill px-inset-sm py-inset-xs text-label',
-          classes,
-        )}
-      >
-        <IconComponent aria-hidden="true" className={classNames('size-icon-sm shrink-0', iconClasses)} />
-        <span>{statusLabel}</span>
-      </span>
-      {detail === undefined ? null : <span className="text-body-sm text-text-secondary">{detail}</span>}
+      <div role={announce ? 'alert' : undefined} className="flex flex-col gap-stack-xs">
+        <span
+          className={classNames(
+            'inline-flex w-fit max-w-full items-start gap-inline-xs rounded-pill px-inset-sm py-inset-xs text-label',
+            classes,
+          )}
+        >
+          <IconComponent aria-hidden="true" className={classNames('size-icon-sm shrink-0', iconClasses)} />
+          <span>{statusLabel}</span>
+        </span>
+        {detail === undefined ? null : <span className="text-body-sm text-text-secondary">{detail}</span>}
+      </div>
       {value === undefined ? null : (
         <span
           role="progressbar"

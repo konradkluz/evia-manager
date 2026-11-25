@@ -23,4 +23,16 @@ describe('InlineAlert tones (styleguide § 3.19; EVM-025 AC4 success message abo
     expect(screen.getByRole('alert')).toBeTruthy();
     expect(container.querySelector('svg')?.getAttribute('class')).toContain('text-feedback-error-icon');
   });
+
+  it('EVM-148 AC2 an info alert with a title shows the title above the text, still without a role', async () => {
+    const { container } = render(
+      <InlineAlert tone="info" title="Dane osobowe w ofercie">
+        Nie dodawaj skanów dokumentów tożsamości.
+      </InlineAlert>,
+    );
+    expect(screen.getByText('Dane osobowe w ofercie')).toBeTruthy();
+    expect(screen.getByText('Nie dodawaj skanów dokumentów tożsamości.')).toBeTruthy();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(await axeViolations(container)).toEqual([]);
+  });
 });

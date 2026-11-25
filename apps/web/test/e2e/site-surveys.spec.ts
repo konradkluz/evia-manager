@@ -91,7 +91,9 @@ test.describe('site survey in W-06 (EVM-138)', () => {
     expect(api.seen.filter((entry) => entry.method === 'POST' && entry.url.endsWith('/transitions'))).toHaveLength(0);
   });
 
-  test('EVM-138 AC4 payments, documents and the ZIP are disabled with a visible reason; photos can still be added', async ({ page }) => {
+  test('EVM-138 AC4 payments, and the ZIP are disabled with a visible reason; photos and (EVM-148) documents can be added', async ({
+    page,
+  }) => {
     await open(page);
     const milestone = page.getByRole('button', { name: 'Dodaj transzę' });
     await expect(milestone).toHaveAttribute('aria-disabled', 'true');
@@ -100,7 +102,7 @@ test.describe('site survey in W-06 (EVM-138)', () => {
     await expect(page.getByRole('button', { name: 'Eksportuj zdjęcia (ZIP)' })).toHaveAccessibleDescription(
       'Eksport ZIP będzie dostępny po przypisaniu klienta.',
     );
-    await expect(page.getByRole('button', { name: 'Dodaj dokument' }).first()).toHaveAttribute('aria-disabled', 'true');
+    await expect(page.getByRole('button', { name: 'Dodaj dokument' }).first()).not.toHaveAttribute('aria-disabled', 'true');
     await expect(page.getByRole('button', { name: 'Dodaj zdjęcia lub filmy' })).not.toHaveAttribute('aria-disabled', 'true');
   });
 
