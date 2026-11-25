@@ -4,7 +4,7 @@ title: "Panel: wgrywanie oferty w wizji lokalnej, ostrzeżenie o danych osobowyc
 type: story
 milestone: M2
 epic: E15 Wizja lokalna
-status: in-review
+status: done
 priority: P1
 path: pelna             # formularz z ostrzeżeniem o danych osobowych, uprawnienia ról
 owner: web-developer
@@ -78,3 +78,4 @@ Błąd komunikatów (AC4, AC5) jest niezależny od API — w razie potrzeby moż
 - 2026-11-24 — implementacja AC1–AC6 gotowa (web-developer): silnik, formularz oferty, panel błędów, testy, e2e, dokumentacja
 - 2026-11-24 — przeglądy (code-reviewer, ux-designer): approve w rundzie 1; bramka `pnpm run gate` zielona u Tech Leada (pokrycie zmienionego kodu 100% linii / 93,5% gałęzi); `web-e2e-linux`: 1568 przeszło, 3 flaky, 1 pad Firefoksa w niezwiązanym `work-order-media-preview` (EVM-045) pod obciążeniem — osobno 26/26 zielone; status `in-review`
 - 2026-11-24 — Koszt: ścieżka `pelna`, 6 agentów, ok. 0,52 mln tokenów podagentów, 141 wywołań narzędzi, ok. 56 min, 1 runda, 0 poprawek
+- 2026-11-25 — zaakceptowano (Konrad); PR #169 scalony do `main` (squash), status `done`
