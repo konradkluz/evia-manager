@@ -2,6 +2,9 @@
 # self-test; `pnpm audit` as a second source (report only). A failed run sends GitHub's e-mail to Konrad.
 # EVM-086 AC5: the full Playwright E2E of the panel with Firefox runs here only (ci.yml runs Chromium alone): the same
 # two shards and timeout as the ci.yml job, the report is uploaded on failure.
+# EVM-153 AC4b: two more checks for the same e-mail — `publish-watch` (the latest run of ci.yml on main in which publish or publish-infra executed
+# must be green; fail-closed) and `image-digests` (the images publish would build from main, scanned like in the pull request: the same
+# tools/image-scan, bramka 6; nothing is pushed). The schedule line stays as it is: GitHub mails a red scheduled run to whoever last changed it.
 name: nightly
 
 on:
@@ -83,3 +86,42 @@ jobs:
             apps/web/test-results/
           if-no-files-found: ignore
           retention-days: 7
+
+  # EVM-153 AC4b: the alarm of a red publication on main (ci-gate does not depend on publish, so a red publish never blocks the merge). Reads the
+  # runs of ci.yml through the API (tools/publish-watch, no dependency, fail-closed); the job token is set on this step only; `actions: read` is held here and nowhere else.
+  publish-watch:
+    name: publish-watch
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Latest publication on main is green (publish, publish-infra)
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node tools/publish-watch/cli.mjs
+
+  # EVM-153 AC4b: the second layer — a new Critical/High CVE with a fix in the pinned digests of the images that publish would build from main is found by
+  # the night, not by the next merge. The very scan of the pull request (parity with bramka 6), contents: read only, no push, no cache, no artifact.
+  image-digests:
+    name: image-digests
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Native arm64 runner
+        shell: bash
+        run: |
+          if [ "$(uname -m)" != aarch64 ]; then echo "the runner is $(uname -m), not aarch64 (no emulation allowed)" >&2; exit 1; fi
+      - name: Build, platform check and scan of every image (bramka 6, nothing is pushed)
+        run: node tools/image-scan/cli.mjs

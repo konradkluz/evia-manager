@@ -64,11 +64,13 @@ const HEAVY_IFS: Record<string, string> = {
   'backend-integration': "needs.changes.outputs.integration == 'true'",
   'e2e-web': "needs.changes.outputs.e2e == 'true'",
   'mobile-apk': "needs.changes.outputs.mobile == 'true'",
+  // EVM-153 AC4: the scan of the images before the merge; no dependency but `changes`, so no failure()/cancelled() guard is needed
+  'images-scan': "needs.changes.outputs.images == 'true'",
   coverage: "needs.changes.outputs.heavy == 'true' && !failure() && !cancelled()",
 };
 const HEAVY_JOBS = Object.keys(HEAVY_IFS);
-/** Outputs of `changes`, each "true" or "false" (tools/ci-changes); mobile — EVM-009; iac and publish — EVM-007 AC1, AC2. */
-const CHANGES_OUTPUTS = ['heavy', 'e2e', 'integration', 'mobile', 'iac', 'publish'];
+/** Outputs of `changes`, each "true" or "false" (tools/ci-changes); mobile — EVM-009; iac and publish — EVM-007 AC1, AC2; images — EVM-153 AC4. */
+const CHANGES_OUTPUTS = ['heavy', 'e2e', 'integration', 'mobile', 'iac', 'publish', 'images'];
 const GATE_IF = "always() && (github.event_name != 'push' || github.ref == 'refs/heads/main')";
 const FAST_IF = "github.event_name == 'push' && github.ref != 'refs/heads/main'";
 const CHANGES_IF = "github.event_name != 'push' || github.ref == 'refs/heads/main'";
@@ -79,7 +81,7 @@ const CHANGES_IF = "github.event_name != 'push' || github.ref == 'refs/heads/mai
  * skipped when it is "false" (EVM-086 AC3). Failure, cancelled, an unexplained skip, a missing job or output = red.
  */
 export const GATE_JQ =
-  '(keys == ["backend", "backend-integration", "changes", "coverage", "e2e-web", "mobile-apk", "quality", "security"]) and (.changes.result == "success") and (.changes.outputs as $o | ($o.heavy == "true" or $o.heavy == "false") and ($o.e2e == "true" or $o.e2e == "false") and ($o.integration == "true" or $o.integration == "false") and ($o.mobile == "true" or $o.mobile == "false") and ($o.heavy == "true" or ($o.e2e == "false" and $o.integration == "false" and $o.mobile == "false")) and all(.quality, .backend, .security; .result == "success") and (.["e2e-web"].result == (if $o.e2e == "true" then "success" else "skipped" end)) and (.["backend-integration"].result == (if $o.integration == "true" then "success" else "skipped" end)) and (.["mobile-apk"].result == (if $o.mobile == "true" then "success" else "skipped" end)) and (.coverage.result == (if $o.heavy == "true" then "success" else "skipped" end)))';
+  '(keys == ["backend", "backend-integration", "changes", "coverage", "e2e-web", "images-scan", "mobile-apk", "quality", "security"]) and (.changes.result == "success") and (.changes.outputs as $o | ($o.heavy == "true" or $o.heavy == "false") and ($o.e2e == "true" or $o.e2e == "false") and ($o.integration == "true" or $o.integration == "false") and ($o.mobile == "true" or $o.mobile == "false") and ($o.images == "true" or $o.images == "false") and ($o.heavy == "true" or ($o.e2e == "false" and $o.integration == "false" and $o.mobile == "false" and $o.images == "false")) and all(.quality, .backend, .security; .result == "success") and (.["e2e-web"].result == (if $o.e2e == "true" then "success" else "skipped" end)) and (.["backend-integration"].result == (if $o.integration == "true" then "success" else "skipped" end)) and (.["mobile-apk"].result == (if $o.mobile == "true" then "success" else "skipped" end)) and (.["images-scan"].result == (if $o.images == "true" then "success" else "skipped" end)) and (.coverage.result == (if $o.heavy == "true" then "success" else "skipped" end)))';
 
 /**
  * A2, W6, EVM-083 AC3: `ci-gate` depends on every job of the full run (all but the fast ones), runs only in full runs,

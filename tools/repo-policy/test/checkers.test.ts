@@ -229,7 +229,7 @@ describe('workflow checkers (EVM-006 AC4; A2, A6, A7, W6)', () => {
     const broken = real();
     broken.jobs['ci-gate'] = { needs: ['quality'], steps: [{ run: 'true' }] };
     expect(ciGateProblems(broken)).toEqual([
-      'ci-gate: needs musi obejmować backend, backend-integration, changes, coverage, e2e-web, mobile-apk, quality, security',
+      'ci-gate: needs musi obejmować backend, backend-integration, changes, coverage, e2e-web, images-scan, mobile-apk, quality, security',
       "ci-gate: wymagane if: always() && (github.event_name != 'push' || github.ref == 'refs/heads/main')",
       'ci-gate: skrypt musi sprawdzać dokładną listę jobów z needs',
       'ci-gate: skrypt musi zawierać GATE_JQ (success wszystkich jobów; pominięcie ciężkich tylko przy heavy=false)',
@@ -337,6 +337,7 @@ describe('workflow checkers (EVM-006 AC4; A2, A6, A7, W6)', () => {
     e2e: string | null = heavy ?? null,
     integration: string | null = heavy ?? null,
     mobile: string | null = heavy ?? null,
+    images: string | null = heavy ?? null,
   ): Record<string, unknown> => ({
     result,
     outputs:
@@ -347,6 +348,7 @@ describe('workflow checkers (EVM-006 AC4; A2, A6, A7, W6)', () => {
             ...(e2e === null ? {} : { e2e }),
             ...(integration === null ? {} : { integration }),
             ...(mobile === null ? {} : { mobile }),
+            ...(images === null ? {} : { images }),
           },
   });
   const needs = (over: Record<string, Record<string, unknown>>): string =>
@@ -359,6 +361,7 @@ describe('workflow checkers (EVM-006 AC4; A2, A6, A7, W6)', () => {
       'mobile-apk': need('success'),
       security: need('success'),
       coverage: need('success'),
+      'images-scan': need('success'),
       ...over,
     });
   const gate = (input: string): number | null => spawnSync(jq, ['-e', GATE_JQ], { input }).status;
@@ -367,6 +370,7 @@ describe('workflow checkers (EVM-006 AC4; A2, A6, A7, W6)', () => {
     'e2e-web': need('skipped'),
     'mobile-apk': need('skipped'),
     coverage: need('skipped'),
+    'images-scan': need('skipped'),
   };
 
   it.skipIf(!hasJq && !process.env['CI'])(
@@ -433,9 +437,33 @@ describe('workflow checkers (EVM-006 AC4; A2, A6, A7, W6)', () => {
   );
 
   it.skipIf(!hasJq && !process.env['CI'])(
+    'EVM-153 AC4: ci-gate requires images-scan with images=true, accepts its skip only with images=false and is red for failure, cancelled, a missing job or an unreadable output',
+    () => {
+      const noImages = (over: Record<string, Record<string, unknown>> = {}): string =>
+        needs({ changes: need('success', 'true', 'true', 'true', 'true', 'false'), 'images-scan': need('skipped'), ...over });
+      expect(gate(needs({})), 'images scanned').toBe(0);
+      expect(gate(noImages()), 'images not relevant').toBe(0);
+      expect(gate(noImages({ 'images-scan': need('success') })), 'ran though not relevant').toBe(1);
+      expect(gate(needs({ 'images-scan': need('skipped') })), 'skipped though relevant').toBe(1);
+      expect(gate(needs({ 'images-scan': need('failure') })), 'CVE with a fix: failure').toBe(1);
+      expect(gate(needs({ 'images-scan': need('cancelled') })), 'cancelled').toBe(1);
+      expect(gate(needs({ changes: need('success', 'true', 'true', 'true', 'true', null) })), 'images output missing').toBe(1);
+      expect(gate(needs({ changes: need('success', 'true', 'true', 'true', 'true', 'maybe') })), 'images output unreadable').toBe(1);
+      expect(
+        gate(needs({ changes: need('success', 'false', 'false', 'false', 'false', 'true'), ...skipped })),
+        'heavy=false with images=true',
+      ).toBe(1);
+      expect(gate(needs({ changes: need('success', 'false'), ...skipped })), 'documentation only').toBe(0);
+      const missing = JSON.parse(needs({})) as Record<string, unknown>;
+      delete missing['images-scan'];
+      expect(gate(JSON.stringify(missing)), 'missing images-scan').toBe(1);
+    },
+  );
+
+  it.skipIf(!hasJq && !process.env['CI'])(
     'EVM-083 AC3: ci-gate is red for a failure, cancelled, a skip beside code changes, a failed or unreadable change detection and a missing job',
     () => {
-      for (const job of ['quality', 'backend', 'backend-integration', 'e2e-web', 'mobile-apk', 'security', 'coverage']) {
+      for (const job of ['quality', 'backend', 'backend-integration', 'e2e-web', 'mobile-apk', 'security', 'coverage', 'images-scan']) {
         expect(gate(needs({ [job]: need('failure') })), `${job} failure`).toBe(1);
         expect(gate(needs({ [job]: need('cancelled') })), `${job} cancelled`).toBe(1);
         expect(gate(needs({ [job]: need('skipped') })), `${job} skipped with heavy=true`).toBe(1);

@@ -1,0 +1,19 @@
+{
+  "name": "@evia/image-scan",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Image scan of bramka 6 outside the publish jobs (EVM-153 AC4, AC4b): builds the release and infrastructure images for linux/arm64 without publishing and scans them with the same Trivy command as publish and publish-infra; no secret, no registry login; runs without installed dependencies.",
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node --test \"test/**/*.test.mjs\"",
+    "test:coverage": "evia-node-test"
+  },
+  "devDependencies": {
+    "@evia/config": "workspace:*",
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "typescript": "catalog:"
+  }
+}

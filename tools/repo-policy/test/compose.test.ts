@@ -136,7 +136,7 @@ describe('compose.yaml hardening (EVM-006 AC1, A6, W9)', () => {
       /['"]docker(\.exe)?['"]/.test(read(path)),
     );
     // EVM-077: the second (and last) place is the local environment, limited to four exact command lines (compose.dev.test.ts).
-    expect(spawning.sort()).toEqual(['tools/dev-env/src/docker.mjs', 'tools/scan/lib/compose.mjs']);
+    expect(spawning.sort()).toEqual(['tools/dev-env/src/docker.mjs', 'tools/image-scan/lib/scan.mjs', 'tools/scan/lib/compose.mjs']);
   });
 
   it('EVM-006 AC1 (D4, RR-03; K4, RR-02): the committed agent settings ask before compose and settings edits, deny other Docker verbs and printing the gh token', () => {

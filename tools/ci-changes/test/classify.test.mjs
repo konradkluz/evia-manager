@@ -9,8 +9,10 @@ import { fileURLToPath } from 'node:url';
 import {
   detect,
   detectDeployment,
+  detectImages,
   isDocumentation,
   isIacInput,
+  isImagesInput,
   isNotRelevantToE2e,
   isNotRelevantToIntegration,
   isPublishInput,
@@ -95,7 +97,7 @@ describe('EVM-083 AC3: fail-closed detection', () => {
       return readFileSync(out, 'utf8')
         .trim()
         .split('\n')
-        .filter((line) => !/^(iac|publish)=/.test(line))
+        .filter((line) => !/^(iac|publish|images)=/.test(line))
         .join('\n');
     };
     git('commit', '-q', '--allow-empty', '-m', 'empty');
@@ -339,12 +341,56 @@ describe('EVM-007 AC2: publish only for a push to main changing a build input of
       execFileSync(process.execPath, [cli], { cwd: repo, env, stdio: 'pipe' });
       return readFileSync(out, 'utf8').trim().split('\n');
     };
-    // The outputs of detect() (heavy, e2e, integration, mobile) come first; iac and publish are the last two.
-    assert.deepEqual(run('push').slice(-2), ['iac=true', 'publish=true']);
-    assert.deepEqual(run('pull_request').slice(-2), ['iac=false', 'publish=false']);
+    // The outputs of detect() (heavy, e2e, integration, mobile) come first; iac, publish and images (EVM-153) are the last three.
+    assert.deepEqual(run('push').slice(-3), ['iac=true', 'publish=true', 'images=true']);
+    assert.deepEqual(run('pull_request').slice(-3), ['iac=false', 'publish=false', 'images=true']); // apps/a.ts is an image build input (EVM-153)
     assert.deepEqual(
       run('push').map((line) => line.split('=')[0]),
-      ['heavy', 'e2e', 'integration', 'mobile', 'iac', 'publish'],
+      ['heavy', 'e2e', 'integration', 'mobile', 'iac', 'publish', 'images'],
     );
+  });
+});
+
+/** @param {string} eventName @param {...string} files */
+const images = (eventName, ...files) => detectImages({ eventName, baseSha: BASE, diff: list(...files) }).images;
+
+describe('EVM-153 AC4: images-scan only when a build input of the images or the scan itself changed', () => {
+  it('EVM-153 AC4: build inputs (apps, packages, infra, lockfile, scanner settings, the scan tool) run the scan on a pull request and a push', () => {
+    for (const path of [
+      'apps/api/src/a.ts',
+      'packages/contracts/openapi.yaml',
+      'infra/images/api/Dockerfile',
+      'infra/runtime/infra-images.json',
+      'pnpm-lock.yaml',
+      'package.json',
+      'trivy.yaml',
+      '.trivyignore.yaml',
+      'compose.yaml',
+      'tools/image-scan/lib/scan.mjs',
+      '.github/workflows/ci.yml',
+    ])
+      for (const event of ['pull_request', 'push']) assert.equal(images(event, 'docs/a.md', path), true, `${event} ${path}`);
+    assert.equal(isImagesInput('trivy.yaml'), true);
+    assert.equal(isImagesInput('docs/a.md'), false);
+  });
+
+  it('EVM-153 AC4: documentation, tools and other workflows alone do not run the scan', () => {
+    for (const path of ['docs/a.md', 'README.md', 'tools/x.mjs', '.github/workflows/nightly.yml', '.claude/agents/a.md', 'infra-notes.md'])
+      assert.equal(images('pull_request', path), false, path);
+  });
+
+  it('EVM-153 AC4: fail-closed — other events, a bad base, a diff error, an empty diff and a suspicious path run the scan', () => {
+    const boom = () => {
+      throw new Error('git failed');
+    };
+    assert.equal(images('workflow_dispatch', 'docs/a.md'), true);
+    assert.equal(images('', 'docs/a.md'), true);
+    for (const eventName of ['pull_request', 'push']) {
+      assert.equal(detectImages({ eventName, baseSha: '', diff: list('docs/a.md') }).images, true);
+      assert.equal(detectImages({ eventName, baseSha: '0'.repeat(40), diff: list('docs/a.md') }).images, true);
+      assert.equal(detectImages({ eventName, baseSha: BASE, diff: boom }).images, true);
+      assert.equal(detectImages({ eventName, baseSha: BASE, diff: () => '' }).images, true);
+    }
+    assert.equal(images('pull_request', 'docs/../infra/a'), true);
   });
 });

@@ -166,3 +166,36 @@ export function detectDeployment({ eventName, baseSha, diff }) {
   const iac = push || files.some(isIacInput);
   return { iac, publish, reason: `iac-check ${iac ? 'uruchomiony' : 'pominięty'}, publish ${publish ? 'tak' : 'nie'}` };
 }
+
+/**
+ * EVM-153 AC4 (security-engineer): `images-scan` — the bramka 6 scan of the images before the merge (a pull request) and on main (a push) — runs
+ * when a build input of the images (isPublishInput: apps/, packages/, infra/ with the Dockerfiles and infra-images.json, the lockfile and manifests …),
+ * the scanner settings (trivy.yaml, .trivyignore.yaml, the scanner image pinned in compose.yaml) or the scan itself (tools/image-scan/, ci.yml) changed.
+ * Fail closed: any other event, a bad base, a diff error, an empty diff or a suspicious path mean "true".
+ */
+export const IMAGES_FILES = Object.freeze(['trivy.yaml', '.trivyignore.yaml', 'compose.yaml', '.github/workflows/ci.yml']);
+export const IMAGES_PREFIXES = Object.freeze(['tools/image-scan/']);
+
+/** @param {string} path */
+export const isImagesInput = (path) => isPublishInput(path) || matches(path, IMAGES_PREFIXES, IMAGES_FILES);
+
+/**
+ * @param {{ eventName: string, baseSha: string, diff: (base: string) => string }} input
+ * @returns {{ images: boolean, reason: string }}
+ */
+export function detectImages({ eventName, baseSha, diff }) {
+  if (!['push', 'pull_request'].includes(eventName))
+    return { images: true, reason: `zdarzenie ${eventName || '?'} — skan obrazów (fail-closed)` };
+  if (!SHA.test(baseSha) || ZERO_SHA.test(baseSha)) return { images: true, reason: 'brak poprawnego commitu bazowego (fail-closed)' };
+  let files;
+  try {
+    files = diff(baseSha)
+      .split(' ')
+      .filter((file) => file !== '');
+  } catch {
+    return { images: true, reason: 'błąd wykrywania zmian (fail-closed)' };
+  }
+  if (files.length === 0) return { images: true, reason: 'pusta lista zmian (fail-closed)' };
+  const images = files.some(isImagesInput);
+  return { images, reason: `images-scan ${images ? 'uruchomiony' : 'pominięty'}` };
+}
