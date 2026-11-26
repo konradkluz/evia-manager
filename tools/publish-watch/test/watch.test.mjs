@@ -87,14 +87,39 @@ const green = [job('publish', 'success'), job('publish-infra', 'success')];
 const skipped = [job('publish', 'skipped'), job('publish-infra', 'skipped')];
 
 describe('EVM-153 AC4b publish-watch', () => {
-  it('EVM-153 AC4b: the latest executed run green (success and skipped) is green', async () => {
+  it('EVM-153 AC4b: the latest executed run of each job green (a skipped job is judged by an older run) is green', async () => {
     const fetch = fakeFetch({
-      runs: [runItem(3, '2026-11-25T10:00:00Z')],
-      jobs: { 3: [job('publish', 'success'), job('publish-infra', 'skipped')] },
+      runs: [runItem(3, '2026-11-25T10:00:00Z'), runItem(2, '2026-11-24T10:00:00Z')],
+      jobs: { 3: [job('publish', 'skipped'), job('publish-infra', 'success')], 2: green },
     });
     const { code, text } = await exec(fetch);
     assert.equal(code, 0);
     assert.match(text, /green/);
+  });
+
+  it('EVM-153 AC4b: a red publish is not hidden by a later docs-only run (publish skipped, publish-infra success)', async () => {
+    const fetch = fakeFetch({
+      runs: [runItem(2, '2026-11-26T01:00:00Z'), runItem(1, '2026-11-23T01:00:00Z')],
+      jobs: {
+        2: [job('publish', 'skipped'), job('publish-infra', 'success')],
+        1: [job('publish', 'failure'), job('publish-infra', 'success')],
+      },
+    });
+    const { code, text } = await exec(fetch);
+    assert.equal(code, 1);
+    assert.match(text, /publish failure in run 1 /);
+    assert.match(text, /failing for 3 day\(s\)/);
+    assert.doesNotMatch(text, /publish-infra failure/);
+  });
+
+  it('EVM-153 AC4b: a job that executed in none of the runs is red (fail-closed)', async () => {
+    const fetch = fakeFetch({
+      runs: [runItem(1, '2026-11-25T10:00:00Z')],
+      jobs: { 1: [job('publish', 'success'), job('publish-infra', 'skipped')] },
+    });
+    const { code, text } = await exec(fetch);
+    assert.equal(code, 1);
+    assert.match(text, /in which publish-infra executed/);
   });
 
   it('EVM-153 AC4b: a red publish is red with the job, run, URL, commit and age in days', async () => {
@@ -116,8 +141,8 @@ describe('EVM-153 AC4b publish-watch', () => {
 
   it('EVM-153 AC4b: a red publish-infra is red', async () => {
     const fetch = fakeFetch({
-      runs: [runItem(5, '2026-11-26T01:00:00Z')],
-      jobs: { 5: [job('publish', 'skipped'), job('publish-infra', 'failure')] },
+      runs: [runItem(5, '2026-11-26T01:00:00Z'), runItem(4, '2026-11-25T01:00:00Z')],
+      jobs: { 5: [job('publish', 'skipped'), job('publish-infra', 'failure')], 4: green },
     });
     const { code, text } = await exec(fetch);
     assert.equal(code, 1);

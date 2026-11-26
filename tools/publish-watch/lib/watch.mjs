@@ -1,9 +1,9 @@
 // @ts-check
 /**
  * Alarm of a red publication on main (EVM-153 AC4b; security-engineer: V16.3.3, CWE-636, SR-LOG-02).
- * The latest completed `push` run of ci.yml on main in which `publish` or `publish-infra` executed (conclusion other than
- * `skipped`) must have every executed one of them `success`; otherwise the result is red. Fail-closed: an API error (403, 429, 5xx),
- * an unreadable answer, a missing job (a renamed one), an unknown conclusion or no such run at all is red as well.
+ * For each of `publish` and `publish-infra` separately, the latest completed `push` run of ci.yml on main in which THAT job
+ * executed (conclusion other than `skipped`) must be `success`; otherwise the result is red. Fail-closed: an API error (403, 429, 5xx),
+ * an unreadable answer, a missing job (a renamed one), an unknown conclusion or no run with an executed job at all is red as well.
  * - The host comes from GITHUB_API_URL (the runner), the repository from GITHUB_REPOSITORY (format checked): no user input, no SSRF.
  * - Jobs are read with filter=latest (a re-run replaces the earlier attempt) and matched by the exact name; full pagination.
  * - The message holds only the job name, run id and URL, the commit SHA and the age in days — never the author, the e-mail or the commit message.
@@ -117,37 +117,48 @@ export async function jobConclusions({ fetch, api, repository, token }, runId) {
  */
 export async function evaluate(context) {
   const runs = await listRuns(context);
-  /** @type {{ run: Run, conclusions: Record<string, string> }[]} */
-  const executed = [];
-  for (const run of runs) {
-    const conclusions = await jobConclusions(context, run.id);
-    if (Object.values(conclusions).some((conclusion) => conclusion !== 'skipped')) {
-      executed.push({ run, conclusions });
-      break;
+  /** @type {Map<number, Record<string, string>>} */
+  const cache = new Map();
+  /** @param {Run} item */
+  const conclusionsOf = async (item) => {
+    let value = cache.get(item.id);
+    if (value === undefined) {
+      value = await jobConclusions(context, item.id);
+      cache.set(item.id, value);
     }
-  }
-  const latest = executed[0];
-  if (latest === undefined)
-    throw new WatchError(
-      `no completed run of ${WORKFLOW_FILE} on main in which publish or publish-infra executed (last ${String(runs.length)} runs)`,
-    );
+    return value;
+  };
   /** @type {Finding[]} */
   const findings = [];
+  /** @type {number[]} */
+  const checked = [];
+  // Each watched job is judged on its own: by the latest run in which THAT job executed (a skipped job is not a verdict),
+  // so a later run that skipped `publish` (e.g. docs only) cannot hide an earlier red `publish`. None in MAX_RUNS: fail-closed.
   for (const job of WATCHED_JOBS) {
-    const conclusion = latest.conclusions[job] ?? '';
-    if (conclusion === 'success' || conclusion === 'skipped') continue;
-    // Age of the failure: the oldest run of the unbroken streak in which this job executed and did not succeed.
-    let since = latest.run;
-    for (const older of runs.slice(runs.indexOf(latest.run) + 1)) {
-      const result = (await jobConclusions(context, older.id))[job] ?? '';
-      if (result === 'skipped') continue;
-      if (result === 'success') break;
-      since = older;
+    /** @type {{ run: Run, conclusion: string } | undefined} */
+    let latest;
+    let since = runs[0];
+    for (const candidate of runs) {
+      const conclusion = (await conclusionsOf(candidate))[job] ?? '';
+      if (conclusion === 'skipped') continue;
+      if (latest === undefined) {
+        latest = { run: candidate, conclusion };
+        if (conclusion === 'success') break;
+        since = candidate;
+      } else if (conclusion === 'success') {
+        break;
+      } else {
+        since = candidate; // the oldest run of the unbroken streak in which this job executed and did not succeed
+      }
     }
+    if (latest === undefined || since === undefined)
+      throw new WatchError(`no completed run of ${WORKFLOW_FILE} on main in which ${job} executed (last ${String(runs.length)} runs)`);
+    checked.push(latest.run.id);
+    if (latest.conclusion === 'success') continue;
     const days = Math.max(0, Math.floor((context.now.getTime() - Date.parse(since.created_at)) / DAY_MS));
-    findings.push({ job, runId: latest.run.id, sha: latest.run.head_sha, conclusion, days });
+    findings.push({ job, runId: latest.run.id, sha: latest.run.head_sha, conclusion: latest.conclusion, days });
   }
-  return { runId: latest.run.id, findings };
+  return { runId: Math.max(...checked), findings };
 }
 
 /**
@@ -170,7 +181,7 @@ export async function run({ env, fetch, now, log }) {
       );
     }
     if (findings.length > 0) return 1;
-    log(`publish-watch: the latest run in which a publication executed (${String(runId)}) is green`);
+    log(`publish-watch: the latest run of each of publish and publish-infra (newest: ${String(runId)}) is green`);
     return 0;
   } catch (error) {
     const message = error instanceof WatchError ? error.message : 'unexpected error';
