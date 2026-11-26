@@ -324,3 +324,14 @@ describe('EVM-153 AC4 image-scan run', () => {
     assert.match(result.stdout, /infra-images\.json is missing/);
   });
 });
+
+describe('EVM-153 AC4: the build context never carries the scanner output', () => {
+  it('the root .dockerignore excludes .scratch (the Trivy cache written by a root-owned container breaks the next build)', () => {
+    const file = fileURLToPath(new URL('../../../.dockerignore', import.meta.url));
+    const lines = readFileSync(file, 'utf8')
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line !== '' && !line.startsWith('#'));
+    assert.ok(lines.includes('.scratch'));
+  });
+});
