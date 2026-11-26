@@ -153,6 +153,17 @@ describe('EVM-153 AC4 image-scan plan', () => {
 });
 
 describe('EVM-153 AC4 image-scan run', () => {
+  it('EVM-153 AC4: every image is built or pulled before the first scan (the root-owned scanner cache must not enter a later build context)', () => {
+    const docker = fakeDocker();
+    assert.equal(runScan(docker.io(), planImages(INFRA)), 0);
+    const commands = docker.calls.map((call) => call.join(' '));
+    const lastPrepare = commands
+      .map((line, index) => (/^docker (buildx build|pull) /.test(line) ? index : -1))
+      .reduce((a, b) => Math.max(a, b), -1);
+    const firstScan = commands.findIndex((line) => line.includes('--scanners'));
+    assert.ok(lastPrepare >= 0 && firstScan > lastPrepare);
+  });
+
   it('EVM-153 AC4: all green — every image built or pulled for linux/arm64, saved, scanned; nothing is pushed or logged in', () => {
     const docker = fakeDocker();
     const code = runScan(docker.io({ env: { GITHUB_SHA: 'b'.repeat(40) } }), planImages(INFRA));
@@ -322,16 +333,5 @@ describe('EVM-153 AC4 image-scan run', () => {
     });
     assert.equal(result.status, 1);
     assert.match(result.stdout, /infra-images\.json is missing/);
-  });
-});
-
-describe('EVM-153 AC4: the build context never carries the scanner output', () => {
-  it('the root .dockerignore excludes .scratch (the Trivy cache written by a root-owned container breaks the next build)', () => {
-    const file = fileURLToPath(new URL('../../../.dockerignore', import.meta.url));
-    const lines = readFileSync(file, 'utf8')
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter((line) => line !== '' && !line.startsWith('#'));
-    assert.ok(lines.includes('.scratch'));
   });
 });

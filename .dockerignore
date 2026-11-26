@@ -1,3 +1,0 @@
-# EVM-153: the scanner container writes its cache and reports to .scratch/scans (root-owned), and `images-scan` builds the images one after another
-# from the repository root; without this line the next build fails with "permission denied" while sending the context.
-.scratch

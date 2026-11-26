@@ -279,8 +279,18 @@ export function runScan(io, plan) {
   writeFileSync(`${SCANS_DIR}/trivyignore-none.yaml`, 'vulnerabilities: []\n');
   chmodSync(`${SCANS_DIR}/trivyignore-none.yaml`, 0o644);
   let failed = 0;
-  for (const item of selected) {
-    const green = prepare(io, item) && scan(io, item);
+  // Two passes: every image is built/pulled first and scanned afterwards. The scanner container (root-owned cache in .scratch/scans)
+  // would otherwise leave an unreadable directory inside the build context of the next image ("permission denied" while sending it).
+  const prepared = selected.filter((item) => {
+    const ready = prepare(io, item);
+    if (!ready) {
+      io.log(`images-scan: ${item.name} RED`);
+      failed = 1;
+    }
+    return ready;
+  });
+  for (const item of prepared) {
+    const green = scan(io, item);
     io.log(`images-scan: ${item.name} ${green ? 'green' : 'RED'}`);
     if (!green) failed = 1;
   }
