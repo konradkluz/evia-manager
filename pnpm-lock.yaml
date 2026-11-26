@@ -822,6 +822,21 @@ importers:
         specifier: 'catalog:'
         version: 6.0.3
 
+  tools/image-scan:
+    devDependencies:
+      '@evia/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.3
+      eslint:
+        specifier: 'catalog:'
+        version: 10.11.0(jiti@2.7.0)(supports-color@7.2.0)
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
   tools/mobile-apk:
     devDependencies:
       '@evia/config':
@@ -845,6 +860,21 @@ importers:
       '@evia/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.3
+      eslint:
+        specifier: 'catalog:'
+        version: 10.11.0(jiti@2.7.0)(supports-color@7.2.0)
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
+  tools/publish-watch:
+    devDependencies:
+      '@evia/config':
+        specifier: workspace:*
+        version: link:../../packages/config
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.3

@@ -5,7 +5,7 @@
 # SHA-512, frozen lockfile, no install scripts, --no-cache --pull in `publish`, nothing from ghcr.io/konradkluz.
 # Platform (Arm64 VM): the build stage runs on $BUILDPLATFORM (static files do not depend on the CPU; native build tools
 # of the runner), the Caddy runtime stage of the target platform (linux/arm64 in `publish`) only copies files.
-FROM --platform=$BUILDPLATFORM node:26.10.0-trixie-slim@sha256:ec7758ee051e457b468b32bde57b0879010b325bb9862718e9615225ce4aaae1 AS build
+FROM --platform=$BUILDPLATFORM node:26.10.0-trixie-slim@sha256:930557a230abacbc3f4fd9b8648abf8f4bee1e17cb72195dcdfb2f709bc85b33 AS build
 
 # renovate: datasource=npm depName=pnpm
 ARG PNPM_VERSION=12.8.1
@@ -33,13 +33,13 @@ RUN pnpm install --frozen-lockfile --ignore-scripts --filter "@evia/web..." \
  && pnpm --filter "@evia/web^..." run build \
  && pnpm --filter @evia/web run build
 
-FROM caddy:2.11.9-alpine@sha256:0bbb055bda6793c999bde78b1b5ce3e89f829fb031af2cf50056ea1246559fee AS caddy-src
+FROM caddy:2.11.9-alpine@sha256:003a97808e781aa9f7e75cc2f43d34d461099031faf5e20faefb9f61126836f0 AS caddy-src
 
 # The official image sets the file capability cap_net_bind_service=+ep on /usr/bin/caddy. The VM runs this container with
 # cap_drop: ALL + no-new-privileges, so exec of a binary with file capabilities outside the bounding set fails with EPERM
 # (restart loop). The panel listens on 8080 and needs no capability. A plain cp (no -a) on the runner platform
 # drops the xattr without running the target binary (no emulation); the final stage only copies it.
-FROM --platform=$BUILDPLATFORM node:26.10.0-trixie-slim@sha256:ec7758ee051e457b468b32bde57b0879010b325bb9862718e9615225ce4aaae1 AS caddy-nocap
+FROM --platform=$BUILDPLATFORM node:26.10.0-trixie-slim@sha256:930557a230abacbc3f4fd9b8648abf8f4bee1e17cb72195dcdfb2f709bc85b33 AS caddy-nocap
 COPY --from=caddy-src /usr/bin/caddy /tmp/caddy-orig
 RUN cp /tmp/caddy-orig /tmp/caddy && chmod 0555 /tmp/caddy
 

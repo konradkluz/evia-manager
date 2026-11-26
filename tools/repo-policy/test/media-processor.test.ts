@@ -89,6 +89,7 @@ describe('EVM-068 AC5: the container of the media processor', () => {
     // EVM-124: CI passes no --build-arg, so the exact versions are the defaults of the ARGs (never empty, never a range)
     expect(code).toMatch(/^ARG FFMPEG_VERSION=\d+:[0-9][0-9.]*-[0-9][0-9a-z.+~]*$/m);
     expect(code).toMatch(/^ARG ZLIB_VERSION=\d+:[0-9a-z.+~-]+$/m);
+    expect(code).toMatch(/^ARG LIBZSTD_VERSION=1\.5\.7\+dfsg-1\+deb13u1$/m); // EVM-153 AC1
     expect(code).toContain('test -n "${FFMPEG_VERSION}"');
     expect(code).toContain('apt-get install -y --no-install-recommends "ffmpeg=${FFMPEG_VERSION}"');
     // a literal backslash-n (a typo for a line continuation) would break the build; the RUN must be real continued lines

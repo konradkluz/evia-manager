@@ -4,7 +4,7 @@
 # `--frozen-lockfile`, install scripts disabled (allowBuilds of pnpm-workspace.yaml applies). No secret enters the image:
 # no ARG/ENV with values — CURSOR_KEY exists only at run time, from the environment of the container (compose.dev.yaml).
 # The build context is an allow-list (Dockerfile.dockerignore). apps/api/dev (seed, tools) is not copied anywhere.
-FROM node:26.10.0-trixie-slim@sha256:ec7758ee051e457b468b32bde57b0879010b325bb9862718e9615225ce4aaae1 AS build
+FROM node:26.10.0-trixie-slim@sha256:930557a230abacbc3f4fd9b8648abf8f4bee1e17cb72195dcdfb2f709bc85b33 AS build
 
 # renovate: datasource=npm depName=pnpm
 ARG PNPM_VERSION=12.8.1
@@ -24,7 +24,7 @@ RUN pnpm install --frozen-lockfile --ignore-scripts --filter "@evia/api..." \
  && pnpm --filter @evia/api run build \
  && pnpm install --frozen-lockfile --ignore-scripts --prod --filter "@evia/api..."
 
-FROM node:26.10.0-trixie-slim@sha256:ec7758ee051e457b468b32bde57b0879010b325bb9862718e9615225ce4aaae1 AS runtime
+FROM node:26.10.0-trixie-slim@sha256:930557a230abacbc3f4fd9b8648abf8f4bee1e17cb72195dcdfb2f709bc85b33 AS runtime
 
 WORKDIR /app
 COPY --from=build /app/package.json /app/pnpm-workspace.yaml ./

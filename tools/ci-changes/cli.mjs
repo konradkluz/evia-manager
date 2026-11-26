@@ -10,7 +10,7 @@
  */
 import { appendFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { detect, detectDeployment } from './lib/classify.mjs';
+import { detect, detectDeployment, detectImages } from './lib/classify.mjs';
 
 const input = {
   eventName: process.env['EVENT_NAME'] ?? '',
@@ -24,6 +24,7 @@ const input = {
 };
 const result = detect(input);
 const deployment = detectDeployment(input);
+const imageScan = detectImages(input);
 const lines = [
   `heavy=${String(result.heavy)}`,
   `e2e=${String(result.e2e)}`,
@@ -31,7 +32,8 @@ const lines = [
   `mobile=${String(result.mobile)}`,
   `iac=${String(deployment.iac)}`,
   `publish=${String(deployment.publish)}`,
+  `images=${String(imageScan.images)}`,
 ];
-console.log(`${lines.join(' ')} (${result.reason}; ${deployment.reason})`);
+console.log(`${lines.join(' ')} (${result.reason}; ${deployment.reason}; ${imageScan.reason})`);
 const output = process.env['GITHUB_OUTPUT'];
 if (output) appendFileSync(output, `${lines.join('\n')}\n`);

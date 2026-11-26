@@ -18,7 +18,7 @@ export const RELEASE_COMPOSE = 'infra/runtime/compose.staging.yaml';
 export const RELEASE_PLATFORM = 'linux/arm64';
 
 /** Actions or settings that bring a cache or a runtime token into the build (TM-112; A5). */
-const CACHE_ACTIONS = [
+export const CACHE_ACTIONS = [
   'actions/cache',
   'actions/setup-node',
   'pnpm/action-setup',
@@ -620,6 +620,7 @@ export function infraDockerfileProblems(name: string, dockerfile: string): strin
     const ffmpeg = /^ARG FFMPEG_VERSION=(\d+:[0-9][0-9.]*-[0-9][0-9a-z.+~]*)$/m.exec(code);
     if (ffmpeg === null) problems.push(`${where}: ARG FFMPEG_VERSION z dokładną wersją (epoch:wersja, bez *, >= i pustej wartości)`);
     if (!/^ARG ZLIB_VERSION=\d+:[0-9a-z.+~-]+$/m.test(code)) problems.push(`${where}: ARG ZLIB_VERSION z dokładną wersją`);
+    if (!/^ARG LIBZSTD_VERSION=[0-9][0-9a-z.+~-]+$/m.test(code)) problems.push(`${where}: ARG LIBZSTD_VERSION z dokładną wersją (EVM-153)`);
     if (!code.includes('test -n "${FFMPEG_VERSION}"')) problems.push(`${where}: test -n "\${FFMPEG_VERSION}"`);
     const runtime = code.slice(code.lastIndexOf('AS runtime'));
     const removal =

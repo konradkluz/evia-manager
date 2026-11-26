@@ -2,7 +2,7 @@
 # Browsers and their system libraries come from the official Playwright image (version = @playwright/test in
 # apps/web/package.json); Node.js comes from the same image as backend-tests (engines: >=26 <27). Both by tag + digest
 # (Renovate). Nothing else is downloaded except the exact pnpm. Never used on staging or production.
-FROM node:26.10.0-trixie-slim@sha256:ec7758ee051e457b468b32bde57b0879010b325bb9862718e9615225ce4aaae1 AS node
+FROM node:26.10.0-trixie-slim@sha256:930557a230abacbc3f4fd9b8648abf8f4bee1e17cb72195dcdfb2f709bc85b33 AS node
 
 FROM mcr.microsoft.com/playwright:v1.63.0-noble@sha256:eff16c30e6f3f4af0a03fa4b706120d5e9b0891c344a27d64559aff5900a4a27
 

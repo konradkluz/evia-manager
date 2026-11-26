@@ -4,10 +4,13 @@
 # Built in CI (job publish-infra of .github/workflows/ci.yml, EVM-124) natively for linux/arm64, scanned, attested and pushed to GHCR (private); the
 # entry in infra-images.json "builtImages" has no digest - it comes from the CI record and the attestation, verified in the IaC session (compose.infra.yaml
 # switches to this image there, EVM-084).
-FROM postgres:18.6-trixie@sha256:e3d24f6906d0760bf4da0dae872415391ededefad23fd471c47dc53b0ddf3c42
+FROM postgres:18.7-trixie@sha256:c699303802144847d238196173655dbbecf7a96aeca1565f2b02eb671a1f0b6b
 
+# libzstd1 and zstd (CVE-2026-124851, High, EVM-153): the Debian fix (trixie-security, 2026-11-24) is in no official base image yet (checked 2026-11-26: postgres
+# 18.7 and 19.0, debian:trixie-slim), so the fixed versions are installed with pgBackRest at an exact version (no `apt upgrade`; the build fails when Debian
+# replaces them). Drop them when the base carries the fix.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends pgbackrest=2.60.0-1.pgdg13+1 \
+ && apt-get install -y --no-install-recommends pgbackrest=2.60.0-1.pgdg13+1 libzstd1=1.5.7+dfsg-1+deb13u1 zstd=1.5.7+dfsg-1+deb13u1 \
  && rm -rf /var/lib/apt/lists/* \
  && install -d -m 0755 /etc/pgbackrest
 

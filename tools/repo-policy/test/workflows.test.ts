@@ -179,6 +179,7 @@ describe('ci.yml (EVM-006 AC4; A2, W3c, W6)', () => {
       'mobile-apk',
       'security',
       'coverage',
+      'images-scan',
       'ci-gate',
       'publish',
       'publish-infra',

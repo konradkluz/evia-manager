@@ -4,7 +4,7 @@
 # Runtime: distroless Node.js 26, non-root, no shell. Same build rules as the release images, including the platform:
 # build with --platform linux/arm64 (Arm64 VM) — the build stage runs on $BUILDPLATFORM and installs the dependencies of
 # the target CPU, the runtime stage only copies files (natively on the VM or cross-built elsewhere, no emulation).
-FROM --platform=$BUILDPLATFORM node:26.10.0-trixie-slim@sha256:ec7758ee051e457b468b32bde57b0879010b325bb9862718e9615225ce4aaae1 AS build
+FROM --platform=$BUILDPLATFORM node:26.10.0-trixie-slim@sha256:930557a230abacbc3f4fd9b8648abf8f4bee1e17cb72195dcdfb2f709bc85b33 AS build
 
 # renovate: datasource=npm depName=pnpm
 ARG PNPM_VERSION=12.8.1
@@ -26,7 +26,7 @@ COPY . .
 RUN case "$TARGETARCH" in arm64) cpu=arm64 ;; amd64) cpu=x64 ;; *) echo "unsupported TARGETARCH $TARGETARCH" >&2; exit 1 ;; esac \
  && pnpm install --frozen-lockfile --ignore-scripts --prod --os=linux --cpu="$cpu" --libc=glibc --filter "@evia/deploy-agent"
 
-FROM gcr.io/distroless/nodejs26-debian13:nonroot@sha256:767ffb7e2ffa9f4280f1af7b99f7f0a1cafb79d0dcc0e0d3aba43843748008a5 AS runtime
+FROM gcr.io/distroless/nodejs26-debian13:nonroot@sha256:a84242e747fbb5aaaa0180c273b6f7130ca34b3300082192ef58eea96089eb3c AS runtime
 
 WORKDIR /app
 COPY --from=build /app/node_modules ./node_modules
