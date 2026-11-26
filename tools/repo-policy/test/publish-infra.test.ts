@@ -318,6 +318,8 @@ describe('the Dockerfiles of the infrastructure images (EVM-124 AC2; K5, K6)', (
     expect(bad('media-processor', media, 'ARG FFMPEG_VERSION=7:7.1.5-0+deb13u1', 'ARG FFMPEG_VERSION=7:7.1.*')).not.toEqual([]);
     expect(bad('media-processor', media, 'ARG FFMPEG_VERSION=7:7.1.5-0+deb13u1', 'ARG FFMPEG_VERSION=>=7:7.1')).not.toEqual([]);
     expect(bad('media-processor', media, 'ARG ZLIB_VERSION=', 'ARG ZLIB_OTHER=')).not.toEqual([]);
+    // EVM-153 AC1: the libzstd1 fix at an exact version
+    expect(bad('media-processor', media, 'ARG LIBZSTD_VERSION=', 'ARG LIBZSTD_OTHER=')).not.toEqual([]);
     expect(bad('media-processor', media, 'test -n "${FFMPEG_VERSION}"', 'true')).not.toEqual([]);
     expect(bad('media-processor', media, 'apt-get update', 'apt-get update && apt-get upgrade -y')).not.toEqual([]);
     expect(bad('media-processor', media, 'apt-get update', 'apt-get update --allow-unauthenticated')).not.toEqual([]);
@@ -346,7 +348,7 @@ describe('the Dockerfiles of the infrastructure images (EVM-124 AC2; K5, K6)', (
   it('EVM-124 AC2: the bases are by digest and the processor shares the digest of the API image (one base, one place for Renovate)', () => {
     const api = read('infra/images/api/Dockerfile');
     for (const digest of media.match(/sha256:[0-9a-f]{64}/g) ?? []) expect(api).toContain(digest);
-    expect(pgbackrest).toMatch(/^FROM postgres:18\.6-trixie@sha256:[0-9a-f]{64}$/m);
+    expect(pgbackrest).toMatch(/^FROM postgres:18.7-trixie@sha256:[0-9a-f]{64}$/m);
     expect(media.match(/^FROM .*node:26\.\d+\.\d+-trixie-slim@sha256:[0-9a-f]{64}/gm)).toHaveLength(2);
   });
 });

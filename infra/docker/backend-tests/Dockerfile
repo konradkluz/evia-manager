@@ -1,7 +1,7 @@
 # Dev and CI only (ADR-0015, ADR-0016; EVM-006): Linux environment for backend tests. Never used on staging or production.
 # Reproducible: base image by tag + digest (updated by Renovate with a cooldown), pnpm in the exact version from
 # package.json "packageManager", install scripts disabled. Nothing else is downloaded (no apt-get) — tested by tools/repo-policy.
-FROM node:26.10.0-trixie-slim@sha256:ec7758ee051e457b468b32bde57b0879010b325bb9862718e9615225ce4aaae1
+FROM node:26.10.0-trixie-slim@sha256:930557a230abacbc3f4fd9b8648abf8f4bee1e17cb72195dcdfb2f709bc85b33
 
 # renovate: datasource=npm depName=pnpm
 ARG PNPM_VERSION=12.8.1

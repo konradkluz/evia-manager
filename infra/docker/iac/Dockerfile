@@ -4,7 +4,7 @@
 #   evia-iac       — init | plan | apply | output of bootstrap or staging (iac in compose.iac.yaml; IaC session only)
 FROM ghcr.io/opentofu/opentofu:1.13.1-minimal@sha256:dfbc3f0a8bed0adfa2cf49ff418f158afe24080eea6d6e748db8799fc4553db6 AS tofu
 
-FROM node:26.10.0-trixie-slim@sha256:ec7758ee051e457b468b32bde57b0879010b325bb9862718e9615225ce4aaae1
+FROM node:26.10.0-trixie-slim@sha256:930557a230abacbc3f4fd9b8648abf8f4bee1e17cb72195dcdfb2f709bc85b33
 
 COPY --from=tofu /usr/local/bin/tofu /usr/local/bin/tofu
 # CA bundle for the registry (the slim base has none); the minimal OpenTofu image is scratch-based.

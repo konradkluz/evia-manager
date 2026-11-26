@@ -10,7 +10,7 @@
 # ffmpeg in Debian is GPL (libx264); the image is public (GHCR, ADR-0022 point 3), so the licence notice and the written source offer are in infra/images/README.md
 # (the image points to it with the documentation label). It is an OS package, so the library licence scan (`--pkg-types library`) does not see it and no
 # `.trivyignore.yaml` entry is needed; exception noted 2026-10-31 (SR-SUPPLY-06, as libvips in EVM-068).
-FROM --platform=$BUILDPLATFORM node:26.13.1-trixie-slim@sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc AS pnpm
+FROM --platform=$BUILDPLATFORM node:26.13.1-trixie-slim@sha256:abe7e5a82b61a8ef67b315b85497c9e65173387ccf2f4a029248184b8e020be5 AS pnpm
 
 # renovate: datasource=npm depName=pnpm
 ARG PNPM_VERSION=12.8.1
@@ -41,7 +41,7 @@ RUN --mount=type=bind,source=.,target=/context \
     done \
  && pnpm install --frozen-lockfile --ignore-scripts --prod --os=linux --cpu="$cpu" --libc=glibc --filter "@evia/media-processor..."
 
-FROM node:26.13.1-trixie-slim@sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc AS runtime
+FROM node:26.13.1-trixie-slim@sha256:abe7e5a82b61a8ef67b315b85497c9e65173387ccf2f4a029248184b8e020be5 AS runtime
 
 # renovate: datasource=deb depName=ffmpeg
 # The exact Debian package version (trixie-security), the default because CI passes no --build-arg (EVM-124). When Debian replaces the package the build
@@ -50,9 +50,12 @@ ARG FFMPEG_VERSION=7:7.1.5-0+deb13u1
 # zlib1g is linked by ffmpeg and parses hostile input; the Debian fix (CVE-2026-76844, CVE-2026-85091) is not yet in the Node base image, so the fixed version is
 # installed together with ffmpeg at an exact version (no `apt upgrade`; fail-closed like ffmpeg). Drop it when the base carries the fix.
 ARG ZLIB_VERSION=1:1.3.dfsg+really1.3.1-1+deb13u1
+# libzstd1 (CVE-2026-124851, High, EVM-153): the Debian fix (trixie-security, 2026-11-24) is in no official base image yet (checked 2026-11-26: node 26.13.1,
+# debian:trixie-slim, postgres 18.7) — installed the same way as zlib1g, at an exact version (an empty value fails the build). Drop it when the base carries the fix.
+ARG LIBZSTD_VERSION=1.5.7+dfsg-1+deb13u1
 RUN test -n "${FFMPEG_VERSION}" && test -n "${ZLIB_VERSION}" \
   && apt-get update \
-  && apt-get install -y --no-install-recommends "ffmpeg=${FFMPEG_VERSION}" "zlib1g=${ZLIB_VERSION}" \
+  && apt-get install -y --no-install-recommends "ffmpeg=${FFMPEG_VERSION}" "zlib1g=${ZLIB_VERSION}" "libzstd1=${LIBZSTD_VERSION}" \
   && rm -rf /var/lib/apt/lists/* \
   && ffmpeg -version | head -n 1 && ffprobe -version | head -n 1
 

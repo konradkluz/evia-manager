@@ -15,7 +15,7 @@
 
 services:
   caddy:
-    image: caddy:2.11.9-alpine@sha256:0bbb055bda6793c999bde78b1b5ce3e89f829fb031af2cf50056ea1246559fee
+    image: caddy:2.11.9-alpine@sha256:003a97808e781aa9f7e75cc2f43d34d461099031faf5e20faefb9f61126836f0
     restart: unless-stopped
     read_only: true
     cap_drop: [ALL]
@@ -42,7 +42,7 @@ services:
       - /etc/evia/caddy:/etc/caddy:ro
 
   postgres:
-    image: postgres:18.6-trixie@sha256:e3d24f6906d0760bf4da0dae872415391ededefad23fd471c47dc53b0ddf3c42
+    image: postgres:18.7-trixie@sha256:c699303802144847d238196173655dbbecf7a96aeca1565f2b02eb671a1f0b6b
     restart: unless-stopped
     user: '999:999'
     read_only: true
@@ -75,7 +75,7 @@ services:
   # form (root + /init) the containers never started (clamd never ran before 2026-11-13). The configuration is a read-only file of the repository (clamav/*.conf,
   # installed in /etc/evia/runtime/clamav by the IaC session); the posture stays: no capabilities, read-only root file system, no-new-privileges.
   clamd:
-    image: clamav/clamav-debian:1.5.4@sha256:76a9c3b63764b78178dc68fa7efcceca0cde2c8c9d4f925a8e697cb4511f8fdc
+    image: clamav/clamav-debian:1.5.5@sha256:85f35b3eee903dbd96c5ca250c5aa13d230d97987c0f876f7d46f001f9414239
     restart: unless-stopped
     user: '10006:10006'
     read_only: true
@@ -98,7 +98,7 @@ services:
       - clamav-scan-tmp:/scan-tmp
 
   freshclam:
-    image: clamav/clamav-debian:1.5.4@sha256:76a9c3b63764b78178dc68fa7efcceca0cde2c8c9d4f925a8e697cb4511f8fdc
+    image: clamav/clamav-debian:1.5.5@sha256:85f35b3eee903dbd96c5ca250c5aa13d230d97987c0f876f7d46f001f9414239
     restart: unless-stopped
     user: '10006:10006'
     read_only: true
